@@ -1,0 +1,106 @@
+{
+  "name": "Equishow Data Sync to Supabase",
+  "nodes": [
+    {
+      "parameters": {
+        "trigger": "every",
+        "unit": "hours",
+        "value": 6
+      },
+      "name": "Schedule Sync",
+      "type": "n8n-nodes-base.cron",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "url": "http://localhost:8081/api/export",
+        "authentication": "none",
+        "method": "GET"
+      },
+      "name": "Fetch Local Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "host": "{{$env.SUPABASE_HOST}}",
+        "user": "postgres",
+        "password": "{{$env.SUPABASE_PASSWORD}}",
+        "database": "postgres",
+        "port": 5432,
+        "ssl": true
+      },
+      "name": "Connect Supabase",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "query": "INSERT INTO chevaux (id, proprietaire_id, nom, type, disciplines) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET updated_at = NOW()",
+        "mode": "executeQueryAll",
+        "queryParamsValues": "={{Object.keys($json.data.chevaux).map(key => $json.data.chevaux[key])}}"
+      },
+      "name": "Sync Chevaux",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [850, 200]
+    },
+    {
+      "parameters": {
+        "query": "INSERT INTO concours (id, nom, date_debut, date_fin, organisateur_id, statut) VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (id) DO UPDATE SET updated_at = NOW()",
+        "mode": "executeQueryAll"
+      },
+      "name": "Sync Concours",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [850, 350]
+    },
+    {
+      "parameters": {
+        "query": "INSERT INTO coach_annonces (id, auteur_id, titre, type, prix_heure) VALUES ($1, $2, $3, $4, $5) ON CONFLICT (id) DO UPDATE SET updated_at = NOW()",
+        "mode": "executeQueryAll"
+      },
+      "name": "Sync Coach Annonces",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.4,
+      "position": [850, 500]
+    },
+    {
+      "parameters": {
+        "message": "✅ Sync complete: {{$json.summary}}"
+      },
+      "name": "Log Success",
+      "type": "n8n-nodes-base.emailSend",
+      "typeVersion": 1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Schedule Sync": {
+      "main": [[{ "node": "Fetch Local Data", "type": "main", "index": 0 }]]
+    },
+    "Fetch Local Data": {
+      "main": [[{ "node": "Connect Supabase", "type": "main", "index": 0 }]]
+    },
+    "Connect Supabase": {
+      "main": [
+        [
+          { "node": "Sync Chevaux", "type": "main", "index": 0 },
+          { "node": "Sync Concours", "type": "main", "index": 0 },
+          { "node": "Sync Coach Annonces", "type": "main", "index": 0 }
+        ]
+      ]
+    },
+    "Sync Chevaux": {
+      "main": [[{ "node": "Log Success", "type": "main", "index": 0 }]]
+    }
+  },
+  "settings": {
+    "saveDataErrorExecution": "all",
+    "saveDataSuccessExecution": "all",
+    "executionOrder": "v1"
+  }
+}
