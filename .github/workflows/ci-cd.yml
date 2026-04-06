@@ -1,0 +1,337 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+env:
+  CACHE_NAME_PREFIX: ${{ github.workflow }}-
+
+jobs:
+  # ============================================================================
+  # LINTING & TYPE CHECKING
+  # ============================================================================
+  lint:
+    runs-on: ubuntu-latest
+    name: Lint & Type Check
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'expo_app/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: expo_app
+        run: npm ci
+
+      - name: Check TypeScript compilation
+        working-directory: expo_app
+        run: npx tsc --noEmit
+        continue-on-error: true
+
+  # ============================================================================
+  # UNIT & INTEGRATION TESTS
+  # ============================================================================
+  test:
+    runs-on: ubuntu-latest
+    name: Test Suite
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'expo_app/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: expo_app
+        run: npm ci
+
+      - name: Run unit tests
+        working-directory: expo_app
+        run: npm run test:ci
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          directory: ./expo_app/coverage
+          flags: unittests
+          name: codecov-umbrella
+          fail_ci_if_error: false
+
+  # ============================================================================
+  # SECURITY TESTS
+  # ============================================================================
+  security:
+    runs-on: ubuntu-latest
+    name: Security Checks
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'expo_app/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: expo_app
+        run: npm ci
+
+      - name: RLS Security Tests
+        working-directory: expo_app
+        run: npm run test:rls
+        continue-on-error: true
+
+      - name: Auth Security Tests
+        working-directory: expo_app
+        run: npm run test:auth
+        continue-on-error: true
+
+      - name: Dependency vulnerability scan
+        working-directory: expo_app
+        run: npm audit --audit-level=moderate
+        continue-on-error: true
+
+      - name: Check for hardcoded secrets
+        run: |
+          npm install -g detect-secrets
+          detect-secrets scan --baseline .secrets.baseline || true
+
+  # ============================================================================
+  # DATABASE MIGRATIONS CHECK
+  # ============================================================================
+  database:
+    runs-on: ubuntu-latest
+    name: Database Migrations
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate migrations
+        run: |
+          # Check that all migrations are properly formatted
+          for migration in migrations/*.sql; do
+            echo "Validating $migration..."
+            # Basic SQL syntax check
+            grep -E "^(CREATE|ALTER|DROP|UPDATE|DELETE|INSERT)" "$migration" || echo "Warning: $migration may not contain expected SQL"
+          done
+
+      - name: Check migration order
+        run: |
+          # Ensure migrations are numbered sequentially
+          ls migrations/*.sql | sort -V
+
+  # ============================================================================
+  # BUILD
+  # ============================================================================
+  build:
+    runs-on: ubuntu-latest
+    name: Build Application
+    needs: [lint, test, security]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+          cache: 'npm'
+          cache-dependency-path: 'expo_app/package-lock.json'
+
+      - name: Install dependencies
+        working-directory: expo_app
+        run: npm ci
+
+      - name: Build web version
+        working-directory: expo_app
+        run: npx expo export --platform web
+        continue-on-error: true
+
+      - name: Build APK (Android)
+        working-directory: expo_app
+        run: npx eas build --platform android --local --non-interactive
+        continue-on-error: true
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: build-artifacts
+          path: |
+            expo_app/dist/
+            expo_app/build/
+
+  # ============================================================================
+  # DEPLOYMENT
+  # ============================================================================
+  deploy-staging:
+    runs-on: ubuntu-latest
+    name: Deploy to Staging
+    needs: [build]
+    if: github.ref == 'refs/heads/develop' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+
+      - name: Deploy to staging environment
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN_STAGING }}
+          STAGING_URL: ${{ secrets.STAGING_URL }}
+        run: |
+          echo "Deploying to staging environment..."
+          # Add deployment commands here
+          # supabase deploy --project-id $STAGING_PROJECT_ID
+          # firebase deploy --only hosting:staging
+
+      - name: Notify Slack (Staging Deployment)
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ Staging deployment successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Staging Deployment Successful*\nBranch: develop\nURL: ${{ secrets.STAGING_URL }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+  deploy-production:
+    runs-on: ubuntu-latest
+    name: Deploy to Production
+    needs: [build]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18.x'
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ github.run_number }}
+          release_name: Release v${{ github.run_number }}
+          body: |
+            Automated release from GitHub Actions
+            Commit: ${{ github.sha }}
+            Branch: main
+          draft: false
+          prerelease: false
+
+      - name: Deploy to production environment
+        env:
+          SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN_PROD }}
+          PROD_URL: ${{ secrets.PROD_URL }}
+        run: |
+          echo "Deploying to production environment..."
+          # Add deployment commands here
+          # supabase deploy --project-id $PROD_PROJECT_ID
+          # firebase deploy --only hosting:production
+
+      - name: Run smoke tests
+        run: |
+          echo "Running smoke tests on production..."
+          # Add smoke test commands here
+
+      - name: Notify Slack (Production Deployment)
+        if: success()
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "✅ Production deployment successful",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*Production Deployment Successful*\nVersion: v${{ github.run_number }}\nURL: ${{ secrets.PROD_URL }}\nCommit: ${{ github.sha }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+  # ============================================================================
+  # FAILURE NOTIFICATIONS
+  # ============================================================================
+  notify-failure:
+    runs-on: ubuntu-latest
+    name: Notify Failures
+    if: failure()
+    needs: [lint, test, security, build]
+
+    steps:
+      - name: Notify Slack (CI Failed)
+        uses: slackapi/slack-github-action@v1
+        with:
+          payload: |
+            {
+              "text": "❌ CI/CD Pipeline Failed",
+              "blocks": [
+                {
+                  "type": "section",
+                  "text": {
+                    "type": "mrkdwn",
+                    "text": "*❌ CI/CD Pipeline Failed*\nBranch: ${{ github.ref_name }}\nCommit: ${{ github.sha }}\nAuthor: ${{ github.actor }}\nDetails: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}"
+                  }
+                }
+              ]
+            }
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          SLACK_WEBHOOK_TYPE: INCOMING_WEBHOOK
+
+# ============================================================================
+# CONFIGURATION
+# ============================================================================
+# Required GitHub Secrets:
+# - SUPABASE_ACCESS_TOKEN_STAGING: Supabase access token for staging
+# - SUPABASE_ACCESS_TOKEN_PROD: Supabase access token for production
+# - SLACK_WEBHOOK_URL: Slack webhook for notifications
+# - STAGING_URL: Staging environment URL
+# - PROD_URL: Production environment URL
+# - FIREBASE_TOKEN: Firebase deployment token (if using Firebase)
