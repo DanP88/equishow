@@ -63,17 +63,24 @@ export default function ReserverBoxScreen() {
       return;
     }
 
+    console.log('🟢 Box submit called');
     setLoading(true);
     try {
       const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
       const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
+      console.log('🔑 Checking Supabase config:', { URL: !!SUPABASE_URL, KEY: !!SUPABASE_ANON_KEY });
+
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        console.log('❌ Supabase config missing!');
         Alert.alert('Erreur', 'Variables Supabase non configurées');
+        setLoading(false);
         return;
       }
 
+      console.log('🔌 Creating Supabase client');
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      console.log('✅ Supabase client created');
       const authToken = await getAuthToken();
       if (!authToken) {
         Alert.alert('Erreur', 'Non authentifié');
@@ -135,8 +142,10 @@ export default function ReserverBoxScreen() {
       await Linking.openURL(checkoutData.checkoutUrl);
       setShowConfirmation(true);
     } catch (error) {
-      console.error('Erreur:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue');
+      console.error('❌ Box submit error:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log('Error details:', errorMsg);
+      Alert.alert('Erreur', `Une erreur est survenue: ${errorMsg}`);
     } finally {
       setLoading(false);
     }

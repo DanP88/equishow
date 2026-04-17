@@ -1,49 +1,249 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert,
+  TextInput, Alert, Modal, Linking,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { mockCoachs } from '../data/mockServices';
-import { prixTTC } from '../types/service';
-import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
+import { coachAnnoncesStore, userStore, courseDemandesStore, notificationsStore } from '../data/store';
+import { CoachAnnonce, CourseDemande } from '../types/service';
+import { useCommission } from '../hooks/useCommissions';
+import { Notification } from '../types/notification';
+import { getAuthToken } from '../utils/supabaseAuth';
+import { createClient } from '@supabase/supabase-js';
 
-const CRENEAUX = ['7h00', '7h30', '8h00', '8h30', '9h00', '9h30', '10h00', '10h30',
-  '11h00', '11h30', '14h00', '14h30', '15h00', '15h30', '16h00', '16h30'];
+const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
 
-const DUREES = ['30 min', '1h', '1h30', '2h'];
+// Générer les dates disponibles entre dateDebut et dateFin
+function generateDatesInRange(startDate: Date, endDate: Date): Date[] {
+  const dates: Date[] = [];
+  const current = new Date(startDate);
+  while (current <= endDate) {
+    dates.push(new Date(current));
+    current.setDate(current.getDate() + 1);
+  }
+  return dates;
+}
 
 export default function ReserverCoachScreen() {
-  const { coachId } = useLocalSearchParams<{ coachId: string }>();
-  const coach = mockCoachs.find((c) => c.id === coachId) ?? mockCoachs[0];
+  const { annonceId } = useLocalSearchParams<{ annonceId: string }>();
+  const annonce = coachAnnoncesStore.list.find((a) => a.id === annonceId);
+  const commissionCours = useCommission('cours');
 
-  const [date, setDate] = useState<Date | undefined>();
-  const [creneau, setCreneau] = useState('');
-  const [duree, setDuree] = useState('1h');
-  const [cheval, setCheval] = useState('');
-  const [discipline, setDiscipline] = useState(coach.disciplines[0] ?? '');
-  const [message, setMessage] = useState('');
-  const [showDate, setShowDate] = useState(false);
-
-  const nbHeures = duree === '30 min' ? 0.5 : duree === '1h' ? 1 : duree === '1h30' ? 1.5 : 2;
-  const prixHT = Math.round(coach.tarifHeure * nbHeures);
-  const prixTtc = prixTTC(prixHT);
-
-  function submit() {
-    if (!date || !creneau || !cheval) {
-      Alert.alert('Champs manquants', 'Veuillez sélectionner une date, un créneau et indiquer le cheval.');
-      return;
-    }
-    Alert.alert(
-      'Demande envoyée ! 🎓',
-      `Votre demande de coaching a été envoyée à ${coach.prenom} ${coach.nom}.\n\n📅 ${formatDate(date)} à ${creneau}\n⏱ ${duree}\n🐴 ${cheval}\n\n💳 Montant : ${prixTtc}€ TTC\n\nVous serez notifié dès confirmation. Le paiement sera prélevé à la confirmation.`,
-      [
-        { text: 'Messagerie', onPress: () => { router.back(); router.push('/messagerie'); } },
-        { text: 'OK', onPress: () => router.back() },
-      ],
+  if (!annonce) {
+    return (
+      <SafeAreaView style={s.root}>
+        <View style={s.errorContainer}>
+          <Text style={s.errorText}>Annonce non trouvée</Text>
+          <TouchableOpacity style={s.backBtn2} onPress={() => router.back()}>
+            <Text style={s.backText}>Retour</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
     );
+  }
+
+  // Disciplines disponibles: celles de l'annonce
+  const disciplinesDisponibles = [annonce.discipline];
+
+  // Dates disponibles du concours
+  const datesDisponibles = generateDatesInRange(annonce.dateDebut, annonce.dateFin);
+
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  const [discipline, setDiscipline] = useState(annonce.discipline);
+  const [niveau, setNiveau] = useState(annonce.niveau);
+  const [cheval, setCheval] = useState('');
+  const [message, setMessage] = useState('');
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  // Nombre de jours sélectionnés
+  const nbJours = selectedDates.length;
+
+  // Calcul du prix: prix par jour TTC × nombre de jours + commission plateforme
+  const prixParJourTTC = Math.round(annonce.prixHeure * 100) / 100;
+  const prixTotalHT = prixParJourTTC * nbJours;
+  const commissionPlateforme = Math.round(prixTotalHT * commissionCours * 100) / 100;
+  const prixTTCTotal = Math.round((prixTotalHT + commissionPlateforme) * 100) / 100;
+
+  // Toggle date selection
+  const toggleDateSelection = (d: Date) => {
+    const dateStr = d.toDateString();
+    const isSelected = selectedDates.some(sd => sd.toDateString() === dateStr);
+    if (isSelected) {
+      setSelectedDates(selectedDates.filter(sd => sd.toDateString() !== dateStr));
+    } else {
+      setSelectedDates([...selectedDates, d]);
+    }
+  };
+
+  async function submit() {
+    try {
+      console.log('🟢 Submit called');
+
+      // Validation des champs obligatoires
+      console.log('📋 Validating fields:', { discipline, niveau, selectedDates: selectedDates.length, cheval });
+      const champsManquants = [];
+      if (!discipline) champsManquants.push('• Discipline');
+      if (!niveau) champsManquants.push('• Votre niveau');
+      if (selectedDates.length === 0) champsManquants.push('• Au moins une date');
+      if (!cheval.trim()) champsManquants.push('• Cheval / Poney');
+
+      if (champsManquants.length > 0) {
+        console.log('❌ Missing fields:', champsManquants);
+        Alert.alert(
+          'Champs manquants',
+          'Veuillez remplir les champs obligatoires:\n\n' + champsManquants.join('\n')
+        );
+        return;
+      }
+
+      console.log('✅ All fields validated');
+      setLoading(true);
+
+      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+
+      console.log('🔑 Environment:', { SUPABASE_URL: !!SUPABASE_URL, SUPABASE_ANON_KEY: !!SUPABASE_ANON_KEY });
+
+      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
+        console.log('❌ Supabase config missing');
+        Alert.alert('Erreur', 'Variables Supabase non configurées');
+        setLoading(false);
+        return;
+      }
+
+      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+      const authToken = await getAuthToken();
+      if (!authToken) {
+        Alert.alert('Erreur', 'Non authentifié');
+        return;
+      }
+
+      // Trier les dates sélectionnées
+      const sortedDates = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+      const dateDebut = sortedDates[0];
+      const dateFin = sortedDates[sortedDates.length - 1];
+
+      // 1. Créer la demande de cours en BD
+      const { data: demand, error: demandError } = await supabase
+        .from('course_demands')
+        .insert({
+          annonce_id: annonce.id,
+          coach_id: annonce.auteurId,
+          cavalier_id: userStore.id,
+          title: annonce.titre,
+          discipline,
+          level: niveau,
+          horse_name: cheval.trim(),
+          message: message.trim(),
+          date_debut: dateDebut.toISOString().split('T')[0],
+          date_fin: dateFin.toISOString().split('T')[0],
+          nb_jours: nbJours,
+          price_per_day_ttc: Math.round(prixParJourTTC * 100),
+          total_amount_ht: Math.round(prixTotalHT * 100),
+          platform_commission: Math.round(commissionPlateforme * 100),
+          total_amount_ttc: Math.round(prixTTCTotal * 100),
+          status: 'pending',
+        })
+        .select('id')
+        .single();
+
+      if (demandError || !demand) {
+        Alert.alert('Erreur', 'Impossible de créer la demande');
+        return;
+      }
+
+      // 2. Appeler create-checkout-session
+      const checkoutResponse = await fetch(
+        `${SUPABASE_URL}/functions/v1/create-checkout-session`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${authToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            demandId: demand.id,
+            type: 'course',
+          }),
+        }
+      );
+
+      const checkoutData = await checkoutResponse.json();
+      if (!checkoutData.checkoutUrl) {
+        Alert.alert('Erreur', 'Impossible de créer la session de paiement');
+        return;
+      }
+
+      // 3. Ouvrir le navigateur pour le paiement Stripe
+      await Linking.openURL(checkoutData.checkoutUrl);
+
+      // 4. Ajouter aussi au store local pour compatibilité
+      const nouvelleDemande: CourseDemande = {
+        id: demand.id,
+        annonceId: annonce.id,
+        annonceTitre: annonce.titre,
+        concoursNom: annonce.concours,
+        coachId: annonce.auteurId,
+        coachNom: annonce.auteurNom,
+        cavalierNom: userStore.nom,
+        cavalierPseudo: userStore.pseudo,
+        cavalierInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+        cavalierCouleur: userStore.avatarColor,
+        cavalierUserId: userStore.id,
+        discipline,
+        niveau,
+        dateDebut,
+        dateFin,
+        nbJours,
+        cheval: cheval.trim(),
+        message: message.trim(),
+        prixParJour: prixParJourTTC,
+        prix: prixTTCTotal,
+        statut: 'pending' as const,
+        dateCreation: new Date(),
+      };
+
+      courseDemandesStore.list = [nouvelleDemande, ...courseDemandesStore.list];
+
+      // 5. Créer notification
+      const notification: Notification = {
+        id: `notif_${Date.now()}`,
+        destinataireId: annonce.auteurId,
+        type: 'course_request',
+        titre: `🎓 Nouvelle demande de cours`,
+        message: `${userStore.prenom} ${userStore.nom} demande une séance pour "${annonce.titre}"`,
+        status: 'pending',
+        lu: false,
+        dateCreation: new Date(),
+        actionUrl: '/(tabs)/coach-demandes',
+        auteurId: userStore.id,
+        auteurNom: userStore.nom,
+        auteurPseudo: userStore.pseudo,
+        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+        auteurCouleur: userStore.avatarColor,
+        donnees: {
+          annonceId: annonce.id,
+          annonceTitre: annonce.titre,
+          concoursNom: annonce.concours,
+          prix: prixTTCTotal,
+          message: message.trim(),
+        },
+      };
+
+      notificationsStore.list = [notification, ...notificationsStore.list];
+
+      setShowConfirmation(true);
+    } catch (error) {
+      console.error('❌ Error in submit:', error);
+      const errorMsg = error instanceof Error ? error.message : String(error);
+      console.log('Error details:', errorMsg);
+      Alert.alert('Erreur', `Une erreur est survenue: ${errorMsg}`);
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -57,18 +257,20 @@ export default function ReserverCoachScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
-        {/* Coach card */}
+        {/* Annonce card */}
         <View style={s.coachCard}>
-          <View style={[s.coachAvatar, { backgroundColor: coach.couleur }]}>
-            <Text style={s.coachInitiales}>{coach.initiales}</Text>
+          <View style={[s.coachAvatar, { backgroundColor: annonce.auteurCouleur }]}>
+            <Text style={s.coachInitiales}>{annonce.auteurInitiales}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.coachName}>{coach.prenom} {coach.nom}</Text>
-            <Text style={s.coachPseudo}>@{coach.pseudo}</Text>
-            <Text style={s.coachDisc}>{coach.disciplines.join(' · ')} · {coach.region}</Text>
+            <Text style={s.coachName}>{annonce.titre}</Text>
+            <Text style={s.coachPseudo}>par @{annonce.auteurPseudo}</Text>
+            {annonce.concours && (
+              <Text style={s.coachDisc}>🏆 {annonce.concours}</Text>
+            )}
           </View>
           <View style={s.tarifBadge}>
-            <Text style={s.tarifText}>{coach.tarifHeure}€/h HT</Text>
+            <Text style={s.tarifText}>{annonce.prixHeure}€/h HT</Text>
           </View>
         </View>
 
@@ -76,7 +278,7 @@ export default function ReserverCoachScreen() {
         <View style={s.field}>
           <Text style={s.fieldLabel}>Discipline</Text>
           <View style={s.row}>
-            {coach.disciplines.map((d) => (
+            {disciplinesDisponibles.map((d) => (
               <TouchableOpacity key={d} style={[s.chip, discipline === d && s.chipActive]} onPress={() => setDiscipline(d)}>
                 <Text style={[s.chipText, discipline === d && s.chipTextActive]}>{d}</Text>
               </TouchableOpacity>
@@ -84,34 +286,42 @@ export default function ReserverCoachScreen() {
           </View>
         </View>
 
-        {/* Date */}
+        {/* Niveau */}
         <View style={s.field}>
-          <Text style={s.fieldLabel}>Date de la séance *</Text>
-          <DateButton label="Sélectionner une date" value={date} onPress={() => setShowDate(true)} />
-        </View>
-
-        {/* Créneau */}
-        <View style={s.field}>
-          <Text style={s.fieldLabel}>Heure de début *</Text>
-          <View style={s.creneauGrid}>
-            {CRENEAUX.map((c) => (
-              <TouchableOpacity key={c} style={[s.creneauBtn, creneau === c && s.creneauBtnActive]} onPress={() => setCreneau(c)}>
-                <Text style={[s.creneauText, creneau === c && s.creneauTextActive]}>{c}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        </View>
-
-        {/* Durée */}
-        <View style={s.field}>
-          <Text style={s.fieldLabel}>Durée</Text>
+          <Text style={s.fieldLabel}>Votre niveau *</Text>
           <View style={s.row}>
-            {DUREES.map((d) => (
-              <TouchableOpacity key={d} style={[s.chip, duree === d && s.chipActive]} onPress={() => setDuree(d)}>
-                <Text style={[s.chipText, duree === d && s.chipTextActive]}>{d}</Text>
+            {NIVEAUX.map((n) => (
+              <TouchableOpacity key={n} style={[s.chip, niveau === n && s.chipActive]} onPress={() => setNiveau(n)}>
+                <Text style={[s.chipText, niveau === n && s.chipTextActive]}>{n}</Text>
               </TouchableOpacity>
             ))}
           </View>
+        </View>
+
+        {/* Dates */}
+        <View style={s.field}>
+          <Text style={s.fieldLabel}>Dates de la séance * ({nbJours} jour{nbJours > 1 ? 's' : ''})</Text>
+          <View style={s.datesGrid}>
+            {datesDisponibles.map((d) => {
+              const isSelected = selectedDates.some(sd => sd.toDateString() === d.toDateString());
+              return (
+                <TouchableOpacity
+                  key={d.toISOString()}
+                  style={[s.dateChip, isSelected && s.dateChipActive]}
+                  onPress={() => toggleDateSelection(d)}
+                >
+                  <Text style={[s.dateChipText, isSelected && s.dateChipTextActive]}>
+                    {d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                  </Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
+          {nbJours > 0 && (
+            <Text style={s.selectedDatesInfo}>
+              {nbJours} jour{nbJours > 1 ? 's' : ''} sélectionné{nbJours > 1 ? 's' : ''}
+            </Text>
+          )}
         </View>
 
         {/* Cheval */}
@@ -141,44 +351,108 @@ export default function ReserverCoachScreen() {
         </View>
 
         {/* Prix récap */}
-        <View style={s.prixCard}>
-          <View style={s.prixRow}>
-            <Text style={s.prixLabel}>Durée sélectionnée</Text>
-            <Text style={s.prixVal}>{duree}</Text>
+        {nbJours > 0 && (
+          <View style={s.prixCard}>
+            <View style={s.prixRow}>
+              <Text style={s.prixLabel}>{prixParJourTTC}€ × {nbJours} jour{nbJours > 1 ? 's' : ''}</Text>
+              <Text style={s.prixVal}>{prixTotalHT}€</Text>
+            </View>
+            <View style={s.prixRow}>
+              <Text style={s.prixLabel}>Commission plateforme ({Math.round(commissionCours * 100)}%)</Text>
+              <Text style={s.prixVal}>{commissionPlateforme}€</Text>
+            </View>
+            <View style={[s.prixRow, s.prixTotal]}>
+              <Text style={s.prixTotalLabel}>Total TTC</Text>
+              <Text style={s.prixTotalVal}>{prixTTCTotal}€</Text>
+            </View>
+            <Text style={s.prixNote}>💳 Paiement prélevé à la confirmation du coach</Text>
           </View>
-          <View style={s.prixRow}>
-            <Text style={s.prixLabel}>Tarif coach</Text>
-            <Text style={s.prixVal}>{coach.tarifHeure}€/h HT</Text>
-          </View>
-          <View style={s.prixRow}>
-            <Text style={s.prixLabel}>Sous-total HT</Text>
-            <Text style={s.prixVal}>{prixHT}€</Text>
-          </View>
-          <View style={s.prixRow}>
-            <Text style={s.prixLabel}>Commission plateforme (9%)</Text>
-            <Text style={s.prixVal}>{Math.round(prixHT * 0.09)}€</Text>
-          </View>
-          <View style={[s.prixRow, s.prixTotal]}>
-            <Text style={s.prixTotalLabel}>Total TTC</Text>
-            <Text style={s.prixTotalVal}>{prixTtc}€</Text>
-          </View>
-          <Text style={s.prixNote}>💳 Paiement prélevé via Stripe à la confirmation du coach</Text>
-        </View>
+        )}
 
-        <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>
-          <Text style={s.submitText}>Envoyer la demande</Text>
+        <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85} disabled={loading}>
+          <Text style={s.submitText}>{loading ? '⏳ Paiement...' : '✓ Réserver & Payer'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      <DatePickerModal visible={showDate} value={date} onConfirm={setDate} onClose={() => setShowDate(false)} title="Date de la séance" />
+
+      {/* Modal de confirmation */}
+      <Modal visible={showConfirmation} transparent animationType="fade">
+        <View style={s.confirmationBackdrop}>
+          <View style={s.confirmationCard}>
+            {/* Icône de succès */}
+            <Text style={s.confirmationIcon}>✅</Text>
+
+            {/* Titre */}
+            <Text style={s.confirmationTitle}>Demande envoyée !</Text>
+
+            {/* Message */}
+            <Text style={s.confirmationMessage}>
+              Le coach prendra connaissance de votre demande rapidement
+            </Text>
+
+            {/* Détails */}
+            <View style={s.confirmationDetails}>
+              <View style={s.detailRow}>
+                <Text style={s.detailIcon}>🎓</Text>
+                <Text style={s.detailText}>{annonce.titre}</Text>
+              </View>
+              {selectedDates.length > 0 && (() => {
+                const sorted = [...selectedDates].sort((a, b) => a.getTime() - b.getTime());
+                const firstDate = sorted[0].toLocaleDateString('fr-FR');
+                const lastDate = sorted[sorted.length - 1].toLocaleDateString('fr-FR');
+                return (
+                  <View style={s.detailRow}>
+                    <Text style={s.detailIcon}>📅</Text>
+                    <Text style={s.detailText}>
+                      {selectedDates.length === 1
+                        ? firstDate
+                        : `${firstDate} → ${lastDate} (${nbJours} jours)`
+                      }
+                    </Text>
+                  </View>
+                );
+              })()}
+              <View style={s.detailRow}>
+                <Text style={s.detailIcon}>🎯</Text>
+                <Text style={s.detailText}>{discipline} · {niveau}</Text>
+              </View>
+              <View style={s.detailRow}>
+                <Text style={s.detailIcon}>🐴</Text>
+                <Text style={s.detailText}>{cheval}</Text>
+              </View>
+              <View style={s.detailRow}>
+                <Text style={s.detailIcon}>💳</Text>
+                <Text style={s.detailText}>{prixTTCTotal}€ TTC</Text>
+              </View>
+            </View>
+
+            {/* Boutons */}
+            <View style={s.confirmationButtons}>
+              <TouchableOpacity
+                style={s.confirmationBtn}
+                onPress={() => {
+                  setShowConfirmation(false);
+                  router.push('/(tabs)/services?tab=coach' as any);
+                }}
+              >
+                <Text style={s.confirmationBtnText}>Retour aux annonces</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
+  errorContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', gap: Spacing.lg },
+  errorText: { fontSize: FontSize.lg, color: Colors.textSecondary },
+  backBtn2: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', minWidth: 120 },
+  backText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
   header: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 24, color: Colors.textPrimary, lineHeight: 28 },
@@ -199,6 +473,12 @@ const s = StyleSheet.create({
   chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   chipText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   chipTextActive: { color: Colors.textInverse },
+  datesGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+  dateChip: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  dateChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  dateChipText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  dateChipTextActive: { color: Colors.textInverse },
+  selectedDatesInfo: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold, marginTop: Spacing.xs },
   creneauGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   creneauBtn: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, minWidth: 64, alignItems: 'center' },
   creneauBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
@@ -217,4 +497,16 @@ const s = StyleSheet.create({
   prixNote: { fontSize: FontSize.xs, color: Colors.textTertiary, textAlign: 'center' },
   submitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', ...Shadow.fab },
   submitText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
+  confirmationBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  confirmationCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xl, alignItems: 'center', marginHorizontal: Spacing.lg, ...Shadow.card },
+  confirmationIcon: { fontSize: 64, marginBottom: Spacing.lg },
+  confirmationTitle: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
+  confirmationMessage: { fontSize: FontSize.base, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.lg },
+  confirmationDetails: { width: '100%', backgroundColor: Colors.background, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg, gap: Spacing.sm },
+  detailRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  detailIcon: { fontSize: 18, width: 28 },
+  detailText: { fontSize: FontSize.sm, color: Colors.textPrimary, flex: 1 },
+  confirmationButtons: { width: '100%', gap: Spacing.md },
+  confirmationBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center' },
+  confirmationBtnText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
 });
