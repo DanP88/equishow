@@ -1,9 +1,9 @@
-import React from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
-import { useRouter, usePathname } from 'expo-router';
+import { useRouter, usePathname, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { useUserRole } from '../hooks/useUserRole';
-import { useNotifications } from '../hooks/useNotifications';
+import { notificationsStore, userStore, stageReservationsStore, courseDemandesStore } from '../data/store';
 
 export interface TabConfig {
   name: string;
@@ -12,37 +12,87 @@ export interface TabConfig {
   route: string;
 }
 
-const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur', TabConfig[]> = {
+const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabConfig[]> = {
   cavalier: [
     { name: 'chevaux', label: 'Chevaux', emoji: '🐴', route: '/(tabs)/chevaux' },
     { name: 'concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/concours' },
     { name: 'services', label: 'Services', emoji: '🤝', route: '/(tabs)/services' },
     { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
+    { name: 'notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/notifications' },
     { name: 'profil', label: 'Profil', emoji: '👤', route: '/(tabs)/profil' },
   ],
   coach: [
     { name: 'coach-agenda', label: 'Agenda', emoji: '📅', route: '/(tabs)/coach-agenda' },
     { name: 'coach-concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/coach-concours' },
     { name: 'coach-services', label: 'Services', emoji: '🎓', route: '/(tabs)/coach-services' },
+    { name: 'coach-stages', label: 'Stages', emoji: '📚', route: '/(tabs)/coach-stages' },
+    { name: 'coach-notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/coach-notifications' },
     { name: 'coach-demandes', label: 'Demandes', emoji: '📬', route: '/(tabs)/coach-demandes' },
-    { name: 'comm-coach', label: 'Comm Coach', emoji: '💬', route: '/(tabs)/comm_coach' },
     { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
     { name: 'profil-coach', label: 'Profil', emoji: '👤', route: '/(tabs)/profil-coach' },
   ],
   organisateur: [
     { name: 'org-concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/org-concours' },
     { name: 'org-services', label: 'Services', emoji: '📦', route: '/(tabs)/org-services' },
-    { name: 'comm-org', label: 'Comm Org', emoji: '💬', route: '/(tabs)/comm_org' },
     { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
     { name: 'profil-org', label: 'Profil', emoji: '👤', route: '/(tabs)/profil-org' },
+  ],
+  admin: [
+    { name: 'admin-settings', label: 'Paramètres', emoji: '⚙️', route: '/(tabs)/admin-settings' },
+    { name: 'admin-profil', label: 'Profil', emoji: '👤', route: '/(tabs)/admin-profil' },
   ],
 };
 
 export function CustomBottomBar() {
-  const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur';
+  const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur' | 'admin';
   const router = useRouter();
   const pathname = usePathname();
-  const { unreadCount } = useNotifications();
+  const [notificationCount, setNotificationCount] = useState(0);
+  const [demandCount, setDemandCount] = useState(0);
+
+  // Fonction pour compter les notifications et demandes
+  const updateNotificationCount = useCallback(() => {
+    if (role === 'coach') {
+      // Pour les coachs: notifications non lues (demandes en attente)
+      const coachNotifs = notificationsStore.list.filter(
+        n => (n.userId === userStore.id || n.destinataireId === userStore.id) && !n.lue && !n.lu
+      ).length;
+      setNotificationCount(coachNotifs);
+
+      // Demandes en attente: cours + stages
+      const pendingCourses = courseDemandesStore.list.filter(
+        d => d.coachId === userStore.id && d.statut === 'pending'
+      ).length;
+      const pendingStages = stageReservationsStore.list.filter(
+        r => r.coachId === userStore.id && r.statut === 'pending'
+      ).length;
+      setDemandCount(pendingCourses + pendingStages);
+    } else if (role === 'cavalier') {
+      // Pour les cavaliers: notifications de réservation non lues
+      const cavalierNotifs = notificationsStore.list.filter(
+        n => n.destinataireId === userStore.id && !n.lue && !n.lu
+      ).length;
+      setNotificationCount(cavalierNotifs);
+      setDemandCount(0);
+    }
+  }, [role]);
+
+  // Refresh notifications count quand on revient
+  useFocusEffect(useCallback(() => {
+    updateNotificationCount();
+  }, [updateNotificationCount]));
+
+  // Écouter les changements en temps réel
+  useEffect(() => {
+    // Mettre à jour immédiatement
+    updateNotificationCount();
+
+    const interval = setInterval(() => {
+      updateNotificationCount();
+    }, 300); // Mettre à jour toutes les 300ms
+
+    return () => clearInterval(interval);
+  }, [updateNotificationCount]);
 
   const tabs = TABS_BY_ROLE[role] || TABS_BY_ROLE.cavalier;
 
@@ -50,9 +100,15 @@ export function CustomBottomBar() {
     return pathname === tabRoute || pathname.endsWith('/' + tabRoute.split('/').pop());
   };
 
-  // Show badge only for coach notifications tab
-  const showBadge = (tab: TabConfig) => {
-    return role === 'coach' && tab.name === 'coach-notifications' && unreadCount > 0;
+  // Get badge count for each tab
+  const getBadgeCount = (tab: TabConfig): number => {
+    if (role === 'coach') {
+      if (tab.name === 'coach-notifications') return notificationCount;
+      if (tab.name === 'coach-demandes') return demandCount;
+    } else if (role === 'cavalier') {
+      if (tab.name === 'notifications') return notificationCount;
+    }
+    return 0;
   };
 
   // Get role-specific styles
@@ -85,10 +141,10 @@ export function CustomBottomBar() {
           </TouchableOpacity>
 
           {/* Badge for unread notifications */}
-          {showBadge(tab) && (
+          {getBadgeCount(tab) > 0 && (
             <View style={styles.badge}>
               <Text style={styles.badgeText}>
-                {unreadCount > 9 ? '9+' : unreadCount}
+                {getBadgeCount(tab) > 9 ? '9+' : getBadgeCount(tab)}
               </Text>
             </View>
           )}

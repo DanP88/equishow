@@ -8,7 +8,6 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../../constants/theme';
 import { Cheval, getChevalAge, TypeChevalEmoji } from '../../types/cheval';
 import { chevauxStore, userStore } from '../../data/store';
-import { notificationsStore } from '../../data/notificationsStore';
 
 const AVAILABLE_COACHS = [
   { id: 'coach1', nom: 'Émilie Laurent', emoji: '🎓' },
@@ -43,8 +42,11 @@ export default function ChevauxScreen() {
         { text: 'Annuler', style: 'cancel', onPress: () => setDeletingId(null) },
         {
           text: 'Supprimer', style: 'destructive', onPress: () => {
-            chevauxStore.list = chevauxStore.list.filter((c) => c.id !== id);
-            setChevaux([...chevauxStore.list]);
+            // Mettre à jour l'état EN PREMIER
+            const newChevaux = chevaux.filter((c) => c.id !== id);
+            setChevaux(newChevaux);
+            // Puis mettre à jour le store
+            chevauxStore.list = newChevaux;
             setDeletingId(null);
           },
         },
