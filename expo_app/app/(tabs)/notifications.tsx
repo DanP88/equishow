@@ -40,17 +40,20 @@ export default function NotificationsScreen() {
   }
 
   function handleDelete(notificationId: string) {
+    console.log('🗑️ Delete clicked for notification:', notificationId);
     Alert.alert('Supprimer la notification', 'Êtes-vous sûr(e) ?', [
       { text: 'Annuler', style: 'cancel' },
       {
         text: 'Supprimer',
         style: 'destructive',
         onPress: () => {
+          console.log('✅ Confirmed delete for:', notificationId);
           // Mettre à jour l'état EN PREMIER
           const newNotifications = notifications.filter((n) => n.id !== notificationId);
           setNotifications(newNotifications);
           // Puis mettre à jour le store global
           notificationsStore.list = notificationsStore.list.filter((n) => n.id !== notificationId);
+          console.log('✅ Notification deleted');
         },
       },
     ]);
