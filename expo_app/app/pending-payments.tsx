@@ -6,8 +6,9 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { courseDemandesStore, userStore } from '../data/store';
+import { courseDemandesStore, userStore, notificationsStore } from '../data/store';
 import { CourseDemande } from '../types/service';
+import { Notification } from '../types/notification';
 import { createClient } from '@supabase/supabase-js';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -71,6 +72,28 @@ export default function PendingPaymentsScreen() {
       // Marquer comme en attente de paiement
       demand.statut = 'awaiting_payment';
       courseDemandesStore.list = [...courseDemandesStore.list];
+
+      // Envoyer notification au coach que le cavalier va payer
+      const paymentNotif: Notification = {
+        id: `notif_${Date.now()}`,
+        destinataireId: demand.coachId,
+        type: 'course_request',
+        titre: '💳 Paiement en cours',
+        message: `${userStore.nom} procède au paiement pour "${demand.annonceTitre}"`,
+        status: 'pending',
+        lu: false,
+        dateCreation: new Date(),
+        auteurId: userStore.id,
+        auteurNom: userStore.nom,
+        auteurPseudo: userStore.pseudo,
+        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+        auteurCouleur: userStore.avatarColor,
+        donnees: {
+          annonceTitre: demand.annonceTitre,
+          prix: demand.prix,
+        },
+      };
+      notificationsStore.list = [paymentNotif, ...notificationsStore.list];
 
       // Rediriger vers Stripe
       await Linking.openURL(data.checkoutUrl);
