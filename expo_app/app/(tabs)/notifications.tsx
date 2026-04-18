@@ -120,14 +120,13 @@ export default function NotificationsScreen() {
       >
         <View style={s.modalOverlay}>
           <View style={s.modalContent}>
-            <Text style={s.modalTitle}>Supprimer la notification?</Text>
-            <Text style={s.modalMessage}>Cette action ne peut pas être annulée</Text>
+            <Text style={s.modalTitle}>Confirmer l'annulation</Text>
             <View style={s.modalButtons}>
               <TouchableOpacity style={[s.modalBtn, s.modalBtnCancel]} onPress={cancelDelete}>
-                <Text style={s.modalBtnCancelText}>Annuler</Text>
+                <Text style={s.modalBtnCancelText}>Non</Text>
               </TouchableOpacity>
               <TouchableOpacity style={[s.modalBtn, s.modalBtnDelete]} onPress={confirmDelete}>
-                <Text style={s.modalBtnDeleteText}>Supprimer</Text>
+                <Text style={s.modalBtnDeleteText}>Oui</Text>
               </TouchableOpacity>
             </View>
           </View>
