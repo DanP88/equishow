@@ -297,7 +297,7 @@ export const mockCoachs: CoachProfil[] = [
 export const mockCoachAnnonces: CoachAnnonce[] = [
   {
     id: 'ca1',
-    auteurId: 'coach_user_1',
+    auteurId: COACH1_ID,
     auteurNom: 'Émilie Laurent',
     auteurPseudo: 'EmilieLaurent_Pro',
     auteurInitiales: 'EL',
@@ -322,7 +322,7 @@ export const mockCoachAnnonces: CoachAnnonce[] = [
   },
   {
     id: 'ca2',
-    auteurId: 'coach_user_2',
+    auteurId: COACH2_ID,
     auteurNom: 'Jacques Moreau',
     auteurPseudo: 'JMoreau_Dressage',
     auteurInitiales: 'JM',
@@ -341,7 +341,7 @@ export const mockCoachAnnonces: CoachAnnonce[] = [
   },
   {
     id: 'ca3',
-    auteurId: 'coach_user_3',
+    auteurId: COACH3_ID,
     auteurNom: 'Camille Poncet',
     auteurPseudo: 'CamilleP_CCE',
     auteurInitiales: 'CP',
