@@ -113,6 +113,15 @@ interface NotificationCardProps {
 }
 
 function NotificationCard({ notification, onMarkAsRead, onDelete }: NotificationCardProps) {
+  const handlePaymentNavigation = () => {
+    if (notification.actionUrl) {
+      router.push(notification.actionUrl);
+    }
+  };
+
+  const showPaymentButton = notification.status === 'accepted' &&
+    (notification.type === 'course_request' || notification.type === 'reservation_request');
+
   return (
     <View style={s.card}>
       {/* Statut badge */}
@@ -129,19 +138,29 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
 
       {/* Détails */}
       <Text style={s.detailsText}>
-        {notification.donnees?.stageTitre} · {notification.donnees?.nombreParticipants} participant{notification.donnees?.nombreParticipants !== 1 ? 's' : ''}
+        {notification.donnees?.stageTitre || notification.donnees?.annonceTitre || notification.donnees?.titre} · {notification.donnees?.nombreParticipants || ''} {notification.donnees?.nombreParticipants ? 'participant' + (notification.donnees.nombreParticipants !== 1 ? 's' : '') : ''}
       </Text>
 
       {/* Montant */}
-      <Text style={s.montantText}>💰 {notification.donnees?.prixTotal}€ TTC</Text>
+      <Text style={s.montantText}>💰 {notification.donnees?.prixTotal || notification.donnees?.prix}€ TTC</Text>
 
-      {/* Delete button */}
-      <TouchableOpacity
-        style={s.deleteBtn}
-        onPress={onDelete}
-      >
-        <Text style={s.deleteBtnText}>🗑 Supprimer</Text>
-      </TouchableOpacity>
+      {/* Action buttons */}
+      <View style={s.buttonRow}>
+        {showPaymentButton && (
+          <TouchableOpacity
+            style={[s.actionBtn, s.payBtn]}
+            onPress={handlePaymentNavigation}
+          >
+            <Text style={s.payBtnText}>💳 Payer maintenant</Text>
+          </TouchableOpacity>
+        )}
+        <TouchableOpacity
+          style={[s.actionBtn, s.deleteBtn]}
+          onPress={onDelete}
+        >
+          <Text style={s.deleteBtnText}>🗑 Supprimer</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -190,4 +209,16 @@ const s = StyleSheet.create({
   actionBtnText: { fontWeight: FontWeight.semibold, fontSize: FontSize.xs, color: Colors.primary },
   actionBtnDelete: { backgroundColor: Colors.urgentBg, borderColor: Colors.urgentBorder },
   actionBtnDeleteText: { fontWeight: FontWeight.semibold, fontSize: FontSize.xs, color: Colors.danger },
+  buttonRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
+  payBtn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  payBtnText: { fontWeight: FontWeight.semibold, fontSize: FontSize.sm, color: Colors.textInverse },
+  deleteBtn: { backgroundColor: '#FEE2E2', borderColor: '#FEC2C2' },
+  deleteBtnText: { fontWeight: FontWeight.semibold, fontSize: FontSize.sm, color: '#DC2626' },
+  statusBadgeMini: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.md },
+  statusAcceptedMini: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#10B981' },
+  statusRejectedMini: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#EF4444' },
+  statusBadgeTextMini: { fontWeight: FontWeight.semibold, fontSize: FontSize.xs, color: Colors.textPrimary },
+  cavalierPseudo: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold },
+  detailsText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  montantText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
 });
