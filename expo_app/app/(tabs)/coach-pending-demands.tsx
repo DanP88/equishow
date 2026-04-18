@@ -38,7 +38,7 @@ export default function CoachPendingDemandsScreen() {
       status: 'accepted',
       lu: false,
       dateCreation: new Date(),
-      actionUrl: '/(tabs)/pending-payments',
+      actionUrl: '/pending-payments',
       auteurId: userStore.id,
       auteurNom: userStore.nom,
       auteurPseudo: userStore.pseudo,
