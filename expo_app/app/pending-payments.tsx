@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Alert, ActivityIndicator,
+  Alert, ActivityIndicator, Linking,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
@@ -9,7 +9,6 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { courseDemandesStore, userStore } from '../data/store';
 import { CourseDemande } from '../types/service';
 import { createClient } from '@supabase/supabase-js';
-import * as Linking from 'react-native-url-polyfill/whatwg-url';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
