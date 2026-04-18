@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Alert,
+  Alert, Modal,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -11,6 +11,8 @@ import { Notification } from '../../types/notification';
 
 export default function NotificationsScreen() {
   const [notifications, setNotifications] = useState(notificationsStore.list);
+  const [deleteModal, setDeleteModal] = useState(false);
+  const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
   // Refresh quand on revient sur l'écran
   useFocusEffect(useCallback(() => {
@@ -41,22 +43,25 @@ export default function NotificationsScreen() {
 
   function handleDelete(notificationId: string) {
     console.log('🗑️ Delete clicked for notification:', notificationId);
-    Alert.alert('Supprimer la notification', 'Êtes-vous sûr(e) ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Supprimer',
-        style: 'destructive',
-        onPress: () => {
-          console.log('✅ Confirmed delete for:', notificationId);
-          // Mettre à jour l'état EN PREMIER
-          const newNotifications = notifications.filter((n) => n.id !== notificationId);
-          setNotifications(newNotifications);
-          // Puis mettre à jour le store global
-          notificationsStore.list = notificationsStore.list.filter((n) => n.id !== notificationId);
-          console.log('✅ Notification deleted');
-        },
-      },
-    ]);
+    setDeleteNotifId(notificationId);
+    setDeleteModal(true);
+  }
+
+  function confirmDelete() {
+    if (deleteNotifId) {
+      console.log('✅ Confirmed delete for:', deleteNotifId);
+      const newNotifications = notifications.filter((n) => n.id !== deleteNotifId);
+      setNotifications(newNotifications);
+      notificationsStore.list = notificationsStore.list.filter((n) => n.id !== deleteNotifId);
+      console.log('✅ Notification deleted');
+    }
+    setDeleteModal(false);
+    setDeleteNotifId(null);
+  }
+
+  function cancelDelete() {
+    setDeleteModal(false);
+    setDeleteNotifId(null);
   }
 
   return (
@@ -105,6 +110,29 @@ export default function NotificationsScreen() {
 
         <View style={{ height: 20 }} />
       </ScrollView>
+
+      {/* Modal de confirmation de suppression */}
+      <Modal
+        visible={deleteModal}
+        transparent
+        animationType="fade"
+        onRequestClose={cancelDelete}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalContent}>
+            <Text style={s.modalTitle}>Supprimer la notification?</Text>
+            <Text style={s.modalMessage}>Cette action ne peut pas être annulée</Text>
+            <View style={s.modalButtons}>
+              <TouchableOpacity style={[s.modalBtn, s.modalBtnCancel]} onPress={cancelDelete}>
+                <Text style={s.modalBtnCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[s.modalBtn, s.modalBtnDelete]} onPress={confirmDelete}>
+                <Text style={s.modalBtnDeleteText}>Supprimer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -229,4 +257,14 @@ const s = StyleSheet.create({
   cavalierPseudo: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold },
   detailsText: { fontSize: FontSize.sm, color: Colors.textSecondary },
   montantText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  modalContent: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, width: '80%', maxWidth: 300 },
+  modalTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.sm },
+  modalMessage: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: Spacing.lg },
+  modalButtons: { flexDirection: 'row', gap: Spacing.md },
+  modalBtn: { flex: 1, paddingVertical: Spacing.md, borderRadius: Radius.md, alignItems: 'center' },
+  modalBtnCancel: { backgroundColor: Colors.primaryLight, borderWidth: 1, borderColor: Colors.primaryBorder },
+  modalBtnCancelText: { fontWeight: FontWeight.semibold, fontSize: FontSize.sm, color: Colors.primary },
+  modalBtnDelete: { backgroundColor: '#EF4444' },
+  modalBtnDeleteText: { fontWeight: FontWeight.semibold, fontSize: FontSize.sm, color: '#FFFFFF' },
 });
