@@ -48,14 +48,8 @@ export default function PendingPaymentsScreen() {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            type: 'course_demand',
-            demandeId: demand.id,
-            amount: demand.prix,
-            description: `Cours "${demand.annonceTitre}" avec ${demand.coachNom}`,
-            customerEmail: userStore.email,
-            customerName: userStore.nom,
-            cavalierUserId: demand.cavalierUserId,
-            coachId: demand.coachId,
+            type: 'course',
+            demandId: demand.id,
           }),
         }
       );
@@ -67,10 +61,10 @@ export default function PendingPaymentsScreen() {
         return;
       }
 
-      const { sessionUrl, sessionId } = await response.json();
+      const data = await response.json();
 
-      if (!sessionUrl) {
-        Alert.alert('Erreur', 'URL de paiement non disponible');
+      if (!data.checkoutUrl) {
+        Alert.alert('Erreur', 'URL de paiement non disponible: ' + (data.error || 'Unknown error'));
         return;
       }
 
@@ -79,7 +73,7 @@ export default function PendingPaymentsScreen() {
       courseDemandesStore.list = [...courseDemandesStore.list];
 
       // Rediriger vers Stripe
-      await Linking.openURL(sessionUrl);
+      await Linking.openURL(data.checkoutUrl);
     } catch (error) {
       console.error('Payment error:', error);
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'initiation du paiement');

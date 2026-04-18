@@ -60,14 +60,10 @@ export default function PendingBoxPaymentsScreen() {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            type: 'box_reservation',
+            type: 'box',
             reservationId: reservation.id,
             amount: reservation.prixTotalTTC,
             description: `Box à ${reservation.lieu} du ${reservation.dateDebut.toLocaleDateString('fr-FR')} au ${reservation.dateFin.toLocaleDateString('fr-FR')}`,
-            customerEmail: userStore.email,
-            customerName: userStore.nom,
-            buyerId: reservation.buyerId,
-            sellerId: reservation.sellerId,
           }),
         }
       );
@@ -79,10 +75,10 @@ export default function PendingBoxPaymentsScreen() {
         return;
       }
 
-      const { sessionUrl, sessionId } = await response.json();
+      const data = await response.json();
 
-      if (!sessionUrl) {
-        Alert.alert('Erreur', 'URL de paiement non disponible');
+      if (!data.checkoutUrl) {
+        Alert.alert('Erreur', 'URL de paiement non disponible: ' + (data.error || 'Unknown error'));
         return;
       }
 
@@ -91,7 +87,7 @@ export default function PendingBoxPaymentsScreen() {
       boxReservationsStore.list = [...boxReservationsStore.list];
 
       // Rediriger vers Stripe
-      await Linking.openURL(sessionUrl);
+      await Linking.openURL(data.checkoutUrl);
     } catch (error) {
       console.error('Payment error:', error);
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'initiation du paiement');

@@ -59,14 +59,10 @@ export default function PendingTransportPaymentsScreen() {
             'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: JSON.stringify({
-            type: 'transport_reservation',
+            type: 'transport',
             reservationId: reservation.id,
             amount: reservation.prixTotalTTC,
             description: `Transport ${reservation.villeDepart} → ${reservation.villeArrivee}`,
-            customerEmail: userStore.email,
-            customerName: userStore.nom,
-            buyerId: reservation.buyerId,
-            sellerId: reservation.sellerId,
           }),
         }
       );
@@ -78,10 +74,10 @@ export default function PendingTransportPaymentsScreen() {
         return;
       }
 
-      const { sessionUrl, sessionId } = await response.json();
+      const data = await response.json();
 
-      if (!sessionUrl) {
-        Alert.alert('Erreur', 'URL de paiement non disponible');
+      if (!data.checkoutUrl) {
+        Alert.alert('Erreur', 'URL de paiement non disponible: ' + (data.error || 'Unknown error'));
         return;
       }
 
@@ -90,7 +86,7 @@ export default function PendingTransportPaymentsScreen() {
       transportReservationsStore.list = [...transportReservationsStore.list];
 
       // Rediriger vers Stripe
-      await Linking.openURL(sessionUrl);
+      await Linking.openURL(data.checkoutUrl);
     } catch (error) {
       console.error('Payment error:', error);
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'initiation du paiement');
