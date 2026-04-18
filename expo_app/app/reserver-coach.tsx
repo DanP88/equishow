@@ -196,7 +196,7 @@ export default function ReserverCoachScreen() {
         status: 'pending',
         lu: false,
         dateCreation: new Date(),
-        actionUrl: '/(tabs)/coach-demandes',
+        actionUrl: '/(tabs)/coach-pending-demands',
         auteurId: userStore.id,
         auteurNom: userStore.nom,
         auteurPseudo: userStore.pseudo,

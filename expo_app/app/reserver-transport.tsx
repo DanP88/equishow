@@ -6,11 +6,12 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { transportsStore, userStore } from '../data/store';
-import { prixTTC, getCommissionMontant, getCommission } from '../types/service';
+import { transportsStore, userStore, transportReservationsStore, notificationsStore } from '../data/store';
+import { prixTTC, getCommissionMontant, getCommission, TransportReservation } from '../types/service';
 import { MultiDatePickerModal } from '../components/DatePickerModal';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createClient } from '@supabase/supabase-js';
+import { Notification } from '../types/notification';
 
 export default function ReserverTransportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -117,6 +118,52 @@ export default function ReserverTransportScreen() {
         Alert.alert('Erreur', 'Impossible de créer la réservation');
         return;
       }
+
+      // Ajouter à la store locale
+      const nouvelleReservation: TransportReservation = {
+        id: reservation.id,
+        transportId: transport.id,
+        sellerId: transport.propId || transport.auteurId,
+        buyerId: userStore.id,
+        titre: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
+        villeDepart: transport.villeDepart,
+        villeArrivee: transport.villeArrivee,
+        nbPlaces: transport.typeTransport === 'trajet' ? nbPlaces : 1,
+        message: message.trim(),
+        prixTotalHT: prixTotal,
+        commissionPlateform: prixTotal * 0.05,
+        prixTotalTTC: prixTotalTTC,
+        statut: 'pending' as const,
+        dateCreation: new Date(),
+      };
+
+      transportReservationsStore.list = [nouvelleReservation, ...transportReservationsStore.list];
+
+      // Créer notification pour le propriétaire du transport
+      const notificationTransport: Notification = {
+        id: `notif_${Date.now()}`,
+        destinataireId: transport.propId || transport.auteurId,
+        type: 'reservation_request',
+        titre: `🚐 Nouvelle réservation de transport`,
+        message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${transport.villeDepart} → ${transport.villeArrivee}`,
+        status: 'pending',
+        lu: false,
+        dateCreation: new Date(),
+        actionUrl: '/transport-pending-demands',
+        auteurId: userStore.id,
+        auteurNom: userStore.nom,
+        auteurPseudo: userStore.pseudo,
+        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+        auteurCouleur: userStore.avatarColor,
+        donnees: {
+          transportId: transport.id,
+          titre: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
+          prix: prixTotalTTC,
+          message: message.trim(),
+        },
+      };
+
+      notificationsStore.list = [notificationTransport, ...notificationsStore.list];
 
       // Réservation créée, en attente de validation du propriétaire
       console.log('✅ Réservation créée, en attente de validation');

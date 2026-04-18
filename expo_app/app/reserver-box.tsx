@@ -7,10 +7,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
-import { boxesStore, userStore } from '../data/store';
-import { prixTTC } from '../types/service';
+import { boxesStore, userStore, boxReservationsStore, notificationsStore } from '../data/store';
+import { prixTTC, BoxReservation } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createClient } from '@supabase/supabase-js';
+import { Notification } from '../types/notification';
 
 export default function ReserverBoxScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -116,6 +117,53 @@ export default function ReserverBoxScreen() {
         Alert.alert('Erreur', 'Impossible de créer la réservation');
         return;
       }
+
+      // Ajouter à la store locale
+      const nouvelleReservation: BoxReservation = {
+        id: reservation.id,
+        boxId: box.id,
+        sellerId: box.proprietaireId || box.auteurId,
+        buyerId: userStore.id,
+        titre: `Box ${box.lieu}`,
+        lieu: box.lieu,
+        nbNuits: nuitesReservees,
+        dateDebut: dateReservationDebut,
+        dateFin: dateReservationFin,
+        message: message.trim(),
+        prixTotalHT: prixTotal,
+        commissionPlateform: prixTotal * 0.05,
+        prixTotalTTC: prixTotalTTC,
+        statut: 'pending' as const,
+        dateCreation: new Date(),
+      };
+
+      boxReservationsStore.list = [nouvelleReservation, ...boxReservationsStore.list];
+
+      // Créer notification pour le propriétaire du box
+      const notificationBox: Notification = {
+        id: `notif_${Date.now()}`,
+        destinataireId: box.proprietaireId || box.auteurId,
+        type: 'reservation_request',
+        titre: `🏠 Nouvelle réservation de box`,
+        message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${box.lieu}`,
+        status: 'pending',
+        lu: false,
+        dateCreation: new Date(),
+        actionUrl: '/box-pending-demands',
+        auteurId: userStore.id,
+        auteurNom: userStore.nom,
+        auteurPseudo: userStore.pseudo,
+        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+        auteurCouleur: userStore.avatarColor,
+        donnees: {
+          boxId: box.id,
+          titre: `Box ${box.lieu}`,
+          prix: prixTotalTTC,
+          message: message.trim(),
+        },
+      };
+
+      notificationsStore.list = [notificationBox, ...notificationsStore.list];
 
       // Réservation créée, en attente de validation du propriétaire
       console.log('✅ Réservation créée, en attente de validation');
