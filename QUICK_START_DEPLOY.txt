@@ -1,0 +1,194 @@
+╔════════════════════════════════════════════════════════════════════════════╗
+║                    STRIPE DEPLOYMENT - QUICK START                          ║
+║                                                                            ║
+║  Suivi les étapes ci-dessous pour déployer Stripe en production            ║
+╚════════════════════════════════════════════════════════════════════════════╝
+
+⏱️  TEMPS TOTAL ESTIMÉ: 45 minutes
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 1: DATABASE (5 min)
+═════════════════════════
+
+1. Ouvrir: https://app.supabase.com
+2. Aller à SQL Editor
+3. Copier le fichier: /Users/dan/equishow/migrations/009_add_reservations_and_stripe.sql
+4. Coller dans SQL Editor
+5. Cliquer RUN (bouton bleu)
+6. Attendre ✅ Success
+
+✓ FAIT? Continuer.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 2: EDGE FUNCTIONS (10 min)
+════════════════════════════════
+
+PRÉREQUIS:
+  npm install -g supabase
+
+DANS LE TERMINAL:
+  cd /Users/dan/equishow
+  supabase login
+  supabase link --project-id YOUR_PROJECT_ID
+
+PUIS EXÉCUTER CES COMMANDES (dans l'ordre):
+
+  supabase functions deploy calculate-course-price --no-verify-jwt
+  supabase functions deploy create-stripe-onboarding-link
+  supabase functions deploy complete-seller-onboarding
+  supabase functions deploy check-seller-status
+  supabase functions deploy create-checkout-session
+  supabase functions deploy verify-checkout-session
+  supabase functions deploy process-refund
+  supabase functions deploy webhook-stripe
+
+✓ FAIT? Continuer.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 3: STRIPE ACCOUNT (10 min)
+════════════════════════════════
+
+1. Aller à: https://stripe.com/start
+2. Créer un compte
+3. Compléter l'onboarding
+4. Aller à: https://dashboard.stripe.com/apikeys
+5. Copier:
+   - pk_test_... (publishable key)
+   - sk_test_... (secret key)
+
+6. Aller à: https://dashboard.stripe.com/webhooks
+7. Cliquer "Add endpoint"
+8. URL: https://YOUR_PROJECT_ID.supabase.co/functions/v1/webhook-stripe
+9. Events: ✓ charge.succeeded, ✓ charge.failed, ✓ charge.refunded
+10. Cliquer "Add"
+11. Copier: whsec_test_... (webhook secret)
+
+✓ FAIT? Continuer.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 4: ENVIRONMENT VARIABLES (5 min)
+═══════════════════════════════════════
+
+A. Dans le fichier .env.local (créer s'il n'existe pas):
+
+  EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_...
+
+B. Dans Supabase Dashboard → Settings → Functions → Secrets:
+
+  Name: STRIPE_SECRET_KEY
+  Value: sk_test_...
+
+  Name: STRIPE_WEBHOOK_SECRET
+  Value: whsec_test_...
+
+✓ FAIT? Continuer.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 5: FRONTEND INTEGRATION (15 min)
+═══════════════════════════════════════
+
+Voir le fichier: /Users/dan/equishow/DEPLOYMENT_GUIDE.md
+Section: PHASE 5 - Intégrer dans les Écrans Frontend
+
+TL;DR:
+  1. Dans reserver-coach.tsx:
+     - Importer PaymentBreakdown, getAuthToken, WebBrowser
+     - Ajouter la fonction handleReserveAndPay
+     - Ajouter le bouton "Confirmer & Payer"
+
+  2. Dans proposer-coach-annonce.tsx:
+     - Importer SellerStatus, StripeConnectButton
+     - Afficher avant le bouton "Publier"
+
+✓ FAIT? Continuer.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PHASE 6: TESTING (20 min)
+═════════════════════════
+
+TEST 1: Seller Onboarding
+  1. Ouvrir app, aller dans "proposer annonce"
+  2. Voir SellerStatus → "⚠️ Compte non configuré"
+  3. Cliquer "🔗 Lier mon compte Stripe"
+  4. Remplir formulaire Stripe (test mode - données fictives OK)
+  5. Revenir à l'app
+  6. Vérifier: "✅ Compte Stripe prêt"
+  ✓ Si OK, Test 2
+
+TEST 2: Buyer Checkout
+  1. Ouvrir app, chercher cours
+  2. Cliquer "Réserver"
+  3. Sélectionner dates
+  4. Voir PaymentBreakdown avec montants
+  5. Cliquer "✓ Confirmer & Payer"
+  6. Stripe Checkout s'ouvre
+  7. Tester avec carte: 4242 4242 4242 4242
+     Exp: 12/26 (date future)
+     CVC: 123
+  8. Cliquer "Payer"
+  9. Vérifier: redirect vers checkout-success + "✅ Paiement confirmé"
+  ✓ Si OK, Test 3
+
+TEST 3: Webhook Processing
+  1. Aller Stripe Dashboard
+  2. Vérifier charge a status "Succeeded"
+  3. Aller Supabase → Functions → webhook-stripe → Logs
+  4. Vérifier: logs montrent le traitement du webhook
+  5. SQL: SELECT * FROM payments WHERE payment_status='succeeded' LIMIT 1
+  6. Vérifier: stripe_charge_id est rempli
+  ✓ Si OK, SUCCÈS!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+DOCUMENTATION COMPLÈTE
+══════════════════════
+
+Toute la doc est dans:
+  /Users/dan/equishow/DEPLOYMENT_GUIDE.md
+
+Relire cette doc si ça bloque dans le déploiement!
+
+═══════════════════════════════════════════════════════════════════════════════
+
+DÉPANNAGE RAPIDE
+════════════════
+
+Problème: "Seller is not ready"
+→ Coach doit completer Stripe onboarding (Test 1)
+
+Problème: "Payment not found"
+→ Vérifier metadata dans Stripe Dashboard
+
+Problème: Webhook ne reçoit rien
+→ Vérifier l'URL et le secret dans Stripe webhooks
+
+Problème: Edge Functions ne déploient pas
+→ Vérifier: supabase login, supabase link, puis redéployer
+
+═══════════════════════════════════════════════════════════════════════════════
+
+PROGRESSION
+═══════════
+
+Phase 1: [ ] Database
+Phase 2: [ ] Edge Functions
+Phase 3: [ ] Stripe Account
+Phase 4: [ ] Environment Variables
+Phase 5: [ ] Frontend Integration
+Phase 6: [ ] Testing
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🚀 Maintenant c'est à toi!
+
+Suis les 6 phases ci-dessus. Si ça bloque, check la doc complète.
+
+Bon déploiement! 💪
+
+═══════════════════════════════════════════════════════════════════════════════

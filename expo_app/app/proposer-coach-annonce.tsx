@@ -3,12 +3,13 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Alert, Modal,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
 import { coachAnnoncesStore, userStore, concoursStore } from '../data/store';
-import { CoachAnnonce, Disponibilite } from '../types/service';
+import { CoachAnnonce, Disponibilite, prixTTC as calculatePrixTTC, getTVAMontant } from '../types/service';
+import { useCommission } from '../hooks/useCommissions';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
@@ -66,27 +67,78 @@ function Dropdown({ placeholder, value, options, onChange }: {
 }
 
 export default function ProposerCoachAnnonceScreen() {
-  const [type, setType] = useState<'concours' | 'regulier' | ''>('');
-  const [titre, setTitre] = useState('');
-  const [description, setDescription] = useState('');
-  const [discipline, setDiscipline] = useState('');
-  const [niveau, setNiveau] = useState('');
-  const [concours, setConcours] = useState('');
-  const [dateDebut, setDateDebut] = useState<Date | undefined>();
-  const [dateFin, setDateFin] = useState<Date | undefined>();
-  const [prixHeure, setPrixHeure] = useState('');
-  const [places, setPlaces] = useState('');
+  const params = useLocalSearchParams<{ concoursId?: string; editAnnonceId?: string }>();
+  const concoursId = params.concoursId;
+  const editAnnonceId = params.editAnnonceId;
+  const commissionCours = useCommission('cours');
+
+  // Charger l'annonce si on est en mode édition
+  const annonceToEdit = editAnnonceId ? coachAnnoncesStore.list.find(a => a.id === editAnnonceId) : null;
+  const isEditing = !!annonceToEdit;
+
+  // Charger le concours si fourni en paramètre
+  const preSelectedConcours = concoursId ? concoursStore.list.find(c => c.id === concoursId) : null;
+
+  // Initialiser avec les données existantes si édition, sinon initialiser vide ou avec concours
+  const [type, setType] = useState<'concours' | 'regulier' | ''>(
+    annonceToEdit ? annonceToEdit.type : preSelectedConcours ? 'concours' : ''
+  );
+  const [titre, setTitre] = useState(annonceToEdit ? annonceToEdit.titre : '');
+  const [description, setDescription] = useState(annonceToEdit ? annonceToEdit.description : '');
+  const [discipline, setDiscipline] = useState(
+    annonceToEdit ? annonceToEdit.discipline : preSelectedConcours ? preSelectedConcours.disciplines.join(', ') : ''
+  );
+  const [niveau, setNiveau] = useState(annonceToEdit ? annonceToEdit.niveau : '');
+  const [concours, setConcours] = useState(
+    annonceToEdit ? (annonceToEdit.concours || '') : preSelectedConcours ? preSelectedConcours.nom : ''
+  );
+  const [dateDebut, setDateDebut] = useState<Date | undefined>(
+    annonceToEdit ? annonceToEdit.dateDebut : preSelectedConcours ? preSelectedConcours.dateDebut : undefined
+  );
+  const [dateFin, setDateFin] = useState<Date | undefined>(
+    annonceToEdit ? annonceToEdit.dateFin : preSelectedConcours ? preSelectedConcours.dateFin : undefined
+  );
+  const [prixHeure, setPrixHeure] = useState(annonceToEdit ? annonceToEdit.prixHeure.toString() : '');
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
   const [openConcours, setOpenConcours] = useState(false);
-  const [disponibilites, setDisponibilites] = useState<Disponibilite[]>([]);
+  const [disponibilites, setDisponibilites] = useState<Disponibilite[]>(annonceToEdit?.disponibilites || []);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const prixNum = parseFloat(prixHeure);
-  const prixTTC = prixNum ? Math.round(prixNum * 1.09 * 100) / 100 : null;
 
-  function submit() {
-    if (!type || !titre.trim() || !description.trim() || !discipline || !niveau || !dateDebut || !dateFin || !prixHeure || !places) {
+  // Pour régulier: prixNum est HT, on ajoute la commission et TVA 20%
+  // Pour concours: prixNum est déjà TTC, pas de commission à ajouter
+  let prixTTC = null;
+  let commissionMontant = 0;
+  let tvaMontant = 0;
+  let prixHT = 0;
+
+  if (type === 'regulier' && prixNum) {
+    prixHT = prixNum;
+    commissionMontant = prixNum * commissionCours;
+    tvaMontant = getTVAMontant(prixNum);
+    prixTTC = calculatePrixTTC(prixNum, 'cours');
+  } else if (type === 'concours' && prixNum) {
+    // Pour concours, le prix entré est déjà TTC
+    prixTTC = prixNum;
+    // Calculer le HT en fonction du TTC et de (commission + TVA 20%)
+    // TTC = HT * (1 + commission + tva)
+    // HT = TTC / (1 + commission + tva)
+    const totalPourcentage = commissionCours + 0.20;
+    prixHT = Math.round((prixTTC / (1 + totalPourcentage)) * 100) / 100;
+    commissionMontant = Math.round(prixHT * commissionCours * 100) / 100;
+    tvaMontant = getTVAMontant(prixHT);
+  }
+
+  function validateAndShowConfirmation() {
+    if (!type || !titre.trim() || !description.trim() || !discipline || !dateDebut || !dateFin || !prixHeure) {
       Alert.alert('Champs manquants', 'Veuillez remplir tous les champs requis.');
+      return;
+    }
+
+    if (type === 'regulier' && !niveau) {
+      Alert.alert('Champs manquants', 'Veuillez sélectionner un niveau.');
       return;
     }
 
@@ -95,35 +147,66 @@ export default function ProposerCoachAnnonceScreen() {
       return;
     }
 
-    const nbPlaces = parseInt(places, 10);
-    const nouvelleAnnonce: CoachAnnonce = {
-      id: `ca_${Date.now()}`,
-      auteurId: userStore.id,
-      auteurNom: `${userStore.prenom} ${userStore.nom}`,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
-      titre: titre.trim(),
-      description: description.trim(),
-      type,
-      discipline,
-      niveau,
-      dateDebut,
-      dateFin,
-      prixHeure: parseFloat(prixHeure),
-      places: nbPlaces,
-      placesDisponibles: nbPlaces,
-      concours: concours || undefined,
-      region: type === 'regulier' ? userStore.region : undefined,
-      disponibilites: type === 'regulier' ? disponibilites : undefined,
-    };
+    setShowConfirmation(true);
+  }
 
-    coachAnnoncesStore.list = [nouvelleAnnonce, ...coachAnnoncesStore.list];
-    Alert.alert(
-      'Annonce publiée ! 🎓',
-      `"${titre}" est maintenant visible dans la liste des coachs.`,
-      [{ text: 'OK', onPress: () => router.replace('/(tabs)/coach-services' as any) }],
-    );
+  function submit() {
+    // Pour les annonces régulières: le prix est en HT, on le stocke en HT (calcul TTC au paiement)
+    // Pour les annonces concours: le prix est un tarif forfaitaire en TTC
+    const tarifAStorrer = type === 'regulier' ? parseFloat(prixHeure) : parseFloat(prixHeure);
+
+    if (isEditing && annonceToEdit) {
+      // Mode édition: mettre à jour l'annonce existante
+      const updatedAnnonce: CoachAnnonce = {
+        ...annonceToEdit,
+        titre: titre.trim(),
+        description: description.trim(),
+        type: type as 'concours' | 'regulier',
+        discipline,
+        niveau: niveau || (preSelectedConcours ? preSelectedConcours.typesCavaliers.join(', ') : ''),
+        dateDebut: dateDebut!,
+        dateFin: dateFin!,
+        prixHeure: tarifAStorrer,
+        places: 999,
+        placesDisponibles: 999,
+        concours: concours || undefined,
+        region: type === 'regulier' ? userStore.region : undefined,
+        disponibilites: type === 'regulier' ? disponibilites : undefined,
+      };
+
+      const index = coachAnnoncesStore.list.findIndex(a => a.id === annonceToEdit.id);
+      if (index !== -1) {
+        coachAnnoncesStore.list[index] = updatedAnnonce;
+      }
+    } else {
+      // Mode création: créer une nouvelle annonce
+      const nouvelleAnnonce: CoachAnnonce = {
+        id: `ca_${Date.now()}`,
+        auteurId: userStore.id,
+        auteurNom: `${userStore.prenom} ${userStore.nom}`,
+        auteurPseudo: userStore.pseudo,
+        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+        auteurCouleur: userStore.avatarColor,
+        titre: titre.trim(),
+        description: description.trim(),
+        type: type as 'concours' | 'regulier',
+        discipline,
+        niveau: niveau || (preSelectedConcours ? preSelectedConcours.typesCavaliers.join(', ') : ''),
+        dateDebut: dateDebut!,
+        dateFin: dateFin!,
+        prixHeure: tarifAStorrer,
+        places: 999,
+        placesDisponibles: 999,
+        concours: concours || undefined,
+        region: type === 'regulier' ? userStore.region : undefined,
+        disponibilites: type === 'regulier' ? disponibilites : undefined,
+      };
+
+      coachAnnoncesStore.list = [nouvelleAnnonce, ...coachAnnoncesStore.list];
+    }
+
+    setShowConfirmation(false);
+    router.replace('/(tabs)/coach-concours' as any);
   }
 
   return (
@@ -132,7 +215,7 @@ export default function ProposerCoachAnnonceScreen() {
         <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
           <Text style={s.backIcon}>‹</Text>
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Ajouter une annonce</Text>
+        <Text style={s.headerTitle}>{isEditing ? 'Modifier l\'annonce' : 'Ajouter une annonce'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -142,38 +225,51 @@ export default function ProposerCoachAnnonceScreen() {
           <Text style={s.infoText}>Publiez une annonce pour proposer une séance, un stage ou un service spécifique à vos cavaliers.</Text>
         </View>
 
-        <View style={s.field}>
-          <Text style={s.fieldLabel}>Type d'annonce *</Text>
-          <View style={s.typeButtonsRow}>
-            <TouchableOpacity
-              style={[s.typeBtn, type === 'concours' && s.typeBtnActive]}
-              onPress={() => setType('concours')}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.typeBtnText, type === 'concours' && s.typeBtnTextActive]}>🏆 Concours</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.typeBtn, type === 'regulier' && s.typeBtnActive]}
-              onPress={() => setType('regulier')}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.typeBtnText, type === 'regulier' && s.typeBtnTextActive]}>📅 Régulier</Text>
-            </TouchableOpacity>
+        {!preSelectedConcours && (
+          <View style={s.field}>
+            <Text style={s.fieldLabel}>Type d'annonce *</Text>
+            <View style={s.typeButtonsRow}>
+              <TouchableOpacity
+                style={[s.typeBtn, type === 'concours' && s.typeBtnActive]}
+                onPress={() => setType('concours')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.typeBtnText, type === 'concours' && s.typeBtnTextActive]}>🏆 Concours</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.typeBtn, type === 'regulier' && s.typeBtnActive]}
+                onPress={() => setType('regulier')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.typeBtnText, type === 'regulier' && s.typeBtnTextActive]}>📅 Régulier</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-        </View>
+        )}
 
         <View style={s.field}>
-          <Text style={s.fieldLabel}>Concours associé</Text>
-          <TouchableOpacity
-            style={[f.input, !!concours && f.inputFilled]}
-            onPress={() => setOpenConcours(true)}
-            activeOpacity={0.8}
-          >
-            <Text style={[f.inputText, !concours && f.placeholder]} numberOfLines={1}>
-              {concours || 'Sélectionner un concours (optionnel)'}
-            </Text>
-            <Text style={f.arrow}>▼</Text>
-          </TouchableOpacity>
+          <Text style={s.fieldLabel}>Concours associé {preSelectedConcours && '*'}</Text>
+          {preSelectedConcours ? (
+            <View style={[f.input, f.inputDisabled]}>
+              <Text style={[f.inputText, { color: Colors.textPrimary }]} numberOfLines={1}>
+                {concours}
+              </Text>
+              <Text style={{ fontSize: 12, color: Colors.textTertiary, marginTop: 4 }}>
+                {preSelectedConcours.lieu}
+              </Text>
+            </View>
+          ) : (
+            <TouchableOpacity
+              style={[f.input, !!concours && f.inputFilled]}
+              onPress={() => setOpenConcours(true)}
+              activeOpacity={0.8}
+            >
+              <Text style={[f.inputText, !concours && f.placeholder]} numberOfLines={1}>
+                {concours || 'Sélectionner un concours (optionnel)'}
+              </Text>
+              <Text style={f.arrow}>▼</Text>
+            </TouchableOpacity>
+          )}
 
           <Modal visible={openConcours} transparent animationType="fade">
             <TouchableOpacity style={c.backdrop} activeOpacity={1} onPress={() => setOpenConcours(false)}>
@@ -235,21 +331,61 @@ export default function ProposerCoachAnnonceScreen() {
           </View>
         )}
 
-        <View style={s.disciplinesRow}>
-          <View style={{ flex: 1 }}>
+        {type === 'concours' && preSelectedConcours ? (
+          <>
             <View style={s.field}>
-              <Text style={s.fieldLabel}>Discipline *</Text>
-              <Dropdown placeholder="Sélectionner" value={discipline} options={DISCIPLINES} onChange={setDiscipline} />
+              <Text style={s.fieldLabel}>Disciplines *</Text>
+              <View style={[f.input, f.inputDisabled, { minHeight: 50, justifyContent: 'flex-start', paddingVertical: Spacing.sm }]}>
+                {preSelectedConcours.disciplines.map((disc, idx) => (
+                  <Text key={idx} style={[f.inputText, { marginBottom: idx < preSelectedConcours.disciplines.length - 1 ? 8 : 0 }]}>
+                    • {disc}
+                  </Text>
+                ))}
+              </View>
+            </View>
+
+            {preSelectedConcours.epreuves && preSelectedConcours.epreuves.length > 0 && (
+              <View style={s.field}>
+                <Text style={s.fieldLabel}>Épreuves disponibles</Text>
+                <View style={[f.input, f.inputDisabled, { minHeight: 60, justifyContent: 'flex-start', paddingVertical: Spacing.sm }]}>
+                  {preSelectedConcours.epreuves.map((epreuve, idx) => (
+                    <Text key={idx} style={[f.inputText, { marginBottom: idx < preSelectedConcours.epreuves.length - 1 ? 8 : 0 }]}>
+                      • {epreuve}
+                    </Text>
+                  ))}
+                </View>
+                <Text style={s.fieldHint}>Le cavalier sélectionnera l'épreuve à la réservation</Text>
+              </View>
+            )}
+
+            <View style={s.field}>
+              <Text style={s.fieldLabel}>Niveaux acceptés</Text>
+              <View style={[f.input, f.inputDisabled, { minHeight: 50, justifyContent: 'flex-start', paddingVertical: Spacing.sm }]}>
+                {preSelectedConcours.typesCavaliers.map((niveau, idx) => (
+                  <Text key={idx} style={[f.inputText, { marginBottom: idx < preSelectedConcours.typesCavaliers.length - 1 ? 8 : 0 }]}>
+                    • {niveau}
+                  </Text>
+                ))}
+              </View>
+            </View>
+          </>
+        ) : (
+          <View style={s.disciplinesRow}>
+            <View style={{ flex: 1 }}>
+              <View style={s.field}>
+                <Text style={s.fieldLabel}>Discipline *</Text>
+                <Dropdown placeholder="Sélectionner" value={discipline} options={DISCIPLINES} onChange={setDiscipline} />
+              </View>
+            </View>
+            <View style={s.spacer} />
+            <View style={{ flex: 1 }}>
+              <View style={s.field}>
+                <Text style={s.fieldLabel}>Niveau *</Text>
+                <Dropdown placeholder="Sélectionner" value={niveau} options={NIVEAUX} onChange={setNiveau} />
+              </View>
             </View>
           </View>
-          <View style={s.spacer} />
-          <View style={{ flex: 1 }}>
-            <View style={s.field}>
-              <Text style={s.fieldLabel}>Niveau *</Text>
-              <Dropdown placeholder="Sélectionner" value={niveau} options={NIVEAUX} onChange={setNiveau} />
-            </View>
-          </View>
-        </View>
+        )}
 
         {type === 'regulier' && (
           <View style={s.field}>
@@ -329,10 +465,10 @@ export default function ProposerCoachAnnonceScreen() {
           </View>
         </View>
 
-        <View style={s.priceRow}>
+        <View style={type === 'concours' ? { flex: 1 } : s.priceRow}>
           <View style={{ flex: 1 }}>
             <View style={s.field}>
-              <Text style={s.fieldLabel}>Tarif horaire (€ HT) *</Text>
+              <Text style={s.fieldLabel}>Tarif (€ TTC) *</Text>
               <View style={f.priceRowInput}>
                 <TextInput
                   style={[f.input, { flex: 1 }, !!prixHeure && f.inputFilled]}
@@ -342,34 +478,20 @@ export default function ProposerCoachAnnonceScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   keyboardType="numeric"
                 />
-                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ HT</Text></View>
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ TTC</Text></View>
               </View>
-              {prixTTC && <Text style={s.fieldHint}>→ {prixTTC}€ TTC avec commission 9%</Text>}
-            </View>
-          </View>
-          <View style={s.spacer} />
-          <View style={{ flex: 1 }}>
-            <View style={s.field}>
-              <Text style={s.fieldLabel}>Nombre de places *</Text>
-              <TextInput
-                style={[f.input, !!places && f.inputFilled]}
-                value={places}
-                onChangeText={setPlaces}
-                placeholder="3"
-                placeholderTextColor={Colors.textTertiary}
-                keyboardType="number-pad"
-              />
+              {prixTTC && type === 'regulier' && <Text style={s.fieldHint}>→ {prixTTC}€ TTC avec commission {(commissionCours * 100).toFixed(1)}%</Text>}
             </View>
           </View>
         </View>
 
         <View style={s.stripeNote}>
           <Text style={s.stripeIcon}>🔒</Text>
-          <Text style={s.stripeText}>Les paiements sont gérés par Stripe. Vous recevrez le montant HT après déduction de la commission de 9%.</Text>
+          <Text style={s.stripeText}>Les paiements sont gérés par Stripe. Vous recevrez le montant HT après déduction de la commission de {(commissionCours * 100).toFixed(1)}%.</Text>
         </View>
 
-        <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>
-          <Text style={s.submitText}>Publier l'annonce</Text>
+        <TouchableOpacity style={s.submitBtn} onPress={() => setShowConfirmation(true)} activeOpacity={0.85}>
+          <Text style={s.submitText}>{isEditing ? 'Modifier l\'annonce' : 'Publier l\'annonce'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -377,6 +499,83 @@ export default function ProposerCoachAnnonceScreen() {
 
       <DatePickerModal visible={showDateDebut} value={dateDebut} onConfirm={setDateDebut} onClose={() => setShowDateDebut(false)} title="Date de début" />
       <DatePickerModal visible={showDateFin} value={dateFin} onConfirm={setDateFin} onClose={() => setShowDateFin(false)} title="Date de fin" />
+
+      {/* Modal de confirmation */}
+      <Modal visible={showConfirmation} transparent animationType="slide">
+        <View style={s.confirmationBackdrop}>
+          <View style={s.confirmationCard}>
+            <Text style={s.confirmationIcon}>{isEditing ? '✏️' : '✅'}</Text>
+            <Text style={s.confirmationTitle}>{isEditing ? 'Confirmer les modifications' : 'Récapitulatif de l\'annonce'}</Text>
+
+            <ScrollView style={{ maxHeight: '70%' }} showsVerticalScrollIndicator={true}>
+              <View style={s.confirmationDetails}>
+                <View style={s.detailRow}>
+                  <Text style={s.detailLabel}>📚 Titre:</Text>
+                  <Text style={s.detailValue}>{titre}</Text>
+                </View>
+                <View style={s.detailRow}>
+                  <Text style={s.detailLabel}>🎓 Type:</Text>
+                  <Text style={s.detailValue}>{type === 'concours' ? 'Concours' : 'Régulier'}</Text>
+                </View>
+                <View style={s.detailRow}>
+                  <Text style={s.detailLabel}>🏇 Discipline:</Text>
+                  <Text style={s.detailValue}>{discipline}</Text>
+                </View>
+                <View style={s.detailRow}>
+                  <Text style={s.detailLabel}>📊 Niveau:</Text>
+                  <Text style={s.detailValue}>{niveau || (preSelectedConcours ? preSelectedConcours.typesCavaliers.join(', ') : '-')}</Text>
+                </View>
+                <View style={s.detailRow}>
+                  <Text style={s.detailLabel}>📅 Dates:</Text>
+                  <Text style={s.detailValue}>{dateDebut?.toLocaleDateString('fr-FR')} → {dateFin?.toLocaleDateString('fr-FR')}</Text>
+                </View>
+                {concours && (
+                  <View style={s.detailRow}>
+                    <Text style={s.detailLabel}>🏆 Concours:</Text>
+                    <Text style={s.detailValue}>{concours}</Text>
+                  </View>
+                )}
+              </View>
+
+              <View style={s.priceSection}>
+                <View style={s.priceRow}>
+                  <Text style={s.priceLabel}>Prix HT{type === 'regulier' ? ' / heure' : ''}:</Text>
+                  <Text style={s.priceValue}>{prixHT.toFixed(2)}€</Text>
+                </View>
+                <View style={s.priceRow}>
+                  <Text style={s.priceLabel}>Commission app ({(commissionCours * 100).toFixed(1)}%):</Text>
+                  <Text style={s.priceValue}>+ {commissionMontant.toFixed(2)}€</Text>
+                </View>
+                <View style={s.priceRow}>
+                  <Text style={s.priceLabel}>TVA (20%):</Text>
+                  <Text style={s.priceValue}>+ {tvaMontant.toFixed(2)}€</Text>
+                </View>
+                <View style={[s.priceRow, s.priceTotalRow]}>
+                  <Text style={s.priceTotalLabel}>Prix TTC{type === 'regulier' ? ' / heure' : ''}:</Text>
+                  <Text style={s.priceTotalValue}>{prixTTC ? prixTTC.toFixed(2) : '0.00'}€</Text>
+                </View>
+              </View>
+            </ScrollView>
+
+            <View style={s.confirmationButtons}>
+              <TouchableOpacity
+                style={s.confirmationBtnCancel}
+                onPress={() => setShowConfirmation(false)}
+                activeOpacity={0.8}
+              >
+                <Text style={s.confirmationBtnCancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={s.confirmationBtn}
+                onPress={submit}
+                activeOpacity={0.8}
+              >
+                <Text style={s.confirmationBtnText}>{isEditing ? 'Confirmer les modifications' : 'Valider la publication'}</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -424,11 +623,32 @@ const s = StyleSheet.create({
   stripeText: { flex: 1, fontSize: FontSize.xs, color: Colors.textTertiary, lineHeight: 18 },
   submitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', ...Shadow.fab },
   submitText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
+  // Confirmation modal styles
+  confirmationBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.6)', justifyContent: 'center', alignItems: 'center', padding: Spacing.lg },
+  confirmationCard: { backgroundColor: Colors.surface, borderRadius: Radius.xxl, padding: Spacing.lg, width: '100%', maxHeight: '85%', ...Shadow.card },
+  confirmationIcon: { fontSize: 40, textAlign: 'center', marginBottom: Spacing.md },
+  confirmationTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.lg, textAlign: 'center' },
+  confirmationDetails: { gap: Spacing.sm, marginBottom: Spacing.lg },
+  detailRow: { borderBottomWidth: 1, borderBottomColor: Colors.border, paddingVertical: Spacing.sm },
+  detailLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold, marginBottom: Spacing.xs },
+  detailValue: { fontSize: FontSize.sm, color: Colors.textPrimary },
+  priceSection: { backgroundColor: Colors.primaryLight, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.primary },
+  priceTotalRow: { borderTopWidth: 2, borderTopColor: Colors.primary, paddingTop: Spacing.md, marginTop: Spacing.sm },
+  priceLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, flex: 1 },
+  priceValue: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  priceTotalLabel: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.primary, flex: 1 },
+  priceTotalValue: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.primary },
+  confirmationButtons: { flexDirection: 'row', gap: Spacing.md },
+  confirmationBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
+  confirmationBtnText: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.base },
+  confirmationBtnCancel: { flex: 1, backgroundColor: Colors.border, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
+  confirmationBtnCancelText: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.base },
 });
 
 const f = StyleSheet.create({
   input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   inputFilled: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
+  inputDisabled: { backgroundColor: Colors.surfaceVariant, borderColor: Colors.border, opacity: 0.7 },
   inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
   inputText: { flex: 1, fontSize: FontSize.base, color: Colors.textPrimary },
   placeholder: { color: Colors.textTertiary },

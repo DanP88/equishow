@@ -18,14 +18,15 @@ export default function LoginScreen() {
     router.replace('/(tabs)/chevaux');
   }
 
-  function handleTestAccountLogin(accountKey: 'cavalier' | 'coach' | 'organisateur') {
+  function handleTestAccountLogin(accountKey: 'cavalier' | 'coach' | 'organisateur' | 'admin') {
     userStore.switchAccount(accountKey);
 
     // Rediriger vers le premier onglet pertinent selon le rôle
-    const firstScreenByRole: Record<'cavalier' | 'coach' | 'organisateur', string> = {
+    const firstScreenByRole: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', string> = {
       cavalier: '/(tabs)/chevaux',
       coach: '/(tabs)/coach-agenda',
       organisateur: '/(tabs)/profil-org',
+      admin: '/(tabs)/admin-settings',
     };
 
     router.replace(firstScreenByRole[accountKey]);

@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
+import { messagesStore, userStore } from '../data/store';
+import { useCallback } from 'react';
 
 type Conversation = {
   id: string;
@@ -88,13 +90,67 @@ const ANNONCE_COLORS: Record<string, string> = {
 };
 
 export default function MessagerieScreen() {
+  const params = useLocalSearchParams<{
+    cavalierNom?: string;
+    cavalierPseudo?: string;
+    cavalierCouleur?: string;
+    titre?: string;
+  }>();
   const [activeConv, setActiveConv] = useState<Conversation | null>(null);
   const [message, setMessage] = useState('');
-  const [convs, setConvs] = useState(MOCK_CONVS);
+  const [convs, setConvs] = useState<Conversation[]>([...MOCK_CONVS]);
+
+  // Rafraîchir les conversations quand on revient à l'écran
+  useFocusEffect(useCallback(() => {
+    // Charger depuis le store + mock data
+    setConvs([...messagesStore.list, ...MOCK_CONVS]);
+  }, []));
+
+  // Si on arrive de l'agenda avec des paramètres, charger ou créer la conversation
+  useEffect(() => {
+    if (params.cavalierNom && params.cavalierPseudo) {
+      // Chercher une conversation existante
+      const existing = messagesStore.list.find(c => c.pseudo === params.cavalierPseudo) ||
+                      convs.find(c => c.pseudo === params.cavalierPseudo);
+      if (existing) {
+        setActiveConv(existing);
+      } else {
+        // Créer une nouvelle conversation
+        const initiales = params.cavalierNom.split(' ').map(n => n[0]).join('').substring(0, 2);
+        const newConv: Conversation = {
+          id: `conv_${Date.now()}`,
+          with: params.cavalierNom!,
+          pseudo: params.cavalierPseudo!,
+          couleur: params.cavalierCouleur || '#7C3AED',
+          initiales: initiales.toUpperCase(),
+          sujet: `🎓 ${params.titre || 'Coaching'}`,
+          dernierMsg: '',
+          heure: 'maintenant',
+          nonLus: 0,
+          annonce: params.titre,
+          annonceType: 'coach',
+          messages: [],
+        };
+        messagesStore.list = [newConv, ...messagesStore.list];
+        setConvs([newConv, ...convs]);
+        setActiveConv(newConv);
+      }
+    }
+  }, [params.cavalierNom, params.cavalierPseudo]);
 
   function sendMessage() {
     if (!message.trim() || !activeConv) return;
     const newMsg = { id: Date.now().toString(), moi: true, texte: message.trim(), heure: 'maintenant' };
+
+    // Mettre à jour le store
+    const storeIndex = messagesStore.list.findIndex(c => c.id === activeConv.id);
+    if (storeIndex !== -1) {
+      messagesStore.list[storeIndex].messages.push(newMsg);
+      messagesStore.list[storeIndex].dernierMsg = message.trim();
+      messagesStore.list[storeIndex].heure = 'maintenant';
+    }
+
+    // Mettre à jour l'état local
     const updated = convs.map((c) =>
       c.id === activeConv.id
         ? { ...c, messages: [...c.messages, newMsg], dernierMsg: message.trim(), heure: 'maintenant' }
@@ -142,12 +198,6 @@ export default function MessagerieScreen() {
               </View>
             ))}
           </ScrollView>
-
-          {/* Stripe notice */}
-          <View style={s.stripeNotice}>
-            <Text style={s.stripeIcon}>🔒</Text>
-            <Text style={s.stripeText}>Paiement sécurisé via Stripe · Commission 9%</Text>
-          </View>
 
           {/* Input */}
           <View style={s.inputRow}>
@@ -251,10 +301,6 @@ const s = StyleSheet.create({
   bubbleTextMoi: { color: Colors.textInverse },
   bubbleTime: { fontSize: 10, color: Colors.textTertiary, alignSelf: 'flex-end' },
   bubbleTimeMoi: { color: 'rgba(255,255,255,0.7)' },
-
-  stripeNotice: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs, backgroundColor: Colors.surfaceVariant, borderTopWidth: 1, borderTopColor: Colors.border },
-  stripeIcon: { fontSize: 12 },
-  stripeText: { fontSize: 11, color: Colors.textTertiary },
 
   inputRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.lg, paddingTop: Spacing.sm, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
   input: { flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surfaceVariant, maxHeight: 100 },

@@ -30,10 +30,6 @@ export default function CoachServicesScreen() {
             <Text style={s.serviceLabel}>Région</Text>
             <Text style={s.serviceValue}>{MOCK.region}</Text>
           </View>
-          <View style={[s.serviceRow, { borderBottomWidth: 0 }]}>
-            <Text style={s.serviceLabel}>Commission plateforme</Text>
-            <Text style={[s.serviceValue, { color: Colors.textTertiary }]}>9% par paiement</Text>
-          </View>
         </View>
 
         <TouchableOpacity

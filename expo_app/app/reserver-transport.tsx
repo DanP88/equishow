@@ -118,29 +118,8 @@ export default function ReserverTransportScreen() {
         return;
       }
 
-      // Créer session Stripe
-      const checkoutResponse = await fetch(
-        `${SUPABASE_URL}/functions/v1/create-checkout-session`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            reservationId: reservation.id,
-            type: 'transport',
-          }),
-        }
-      );
-
-      const checkoutData = await checkoutResponse.json();
-      if (!checkoutData.checkoutUrl) {
-        Alert.alert('Erreur', 'Impossible de créer la session de paiement');
-        return;
-      }
-
-      await Linking.openURL(checkoutData.checkoutUrl);
+      // Réservation créée, en attente de validation du propriétaire
+      console.log('✅ Réservation créée, en attente de validation');
       setShowConfirmation(true);
     } catch (error) {
       console.error('❌ Transport submit error:', error);

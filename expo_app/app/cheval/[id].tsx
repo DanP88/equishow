@@ -96,8 +96,13 @@ function MultiDropdown({ placeholder, values, options, onChange }: {
 
 const RACES = ['Selle Français', 'KWPN', 'Anglo-Arabe', 'Pur-Sang', 'Lusitanien', 'Andalou', 'Hanovrien', 'Oldenbourg', 'Trakehner', 'BWP', 'Connemara', 'Welsh', 'Haflinger', 'Appaloosa', 'Quarter Horse', 'Frison', 'Camargue', 'Autre'];
 const ROBES = ['Bai', 'Bai brun', 'Bai clair', 'Alezan', 'Alezan brûlé', 'Gris', 'Gris pommelé', 'Noir', 'Isabelle', 'Palomino', 'Pie bai', 'Pie alezan', 'Pie noir', 'Rouan', 'Aubère', 'Louvet', 'Autre'];
-const TAILLES = ['1.40 m', '1.42 m', '1.44 m', '1.46 m', '1.48 m', '1.50 m', '1.52 m', '1.54 m', '1.56 m', '1.58 m', '1.60 m', '1.62 m', '1.64 m', '1.65 m', '1.66 m', '1.67 m', '1.68 m', '1.69 m', '1.70 m', '1.72 m', '1.74 m', '1.75 m', '1.78 m', '1.80 m', '1.82 m', '1.85 m'];
+const TAILLES_PONEY = ['1.00 m', '1.05 m', '1.10 m', '1.15 m', '1.20 m', '1.25 m', '1.30 m', '1.35 m', '1.40 m', '1.45 m', '1.50 m'];
+const TAILLES_CHEVAL = ['1.51 m', '1.52 m', '1.54 m', '1.56 m', '1.58 m', '1.60 m', '1.62 m', '1.64 m', '1.65 m', '1.66 m', '1.67 m', '1.68 m', '1.69 m', '1.70 m', '1.72 m', '1.74 m', '1.75 m', '1.78 m', '1.80 m', '1.82 m', '1.85 m'];
 const ANNEES = Array.from({ length: 35 }, (_, i) => String(2024 - i));
+
+function getTailles(typeCheval: 'cheval' | 'poney'): string[] {
+  return typeCheval === 'poney' ? TAILLES_PONEY : TAILLES_CHEVAL;
+}
 
 function FieldLabel({ label }: { label: string }) {
   return <Text style={styles.fieldLabel}>{label}</Text>;
@@ -266,7 +271,7 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose 
               <View style={{ marginBottom: Spacing.sm }}><Dropdown placeholder="Sélectionner une robe" value={robe} options={ROBES} onChange={setRobe} /></View>
 
               <FieldLabel label="Taille" />
-              <View style={{ marginBottom: Spacing.sm }}><Dropdown placeholder="Sélectionner une taille" value={taille} options={TAILLES} onChange={setTaille} /></View>
+              <View style={{ marginBottom: Spacing.sm }}><Dropdown placeholder="Sélectionner une taille" value={taille} options={getTailles(type)} onChange={setTaille} /></View>
 
               <FieldLabel label="Sexe" />
               <View style={{ marginBottom: Spacing.sm }}><Dropdown placeholder="Sélectionner le sexe" value={sexe} options={['Hongre', 'Jument', 'Étalon']} onChange={setSexe} /></View>
@@ -357,12 +362,12 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose 
 
               <FieldLabel label="Type de litière" />
               <View style={{ marginBottom: Spacing.sm }}>
-                <Dropdown placeholder="Sélectionner un type" value={litiere} options={['Paille', 'Copeaux', 'Paillettes', 'Autre']} onChange={setLitiere} />
+                <Dropdown placeholder="Sélectionner un type" value={litiere} options={['Paille', 'Copeaux', 'Autre']} onChange={setLitiere} />
               </View>
 
               <FieldLabel label="Sociabilité avec les congénères" />
               <View style={{ marginBottom: Spacing.sm }}>
-                <Dropdown placeholder="Comportement avec les autres chevaux" value={sociabilite} options={['Sociable — se mélange bien', 'Dominant', 'Solitaire', 'Variable selon congénères']} onChange={setSociabilite} />
+                <Dropdown placeholder="Comportement avec les autres chevaux" value={sociabilite} options={['Sociable — se mélange bien', 'Dominant', 'Solitaire', 'N\'aimes pas être seul', 'Variable selon congénères']} onChange={setSociabilite} />
               </View>
 
               {/* Coach attitré */}
@@ -519,8 +524,8 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose 
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
 function transportLabel(k: string) { return { calme: 'Calme', stresse: 'Stressé', chargementDifficile: 'Chargement difficile' }[k] ?? k; }
 function transportKey(l: string) { return { 'Calme': 'calme', 'Stressé': 'stresse', 'Chargement difficile': 'chargementDifficile' }[l] ?? ''; }
-function sociabiliteLabel(k: string) { return { okCongeneres: 'Sociable — se mélange bien', dominant: 'Dominant', solitaire: 'Solitaire', autre: 'Variable selon congénères' }[k] ?? k; }
-function sociabiliteKey(l: string) { return { 'Sociable — se mélange bien': 'okCongeneres', 'Dominant': 'dominant', 'Solitaire': 'solitaire', 'Variable selon congénères': 'autre' }[l] ?? ''; }
+function sociabiliteLabel(k: string) { return { okCongeneres: 'Sociable — se mélange bien', dominant: 'Dominant', solitaire: 'Solitaire', pasSolo: 'N\'aimes pas être seul', autre: 'Variable selon congénères' }[k] ?? k; }
+function sociabiliteKey(l: string) { return { 'Sociable — se mélange bien': 'okCongeneres', 'Dominant': 'dominant', 'Solitaire': 'solitaire', 'N\'aimes pas être seul': 'pasSolo', 'Variable selon congénères': 'autre' }[l] ?? ''; }
 
 // ── Écran principal ───────────────────────────────────────────────────────────
 
@@ -566,7 +571,9 @@ export default function ChevalDetailScreen() {
         { text: 'Annuler', style: 'cancel' },
         {
           text: 'Supprimer', style: 'destructive', onPress: () => {
+            // Mettre à jour le store
             chevauxStore.list = chevauxStore.list.filter((c) => c.id !== id);
+            // Retourner à la liste
             handleBack();
           },
         },

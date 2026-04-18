@@ -1,118 +1,121 @@
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { useState, useCallback } from 'react';
+import {
+  View, Text, ScrollView, StyleSheet, SafeAreaView,
+} from 'react-native';
+import { useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { useNotifications } from '../../hooks/useNotifications';
-import { notificationsStore } from '../../data/notificationsStore';
-
-const ICON_BY_TYPE: Record<string, string> = {
-  mention: '🏷️',
-  message: '💬',
-  like: '❤️',
-  comment: '💭',
-};
+import { notificationsStore, userStore } from '../../data/store';
+import { Notification } from '../../types/notification';
 
 export default function CoachNotificationsScreen() {
-  const { notifications } = useNotifications();
+  const [notifications, setNotifications] = useState(notificationsStore.list);
 
-  const unreadNotifs = notifications.filter(n => !n.read);
-  const readNotifs = notifications.filter(n => n.read);
+  // Refresh quand on revient sur l'écran
+  useFocusEffect(useCallback(() => {
+    setNotifications([...notificationsStore.list]);
+    // Marquer automatiquement toutes les notifications comme lues quand on ouvre la page
+    notificationsStore.list.forEach((n) => {
+      if (n.destinataireId === userStore.id && !n.lu) {
+        n.lu = true;
+      }
+    });
+    setNotifications([...notificationsStore.list]);
+  }, []));
+
+  // Filtrer pour ne montrer que les notifications du coach actuel
+  const myNotifications = notifications.filter(
+    (n) => n.destinataireId === userStore.id
+  );
+
+  const unreadCount = myNotifications.filter((n) => !n.lu).length;
+
+
 
   return (
-    <SafeAreaView style={styles.root}>
-      <View style={styles.header}>
-        <Text style={styles.headerTitle}>🔔 Notifications</Text>
-        {unreadNotifs.length > 0 && (
-          <View style={styles.badge}>
-            <Text style={styles.badgeText}>{unreadNotifs.length}</Text>
-          </View>
-        )}
+    <SafeAreaView style={s.root}>
+      <View style={s.header}>
+        <View>
+          <Text style={s.headerTitle}>Notifications</Text>
+          {unreadCount > 0 && (
+            <Text style={s.headerSub}>{unreadCount} non lu{unreadCount > 1 ? 's' : ''}</Text>
+          )}
+        </View>
       </View>
 
-      <ScrollView contentContainerStyle={styles.container}>
-        {unreadNotifs.length > 0 && (
-          <>
-            <Text style={styles.sectionTitle}>Nouvelles</Text>
-            {unreadNotifs.map((notif) => (
-              <NotificationCard
-                key={notif.id}
-                notification={notif}
-                onPress={() => notificationsStore.markAsRead(notif.id)}
-              />
-            ))}
-          </>
-        )}
-
-        {readNotifs.length > 0 && (
-          <>
-            <Text style={[styles.sectionTitle, { marginTop: Spacing.xl }]}>Antérieures</Text>
-            {readNotifs.map((notif) => (
-              <NotificationCard
-                key={notif.id}
-                notification={notif}
-                isRead
-              />
-            ))}
-          </>
-        )}
-
-        {notifications.length === 0 && (
-          <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📭</Text>
-            <Text style={styles.emptyTitle}>Aucune notification</Text>
-            <Text style={styles.emptyDesc}>Vous recevrez des notifications quand quelqu\'un vous tag</Text>
+      <ScrollView contentContainerStyle={s.container} showsVerticalScrollIndicator={false}>
+        {myNotifications.length === 0 ? (
+          <View style={s.emptyState}>
+            <Text style={s.emptyIcon}>🔔</Text>
+            <Text style={s.emptyTitle}>Aucune notification</Text>
+            <Text style={s.emptyText}>Vous recevrez une notification quand un cavalier vous envoie une demande de cours ou s'inscrit à un stage</Text>
           </View>
+        ) : (
+          myNotifications.map((notif) => (
+            <NotificationCard
+              key={notif.id}
+              notification={notif}
+            />
+          ))
         )}
+
+        <View style={{ height: 20 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function NotificationCard({ notification, isRead, onPress }: {
-  notification: any;
-  isRead?: boolean;
-  onPress?: () => void;
-}) {
-  return (
-    <TouchableOpacity
-      style={[styles.notifCard, !isRead && styles.notifCardUnread]}
-      onPress={onPress}
-      activeOpacity={0.7}
-    >
-      <Text style={styles.notifIcon}>{ICON_BY_TYPE[notification.type] || '📌'}</Text>
+interface NotificationCardProps {
+  notification: Notification;
+}
 
-      <View style={styles.notifContent}>
-        <Text style={[styles.notifTitle, !isRead && styles.notifTitleBold]}>
-          {notification.title}
-        </Text>
-        <Text style={styles.notifMessage} numberOfLines={2}>
-          {notification.message}
-        </Text>
-        <Text style={styles.notifMeta}>
-          {notification.author} • {formatTime(notification.timestamp)}
-        </Text>
+function NotificationCard({ notification }: NotificationCardProps) {
+  const isCourseRequest = notification.type === 'course_request';
+
+  return (
+    <View style={s.card}>
+      {/* Status badge */}
+      {notification.status && (
+        <View style={[s.statusBadgeMini, notification.status === 'pending' ? s.statusPendingMini : (notification.status === 'accepted' ? s.statusAcceptedMini : s.statusRejectedMini)]}>
+          <Text style={s.statusBadgeTextMini}>
+            {notification.status === 'pending' ? '● En attente' : (notification.status === 'accepted' ? '● Acceptée' : '● Refusée')}
+          </Text>
+        </View>
+      )}
+
+      {/* Cavalier pseudo with avatar */}
+      <View style={s.headerRow}>
+        {notification.auteurCouleur && (
+          <View style={[s.avatar, { backgroundColor: notification.auteurCouleur }]}>
+            <Text style={s.avatarText}>{notification.auteurInitiales}</Text>
+          </View>
+        )}
+        <View style={{ flex: 1 }}>
+          <Text style={s.cavalierPseudo}>@{notification.auteurPseudo}</Text>
+          <Text style={s.messageText}>{notification.message}</Text>
+        </View>
       </View>
 
-      {!isRead && <View style={styles.unreadDot} />}
-    </TouchableOpacity>
+      {/* Détails */}
+      {isCourseRequest ? (
+        <>
+          <Text style={s.detailsText}>
+            {notification.donnees?.annonceTitre}
+            {notification.donnees?.concoursNom && ` · ${notification.donnees.concoursNom}`}
+          </Text>
+        </>
+      ) : (
+        <>
+          <Text style={s.detailsText}>
+            {notification.donnees?.stageTitre} · {notification.donnees?.nombreParticipants} participant{notification.donnees?.nombreParticipants !== 1 ? 's' : ''}
+          </Text>
+        </>
+      )}
+    </View>
   );
 }
 
-function formatTime(date: Date): string {
-  const now = new Date();
-  const diff = now.getTime() - date.getTime();
-  const minutes = Math.floor(diff / 60000);
-  const hours = Math.floor(diff / 3600000);
-  const days = Math.floor(diff / 86400000);
-
-  if (minutes < 1) return 'À l\'instant';
-  if (minutes < 60) return `${minutes}m`;
-  if (hours < 24) return `${hours}h`;
-  if (days < 7) return `${days}j`;
-
-  return date.toLocaleDateString('fr-FR', { month: 'short', day: 'numeric' });
-}
-
-const styles = StyleSheet.create({
+const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',
@@ -123,43 +126,24 @@ const styles = StyleSheet.create({
     borderBottomColor: Colors.border,
     backgroundColor: Colors.surface,
   },
-  headerTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  badge: {
-    backgroundColor: '#FF4444',
-    borderRadius: 12,
-    paddingHorizontal: Spacing.sm,
-    paddingVertical: 2,
-    minWidth: 24,
-    alignItems: 'center',
-  },
-  badgeText: { color: '#FFF', fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  container: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 100 },
-  sectionTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textTertiary, marginBottom: Spacing.sm },
-  notifCard: {
-    flexDirection: 'row',
-    gap: Spacing.md,
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    padding: Spacing.lg,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    ...Shadow.card,
-    alignItems: 'flex-start',
-  },
-  notifCardUnread: {
-    backgroundColor: Colors.primaryLight + '15',
-    borderColor: Colors.primary,
-    borderWidth: 1.5,
-  },
-  notifIcon: { fontSize: 24, marginTop: 2 },
-  notifContent: { flex: 1, gap: Spacing.xs },
-  notifTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
-  notifTitleBold: { fontWeight: FontWeight.bold },
-  notifMessage: { fontSize: FontSize.xs, color: Colors.textSecondary, lineHeight: 16 },
-  notifMeta: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.xs },
-  unreadDot: { width: 8, height: 8, borderRadius: 4, backgroundColor: Colors.primary, marginTop: 2 },
-  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: 80, gap: Spacing.md },
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  emptyDesc: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  headerTitle: { fontSize: FontSize.xxl, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  headerSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: Spacing.xs },
+  container: { padding: Spacing.lg, gap: Spacing.md },
+  emptyState: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl, gap: Spacing.sm },
+  emptyIcon: { fontSize: 64, marginBottom: Spacing.sm },
+  emptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  emptyText: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center' },
+  card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.card, gap: Spacing.md },
+  statusBadgeMini: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.md, alignSelf: 'flex-start' },
+  statusPendingMini: { backgroundColor: '#FFF3CD', borderWidth: 1, borderColor: '#FFC107' },
+  statusAcceptedMini: { backgroundColor: '#D1FAE5', borderWidth: 1, borderColor: '#10B981' },
+  statusRejectedMini: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#EF4444' },
+  statusBadgeTextMini: { fontWeight: FontWeight.bold, fontSize: FontSize.xs, color: Colors.textPrimary },
+  headerRow: { flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
+  avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
+  avatarText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textInverse },
+  cavalierPseudo: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary },
+  messageText: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: Spacing.xs },
+  detailsText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  montantText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
 });

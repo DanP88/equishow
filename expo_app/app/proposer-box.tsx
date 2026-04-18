@@ -10,6 +10,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
 import { mockConcours } from '../data/mockConcours';
 import { boxesStore, userStore } from '../data/store';
+import { prixTTC as calculatePrixTTC } from '../types/service';
 
 const CONCOURS_OPTIONS = mockConcours
   .filter(c => c.statut !== 'brouillon')
@@ -130,14 +131,19 @@ export default function ProposerBoxScreen() {
   }
 
   const prixNum = parseFloat(prix);
-  const prixTTC = prixNum ? Math.round(prixNum * 1.09 * 100) / 100 : null;
+  const prixTTC = prixNum ? calculatePrixTTC(prixNum, 'box') : null;
+
+  // Calculer les jours disponibles automatiquement
+  const joursDisponibles = dateDebut && dateFin
+    ? Math.max(1, Math.round((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24)))
+    : 0;
 
   function submit() {
-    if (!lieu || !dateDebut || !dateFin || !nbBoxes || !prix) {
-      Alert.alert('Champs manquants', 'Veuillez remplir : lieu, dates, nombre de boxes et prix.');
+    if (!lieu || !dateDebut || !dateFin || !prix) {
+      Alert.alert('Champs manquants', 'Veuillez remplir : lieu, dates et prix.');
       return;
     }
-    const nb = parseInt(nbBoxes, 10);
+    const nb = joursDisponibles;
     const descFull = [
       equipements.length > 0 ? `Équipements : ${equipements.join(', ')}` : '',
       description,
@@ -183,7 +189,7 @@ export default function ProposerBoxScreen() {
       boxesStore.list = [nouvelleAnnonce, ...boxesStore.list];
       Alert.alert(
         'Annonce publiée ! 🏠',
-        `Vos ${nbBoxes} box(es) à "${lieu}" sont maintenant visibles dans la liste.`,
+        `Votre annonce de boxes à "${lieu}" (${joursDisponibles} jour${joursDisponibles > 1 ? 's' : ''}) est maintenant visible dans la liste.`,
         [{ text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=box' as any) }],
       );
     }
@@ -249,19 +255,13 @@ export default function ProposerBoxScreen() {
           </View>
         </Field>
 
-        <Field label="Nombre de boxes disponibles *">
-          <View style={s.placesRow}>
-            {['1', '2', '3', '4', '5', '6', '8', '10', '12', '15', '20', '30'].map((n) => (
-              <TouchableOpacity
-                key={n}
-                style={[s.placeBtn, nbBoxes === n && s.placeBtnActive]}
-                onPress={() => setNbBoxes(n)}
-              >
-                <Text style={[s.placeBtnText, nbBoxes === n && s.placeBtnTextActive]}>{n}</Text>
-              </TouchableOpacity>
-            ))}
+        {dateDebut && dateFin && (
+          <View style={s.joursDisponiblesCard}>
+            <Text style={s.joursDisponiblesLabel}>Jours disponibles</Text>
+            <Text style={s.joursDisponiblesValue}>{joursDisponibles} jour{joursDisponibles > 1 ? 's' : ''}</Text>
+            <Text style={s.joursDisponiblesHint}>Les locataires choisissent les jours qu'ils veulent dans cette période</Text>
           </View>
-        </Field>
+        )}
 
         <Field label="Prix par box / nuit (€ HT) *" hint={prixTTC ? `→ ${prixTTC}€ TTC par box par nuit` : 'Recommandé : 45–80€'}>
           <View style={f.priceRow}>
@@ -394,6 +394,10 @@ const s = StyleSheet.create({
   equipCheck: { fontSize: FontSize.xs, color: Colors.success, fontWeight: FontWeight.bold },
   equipText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.medium },
   equipTextActive: { color: Colors.success, fontWeight: FontWeight.bold },
+  joursDisponiblesCard: { backgroundColor: Colors.primaryLight, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.primaryBorder, alignItems: 'center', gap: Spacing.sm },
+  joursDisponiblesLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  joursDisponiblesValue: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.primary },
+  joursDisponiblesHint: { fontSize: FontSize.xs, color: Colors.primary, fontStyle: 'italic', textAlign: 'center' },
 });
 
 const f = StyleSheet.create({

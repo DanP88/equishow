@@ -6,11 +6,13 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { transportsStore, boxesStore, coachesStore, coachAnnoncesStore, userStore } from '../../data/store';
+import { transportsStore, boxesStore, coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore } from '../../data/store';
 import { useUserRole } from '../../hooks/useUserRole';
-import { prixTTC, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, Disponibilite } from '../../types/service';
+import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
 
 type Tab = 'transport' | 'box' | 'coach';
+type TransportSubTab = 'trajets' | 'van';
+type CoachTab = 'concours' | 'stages';
 
 /* ─── Filtres ──────────────────────────────────────────────────────────────── */
 
@@ -31,6 +33,7 @@ interface FiltersBox {
 }
 interface FiltersCoach {
   sort: SortC;
+  concours: string;
   discipline: string;
   niveau: string;
   prixMax: number;
@@ -39,7 +42,7 @@ interface FiltersCoach {
 
 const DEFAULT_FT: FiltersTransport = { sort: 'date_asc', concours: '', villeDepart: '', placesMin: 0 };
 const DEFAULT_FB: FiltersBox = { sort: 'date_asc', concours: '', boxesMin: 0 };
-const DEFAULT_FC: FiltersCoach = { sort: 'note_desc', discipline: '', niveau: '', prixMax: 999, disponibleSeulement: false };
+const DEFAULT_FC: FiltersCoach = { sort: 'note_desc', concours: '', discipline: '', niveau: '', prixMax: 999, disponibleSeulement: false };
 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
@@ -88,22 +91,28 @@ export default function ServicesScreen() {
   const params = useLocalSearchParams<{ tab?: string }>();
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur';
   const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'transport');
+  const [transportSubTab, setTransportSubTab] = useState<TransportSubTab>((params.subTab as TransportSubTab) ?? 'trajets');
+  const [coachTab, setCoachTab] = useState<CoachTab>('concours');
   const [transports, setTransports] = useState(transportsStore.list);
   const [boxes, setBoxes] = useState(boxesStore.list);
   const [coachAnnonces, setCoachAnnonces] = useState(coachAnnoncesStore.list);
+  const [stages, setStages] = useState(coachStagesStore.list);
 
   const [filtersT, setFiltersT] = useState<FiltersTransport>(DEFAULT_FT);
   const [filtersB, setFiltersB] = useState<FiltersBox>(DEFAULT_FB);
   const [filtersC, setFiltersC] = useState<FiltersCoach>(DEFAULT_FC);
   const [showFilters, setShowFilters] = useState(false);
+  const [showConcoursDropdown, setShowConcoursDropdown] = useState(false);
 
   // Refresh quand on revient sur l'écran (après publication ou modification)
   useFocusEffect(useCallback(() => {
     setTransports([...transportsStore.list]);
     setBoxes([...boxesStore.list]);
     setCoachAnnonces([...coachAnnoncesStore.list]);
+    setStages([...coachStagesStore.list]);
     if (params.tab) setTab(params.tab as Tab);
-  }, [params.tab]));
+    if (params.subTab) setTransportSubTab(params.subTab as TransportSubTab);
+  }, [params.tab, params.subTab]));
 
   function handleCancelTransport(id: string) {
     Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer ce trajet ?', [
@@ -131,18 +140,37 @@ export default function ServicesScreen() {
     ]);
   }
 
-  const filteredT = applyTransportFilters(transports, filtersT);
+  // Filtrer les transports par type
+  const transportsFiltered = transports.filter(t =>
+    transportSubTab === 'trajets' ? t.typeTransport === 'trajet' : t.typeTransport === 'location'
+  );
+
+  const filteredT = applyTransportFilters(transportsFiltered, filtersT);
   const filteredB = applyBoxFilters(boxes, filtersB);
   const filteredC = applyCoachFilters(coachesStore.list, filtersC);
 
   const concoursTransport = unique(transports.map((t) => t.concours ?? ''));
   const concoursBoxes = unique(boxes.map((b) => b.concours ?? ''));
+  const concoursCoaches = unique(coachAnnonces.map((ca) => ca.concours ?? '').filter(Boolean));
   const disciplinesCoachs = unique(coachesStore.list.flatMap((c) => c.disciplines));
   const niveauxCoachs = unique(coachesStore.list.flatMap((c) => c.niveaux));
 
+  // Filtrer les annonces et coachs par concours
+  const filteredCoachAnnonces = filtersC.concours
+    ? coachAnnonces.filter((ca) => ca.concours === filtersC.concours)
+    : coachAnnonces;
+
+  const coachIdsWithSelectedConcours = filtersC.concours
+    ? new Set(filteredCoachAnnonces.map((ca) => ca.auteurId))
+    : new Set();
+
+  const filteredCoaches = filtersC.concours
+    ? filteredC.filter((c) => coachIdsWithSelectedConcours.has(c.auteurId))
+    : filteredC;
+
   const activeFiltersT = filtersT.concours || filtersT.villeDepart || filtersT.placesMin > 0 || filtersT.sort !== 'date_asc';
   const activeFiltersB = filtersB.concours || filtersB.boxesMin > 0 || filtersB.sort !== 'date_asc';
-  const activeFiltersC = filtersC.discipline || filtersC.niveau || filtersC.prixMax < 999 || filtersC.disponibleSeulement || filtersC.sort !== 'note_desc';
+  const activeFiltersC = filtersC.concours || filtersC.discipline || filtersC.niveau || filtersC.prixMax < 999 || filtersC.disponibleSeulement || filtersC.sort !== 'note_desc';
   const hasActiveFilter = tab === 'transport' ? activeFiltersT : tab === 'box' ? activeFiltersB : activeFiltersC;
 
   return (
@@ -173,7 +201,7 @@ export default function ServicesScreen() {
       {/* Stripe */}
       <View style={s.stripeBar}>
         <Text style={s.stripeIcon}>🔒</Text>
-        <Text style={s.stripeText}>Paiements sécurisés via Stripe — commission 9%</Text>
+        <Text style={s.stripeText}>Paiements sécurisés via Stripe — commission 5%</Text>
       </View>
 
       {/* Tabs */}
@@ -183,11 +211,39 @@ export default function ServicesScreen() {
         <TabBtn label="🎓 Coachs" count={filteredC.length} active={tab === 'coach'} onPress={() => setTab('coach')} />
       </View>
 
+      {/* Transport Sub-Tabs */}
+      {tab === 'transport' && (
+        <View style={s.subTabBar}>
+          <TouchableOpacity
+            style={[s.subTabBtn, transportSubTab === 'trajets' && s.subTabBtnActive]}
+            onPress={() => setTransportSubTab('trajets')}
+          >
+            <Text style={[s.subTabLabel, transportSubTab === 'trajets' && s.subTabLabelActive]}>
+              🚐 Trajets
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.subTabBtn, transportSubTab === 'van' && s.subTabBtnActive]}
+            onPress={() => setTransportSubTab('van')}
+          >
+            <Text style={[s.subTabLabel, transportSubTab === 'van' && s.subTabLabelActive]}>
+              🔑 Van seul
+            </Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       <ScrollView contentContainerStyle={s.list}>
         {tab === 'transport' && (
           <>
-            <BannerAdd icon="🚐" text="Vous avez des places dans votre van ?" hint="Recommandé : 0,8€/km" cta="Proposer un trajet" route="/proposer-transport" />
-            {filteredT.length === 0 && <EmptyState text="Aucun trajet ne correspond à vos filtres." />}
+            <BannerAdd
+              icon="🚐"
+              text={transportSubTab === 'trajets' ? "Vous avez des places dans votre van ?" : "Vous voulez louer votre van à la journée ?"}
+              hint={transportSubTab === 'trajets' ? "Recommandé : 0,8€/km" : "Recommandé : 200-220€/jour"}
+              cta="Proposer une annonce"
+              route="/proposer-transport"
+            />
+            {filteredT.length === 0 && <EmptyState text={`Aucun ${transportSubTab === 'trajets' ? 'trajet' : 'van'} ne correspond à vos filtres.`} />}
             {filteredT.map((t) => (
               <TransportCard
                 key={t.id}
@@ -214,30 +270,129 @@ export default function ServicesScreen() {
         )}
         {tab === 'coach' && (
           <>
+            {/* SECTION COACH */}
             {role === 'coach' && (
               <>
                 <BannerAdd icon="🎓" text="Vous êtes coach ?" hint="Proposez vos services" cta="Ajouter un profil" route="/proposer-coach" />
+
+                {/* Concours disponibles */}
+                {concoursStore.list.length > 0 && (
+                  <>
+                    <Text style={s.sectionTitle}>🏆 Concours disponibles</Text>
+                    {concoursStore.list
+                      .filter(c => c.statut !== 'brouillon')
+                      .map((concours) => (
+                        <View key={concours.id} style={s.concoursCard}>
+                          <View style={s.concoursInfo}>
+                            <Text style={s.concoursName}>{concours.nom}</Text>
+                            <Text style={s.concoursDate}>
+                              📅 {concours.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {concours.lieu}
+                            </Text>
+                            {concours.disciplines && concours.disciplines.length > 0 && (
+                              <Text style={s.concoursDetail}>
+                                🎯 {concours.disciplines.join(', ')}
+                              </Text>
+                            )}
+                            {concours.epreuves && concours.epreuves.length > 0 && (
+                              <Text style={s.concoursDetail}>
+                                Épreuves: {concours.epreuves.join(', ')}
+                              </Text>
+                            )}
+                            {concours.typesCavaliers && concours.typesCavaliers.length > 0 && (
+                              <Text style={s.concoursDetail}>
+                                Niveaux: {concours.typesCavaliers.join(', ')}
+                              </Text>
+                            )}
+                          </View>
+                          <TouchableOpacity
+                            style={s.concoursCreateBtn}
+                            onPress={() => router.push(`/proposer-coach-annonce?concoursId=${concours.id}` as any)}
+                          >
+                            <Text style={s.concoursCreateBtnText}>Créer une annonce</Text>
+                          </TouchableOpacity>
+                        </View>
+                      ))}
+                  </>
+                )}
               </>
             )}
-            {coachAnnonces.length > 0 && (
+
+            {/* SECTION CAVALIER */}
+            {role === 'cavalier' && (
               <>
-                <Text style={s.sectionTitle}>📢 Annonces des coachs</Text>
-                {coachAnnonces.map((ca) => <CoachAnnonceCard key={ca.id} item={ca} />)}
+                {/* Onglets Concours / Stages */}
+                <View style={s.coachTabBar}>
+                  <TouchableOpacity
+                    style={[s.coachTabBtn, coachTab === 'concours' && s.coachTabBtnActive]}
+                    onPress={() => setCoachTab('concours')}
+                  >
+                    <Text style={[s.coachTabLabel, coachTab === 'concours' && s.coachTabLabelActive]}>🏆 Concours</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.coachTabBtn, coachTab === 'stages' && s.coachTabBtnActive]}
+                    onPress={() => setCoachTab('stages')}
+                  >
+                    <Text style={[s.coachTabLabel, coachTab === 'stages' && s.coachTabLabelActive]}>📚 Stages</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* Onglet CONCOURS */}
+                {coachTab === 'concours' && (
+                  <>
+                    {/* Filtre concours */}
+                    {concoursCoaches.length > 0 && (
+                      <View style={s.concoursFilterContainer}>
+                        <Text style={s.concoursFilterLabel}>Filtrer par concours</Text>
+                        <TouchableOpacity
+                          style={s.concoursDropdown}
+                          activeOpacity={0.7}
+                          onPress={() => setShowConcoursDropdown(true)}
+                        >
+                          <Text style={s.concoursDropdownText}>
+                            {filtersC.concours || 'Tous les concours'}
+                          </Text>
+                          <Text style={s.concoursDropdownIcon}>▼</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
+                    {filteredCoachAnnonces.length > 0 && (
+                      <>
+                        <Text style={s.sectionTitle}>📢 Annonces des coachs</Text>
+                        {filteredCoachAnnonces.map((ca) => <CoachAnnonceCard key={ca.id} item={ca} />)}
+                      </>
+                    )}
+                    {filteredCoaches.length > 0 && (
+                      <>
+                        <Text style={s.sectionTitle}>🎓 Profils des coachs</Text>
+                        {filteredCoaches.map((c) => (
+                          <CoachCard
+                            key={c.id}
+                            item={c}
+                            onModify={role === 'coach' && c.auteurId === userStore.id ? () => router.push(`/editer-coach?coachId=${c.id}` as any) : undefined}
+                          />
+                        ))}
+                      </>
+                    )}
+                    {filteredCoaches.length === 0 && filteredCoachAnnonces.length === 0 && <EmptyState text="Aucun coach ne correspond à vos filtres." />}
+                  </>
+                )}
               </>
             )}
-            {filteredC.length > 0 && (
+
+            {/* Onglet STAGES */}
+            {role === 'cavalier' && coachTab === 'stages' && (
               <>
-                <Text style={s.sectionTitle}>🎓 Profils des coachs</Text>
-                {filteredC.map((c) => (
-                  <CoachCard
-                    key={c.id}
-                    item={c}
-                    onModify={role === 'coach' && c.auteurId === userStore.id ? () => router.push(`/editer-coach?coachId=${c.id}` as any) : undefined}
-                  />
-                ))}
+                {stages.length === 0 ? (
+                  <EmptyState text="Aucun stage disponible pour le moment." />
+                ) : (
+                  <>
+                    <Text style={s.sectionTitle}>📚 Stages des coachs</Text>
+                    {stages.map((stage) => <StageCard key={stage.id} item={stage} />)}
+                  </>
+                )}
               </>
             )}
-            {filteredC.length === 0 && coachAnnonces.length === 0 && <EmptyState text="Aucun coach ne correspond à vos filtres." />}
           </>
         )}
       </ScrollView>
@@ -268,6 +423,7 @@ export default function ServicesScreen() {
                 <FiltersCoachPanel
                   filters={filtersC}
                   onChange={setFiltersC}
+                  concours={concoursCoaches}
                   disciplines={disciplinesCoachs}
                   niveaux={niveauxCoachs}
                 />
@@ -289,6 +445,46 @@ export default function ServicesScreen() {
                 <Text style={s.applyText}>Appliquer</Text>
               </TouchableOpacity>
             </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+
+      {/* Modal dropdown concours */}
+      <Modal visible={showConcoursDropdown} transparent animationType="fade">
+        <TouchableOpacity
+          style={s.dropdownBackdrop}
+          activeOpacity={1}
+          onPress={() => setShowConcoursDropdown(false)}
+        >
+          <TouchableOpacity activeOpacity={1} style={s.dropdownMenu}>
+            <TouchableOpacity
+              style={s.dropdownItem}
+              onPress={() => {
+                setFiltersC({ ...filtersC, concours: '' });
+                setShowConcoursDropdown(false);
+              }}
+            >
+              <Text style={[s.dropdownItemText, !filtersC.concours && s.dropdownItemTextActive]}>
+                Tous les concours
+              </Text>
+              {!filtersC.concours && <Text style={s.dropdownCheckmark}>✓</Text>}
+            </TouchableOpacity>
+
+            {concoursCoaches.map((c) => (
+              <TouchableOpacity
+                key={c}
+                style={s.dropdownItem}
+                onPress={() => {
+                  setFiltersC({ ...filtersC, concours: c });
+                  setShowConcoursDropdown(false);
+                }}
+              >
+                <Text style={[s.dropdownItemText, filtersC.concours === c && s.dropdownItemTextActive]}>
+                  {c}
+                </Text>
+                {filtersC.concours === c && <Text style={s.dropdownCheckmark}>✓</Text>}
+              </TouchableOpacity>
+            ))}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -396,8 +592,8 @@ function FiltersBoxPanel({ filters, onChange, concoursOptions }: {
   );
 }
 
-function FiltersCoachPanel({ filters, onChange, disciplines, niveaux }: {
-  filters: FiltersCoach; onChange: (f: FiltersCoach) => void; disciplines: string[]; niveaux: string[];
+function FiltersCoachPanel({ filters, onChange, concours, disciplines, niveaux }: {
+  filters: FiltersCoach; onChange: (f: FiltersCoach) => void; concours: string[]; disciplines: string[]; niveaux: string[];
 }) {
   const f = filters;
   return (
@@ -411,6 +607,14 @@ function FiltersCoachPanel({ filters, onChange, disciplines, niveaux }: {
           ]}
           value={f.sort}
           onSelect={(v) => onChange({ ...f, sort: v as SortC })}
+        />
+      </FilterSection>
+
+      <FilterSection title="Concours">
+        <ChipGroup
+          options={[{ label: 'Tous', value: '' }, ...concours.map((c) => ({ label: c, value: c }))]}
+          value={f.concours}
+          onSelect={(v) => onChange({ ...f, concours: v })}
         />
       </FilterSection>
 
@@ -573,21 +777,42 @@ function TransportCard({ item, onCancel, onModify }: {
       {isOwner && <View style={s.ownerBadge}><Text style={s.ownerBadgeText}>Mon annonce</Text></View>}
       <View style={s.routeRow}>
         <View style={{ flex: 1 }}>
-          <Text style={s.routeDepart}>{item.villeDepart}</Text>
-          <Text style={s.routeArrow}>→</Text>
-          <Text style={s.routeArrivee}>{item.villeArrivee}</Text>
+          {item.typeTransport === 'trajet' ? (
+            <>
+              <Text style={s.routeDepart}>{item.villeDepart}</Text>
+              <Text style={s.routeArrow}>→</Text>
+              <Text style={s.routeArrivee}>{item.villeArrivee}</Text>
+            </>
+          ) : (
+            <Text style={s.routeDepart}>📍 {item.villeDepart}</Text>
+          )}
         </View>
         <View style={s.priceBadge}>
-          <Text style={s.priceHT}>{item.prixHT}€ HT</Text>
-          <Text style={s.priceTTC}>{ttc}€ TTC</Text>
+          <Text style={s.priceHT}>{item.prixHT}€ TTC</Text>
+          {item.typeTransport === 'location' && <Text style={s.priceTTC}>par jour</Text>}
         </View>
       </View>
       <View style={s.tagRow}>
-        <Tag icon="📅" label={date} />
-        <Tag icon="🐴" label={`${left}/${item.nbPlacesTotal} place${item.nbPlacesTotal > 1 ? 's' : ''}`} color={left > 0 ? Colors.success : Colors.urgent} />
+        {item.typeTransport === 'trajet' ? (
+          <>
+            <Tag icon="📅" label={date} />
+            <Tag icon="🐴" label={`${left}/${item.nbPlacesTotal} place${item.nbPlacesTotal > 1 ? 's' : ''}`} color={left > 0 ? Colors.success : Colors.urgent} />
+            {item.allerRetour ? (
+              <Tag icon="↔️" label="Aller retour" color={Colors.primary} />
+            ) : (
+              <Tag icon="→" label="Aller simple" />
+            )}
+          </>
+        ) : (
+          <>
+            <Tag icon="📅" label={`${item.datesDisponibles?.length ?? 0} jour(s)`} />
+            <Tag icon="💳" label={`Caution: ${item.cautionRéparation}€`} color={Colors.warning} />
+          </>
+        )}
         {item.concours && <Tag icon="🏆" label={item.concours} />}
       </View>
       {item.description && <Text style={s.description}>{item.description}</Text>}
+
       <View style={s.cardFooter}>
         <AuthorRow
           initiales={item.auteurInitiales}
@@ -613,8 +838,12 @@ function TransportCard({ item, onCancel, onModify }: {
             <TouchableOpacity style={s.msgContactBtn} onPress={() => router.push('/messagerie')}>
               <Text style={s.msgContactText}>💬</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[s.ctaBtn, left === 0 && s.ctaBtnDisabled]} disabled={left === 0} onPress={() => router.push(`/reserver-transport?id=${item.id}` as any)}>
-              <Text style={s.ctaText}>{left > 0 ? 'Réserver' : 'Complet'}</Text>
+            <TouchableOpacity
+              style={[s.ctaBtn, (item.typeTransport === 'trajet' && left === 0) && s.ctaBtnDisabled]}
+              disabled={item.typeTransport === 'trajet' && left === 0}
+              onPress={() => router.push(`/reserver-transport?id=${item.id}` as any)}
+            >
+              <Text style={s.ctaText}>{item.typeTransport === 'trajet' ? (left > 0 ? 'Réserver' : 'Complet') : 'Louer'}</Text>
             </TouchableOpacity>
           </View>
         )}
@@ -644,8 +873,7 @@ function BoxCard({ item, onCancel, onModify }: {
       </View>
       <View style={s.tagRow}>
         <Tag icon="📅" label={`${debut} → ${fin}`} />
-        <Tag icon="🌙" label={`${nbJ}j`} />
-        <Tag icon="🏠" label={`${left}/${item.nbBoxes} dispo`} color={left > 0 ? Colors.success : Colors.urgent} />
+        <Tag icon="🌙" label={`${nbJ}j disponibles`} color={Colors.success} />
         {item.concours && <Tag icon="🏆" label={item.concours} />}
       </View>
       {item.description && <Text style={s.description} numberOfLines={2}>{item.description}</Text>}
@@ -760,10 +988,7 @@ function CoachCard({ item, onModify }: { item: CoachProfil; onModify?: () => voi
 }
 
 function CoachAnnonceCard({ item }: { item: CoachAnnonce }) {
-  const ttc = prixTTC(item.prixHeure);
-  const heures = Math.ceil((item.dateFin.getTime() - item.dateDebut.getTime()) / (1000 * 60 * 60));
   const dateStr = item.dateDebut.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' });
-  const left = item.placesDisponibles;
 
   const handleAuthorPress = () => {
     console.log('🖱️ Coach annonce author tapped - ID:', item.auteurId);
@@ -793,11 +1018,8 @@ function CoachAnnonceCard({ item }: { item: CoachAnnonce }) {
       <View style={s.tagRow}>
         <Tag label={item.discipline} color={Colors.primary} />
         <Tag label={item.niveau} />
-        {item.type === 'concours' && item.concours ? (
-          <Tag icon="🏆" label={item.concours} />
-        ) : (
-          <Tag icon="📅" label={dateStr} />
-        )}
+        {item.concours && <Tag icon="🏆" label={item.concours} />}
+        <Tag icon="📅" label={dateStr} />
       </View>
 
       <Text style={s.description} numberOfLines={2}>{item.description}</Text>
@@ -823,13 +1045,74 @@ function CoachAnnonceCard({ item }: { item: CoachAnnonce }) {
       <View style={s.annonceDetails}>
         <View style={s.detailItem}>
           <Text style={s.detailLabel}>Tarif</Text>
-          <Text style={s.detailValue}>{item.prixHeure}€/h</Text>
-          <Text style={s.detailSmall}>{ttc}€ TTC</Text>
+          <Text style={s.detailValue}>{item.prixHeure}€</Text>
+        </View>
+      </View>
+
+      <View style={s.footerBtns}>
+        <TouchableOpacity style={[s.msgContactBtn, { flex: 1 }]} onPress={() => router.push('/messagerie')}>
+          <Text style={s.msgContactText}>💬 Contacter</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.ctaBtn, { flex: 1 }]}
+          onPress={() => router.push(`/reserver-coach?annonceId=${item.id}` as any)}
+        >
+          <Text style={s.ctaText}>Réserver</Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+}
+
+function StageCard({ item }: { item: CoachStage }) {
+  const left = item.placesDisponibles;
+  const dateDebut = item.dateDebut.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' });
+  const dateFin = item.dateFin.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' });
+
+  const handleAuthorPress = () => {
+    console.log('🖱️ Stage author tapped - ID:', item.auteurId);
+    router.push(`user-profile/${item.auteurId}` as any);
+  };
+
+  return (
+    <View style={s.card}>
+      <TouchableOpacity
+        style={s.annonceHeader}
+        onPress={handleAuthorPress}
+        activeOpacity={0.7}
+      >
+        <TouchableOpacity
+          style={[s.coachAvatar, { backgroundColor: item.auteurCouleur }]}
+          onPress={handleAuthorPress}
+          activeOpacity={0.8}
+        >
+          <Text style={s.coachInitiales}>{item.auteurInitiales}</Text>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={s.annonceTitre}>{item.titre}</Text>
+          <Text style={s.annonceAuteur}>par @{item.auteurPseudo}</Text>
+        </View>
+      </TouchableOpacity>
+
+      <View style={s.tagRow}>
+        <Tag icon="📚" label={`${item.nbJours} jour${item.nbJours > 1 ? 's' : ''}`} />
+        <Tag label={item.disciplines.join(', ')} color={Colors.primary} />
+        <Tag label={item.niveaux.join(', ')} />
+      </View>
+
+      <Text style={s.description} numberOfLines={2}>{item.description}</Text>
+
+      <View style={s.annonceDetails}>
+        <View style={s.detailItem}>
+          <Text style={s.detailLabel}>Dates</Text>
+          <Text style={s.detailValue}>{dateDebut}</Text>
+          <Text style={s.detailSmall}>à {dateFin}</Text>
         </View>
         <View style={s.detailDivider} />
         <View style={s.detailItem}>
-          <Text style={s.detailLabel}>Durée</Text>
-          <Text style={s.detailValue}>{heures}h</Text>
+          <Text style={s.detailLabel}>Prix</Text>
+          <Text style={s.detailValue}>{item.prixTTC}€</Text>
+          <Text style={s.detailSmall}>TTC</Text>
         </View>
         <View style={s.detailDivider} />
         <View style={s.detailItem}>
@@ -845,9 +1128,9 @@ function CoachAnnonceCard({ item }: { item: CoachAnnonce }) {
         <TouchableOpacity
           style={[s.ctaBtn, { flex: 1 }, left === 0 && s.ctaBtnDisabled]}
           disabled={left === 0}
-          onPress={() => router.push(`/reserver-coach?annonceId=${item.id}` as any)}
+          onPress={() => router.push(`/reserver-stage?stageId=${item.id}` as any)}
         >
-          <Text style={s.ctaText}>{left > 0 ? 'Réserver' : 'Complet'}</Text>
+          <Text style={s.ctaText}>{left > 0 ? 'S\'inscrire' : 'Complet'}</Text>
         </TouchableOpacity>
       </View>
     </View>
@@ -958,6 +1241,45 @@ const s = StyleSheet.create({
   detailSmall: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
   detailValueFull: { color: Colors.urgent },
   detailDivider: { width: 1, height: 30, backgroundColor: Colors.primaryBorder },
+
+  // Onglets transport (Trajets / Van seul)
+  subTabBar: { flexDirection: 'row', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
+  subTabBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
+  subTabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  subTabLabel: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
+  subTabLabelActive: { color: Colors.textInverse },
+
+  // Onglets coach
+  coachTabBar: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  coachTabBtn: { paddingVertical: Spacing.md, paddingHorizontal: Spacing.md, borderBottomWidth: 2, borderBottomColor: 'transparent' },
+  coachTabBtnActive: { borderBottomColor: Colors.primary },
+  coachTabLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
+  coachTabLabelActive: { color: Colors.primary, fontWeight: FontWeight.bold },
+
+  // Filtre concours
+  concoursFilterContainer: { gap: Spacing.sm, marginBottom: Spacing.md },
+  concoursFilterLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  concoursDropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md },
+  concoursDropdownText: { fontSize: FontSize.base, color: Colors.textPrimary, flex: 1 },
+  concoursDropdownIcon: { fontSize: FontSize.xs, color: Colors.textTertiary, marginLeft: Spacing.sm },
+
+  // Carte concours pour coachs
+  concoursCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.card, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
+  concoursInfo: { flex: 1, gap: Spacing.xs },
+  concoursName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  concoursDate: { fontSize: FontSize.xs, color: Colors.textSecondary },
+  concoursDetail: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.xs },
+  concoursCreateBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, justifyContent: 'center' },
+  concoursCreateBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textInverse, textAlign: 'center' },
+  sectionTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginTop: Spacing.md, marginBottom: Spacing.sm },
+
+  // Dropdown menu
+  dropdownBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center' },
+  dropdownMenu: { backgroundColor: Colors.surface, borderRadius: Radius.lg, marginHorizontal: Spacing.lg, overflow: 'hidden', ...Shadow.card },
+  dropdownItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  dropdownItemText: { fontSize: FontSize.base, color: Colors.textSecondary },
+  dropdownItemTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
+  dropdownCheckmark: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.base },
 
   // Filtres modal
   filtersBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },

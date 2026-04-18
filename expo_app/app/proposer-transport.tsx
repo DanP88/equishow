@@ -6,10 +6,11 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
+import { DatePickerModal, DateButton, formatDate, MultiDatePickerModal } from '../components/DatePickerModal';
 import { mockConcours } from '../data/mockConcours';
 import { transportsStore, userStore } from '../data/store';
 import { VILLES_POPULAIRES } from '../data/mockVilles';
+import { getCommission } from '../types/service';
 
 const CONCOURS_OPTIONS = mockConcours
   .filter(c => c.statut !== 'brouillon')
@@ -211,33 +212,53 @@ export default function ProposerTransportScreen() {
   const existing = editId ? transportsStore.list.find((t) => t.id === editId) : undefined;
 
   const [villeDepart, setVilleDepart] = useState(existing?.villeDepart ?? '');
-  const [villeArrivee, setVilleArrivee] = useState(existing?.villeArrivee ?? '');
   const [dateTrajet, setDateTrajet] = useState<Date | undefined>(existing?.dateTrajet);
   const [nbPlaces, setNbPlaces] = useState(existing ? String(existing.nbPlacesTotal) : '');
   const [prix, setPrix] = useState(existing ? String(existing.prixHT) : '');
 
+  // Nouveaux champs transport
+  const [typeTransport, setTypeTransport] = useState<'trajet' | 'location'>(existing?.typeTransport ?? 'trajet');
+  const [adresseVan, setAdresseVan] = useState(existing?.adresseVan ?? '');
+  const [heureDepart, setHeureDepart] = useState(existing?.heureDepart ?? '');
+
   // Retour
-  const [proposerRetour, setProposerRetour] = useState(false);
+  const [proposerRetour, setProposerRetour] = useState(existing?.allerRetour ?? false);
   const [villedepartRetour, setVilledepartRetour] = useState('');
   const [villearriveeRetour, setVillearriveeRetour] = useState('');
-  const [dateRetour, setDateRetour] = useState<Date | undefined>();
+  const [dateRetour, setDateRetour] = useState<Date | undefined>(existing?.dateRetour);
   const [nbPlacesRetour, setNbPlacesRetour] = useState('');
 
   // Propriétaire dans la voiture
   const [prendreProprietaire, setPrendreProprietaire] = useState(false);
 
+  // Location du van seul
+  const [kmInclus, setKmInclus] = useState(existing?.kmInclus ? String(existing.kmInclus) : '');
+  const [tarifKmSupplémentaire, setTarifKmSupplémentaire] = useState(existing?.tarifKmSupplémentaire ? String(existing.tarifKmSupplémentaire) : '');
+  const [cautionRéparation, setCautionRéparation] = useState(existing?.cautionRéparation ? String(existing.cautionRéparation) : '');
+  const [cautionNettoyage, setCautionNettoyage] = useState(existing?.cautionNettoyage ? String(existing.cautionNettoyage) : '');
+  const [datesDisponibles, setDatesDisponibles] = useState<Date[]>(existing?.datesDisponibles ?? []);
+
   const [concours, setConcours] = useState(existing?.concours ?? '');
   const [description, setDescription] = useState(existing?.description ?? '');
   const [showDate, setShowDate] = useState(false);
   const [showDateRetour, setShowDateRetour] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [confirmationMessage, setConfirmationMessage] = useState('');
 
-
+  // Les prix sont directement en TTC
   const prixNum = parseFloat(prix);
-  const prixTTC = prixNum ? Math.round(prixNum * 1.09 * 100) / 100 : null;
 
   function submit() {
-    if (!villeDepart || !villeArrivee || !dateTrajet || !nbPlaces || !prix) {
-      Alert.alert('Champs manquants', 'Veuillez remplir : ville de départ, d\'arrivée, date, nombre de places et prix.');
+    if (!villeDepart || !dateTrajet || !nbPlaces || !prix || !adresseVan) {
+      Alert.alert('Champs manquants', 'Veuillez remplir : ville de départ, date, nombre de places, prix et adresse du van.');
+      return;
+    }
+    if (typeTransport === 'trajet' && !heureDepart) {
+      Alert.alert('Champs manquants', 'Veuillez saisir l\'heure de départ.');
+      return;
+    }
+    if (typeTransport === 'location' && (!kmInclus || !tarifKmSupplémentaire || !cautionRéparation || !cautionNettoyage || datesDisponibles.length === 0)) {
+      Alert.alert('Champs manquants', 'Pour une location, veuillez remplir : kilomètres inclus, tarif par km, cautions (réparation et nettoyage) et disponibilités.');
       return;
     }
     if (proposerRetour) {
@@ -260,12 +281,22 @@ export default function ProposerTransportScreen() {
           ...transportsStore.list[idx],
           dateTrajet,
           villeDepart: villeDepart.trim(),
-          villeArrivee: villeArrivee.trim(),
+          villeArrivee: '', // Vide pour location
           nbPlacesTotal: nb,
           nbPlacesDisponibles: nb,
           prixHT: parseFloat(prix),
           concours: concours || undefined,
           description: description || undefined,
+          typeTransport,
+          adresseVan: adresseVan || undefined,
+          heureDepart: typeTransport === 'trajet' ? heureDepart || undefined : undefined,
+          allerRetour: proposerRetour && typeTransport === 'trajet' ? true : false,
+          dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
+          kmInclus: typeTransport === 'location' ? parseInt(kmInclus, 10) : undefined,
+          tarifKmSupplémentaire: typeTransport === 'location' ? parseFloat(tarifKmSupplémentaire) : undefined,
+          cautionRéparation: typeTransport === 'location' ? parseInt(cautionRéparation, 10) : undefined,
+          cautionNettoyage: typeTransport === 'location' ? parseInt(cautionNettoyage, 10) : undefined,
+          datesDisponibles: typeTransport === 'location' ? datesDisponibles : undefined,
         };
       }
       Alert.alert(
@@ -289,6 +320,14 @@ export default function ProposerTransportScreen() {
         prixHT: parseFloat(prix),
         concours: concours || undefined,
         description: description || undefined,
+        typeTransport,
+        adresseVan: adresseVan || undefined,
+        heureDepart: typeTransport === 'trajet' ? heureDepart || undefined : undefined,
+        allerRetour: proposerRetour && typeTransport === 'trajet' ? true : false,
+        dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
+        kmInclus: typeTransport === 'location' ? parseInt(kmInclus, 10) : undefined,
+        tarifKmSupplémentaire: typeTransport === 'location' ? parseFloat(tarifKmSupplémentaire) : undefined,
+        cautionMontant: typeTransport === 'location' ? parseInt(cautionMontant, 10) : undefined,
       };
       transportsStore.list = [nouvelleAnnonce, ...transportsStore.list];
       Alert.alert(
@@ -310,30 +349,70 @@ export default function ProposerTransportScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
-        <View style={s.infoCard}>
-          <Text style={s.infoIcon}>💡</Text>
-          <Text style={s.infoText}>Prix recommandé : <Text style={s.infoHighlight}>0,8€ par kilomètre</Text>. Vous fixez votre tarif librement. La plateforme prélève 9% de commission sur chaque réservation.</Text>
-        </View>
+        {typeTransport === 'trajet' && (
+          <View style={s.questionCard}>
+            <Text style={s.questionIcon}>🚐</Text>
+            <Text style={s.questionTitle}>Vous avez des places dans votre van ?</Text>
+          </View>
+        )}
 
-        <View style={s.villesRow}>
-          <View style={{ flex: 1 }}>
-            <Field label="Ville de départ *" required>
-              <VillesPicker value={villeDepart} onChange={setVilleDepart} />
-            </Field>
+        {typeTransport === 'location' && (
+          <View style={s.questionCard}>
+            <Text style={s.questionIcon}>🔑</Text>
+            <Text style={s.questionTitle}>Vous voulez louer votre van à la journée ?</Text>
           </View>
-          <View style={s.arrowPlaceholder} />
-          <View style={{ flex: 1 }}>
-            <Field label="Ville d'arrivée *" required>
-              <VillesPicker value={villeArrivee} onChange={setVilleArrivee} />
-            </Field>
+        )}
+
+        <Field label="Type de transport *" required>
+          <View style={s.typeTransportRow}>
+            <TouchableOpacity
+              style={[s.typeBtn, typeTransport === 'trajet' && s.typeBtnActive]}
+              onPress={() => setTypeTransport('trajet')}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.typeBtnText, typeTransport === 'trajet' && s.typeBtnTextActive]}>🚐 Trajet</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[s.typeBtn, typeTransport === 'location' && s.typeBtnActive]}
+              onPress={() => setTypeTransport('location')}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.typeBtnText, typeTransport === 'location' && s.typeBtnTextActive]}>🔑 Location du van seul</Text>
+            </TouchableOpacity>
           </View>
-        </View>
+        </Field>
+
+        <Field label="Lieu du van *" required>
+          <VillesPicker value={villeDepart} onChange={setVilleDepart} />
+        </Field>
 
         <Field label="Date du trajet *" required>
           <DateButton label="Sélectionner une date" value={dateTrajet} onPress={() => setShowDate(true)} />
         </Field>
 
-        <Field label="Nombre de places aller (chevaux) *" required>
+        <Field label="Adresse précise du van *" required>
+          <TextInput
+            style={s.input}
+            value={adresseVan}
+            onChangeText={setAdresseVan}
+            placeholder="Ex: 5 rue de la Gare, 75001 Paris"
+            placeholderTextColor="#999"
+          />
+        </Field>
+
+        {typeTransport === 'trajet' && (
+          <Field label="Heure de départ *" required>
+            <TextInput
+              style={s.input}
+              value={heureDepart}
+              onChangeText={setHeureDepart}
+              placeholder="Ex: 07:30"
+              placeholderTextColor="#999"
+            />
+          </Field>
+        )}
+
+        <Field label={typeTransport === 'trajet' ? 'Nombre de places aller (chevaux) *' : 'Nombre de places (chevaux) *'} required>
           <View style={s.placesRow}>
             {['1', '2', '3', '4', '5', '6'].map((n) => (
               <TouchableOpacity
@@ -347,76 +426,183 @@ export default function ProposerTransportScreen() {
           </View>
         </Field>
 
-        <TouchableOpacity
-          style={s.proprietaireToggle}
-          onPress={() => setPrendreProprietaire(!prendreProprietaire)}
-          activeOpacity={0.7}
-        >
-          <Text style={s.proprietaireCheckbox}>{prendreProprietaire ? '☑️' : '☐'}</Text>
-          <Text style={s.proprietaireLabel}>Prendre le propriétaire dans la voiture du conducteur</Text>
-        </TouchableOpacity>
-
-        {/* Section Retour */}
-        <View style={s.retourSection}>
+        {typeTransport === 'trajet' && (
           <TouchableOpacity
-            style={s.retourToggle}
-            onPress={() => setProposerRetour(!proposerRetour)}
+            style={s.proprietaireToggle}
+            onPress={() => setPrendreProprietaire(!prendreProprietaire)}
             activeOpacity={0.7}
           >
-            <Text style={s.retourCheckbox}>{proposerRetour ? '☑️' : '☐'}</Text>
-            <Text style={s.retourLabel}>Proposer un retour</Text>
+            <Text style={s.proprietaireCheckbox}>{prendreProprietaire ? '☑️' : '☐'}</Text>
+            <Text style={s.proprietaireLabel}>Prendre le propriétaire dans la voiture du conducteur</Text>
           </TouchableOpacity>
+        )}
 
-          {proposerRetour && (
-            <View style={s.retourFields}>
-              <View style={s.villesRow}>
-                <View style={{ flex: 1 }}>
-                  <Field label="Ville de départ retour *" required>
-                    <VillesPicker value={villedepartRetour} onChange={setVilledepartRetour} />
-                  </Field>
+        {/* Section Retour - Seulement pour les trajets */}
+        {typeTransport === 'trajet' && (
+          <View style={s.retourSection}>
+            <TouchableOpacity
+              style={s.retourToggle}
+              onPress={() => setProposerRetour(!proposerRetour)}
+              activeOpacity={0.7}
+            >
+              <Text style={s.retourCheckbox}>{proposerRetour ? '☑️' : '☐'}</Text>
+              <Text style={s.retourLabel}>Proposer un retour</Text>
+            </TouchableOpacity>
+
+            {proposerRetour && (
+              <View style={s.retourFields}>
+                <View style={s.villesRow}>
+                  <View style={{ flex: 1 }}>
+                    <Field label="Ville de départ retour *" required>
+                      <VillesPicker value={villedepartRetour} onChange={setVilledepartRetour} />
+                    </Field>
+                  </View>
+                  <View style={s.arrowPlaceholder} />
+                  <View style={{ flex: 1 }}>
+                    <Field label="Ville d'arrivée retour *" required>
+                      <VillesPicker value={villearriveeRetour} onChange={setVillearriveeRetour} />
+                    </Field>
+                  </View>
                 </View>
-                <View style={s.arrowPlaceholder} />
-                <View style={{ flex: 1 }}>
-                  <Field label="Ville d'arrivée retour *" required>
-                    <VillesPicker value={villearriveeRetour} onChange={setVillearriveeRetour} />
-                  </Field>
-                </View>
+
+                <Field label="Date du retour *" required>
+                  <DateButton label="Sélectionner une date" value={dateRetour} onPress={() => setShowDateRetour(true)} />
+                </Field>
+
+                <Field label="Nombre de places retour *" required>
+                  <View style={s.placesRow}>
+                    {['1', '2', '3', '4', '5', '6'].map((n) => (
+                      <TouchableOpacity
+                        key={n}
+                        style={[s.placeBtn, nbPlacesRetour === n && s.placeBtnActive]}
+                        onPress={() => setNbPlacesRetour(n)}
+                      >
+                        <Text style={[s.placeBtnText, nbPlacesRetour === n && s.placeBtnTextActive]}>{n}</Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </Field>
               </View>
-
-              <Field label="Date du retour *" required>
-                <DateButton label="Sélectionner une date" value={dateRetour} onPress={() => setShowDateRetour(true)} />
-              </Field>
-
-              <Field label="Nombre de places retour *" required>
-                <View style={s.placesRow}>
-                  {['1', '2', '3', '4', '5', '6'].map((n) => (
-                    <TouchableOpacity
-                      key={n}
-                      style={[s.placeBtn, nbPlacesRetour === n && s.placeBtnActive]}
-                      onPress={() => setNbPlacesRetour(n)}
-                    >
-                      <Text style={[s.placeBtnText, nbPlacesRetour === n && s.placeBtnTextActive]}>{n}</Text>
-                    </TouchableOpacity>
-                  ))}
-                </View>
-              </Field>
-            </View>
-          )}
-        </View>
-
-        <Field label="Prix par place (€ HT) *" required hint={prixTTC ? `→ ${prixTTC}€ TTC avec commission 9%` : 'Recommandé : 0,8€/km'}>
-          <View style={f.priceRow}>
-            <TextInput
-              style={[f.input, { flex: 1 }, !!prix && f.inputFilled]}
-              value={prix}
-              onChangeText={setPrix}
-              placeholder="45"
-              placeholderTextColor={Colors.textTertiary}
-              keyboardType="numeric"
-            />
-            <View style={f.priceUnit}><Text style={f.priceUnitText}>€ HT</Text></View>
+            )}
           </View>
-        </Field>
+        )}
+
+        {typeTransport === 'trajet' ? (
+          <Field label="Prix par place (€ TTC) *" required hint="Recommandé : 0,8€/km">
+            <View style={f.priceRow}>
+              <TextInput
+                style={[f.input, { flex: 1 }, !!prix && f.inputFilled]}
+                value={prix}
+                onChangeText={setPrix}
+                placeholder="50"
+                placeholderTextColor={Colors.textTertiary}
+                keyboardType="decimal-pad"
+              />
+              <View style={f.priceUnit}><Text style={f.priceUnitText}>€ TTC</Text></View>
+            </View>
+          </Field>
+        ) : (
+          <>
+            <Field label="Prix à la journée (€ TTC) *" required>
+              <View style={f.priceRow}>
+                <TextInput
+                  style={[f.input, { flex: 1 }, !!prix && f.inputFilled]}
+                  value={prix}
+                  onChangeText={setPrix}
+                  placeholder="220"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="decimal-pad"
+                />
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ TTC</Text></View>
+              </View>
+            </Field>
+
+            <Field label="Kilomètres inclus dans ce tarif *" required>
+              <View style={f.priceRow}>
+                <TextInput
+                  style={[f.input, { flex: 1 }, !!kmInclus && f.inputFilled]}
+                  value={kmInclus}
+                  onChangeText={setKmInclus}
+                  placeholder="100"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>km</Text></View>
+              </View>
+            </Field>
+
+            <Field label="Tarif par km supplémentaire (€ TTC) *" required>
+              <View style={f.priceRow}>
+                <TextInput
+                  style={[f.input, { flex: 1 }, !!tarifKmSupplémentaire && f.inputFilled]}
+                  value={tarifKmSupplémentaire}
+                  onChangeText={setTarifKmSupplémentaire}
+                  placeholder="1,65"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="decimal-pad"
+                />
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€/km TTC</Text></View>
+              </View>
+            </Field>
+
+            <Field label="Caution réparation (€ TTC) *" required hint="Recommandé : 300€ à 500€">
+              <View style={f.priceRow}>
+                <TextInput
+                  style={[f.input, { flex: 1 }, !!cautionRéparation && f.inputFilled]}
+                  value={cautionRéparation}
+                  onChangeText={setCautionRéparation}
+                  placeholder="Ex: 400"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€</Text></View>
+              </View>
+            </Field>
+
+            <Field label="Caution nettoyage (€ TTC) *" required hint="Recommandé : 100€ à 200€">
+              <View style={f.priceRow}>
+                <TextInput
+                  style={[f.input, { flex: 1 }, !!cautionNettoyage && f.inputFilled]}
+                  value={cautionNettoyage}
+                  onChangeText={setCautionNettoyage}
+                  placeholder="Ex: 150"
+                  placeholderTextColor={Colors.textTertiary}
+                  keyboardType="numeric"
+                />
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€</Text></View>
+              </View>
+            </Field>
+
+            <Field label="Dates de disponibilité *" required hint={`${datesDisponibles.length} jour(s) sélectionné(s)`}>
+              <TouchableOpacity
+                style={[s.calendarBtn, datesDisponibles.length > 0 && s.calendarBtnActive]}
+                onPress={() => setShowDate(true)}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.calendarBtnText, datesDisponibles.length > 0 && s.calendarBtnTextActive]}>
+                  {datesDisponibles.length === 0 ? 'Sélectionner les dates' : `${datesDisponibles.length} jour(s) sélectionné(s)`}
+                </Text>
+              </TouchableOpacity>
+              {datesDisponibles.length > 0 && (
+                <View style={s.datesListContainer}>
+                  {datesDisponibles
+                    .sort((a, b) => a.getTime() - b.getTime())
+                    .map((date, idx) => (
+                      <TouchableOpacity
+                        key={idx}
+                        style={s.dateTag}
+                        onPress={() => setDatesDisponibles(datesDisponibles.filter((_, i) => i !== idx))}
+                      >
+                        <Text style={s.dateTagText}>
+                          {date.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} ✕
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                </View>
+              )}
+            </Field>
+          </>
+        )}
 
         <Field label="Concours associé">
           <ConcoursPicker value={concours} onChange={setConcours} />
@@ -436,7 +622,7 @@ export default function ProposerTransportScreen() {
 
         <View style={s.stripeNote}>
           <Text style={s.stripeIcon}>🔒</Text>
-          <Text style={s.stripeText}>Les paiements sont gérés par Stripe. Vous recevrez le montant HT après déduction de la commission de 9%.</Text>
+          <Text style={s.stripeText}>Les paiements sont gérés par Stripe. La plateforme prélève {(getCommission(typeTransport === 'location' ? 'location' : 'trajet') * 100).toFixed(0)}% de commission.</Text>
         </View>
 
         <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>
@@ -446,8 +632,36 @@ export default function ProposerTransportScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      <DatePickerModal visible={showDate} value={dateTrajet} onConfirm={setDateTrajet} onClose={() => setShowDate(false)} title="Date du trajet" />
+      <DatePickerModal visible={showDate && typeTransport === 'trajet'} value={dateTrajet} onConfirm={setDateTrajet} onClose={() => setShowDate(false)} title="Date du trajet" />
       <DatePickerModal visible={showDateRetour} value={dateRetour} onConfirm={setDateRetour} onClose={() => setShowDateRetour(false)} title="Date du retour" />
+      <MultiDatePickerModal visible={showDate && typeTransport === 'location'} selectedDates={datesDisponibles} onConfirm={setDatesDisponibles} onClose={() => setShowDate(false)} title="Sélectionner les dates disponibles" />
+
+      {/* Modal de confirmation */}
+      <Modal visible={showConfirmation} transparent animationType="fade">
+        <View style={s.confirmationBackdrop}>
+          <View style={s.confirmationCard}>
+            <Text style={s.confirmationIcon}>✅</Text>
+            <Text style={s.confirmationTitle}>Annonce publiée !</Text>
+            <Text style={s.confirmationMessage}>{confirmationMessage}</Text>
+
+            {typeTransport === 'location' && (
+              <View style={s.confirmationHint}>
+                <Text style={s.confirmationHintText}>📍 Trouvez-la dans Transport > Van seul</Text>
+              </View>
+            )}
+
+            <TouchableOpacity
+              style={s.confirmationBtn}
+              onPress={() => {
+                setShowConfirmation(false);
+                router.replace(typeTransport === 'location' ? '/(tabs)/services?tab=transport&subTab=van' : '/(tabs)/services?tab=transport&subTab=trajets');
+              }}
+            >
+              <Text style={s.confirmationBtnText}>Voir l'annonce</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -478,11 +692,14 @@ const s = StyleSheet.create({
   infoIcon: { fontSize: 16 },
   infoText: { flex: 1, fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20 },
   infoHighlight: { color: Colors.primary, fontWeight: FontWeight.bold },
+  questionCard: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.lg, padding: Spacing.lg, alignItems: 'center', gap: Spacing.md },
+  questionIcon: { fontSize: 48 },
+  questionTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, textAlign: 'center' },
   field: { gap: Spacing.xs },
   fieldLabelRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   fieldLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   required: { fontSize: FontSize.sm, color: Colors.urgent, fontWeight: FontWeight.bold },
-  fieldHint: { fontSize: FontSize.xs, color: Colors.primary, fontStyle: 'italic' },
+  fieldHint: { fontSize: FontSize.xs, color: Colors.warning, fontStyle: 'italic', fontWeight: FontWeight.semibold },
   placesRow: { flexDirection: 'row', gap: Spacing.sm },
   placeBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
   placeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
@@ -498,11 +715,33 @@ const s = StyleSheet.create({
   retourCheckbox: { fontSize: 18 },
   retourLabel: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.primary },
   retourFields: { gap: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.primaryBorder },
+  typeTransportRow: { flexDirection: 'row', gap: Spacing.sm },
+  typeBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
+  typeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  typeBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary },
+  typeBtnTextActive: { color: Colors.textInverse },
+  calendarBtn: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: Spacing.md + 2, paddingHorizontal: Spacing.md, backgroundColor: Colors.surface, alignItems: 'center' },
+  calendarBtnActive: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
+  calendarBtnText: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  calendarBtnTextActive: { color: Colors.primary },
+  datesListContainer: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: Spacing.md },
+  dateTag: { backgroundColor: Colors.primaryLight, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderWidth: 1, borderColor: Colors.primary },
+  dateTagText: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold },
+  input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   stripeNote: { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'flex-start' },
   stripeIcon: { fontSize: 14 },
   stripeText: { flex: 1, fontSize: FontSize.xs, color: Colors.textTertiary, lineHeight: 18 },
   submitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', ...Shadow.fab },
   submitText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
+  confirmationBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
+  confirmationCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xl, alignItems: 'center', marginHorizontal: Spacing.lg, ...Shadow.card },
+  confirmationIcon: { fontSize: 64, marginBottom: Spacing.lg },
+  confirmationTitle: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
+  confirmationMessage: { fontSize: FontSize.base, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.lg },
+  confirmationHint: { backgroundColor: Colors.primaryLight, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, marginBottom: Spacing.lg, borderWidth: 1, borderColor: Colors.primaryBorder },
+  confirmationHintText: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold },
+  confirmationBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', minWidth: 200 },
+  confirmationBtnText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
 });
 
 const f = StyleSheet.create({

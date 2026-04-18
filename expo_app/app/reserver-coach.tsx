@@ -155,30 +155,8 @@ export default function ReserverCoachScreen() {
         return;
       }
 
-      // 2. Appeler create-checkout-session
-      const checkoutResponse = await fetch(
-        `${SUPABASE_URL}/functions/v1/create-checkout-session`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${authToken}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            demandId: demand.id,
-            type: 'course',
-          }),
-        }
-      );
-
-      const checkoutData = await checkoutResponse.json();
-      if (!checkoutData.checkoutUrl) {
-        Alert.alert('Erreur', 'Impossible de créer la session de paiement');
-        return;
-      }
-
-      // 3. Ouvrir le navigateur pour le paiement Stripe
-      await Linking.openURL(checkoutData.checkoutUrl);
+      // 2. La demande est créée, en attente de validation du coach
+      console.log('✅ Demande créée, en attente de validation du coach');
 
       // 4. Ajouter aussi au store local pour compatibilité
       const nouvelleDemande: CourseDemande = {
@@ -385,11 +363,11 @@ export default function ReserverCoachScreen() {
             <Text style={s.confirmationIcon}>✅</Text>
 
             {/* Titre */}
-            <Text style={s.confirmationTitle}>Demande envoyée !</Text>
+            <Text style={s.confirmationTitle}>Demande créée! 🎉</Text>
 
             {/* Message */}
             <Text style={s.confirmationMessage}>
-              Le coach prendra connaissance de votre demande rapidement
+              En attente de validation du coach. Vous recevrez une notification une fois validée.
             </Text>
 
             {/* Détails */}

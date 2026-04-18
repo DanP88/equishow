@@ -1,4 +1,4 @@
-export type UserRole = 'cavalier' | 'organisateur' | 'coach';
+export type UserRole = 'cavalier' | 'organisateur' | 'coach' | 'admin';
 
 export type PlanId = 'gratuit' | 'cavalierMensuel' | 'cavalierAnnuel' | 'coachPro';
 
@@ -18,4 +18,5 @@ export const UserRoleLabel: Record<UserRole, string> = {
   cavalier: 'Cavalier',
   organisateur: 'Organisateur',
   coach: 'Coach',
+  admin: 'Admin',
 };

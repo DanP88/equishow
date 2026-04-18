@@ -6,6 +6,7 @@ const UUID_COACH = '550e8400-e29b-41d4-a716-446655440002';
 const UUID_ORG = '550e8400-e29b-41d4-a716-446655440003';
 const UUID_COACH2 = '550e8400-e29b-41d4-a716-446655440004';
 const UUID_COACH3 = '550e8400-e29b-41d4-a716-446655440005';
+const UUID_ADMIN = '550e8400-e29b-41d4-a716-446655440006';
 
 export const mockUsers: Record<string, UserAuth> = {
   cavalier: {
@@ -39,6 +40,17 @@ export const mockUsers: Record<string, UserAuth> = {
     planId: 'gratuit',
     disciplines: ['CSO', 'CCE', 'Dressage'],
     region: 'Auvergne-Rhône-Alpes',
+    avatarUrl: '',
+  },
+  admin: {
+    id: UUID_ADMIN,
+    email: 'admin@equishow.fr',
+    prenom: 'Admin',
+    nom: 'Equishow',
+    role: 'admin',
+    planId: 'gratuit',
+    disciplines: [],
+    region: 'National',
     avatarUrl: '',
   },
 };
@@ -90,5 +102,12 @@ export const TEST_ACCOUNTS = [
     password: 'test123',
     label: 'Club Équestre de Lyon',
     icon: '🏟️',
+  },
+  {
+    role: 'admin' as const,
+    email: 'admin@equishow.fr',
+    password: 'admin123',
+    label: 'Admin Equishow',
+    icon: '⚙️',
   },
 ];

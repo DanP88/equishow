@@ -114,7 +114,8 @@ export default function EditerCoachScreen() {
           text: 'Supprimer',
           style: 'destructive',
           onPress: () => {
-            coachesStore.list.splice(idx, 1);
+            // Mettre à jour le store
+            coachesStore.list = coachesStore.list.filter((c) => c.id !== coachId);
             Alert.alert('Coach supprimé', `${prenom} ${nom} a été supprimé.`, [
               { text: 'OK', onPress: () => router.back() },
             ]);
