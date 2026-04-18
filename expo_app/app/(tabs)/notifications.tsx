@@ -114,8 +114,13 @@ interface NotificationCardProps {
 
 function NotificationCard({ notification, onMarkAsRead, onDelete }: NotificationCardProps) {
   const handlePaymentNavigation = () => {
+    console.log('🔵 handlePaymentNavigation called');
+    console.log('📍 actionUrl:', notification.actionUrl);
     if (notification.actionUrl) {
+      console.log('🚀 Navigating to:', notification.actionUrl);
       router.push(notification.actionUrl);
+    } else {
+      console.log('❌ No actionUrl provided');
     }
   };
 
