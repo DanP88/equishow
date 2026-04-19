@@ -1,15 +1,10 @@
 {
   "buildCommand": "npm run build",
-  "functions": {
-    "api/web.js": {
-      "memory": 1024,
-      "maxDuration": 60
-    }
-  },
+  "outputDirectory": "web/dist",
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/api/web"
+      "dest": "/index.html"
     }
   ]
 }

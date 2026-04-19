@@ -4,14 +4,13 @@
   "description": "Equishow - Equestrian Services Platform",
   "private": true,
   "scripts": {
-    "build": "cd expo_app && npm install && npx expo export --platform web",
-    "dev": "cd expo_app && npm run dev",
-    "start": "cd expo_app && npm start"
+    "build": "cd web && npm install && npm run build",
+    "dev": "cd web && npm run dev",
+    "dev:expo": "cd expo_app && npm run dev",
+    "start": "cd expo_app && npm start",
+    "web:build": "cd web && npm install && npm run build"
   },
   "dependencies": {
     "express": "^4.18.2"
-  },
-  "workspaces": [
-    "expo_app"
-  ]
+  }
 }
