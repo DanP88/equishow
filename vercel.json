@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd web && npm install && npm run build",
+  "buildCommand": "echo 'Current dir:' && pwd && echo 'Listing root:' && ls -la && echo 'Checking web dir:' && test -d web && echo 'web exists' || echo 'web MISSING' && cd web && npm install && npm run build",
   "outputDirectory": "web/dist",
   "routes": [
     {
