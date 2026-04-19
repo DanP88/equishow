@@ -1,4 +1,4 @@
 {
-  "buildCommand": "cd expo_app && npm install && npx expo export --platform web",
-  "outputDirectory": "expo_app/dist"
+  "buildCommand": "npm run build",
+  "outputDirectory": ".out"
 }

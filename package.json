@@ -4,7 +4,7 @@
   "description": "Equishow - Equestrian Services Platform",
   "private": true,
   "scripts": {
-    "build": "cd expo_app && npm install && npx expo export --platform web",
+    "build": "cd expo_app && npm install && npx expo export --platform web && cd .. && cp -r expo_app/dist .out",
     "dev": "cd expo_app && npm run dev",
     "start": "cd expo_app && npm start"
   },
