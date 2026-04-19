@@ -1,16 +1,35 @@
 {
-  "buildCommand": "echo 'Deploying static Expo web app' && ls -la web/dist/index.html",
+  "version": 2,
+  "name": "equishow",
+  "buildCommand": "true",
   "outputDirectory": "web/dist",
+  "public": false,
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "headers": [
+    {
+      "source": "/index.html",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
+    },
+    {
+      "source": "/assets/:path*",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    }
+  ],
   "routes": [
     {
       "src": "/(.*)",
       "dest": "/index.html"
-    }
-  ],
-  "rewrites": [
-    {
-      "source": "/:path*",
-      "destination": "/index.html"
     }
   ]
 }

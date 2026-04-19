@@ -5,7 +5,7 @@ node_modules/
 
 # Expo
 .expo/
-dist/
+expo_app/dist/
 .env
 .env.local
 
