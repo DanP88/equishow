@@ -1,6 +1,6 @@
 {
-  "buildCommand": "cd .. && cd web && npm install && npm run build",
-  "outputDirectory": "../web/dist",
+  "buildCommand": "cd .. && cd expo_app && npm install && npx expo export --platform web && cp -r dist ../web/dist",
+  "outputDirectory": "web/dist",
   "routes": [
     {
       "src": "/(.*)",
