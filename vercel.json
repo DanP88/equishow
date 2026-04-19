@@ -1,9 +1,16 @@
 {
+  "buildCommand": "echo 'Deploying static Expo web app' && ls -la web/dist/index.html",
   "outputDirectory": "web/dist",
   "routes": [
     {
       "src": "/(.*)",
       "dest": "/index.html"
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/:path*",
+      "destination": "/index.html"
     }
   ]
 }
