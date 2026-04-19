@@ -1,5 +1,4 @@
 {
-  "buildCommand": "cd .. && cd expo_app && npm install && npx expo export --platform web && cp -r dist ../web/dist",
   "outputDirectory": "web/dist",
   "routes": [
     {
