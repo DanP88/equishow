@@ -1,35 +1,16 @@
 {
   "version": 2,
-  "name": "equishow",
-  "buildCommand": "true",
-  "outputDirectory": "web/dist",
-  "public": false,
-  "cleanUrls": true,
-  "trailingSlash": false,
-  "headers": [
-    {
-      "source": "/index.html",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "no-cache, no-store, must-revalidate"
-        }
-      ]
-    },
-    {
-      "source": "/assets/:path*",
-      "headers": [
-        {
-          "key": "Cache-Control",
-          "value": "public, max-age=31536000, immutable"
-        }
-      ]
+  "buildCommand": "echo 'Vercel deployment ready'",
+  "functions": {
+    "api/index.js": {
+      "memory": 128,
+      "maxDuration": 30
     }
-  ],
+  },
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/index.html"
+      "dest": "/api"
     }
   ]
 }
