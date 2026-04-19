@@ -1,6 +1,5 @@
 {
-  "buildCommand": "cd expo_app && npx expo export --platform web",
+  "buildCommand": "cd expo_app && npx expo export --platform web && cd ..",
   "outputDirectory": "expo_app/dist",
-  "framework": "other",
-  "regions": ["iad1"]
+  "installCommand": "cd expo_app && npm install && cd .."
 }
