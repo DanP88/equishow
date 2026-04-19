@@ -1,0 +1,14 @@
+{
+  "name": "equishow",
+  "version": "1.0.0",
+  "description": "Equishow - Equestrian Services Platform",
+  "private": true,
+  "scripts": {
+    "build": "cd expo_app && npm install && npx expo export --platform web",
+    "dev": "cd expo_app && npm run dev",
+    "start": "cd expo_app && npm start"
+  },
+  "workspaces": [
+    "expo_app"
+  ]
+}
