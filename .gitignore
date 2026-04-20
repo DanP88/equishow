@@ -6,7 +6,6 @@ node_modules/
 # Expo
 .expo/
 expo_app/dist/
-web/dist/
 .env
 .env.local
 
