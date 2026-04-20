@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, SafeAreaView, Alert, Modal, FlatList, TextInput,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../../constants/theme';
 import { Cheval, getChevalAge, TypeChevalEmoji } from '../../types/cheval';
@@ -21,19 +21,10 @@ export default function ChevauxScreen() {
   );
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    // Update chevaux when component mounts or userStore changes
-    const filtered = chevauxStore.list.filter(c => c.proprietaireId === userStore.id);
-    console.log('Chevaux updated:', { userId: userStore.id, total: chevauxStore.list.length, filtered: filtered.length });
-    setChevaux(filtered);
-
-    const unsubscribe = userStore.onRoleChange(() => {
-      const newFiltered = chevauxStore.list.filter(c => c.proprietaireId === userStore.id);
-      console.log('Account changed:', { userId: userStore.id, total: chevauxStore.list.length, filtered: newFiltered.length });
-      setChevaux(newFiltered);
-    });
-    return unsubscribe;
-  }, []);
+  // Re-filter horses every time this screen is focused (handles account switching)
+  useFocusEffect(useCallback(() => {
+    setChevaux(chevauxStore.list.filter(c => c.proprietaireId === userStore.id));
+  }, []));
 
   function handleAdd() {
     const nouveau: Cheval = {

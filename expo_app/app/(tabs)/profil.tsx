@@ -1,9 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Modal, TextInput, Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
 import { userStore } from '../../data/store';
@@ -30,13 +30,11 @@ export default function ProfilScreen() {
   const [showEdit, setShowEdit] = useState(false);
   const [draft, setDraft] = useState({ ...userStore });
 
-  useEffect(() => {
-    const unsubscribe = userStore.onRoleChange(() => {
-      setUser({ ...userStore });
-      setDraft({ ...userStore });
-    });
-    return unsubscribe;
-  }, []);
+  // Re-read userStore every time profile screen is focused
+  useFocusEffect(useCallback(() => {
+    setUser({ ...userStore });
+    setDraft({ ...userStore });
+  }, []));
 
   function saveEdit() {
     Object.assign(userStore, draft);
@@ -187,9 +185,7 @@ function TestAccountItem({ account }: { account: any }) {
   const handleSwitchAccount = () => {
     const success = userStore.switchAccount(account.accountKey);
     if (success) {
-      Alert.alert('✓ Compte changé', `Vous êtes maintenant connecté en tant que ${account.label}`);
-      // Force a refresh of the navigation to update all screens
-      router.replace('/(tabs)/profil');
+      Alert.alert('✓ Compte changé', `Connecté en tant que ${account.label}`);
     } else {
       Alert.alert('Erreur', 'Impossible de changer de compte');
     }
