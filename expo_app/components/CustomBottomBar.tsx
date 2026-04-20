@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native
 import { useRouter, usePathname, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { useUserRole } from '../hooks/useUserRole';
-import { notificationsStore, userStore, stageReservationsStore, courseDemandesStore } from '../data/store';
+import { notificationsStore, userStore, stageReservationsStore, courseDemandesStore, transportReservationsStore, boxReservationsStore } from '../data/store';
 
 export interface TabConfig {
   name: string;
@@ -50,6 +50,7 @@ export function CustomBottomBar() {
   const pathname = usePathname();
   const [notificationCount, setNotificationCount] = useState(0);
   const [demandCount, setDemandCount] = useState(0);
+  const [agendaCount, setAgendaCount] = useState(0);
 
   // Fonction pour compter les notifications et demandes
   const updateNotificationCount = useCallback(() => {
@@ -69,12 +70,27 @@ export function CustomBottomBar() {
       ).length;
       setDemandCount(pendingCourses + pendingStages);
     } else if (role === 'cavalier') {
-      // Pour les cavaliers: notifications de réservation non lues
+      const uid = userStore.id;
+      // Notifications non lues
       const cavalierNotifs = notificationsStore.list.filter(
-        n => n.destinataireId === userStore.id && !n.lue && !n.lu
+        n => n.destinataireId === uid && !n.lue && !n.lu
       ).length;
       setNotificationCount(cavalierNotifs);
       setDemandCount(0);
+      // Réservations en attente dans l'agenda
+      const pendingTransport = transportReservationsStore.list.filter(
+        r => (r.buyerId === uid || r.sellerId === uid) && r.statut === 'pending'
+      ).length;
+      const pendingBox = boxReservationsStore.list.filter(
+        r => (r.buyerId === uid || r.sellerId === uid) && r.statut === 'pending'
+      ).length;
+      const pendingStage = stageReservationsStore.list.filter(
+        r => r.cavalierUserId === uid && r.statut === 'pending'
+      ).length;
+      const pendingCours = courseDemandesStore.list.filter(
+        r => r.cavalierUserId === uid && r.statut === 'pending'
+      ).length;
+      setAgendaCount(pendingTransport + pendingBox + pendingStage + pendingCours);
     }
   }, [role]);
 
@@ -108,6 +124,7 @@ export function CustomBottomBar() {
       if (tab.name === 'coach-demandes') return demandCount;
     } else if (role === 'cavalier') {
       if (tab.name === 'notifications') return notificationCount;
+      if (tab.name === 'cavalier-agenda') return agendaCount;
     }
     return 0;
   };

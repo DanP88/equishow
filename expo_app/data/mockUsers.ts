@@ -93,6 +93,34 @@ export const ADDITIONAL_COACHES = {
   },
 };
 
+const AVATAR_COLOR: Record<string, string> = {
+  coach: '#7C3AED',
+  organisateur: '#0369A1',
+  admin: '#6B7280',
+  cavalier: '#F97316',
+};
+
+export function getUserById(id: string): {
+  id: string; prenom: string; nom: string; pseudo: string;
+  initiales: string; avatarColor: string; role: string;
+  disciplines: string[]; region: string;
+} | null {
+  const all = { ...mockUsers, ...ADDITIONAL_COACHES };
+  const found = Object.values(all).find(u => u.id === id);
+  if (!found) return null;
+  return {
+    id: found.id,
+    prenom: found.prenom,
+    nom: found.nom,
+    pseudo: `${found.prenom}${found.nom.charAt(0)}`,
+    initiales: `${found.prenom.charAt(0)}${found.nom.charAt(0)}`,
+    avatarColor: AVATAR_COLOR[found.role] ?? '#F97316',
+    role: found.role,
+    disciplines: found.disciplines ?? [],
+    region: found.region ?? '',
+  };
+}
+
 export const TEST_ACCOUNTS = [
   {
     accountKey: 'cavalier' as const,

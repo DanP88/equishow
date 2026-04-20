@@ -12,21 +12,25 @@ import {
   transportsStore,
   coachStagesStore,
 } from '../../data/store';
+import { getUserById } from '../../data/mockUsers';
 
 type AgendaItem = {
   id: string;
   type: 'transport_buyer' | 'transport_seller' | 'box_buyer' | 'box_seller' | 'stage' | 'cours';
   titre: string;
   sous_titre: string;
-  date: Date;
+  dateDebut: Date;
   dateFin?: Date;
   montant: number;
   statut: string;
-  autrePartieNom?: string;
-  autrePartiePseudo?: string;
+  autrePartieId: string;
+  autrePartieNom: string;
+  autrePartiePseudo: string;
+  autrePartieInitiales: string;
+  autrePartieCouleur: string;
 };
 
-function statutLabel(statut: string) {
+function statutStyle(statut: string) {
   if (statut === 'paid') return { label: '● Réservé', bg: '#ECFDF5', border: '#10B981' };
   if (statut === 'accepted') return { label: '● Confirmé', bg: '#ECFDF5', border: '#10B981' };
   if (statut === 'pending') return { label: '● En attente', bg: '#FFF7ED', border: '#F59E0B' };
@@ -35,11 +39,10 @@ function statutLabel(statut: string) {
 }
 
 function typeEmoji(type: AgendaItem['type']) {
-  if (type === 'transport_buyer' || type === 'transport_seller') return '🚐';
-  if (type === 'box_buyer' || type === 'box_seller') return '🏠';
+  if (type.startsWith('transport')) return '🚐';
+  if (type.startsWith('box')) return '🏠';
   if (type === 'stage') return '📚';
-  if (type === 'cours') return '🎓';
-  return '📅';
+  return '🎓';
 }
 
 function typeLabel(type: AgendaItem['type']) {
@@ -48,8 +51,19 @@ function typeLabel(type: AgendaItem['type']) {
   if (type === 'box_buyer') return 'Box réservé';
   if (type === 'box_seller') return 'Box loué';
   if (type === 'stage') return 'Stage';
-  if (type === 'cours') return 'Cours';
-  return '';
+  return 'Cours';
+}
+
+function roleOf(type: AgendaItem['type']) {
+  if (type === 'transport_seller' || type === 'box_seller') return 'Locataire';
+  if (type === 'transport_buyer') return 'Conducteur';
+  if (type === 'box_buyer') return 'Propriétaire';
+  if (type === 'stage' || type === 'cours') return 'Coach';
+  return 'Autre partie';
+}
+
+function formatDate(d: Date) {
+  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
 export default function CavalierAgendaScreen() {
@@ -59,124 +73,167 @@ export default function CavalierAgendaScreen() {
     const uid = userStore.id;
     const all: AgendaItem[] = [];
 
-    // Transports où je suis l'acheteur
+    // ── Transports acheteur ──
     transportReservationsStore.list
       .filter(r => r.buyerId === uid)
       .forEach(r => {
         const annonce = transportsStore.list.find(t => t.id === r.transportId);
+        const seller = getUserById(r.sellerId) ?? {
+          id: r.sellerId, prenom: annonce?.auteurNom?.split(' ')[0] ?? '?', nom: annonce?.auteurNom?.split(' ')[1] ?? '',
+          pseudo: annonce?.auteurPseudo ?? '?', initiales: annonce?.auteurInitiales ?? '?',
+          avatarColor: annonce?.auteurCouleur ?? Colors.primary,
+          role: 'cavalier', disciplines: [], region: '',
+        };
         all.push({
           id: r.id,
           type: 'transport_buyer',
           titre: `${r.villeDepart} → ${r.villeArrivee}`,
           sous_titre: `${r.nbPlaces} place(s)`,
-          date: annonce?.dateTrajet ?? r.dateCreation,
+          dateDebut: annonce?.dateTrajet ?? r.dateCreation,
+          dateFin: annonce?.dateRetour ?? undefined,
           montant: r.prixTotalTTC,
           statut: r.statut,
+          autrePartieId: r.sellerId,
+          autrePartieNom: `${seller.prenom} ${seller.nom}`.trim(),
+          autrePartiePseudo: seller.pseudo,
+          autrePartieInitiales: seller.initiales,
+          autrePartieCouleur: seller.avatarColor,
         });
       });
 
-    // Transports où je suis le vendeur
+    // ── Transports vendeur ──
     transportReservationsStore.list
       .filter(r => r.sellerId === uid)
       .forEach(r => {
         const annonce = transportsStore.list.find(t => t.id === r.transportId);
+        const buyer = getUserById(r.buyerId) ?? {
+          id: r.buyerId, prenom: '?', nom: '', pseudo: '?', initiales: '?',
+          avatarColor: Colors.primary, role: 'cavalier', disciplines: [], region: '',
+        };
         all.push({
-          id: r.id + '_seller',
+          id: r.id + '_s',
           type: 'transport_seller',
           titre: `${r.villeDepart} → ${r.villeArrivee}`,
           sous_titre: `${r.nbPlaces} place(s)`,
-          date: annonce?.dateTrajet ?? r.dateCreation,
+          dateDebut: annonce?.dateTrajet ?? r.dateCreation,
+          dateFin: annonce?.dateRetour ?? undefined,
           montant: r.prixTotalTTC,
           statut: r.statut,
+          autrePartieId: r.buyerId,
+          autrePartieNom: `${buyer.prenom} ${buyer.nom}`.trim(),
+          autrePartiePseudo: buyer.pseudo,
+          autrePartieInitiales: buyer.initiales,
+          autrePartieCouleur: buyer.avatarColor,
         });
       });
 
-    // Box où je suis l'acheteur
+    // ── Box acheteur ──
     boxReservationsStore.list
       .filter(r => r.buyerId === uid)
       .forEach(r => {
+        const seller = getUserById(r.sellerId);
         all.push({
           id: r.id,
           type: 'box_buyer',
           titre: r.titre,
           sous_titre: `${r.nbNuits} nuit(s) · ${r.lieu}`,
-          date: r.dateDebut,
+          dateDebut: r.dateDebut,
           dateFin: r.dateFin,
           montant: r.prixTotalTTC,
           statut: r.statut,
+          autrePartieId: r.sellerId,
+          autrePartieNom: seller ? `${seller.prenom} ${seller.nom}` : r.sellerId,
+          autrePartiePseudo: seller?.pseudo ?? '?',
+          autrePartieInitiales: seller?.initiales ?? '?',
+          autrePartieCouleur: seller?.avatarColor ?? Colors.primary,
         });
       });
 
-    // Box où je suis le vendeur
+    // ── Box vendeur ──
     boxReservationsStore.list
       .filter(r => r.sellerId === uid)
       .forEach(r => {
+        const buyer = getUserById(r.buyerId);
         all.push({
-          id: r.id + '_seller',
+          id: r.id + '_s',
           type: 'box_seller',
           titre: r.titre,
           sous_titre: `${r.nbNuits} nuit(s) · ${r.lieu}`,
-          date: r.dateDebut,
+          dateDebut: r.dateDebut,
           dateFin: r.dateFin,
           montant: r.prixTotalTTC,
           statut: r.statut,
+          autrePartieId: r.buyerId,
+          autrePartieNom: buyer ? `${buyer.prenom} ${buyer.nom}` : r.buyerId,
+          autrePartiePseudo: buyer?.pseudo ?? '?',
+          autrePartieInitiales: buyer?.initiales ?? '?',
+          autrePartieCouleur: buyer?.avatarColor ?? Colors.primary,
         });
       });
 
-    // Stages réservés
+    // ── Stages ──
     stageReservationsStore.list
       .filter(r => r.cavalierUserId === uid)
       .forEach(r => {
         const stage = coachStagesStore.list.find(s => s.id === r.stageId);
+        const coach = getUserById(r.coachId);
         all.push({
           id: r.id,
           type: 'stage',
           titre: r.stageTitre,
-          sous_titre: `Coach : ${r.coachNom}`,
-          date: stage?.dateDebut ?? r.dateReservation,
+          sous_titre: r.coachNom,
+          dateDebut: stage?.dateDebut ?? r.dateReservation,
           dateFin: stage?.dateFin,
           montant: r.prixTotal,
           statut: r.statut,
+          autrePartieId: r.coachId,
+          autrePartieNom: r.coachNom,
+          autrePartiePseudo: coach?.pseudo ?? r.coachNom,
+          autrePartieInitiales: coach?.initiales ?? r.coachNom.slice(0, 2).toUpperCase(),
+          autrePartieCouleur: coach?.avatarColor ?? '#7C3AED',
         });
       });
 
-    // Cours demandés
+    // ── Cours ──
     courseDemandesStore.list
       .filter(r => r.cavalierUserId === uid)
       .forEach(r => {
+        const coach = getUserById(r.coachId);
         all.push({
           id: r.id,
           type: 'cours',
           titre: r.annonceTitre,
-          sous_titre: `Coach : ${r.coachNom} · ${r.discipline} ${r.niveau}`,
-          date: r.dateDebut,
+          sous_titre: `${r.discipline} · ${r.niveau}`,
+          dateDebut: r.dateDebut,
           dateFin: r.dateFin,
           montant: r.prix,
           statut: r.statut,
+          autrePartieId: r.coachId,
+          autrePartieNom: r.coachNom,
+          autrePartiePseudo: coach?.pseudo ?? r.coachNom,
+          autrePartieInitiales: coach?.initiales ?? r.coachNom.slice(0, 2).toUpperCase(),
+          autrePartieCouleur: coach?.avatarColor ?? '#7C3AED',
         });
       });
 
-    // Trier par date croissante
-    all.sort((a, b) => a.date.getTime() - b.date.getTime());
+    all.sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
     setItems(all);
   }, []));
 
   // Grouper par date
   const byDate = new Map<string, AgendaItem[]>();
   items.forEach(item => {
-    const key = item.date.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-    const cap = key.charAt(0).toUpperCase() + key.slice(1);
-    if (!byDate.has(cap)) byDate.set(cap, []);
-    byDate.get(cap)!.push(item);
+    const raw = item.dateDebut.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
+    const key = raw.charAt(0).toUpperCase() + raw.slice(1);
+    if (!byDate.has(key)) byDate.set(key, []);
+    byDate.get(key)!.push(item);
   });
 
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
         <Text style={s.headerTitle}>Mon agenda</Text>
-        {items.length > 0 && (
-          <Text style={s.countBadge}>{items.length}</Text>
-        )}
+        {items.length > 0 && <Text style={s.countBadge}>{items.length}</Text>}
       </View>
 
       <ScrollView contentContainerStyle={s.container} scrollEnabled>
@@ -191,9 +248,10 @@ export default function CavalierAgendaScreen() {
             <View key={dateStr}>
               <Text style={s.dateHeader}>{dateStr}</Text>
               {dateItems.map(item => {
-                const st = statutLabel(item.statut);
+                const st = statutStyle(item.statut);
                 return (
                   <View key={item.id} style={s.card}>
+                    {/* Top : type + statut */}
                     <View style={s.cardTop}>
                       <View style={s.typeTag}>
                         <Text style={s.typeEmoji}>{typeEmoji(item.type)}</Text>
@@ -204,15 +262,44 @@ export default function CavalierAgendaScreen() {
                       </View>
                     </View>
 
+                    {/* Titre */}
                     <Text style={s.titre}>{item.titre}</Text>
                     <Text style={s.sousTitre}>{item.sous_titre}</Text>
 
-                    {item.dateFin && item.dateFin.getTime() !== item.date.getTime() && (
-                      <Text style={s.dateRange}>
-                        📅 {item.date.toLocaleDateString('fr-FR')} → {item.dateFin.toLocaleDateString('fr-FR')}
-                      </Text>
-                    )}
+                    {/* Dates */}
+                    <View style={s.datesRow}>
+                      <Text style={s.dateLabel}>📅 Début</Text>
+                      <Text style={s.dateVal}>{formatDate(item.dateDebut)}</Text>
+                      {item.dateFin && (
+                        <>
+                          <Text style={s.dateSep}>→</Text>
+                          <Text style={s.dateLabel}>Fin</Text>
+                          <Text style={s.dateVal}>{formatDate(item.dateFin)}</Text>
+                        </>
+                      )}
+                    </View>
 
+                    {/* Autre partie cliquable */}
+                    <TouchableOpacity
+                      style={s.autrePartie}
+                      onPress={() => router.push({
+                        pathname: '/cavalier/[id]',
+                        params: { id: item.autrePartieId },
+                      } as any)}
+                      activeOpacity={0.75}
+                    >
+                      <View style={[s.miniAvatar, { backgroundColor: item.autrePartieCouleur }]}>
+                        <Text style={s.miniAvatarText}>{item.autrePartieInitiales}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.autrePartieRole}>{roleOf(item.type)}</Text>
+                        <Text style={s.autrePartieNom}>{item.autrePartieNom}</Text>
+                        <Text style={s.autrePartiePseudo}>@{item.autrePartiePseudo}</Text>
+                      </View>
+                      <Text style={s.chevron}>›</Text>
+                    </TouchableOpacity>
+
+                    {/* Montant */}
                     <View style={s.cardBottom}>
                       <Text style={s.montant}>{item.montant.toFixed(2)}€ TTC</Text>
                     </View>
@@ -246,15 +333,13 @@ const s = StyleSheet.create({
   emptyIcon: { fontSize: 48 },
   emptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   emptyText: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', paddingHorizontal: Spacing.xl },
-
   dateHeader: {
     fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary,
     marginTop: Spacing.lg, marginBottom: Spacing.sm, textTransform: 'capitalize',
   },
   card: {
     backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.lg,
-    borderWidth: 1, borderColor: Colors.border, ...Shadow.card, gap: Spacing.sm,
-    marginBottom: Spacing.sm,
+    borderWidth: 1, borderColor: Colors.border, ...Shadow.card, gap: Spacing.sm, marginBottom: Spacing.sm,
   },
   cardTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   typeTag: { flexDirection: 'row', alignItems: 'center', gap: 6 },
@@ -264,7 +349,21 @@ const s = StyleSheet.create({
   statutText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   titre: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   sousTitre: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  dateRange: { fontSize: FontSize.xs, color: Colors.textTertiary },
-  cardBottom: { flexDirection: 'row', justifyContent: 'flex-end', marginTop: 4 },
+  datesRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
+  dateLabel: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
+  dateVal: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  dateSep: { fontSize: FontSize.xs, color: Colors.textTertiary, marginHorizontal: 2 },
+  autrePartie: {
+    flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
+    backgroundColor: Colors.background, borderRadius: Radius.md,
+    padding: Spacing.md, borderWidth: 1, borderColor: Colors.border,
+  },
+  miniAvatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
+  miniAvatarText: { fontSize: FontSize.sm, fontWeight: FontWeight.extrabold, color: '#fff' },
+  autrePartieRole: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold, textTransform: 'uppercase', letterSpacing: 0.4 },
+  autrePartieNom: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  autrePartiePseudo: { fontSize: FontSize.xs, color: Colors.primary },
+  chevron: { fontSize: 22, color: Colors.textTertiary, fontWeight: FontWeight.bold },
+  cardBottom: { flexDirection: 'row', justifyContent: 'flex-end', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
   montant: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primary },
 });
