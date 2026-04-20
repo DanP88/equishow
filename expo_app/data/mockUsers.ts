@@ -88,6 +88,15 @@ export const TEST_ACCOUNTS = [
     password: 'test123',
     label: 'Sarah Lefebvre',
     icon: '🏇',
+    description: 'Cavalier test #1',
+  },
+  {
+    role: 'cavalier' as const,
+    email: 'cavalier2@equishow.test',
+    password: 'test123',
+    label: 'Sophie Dupont',
+    icon: '🏇',
+    description: 'Cavalier test #2 - Annonces: Trajet, Van, Box',
   },
   {
     role: 'coach' as const,

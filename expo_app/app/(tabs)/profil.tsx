@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Modal, TextInput,
+  Modal, TextInput, Alert,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -10,6 +10,7 @@ import { userStore } from '../../data/store';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
 import { useAuth } from '../../hooks/useAuth';
+import { TEST_ACCOUNTS } from '../../data/mockUsers';
 
 const ROLE_LABELS: Record<string, string> = {
   cavalier: 'Cavalier',
@@ -116,6 +117,14 @@ export default function ProfilScreen() {
           <MenuButton icon="💳" label="Abonnement" onPress={() => router.push('/tarification')} color={Colors.gold} />
         </View>
 
+        {/* Test Accounts */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>📧 Comptes de test</Text>
+          {TEST_ACCOUNTS.map((account, idx) => (
+            <TestAccountItem key={idx} account={account} />
+          ))}
+        </View>
+
         <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/(auth)/login')}>
           <Text style={styles.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
@@ -157,6 +166,38 @@ export default function ProfilScreen() {
         </View>
       </Modal>
     </SafeAreaView>
+  );
+}
+
+function TestAccountItem({ account }: { account: any }) {
+  const handleCopy = (text: string) => {
+    Alert.alert('Copié', `${text} a été copié`);
+  };
+
+  return (
+    <View style={styles.testAccountItem}>
+      <View style={styles.testAccountHeader}>
+        <Text style={styles.testAccountEmoji}>{account.icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.testAccountName}>{account.label}</Text>
+          {account.description && (
+            <Text style={styles.testAccountDescription}>{account.description}</Text>
+          )}
+        </View>
+      </View>
+      <TouchableOpacity
+        style={styles.testAccountEmail}
+        onPress={() => handleCopy(account.email)}
+      >
+        <Text style={styles.testAccountEmailText}>{account.email}</Text>
+      </TouchableOpacity>
+      <TouchableOpacity
+        style={styles.testAccountPassword}
+        onPress={() => handleCopy(account.password)}
+      >
+        <Text style={styles.testAccountPasswordText}>Mot de passe: {account.password}</Text>
+      </TouchableOpacity>
+    </View>
   );
 }
 
@@ -263,4 +304,15 @@ const styles = StyleSheet.create({
   cancelText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   confirmBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
   confirmText: { color: Colors.textInverse, fontWeight: FontWeight.bold },
+
+  // Test accounts
+  testAccountItem: { padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  testAccountHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm },
+  testAccountEmoji: { fontSize: 20 },
+  testAccountName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  testAccountDescription: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
+  testAccountEmail: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, padding: Spacing.sm, marginBottom: Spacing.xs },
+  testAccountEmailText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontFamily: 'Courier New' },
+  testAccountPassword: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, padding: Spacing.sm },
+  testAccountPasswordText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontFamily: 'Courier New' },
 });
