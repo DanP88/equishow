@@ -335,7 +335,9 @@ export default function ProposerTransportScreen() {
         dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
         kmInclus: typeTransport === 'location' ? parseInt(kmInclus, 10) : undefined,
         tarifKmSupplémentaire: typeTransport === 'location' ? parseFloat(tarifKmSupplémentaire) : undefined,
-        cautionMontant: typeTransport === 'location' ? parseInt(cautionMontant, 10) : undefined,
+        cautionRéparation: typeTransport === 'location' ? parseInt(cautionRéparation, 10) : undefined,
+        cautionNettoyage: typeTransport === 'location' ? parseInt(cautionNettoyage, 10) : undefined,
+        datesDisponibles: typeTransport === 'location' ? datesDisponibles : undefined,
       };
       transportsStore.list = [nouvelleAnnonce, ...transportsStore.list];
       Alert.alert(
