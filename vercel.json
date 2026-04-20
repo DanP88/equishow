@@ -10,7 +10,10 @@
   "routes": [
     {
       "src": "/(.*)",
-      "dest": "/api"
+      "dest": "/api",
+      "headers": {
+        "cache-control": "no-store, must-revalidate"
+      }
     }
   ]
 }
