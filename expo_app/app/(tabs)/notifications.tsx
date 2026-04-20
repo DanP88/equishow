@@ -28,7 +28,7 @@ export default function NotificationsScreen() {
 
   // Filtrer pour ne montrer que les notifications du cavalier actuel
   const myNotifications = notifications.filter(
-    (n) => n.destinataireId === userStore.id
+    (n) => n.destinataireId === userStore.id && n.type !== 'message'
   );
 
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
