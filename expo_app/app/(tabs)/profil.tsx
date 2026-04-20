@@ -174,8 +174,23 @@ function TestAccountItem({ account }: { account: any }) {
     Alert.alert('Copié', `${text} a été copié`);
   };
 
+  const handleSwitchAccount = () => {
+    const success = userStore.switchAccount(account.accountKey);
+    if (success) {
+      Alert.alert('✓ Compte changé', `Vous êtes maintenant connecté en tant que ${account.label}`);
+      // Force a refresh of the navigation to update all screens
+      router.replace('/(tabs)/profil');
+    } else {
+      Alert.alert('Erreur', 'Impossible de changer de compte');
+    }
+  };
+
   return (
-    <View style={styles.testAccountItem}>
+    <TouchableOpacity
+      style={styles.testAccountItem}
+      onPress={handleSwitchAccount}
+      activeOpacity={0.7}
+    >
       <View style={styles.testAccountHeader}>
         <Text style={styles.testAccountEmoji}>{account.icon}</Text>
         <View style={{ flex: 1 }}>
@@ -184,20 +199,27 @@ function TestAccountItem({ account }: { account: any }) {
             <Text style={styles.testAccountDescription}>{account.description}</Text>
           )}
         </View>
+        <Text style={styles.testAccountArrow}>›</Text>
       </View>
       <TouchableOpacity
         style={styles.testAccountEmail}
-        onPress={() => handleCopy(account.email)}
+        onPress={(e) => {
+          e.stopPropagation();
+          handleCopy(account.email);
+        }}
       >
         <Text style={styles.testAccountEmailText}>{account.email}</Text>
       </TouchableOpacity>
       <TouchableOpacity
         style={styles.testAccountPassword}
-        onPress={() => handleCopy(account.password)}
+        onPress={(e) => {
+          e.stopPropagation();
+          handleCopy(account.password);
+        }}
       >
         <Text style={styles.testAccountPasswordText}>Mot de passe: {account.password}</Text>
       </TouchableOpacity>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -307,10 +329,11 @@ const styles = StyleSheet.create({
 
   // Test accounts
   testAccountItem: { padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  testAccountHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm },
+  testAccountHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.sm, justifyContent: 'space-between' },
   testAccountEmoji: { fontSize: 20 },
   testAccountName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   testAccountDescription: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
+  testAccountArrow: { fontSize: FontSize.lg, color: Colors.primary, fontWeight: FontWeight.semibold },
   testAccountEmail: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, padding: Spacing.sm, marginBottom: Spacing.xs },
   testAccountEmailText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontFamily: 'Courier New' },
   testAccountPassword: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, padding: Spacing.sm },

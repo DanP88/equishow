@@ -95,6 +95,7 @@ export const ADDITIONAL_COACHES = {
 
 export const TEST_ACCOUNTS = [
   {
+    accountKey: 'cavalier' as const,
     role: 'cavalier' as const,
     email: 'sarah.lefebvre@email.fr',
     password: 'test123',
@@ -103,6 +104,7 @@ export const TEST_ACCOUNTS = [
     description: 'Cavalier test #1',
   },
   {
+    accountKey: 'cavalier2' as const,
     role: 'cavalier' as const,
     email: 'cavalier2@equishow.test',
     password: 'test123',
@@ -111,6 +113,7 @@ export const TEST_ACCOUNTS = [
     description: 'Cavalier test #2 - Annonces: Trajet, Van, Box',
   },
   {
+    accountKey: 'coach' as const,
     role: 'coach' as const,
     email: 'emilie.laurent@email.fr',
     password: 'test123',
@@ -118,6 +121,7 @@ export const TEST_ACCOUNTS = [
     icon: '🎓',
   },
   {
+    accountKey: 'organisateur' as const,
     role: 'organisateur' as const,
     email: 'contact@ceclyon.fr',
     password: 'test123',
@@ -125,6 +129,7 @@ export const TEST_ACCOUNTS = [
     icon: '🏟️',
   },
   {
+    accountKey: 'admin' as const,
     role: 'admin' as const,
     email: 'admin@equishow.fr',
     password: 'admin123',

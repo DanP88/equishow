@@ -16,14 +16,16 @@ const AVAILABLE_COACHS = [
 ];
 
 export default function ChevauxScreen() {
-  const [chevaux, setChevaux] = useState<Cheval[]>(chevauxStore.list);
+  const [chevaux, setChevaux] = useState<Cheval[]>(
+    chevauxStore.list.filter(c => c.proprietaireId === userStore.id)
+  );
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   function handleAdd() {
     const nouveau: Cheval = {
       id: Date.now().toString(),
       nom: 'Nouveau cheval',
-      proprietaireId: 'user1',
+      proprietaireId: userStore.id,
       type: 'cheval',
       temperament: [],
       disciplines: [],

@@ -4,7 +4,7 @@ export const mockChevaux: Cheval[] = [
   {
     id: '1',
     nom: 'Éclipse du Vent',
-    proprietaireId: 'user1',
+    proprietaireId: '550e8400-e29b-41d4-a716-446655440001',
     type: 'cheval',
     race: 'Selle Français',
     robe: 'Bai',
@@ -38,7 +38,7 @@ export const mockChevaux: Cheval[] = [
   {
     id: '2',
     nom: 'Lumière d\'Abril',
-    proprietaireId: 'user1',
+    proprietaireId: '550e8400-e29b-41d4-a716-446655440001',
     type: 'cheval',
     race: 'KWPN',
     robe: 'Alezan',
@@ -54,7 +54,7 @@ export const mockChevaux: Cheval[] = [
   {
     id: '3',
     nom: 'Tornado Black',
-    proprietaireId: 'user1',
+    proprietaireId: '550e8400-e29b-41d4-a716-446655440001',
     type: 'cheval',
     race: 'Anglo-Arabe',
     robe: 'Noir',

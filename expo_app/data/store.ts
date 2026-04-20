@@ -33,7 +33,7 @@ export interface UserStore {
   disciplines: string[];
   bio: string;
   avatarColor: string;
-  switchAccount(accountKey: 'cavalier' | 'coach' | 'organisateur' | 'admin'): boolean;
+  switchAccount(accountKey: 'cavalier' | 'cavalier2' | 'coach' | 'coach2' | 'coach3' | 'organisateur' | 'admin'): boolean;
   onRoleChange(callback: () => void): () => void;
 }
 
@@ -63,8 +63,13 @@ const createUserStore = (): UserStore => {
     disciplines: user.disciplines,
     bio: '',
     avatarColor: getAvatarColorForRole(user.role),
-    switchAccount(accountKey: 'cavalier' | 'coach' | 'organisateur' | 'admin') {
-      const newUser = mockUsers[accountKey];
+    switchAccount(accountKey: 'cavalier' | 'cavalier2' | 'coach' | 'coach2' | 'coach3' | 'organisateur' | 'admin') {
+      let newUser = (mockUsers as any)[accountKey];
+      // Handle coach2 and coach3 from ADDITIONAL_COACHES
+      if (!newUser && (accountKey === 'coach2' || accountKey === 'coach3')) {
+        const { ADDITIONAL_COACHES } = require('./mockUsers');
+        newUser = ADDITIONAL_COACHES[accountKey];
+      }
       if (!newUser) return false;
 
       this.id = newUser.id;
