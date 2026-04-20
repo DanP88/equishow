@@ -26,6 +26,8 @@ const ROLE_ICONS: Record<string, string> = {
 
 export default function ProfilScreen() {
   const { profile } = useAuth();
+  // Use a counter to force re-renders when account changes
+  const [tick, setTick] = useState(0);
   const [user, setUser] = useState({ ...userStore });
   const [showEdit, setShowEdit] = useState(false);
   const [draft, setDraft] = useState({ ...userStore });
@@ -34,7 +36,7 @@ export default function ProfilScreen() {
   useFocusEffect(useCallback(() => {
     setUser({ ...userStore });
     setDraft({ ...userStore });
-  }, []));
+  }, [tick]));
 
   function saveEdit() {
     Object.assign(userStore, draft);
@@ -129,7 +131,24 @@ export default function ProfilScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📧 Comptes de test</Text>
           {TEST_ACCOUNTS.map((account, idx) => (
-            <TestAccountItem key={idx} account={account} onSwitch={() => setUser({ ...userStore })} />
+            <TestAccountItem key={idx} account={account} onSwitch={() => {
+              const updated = {
+                id: userStore.id,
+                prenom: userStore.prenom,
+                nom: userStore.nom,
+                pseudo: userStore.pseudo,
+                email: userStore.email,
+                role: userStore.role,
+                plan: userStore.plan,
+                region: userStore.region,
+                disciplines: userStore.disciplines,
+                bio: userStore.bio,
+                avatarColor: userStore.avatarColor,
+              };
+              console.log('Switching to:', updated.prenom, updated.nom, updated.id);
+              setUser(updated as any);
+              setTick(t => t + 1);
+            }} />
           ))}
         </View>
 
