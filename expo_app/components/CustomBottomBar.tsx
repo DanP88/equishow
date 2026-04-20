@@ -18,6 +18,7 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
     { name: 'services', label: 'Services', emoji: '🤝', route: '/(tabs)/services' },
     { name: 'cavalier-agenda', label: 'Agenda', emoji: '📅', route: '/(tabs)/cavalier-agenda' },
     { name: 'messagerie', label: 'Messages', emoji: '💬', route: '/messagerie' },
+    { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
     { name: 'notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/notifications' },
     { name: 'profil', label: 'Profil', emoji: '👤', route: '/(tabs)/profil' },
   ],
