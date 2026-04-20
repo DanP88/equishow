@@ -250,6 +250,8 @@ export default function ProposerTransportScreen() {
   const prixNum = parseFloat(prix);
 
   function submit() {
+    try {
+    console.log('Submit called', { typeTransport, villeDepart, villeArrivee, dateTrajet, nbPlaces, prix, heureDepart });
     if (typeTransport === 'trajet') {
       if (!villeDepart || !villeArrivee || !dateTrajet || !nbPlaces || !prix) {
         Alert.alert('Champs manquants', 'Veuillez remplir : ville de départ, ville d\'arrivée, date, nombre de places et prix.');
@@ -340,11 +342,16 @@ export default function ProposerTransportScreen() {
         datesDisponibles: typeTransport === 'location' ? datesDisponibles : undefined,
       };
       transportsStore.list = [nouvelleAnnonce, ...transportsStore.list];
+      console.log('Annonce ajoutée:', nouvelleAnnonce.id);
       Alert.alert(
         'Annonce publiée ! 🚐',
         `Votre trajet ${villeDepart} → ${villeArrivee} est maintenant visible dans la liste.`,
         [{ text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=transport' as any) }],
       );
+    }
+    } catch (e: any) {
+      console.error('Submit error:', e?.message, e);
+      Alert.alert('Erreur', e?.message || 'Une erreur est survenue');
     }
   }
 
