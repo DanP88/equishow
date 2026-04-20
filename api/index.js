@@ -7,15 +7,26 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const distPath = path.join(__dirname, '../web/dist');
 
 export default (req, res) => {
-  // Get the requested path
-  let filePath = path.join(distPath, req.url);
-
-  // If it's a directory or doesn't exist, serve index.html (SPA routing)
-  if (!fs.existsSync(filePath) || fs.statSync(filePath).isDirectory()) {
-    filePath = path.join(distPath, 'index.html');
-  }
+  // Get the requested path, remove query params and fragments
+  const cleanUrl = req.url.split('?')[0].split('#')[0];
+  let filePath = path.join(distPath, cleanUrl);
 
   try {
+    // Check if file exists and is not a directory
+    let isDir = false;
+    try {
+      const stat = fs.statSync(filePath);
+      isDir = stat.isDirectory();
+    } catch (statErr) {
+      // File doesn't exist, will serve index.html
+      isDir = true;
+    }
+
+    // If it's a directory or doesn't exist, serve index.html (SPA routing)
+    if (isDir) {
+      filePath = path.join(distPath, 'index.html');
+    }
+
     const fileContent = fs.readFileSync(filePath);
 
     // Determine content type
@@ -34,6 +45,8 @@ export default (req, res) => {
       '.svg': 'image/svg+xml',
       '.ico': 'image/x-icon',
       '.webp': 'image/webp',
+      '.woff': 'font/woff',
+      '.woff2': 'font/woff2',
     };
 
     if (mimeTypes[ext]) {
@@ -52,6 +65,6 @@ export default (req, res) => {
     res.send(fileContent);
   } catch (err) {
     console.error('Error serving file:', err);
-    res.status(404).send('Not found');
+    res.status(500).send('Internal server error');
   }
 };
