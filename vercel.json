@@ -1,7 +1,7 @@
 {
   "version": 2,
   "outputDirectory": "web/dist",
-  "buildCommand": "echo 'static'",
+  "buildCommand": "echo built",
   "routes": [
     { "handle": "filesystem" },
     { "src": "/(.*)", "dest": "/index.html" }

@@ -212,6 +212,7 @@ export default function ProposerTransportScreen() {
   const existing = editId ? transportsStore.list.find((t) => t.id === editId) : undefined;
 
   const [villeDepart, setVilleDepart] = useState(existing?.villeDepart ?? '');
+  const [villeArrivee, setVilleArrivee] = useState(existing?.villeArrivee ?? '');
   const [dateTrajet, setDateTrajet] = useState<Date | undefined>(existing?.dateTrajet);
   const [nbPlaces, setNbPlaces] = useState(existing ? String(existing.nbPlacesTotal) : '');
   const [prix, setPrix] = useState(existing ? String(existing.prixHT) : '');
@@ -382,9 +383,15 @@ export default function ProposerTransportScreen() {
           </View>
         </Field>
 
-        <Field label="Lieu du van *" required>
+        <Field label="Ville de départ *" required>
           <VillesPicker value={villeDepart} onChange={setVilleDepart} />
         </Field>
+
+        {typeTransport === 'trajet' && (
+          <Field label="Ville d'arrivée *" required>
+            <VillesPicker value={villeArrivee} onChange={setVilleArrivee} />
+          </Field>
+        )}
 
         <Field label="Date du trajet *" required>
           <DateButton label="Sélectionner une date" value={dateTrajet} onPress={() => setShowDate(true)} />

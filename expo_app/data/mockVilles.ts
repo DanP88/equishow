@@ -46,7 +46,6 @@ export const VILLES_POPULAIRES = [
   'Biarritz (64)',
   'Avignon (84)',
   'Carcassonne (11)',
-  'Nantes (44)',
   'Arras (62)',
   'Brest (29)',
 ];
