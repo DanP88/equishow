@@ -22,8 +22,15 @@ export default function ChevauxScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
   useEffect(() => {
+    // Update chevaux when component mounts or userStore changes
+    const filtered = chevauxStore.list.filter(c => c.proprietaireId === userStore.id);
+    console.log('Chevaux updated:', { userId: userStore.id, total: chevauxStore.list.length, filtered: filtered.length });
+    setChevaux(filtered);
+
     const unsubscribe = userStore.onRoleChange(() => {
-      setChevaux(chevauxStore.list.filter(c => c.proprietaireId === userStore.id));
+      const newFiltered = chevauxStore.list.filter(c => c.proprietaireId === userStore.id);
+      console.log('Account changed:', { userId: userStore.id, total: chevauxStore.list.length, filtered: newFiltered.length });
+      setChevaux(newFiltered);
     });
     return unsubscribe;
   }, []);
