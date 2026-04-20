@@ -18,18 +18,17 @@ export default function LoginScreen() {
     router.replace('/(tabs)/chevaux');
   }
 
-  function handleTestAccountLogin(accountKey: 'cavalier' | 'coach' | 'organisateur' | 'admin') {
-    userStore.switchAccount(accountKey);
+  function handleTestAccountLogin(accountKey: string, role: string) {
+    userStore.switchAccount(accountKey as any);
 
-    // Rediriger vers le premier onglet pertinent selon le rôle
-    const firstScreenByRole: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', string> = {
+    const firstScreenByRole: Record<string, string> = {
       cavalier: '/(tabs)/chevaux',
       coach: '/(tabs)/coach-agenda',
       organisateur: '/(tabs)/profil-org',
       admin: '/(tabs)/admin-settings',
     };
 
-    router.replace(firstScreenByRole[accountKey]);
+    router.replace((firstScreenByRole[role] || '/(tabs)/chevaux') as any);
   }
 
   return (
@@ -53,9 +52,9 @@ export default function LoginScreen() {
           <View style={styles.testGrid}>
             {TEST_ACCOUNTS.map((account) => (
               <TouchableOpacity
-                key={account.role}
+                key={account.accountKey}
                 style={styles.testCard}
-                onPress={() => handleTestAccountLogin(account.role)}
+                onPress={() => handleTestAccountLogin(account.accountKey, account.role)}
                 activeOpacity={0.8}
               >
                 <Text style={styles.testIcon}>{account.icon}</Text>
