@@ -12,18 +12,20 @@ export default (req, res) => {
   let filePath = path.join(distPath, cleanUrl);
 
   try {
-    // Check if file exists and is not a directory
+    // Check if file exists
+    let exists = false;
     let isDir = false;
+
     try {
       const stat = fs.statSync(filePath);
+      exists = true;
       isDir = stat.isDirectory();
-    } catch (statErr) {
-      // File doesn't exist, will serve index.html
-      isDir = true;
+    } catch (err) {
+      exists = false;
     }
 
-    // If it's a directory or doesn't exist, serve index.html (SPA routing)
-    if (isDir) {
+    // For SPA routing: if file doesn't exist or is a directory, serve index.html
+    if (!exists || isDir) {
       filePath = path.join(distPath, 'index.html');
     }
 
@@ -31,8 +33,6 @@ export default (req, res) => {
 
     // Determine content type
     const ext = path.extname(filePath);
-    let contentType = 'text/plain';
-
     const mimeTypes = {
       '.html': 'text/html',
       '.js': 'application/javascript',
@@ -49,15 +49,14 @@ export default (req, res) => {
       '.woff2': 'font/woff2',
     };
 
-    if (mimeTypes[ext]) {
-      contentType = mimeTypes[ext];
-    }
-
+    const contentType = mimeTypes[ext] || 'text/plain';
     res.setHeader('Content-Type', contentType);
 
     // Cache busting for index.html
     if (filePath.endsWith('index.html')) {
       res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+      res.setHeader('Expires', '0');
     } else {
       res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
     }
@@ -65,6 +64,16 @@ export default (req, res) => {
     res.send(fileContent);
   } catch (err) {
     console.error('Error serving file:', err);
-    res.status(500).send('Internal server error');
+    // Fallback: try to serve index.html for SPA
+    try {
+      const fallbackPath = path.join(distPath, 'index.html');
+      const fileContent = fs.readFileSync(fallbackPath);
+      res.setHeader('Content-Type', 'text/html');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+      res.send(fileContent);
+    } catch (fallbackErr) {
+      console.error('Fallback failed:', fallbackErr);
+      res.status(500).send('Internal server error');
+    }
   }
 };
