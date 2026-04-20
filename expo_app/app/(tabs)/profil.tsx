@@ -127,8 +127,8 @@ export default function ProfilScreen() {
           <MenuButton icon="💳" label="Abonnement" onPress={() => router.push('/tarification')} color={Colors.gold} />
         </View>
 
-        {/* Test Accounts */}
-        <View style={styles.section}>
+        {/* Test Accounts — visible uniquement pour admin */}
+        {user.role === 'admin' && <View style={styles.section}>
           <Text style={styles.sectionTitle}>📧 Comptes de test</Text>
           {TEST_ACCOUNTS.map((account, idx) => (
             <TestAccountItem key={idx} account={account} onSwitch={() => {
@@ -150,7 +150,7 @@ export default function ProfilScreen() {
               setTick(t => t + 1);
             }} />
           ))}
-        </View>
+        </View>}
 
         <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/(auth)/login')}>
           <Text style={styles.logoutText}>Se déconnecter</Text>
