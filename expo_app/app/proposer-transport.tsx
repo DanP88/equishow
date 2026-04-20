@@ -249,35 +249,43 @@ export default function ProposerTransportScreen() {
   // Les prix sont directement en TTC
   const prixNum = parseFloat(prix);
 
+  function showError(msg: string) {
+    if (typeof window !== 'undefined') {
+      window.alert(msg);
+    } else {
+      Alert.alert('Erreur', msg);
+    }
+  }
+
   function submit() {
     try {
     console.log('Submit called', { typeTransport, villeDepart, villeArrivee, dateTrajet, nbPlaces, prix, heureDepart });
     if (typeTransport === 'trajet') {
       if (!villeDepart || !villeArrivee || !dateTrajet || !nbPlaces || !prix) {
-        Alert.alert('Champs manquants', 'Veuillez remplir : ville de départ, ville d\'arrivée, date, nombre de places et prix.');
+        showError('Veuillez remplir : ville de départ, ville d\'arrivée, date, nombre de places et prix.');
         return;
       }
       if (!heureDepart) {
-        Alert.alert('Champs manquants', 'Veuillez saisir l\'heure de départ.');
+        showError('Veuillez saisir l\'heure de départ.');
         return;
       }
     } else {
       if (!villeDepart || !dateTrajet || !nbPlaces || !prix || !adresseVan) {
-        Alert.alert('Champs manquants', 'Veuillez remplir : ville, date, nombre de places, prix et adresse du van.');
+        showError('Veuillez remplir : ville, date, nombre de places, prix et adresse du van.');
         return;
       }
       if (!kmInclus || !tarifKmSupplémentaire || !cautionRéparation || !cautionNettoyage || datesDisponibles.length === 0) {
-        Alert.alert('Champs manquants', 'Pour une location, veuillez remplir : kilomètres inclus, tarif par km, cautions et disponibilités.');
+        showError('Pour une location, veuillez remplir : kilomètres inclus, tarif par km, cautions et disponibilités.');
         return;
       }
     }
     if (proposerRetour) {
       if (!villedepartRetour || !villearriveeRetour || !dateRetour || !nbPlacesRetour) {
-        Alert.alert('Champs de retour manquants', 'Veuillez remplir tous les champs du retour.');
+        showError('Veuillez remplir tous les champs du retour.');
         return;
       }
-      if (dateRetour.getTime() < dateTrajet.getTime()) {
-        Alert.alert('Date invalide', 'La date du retour doit être égale ou après la date du trajet aller.');
+      if (dateRetour && dateTrajet && dateRetour.getTime() < dateTrajet.getTime()) {
+        showError('La date du retour doit être après la date du trajet aller.');
         return;
       }
     }
