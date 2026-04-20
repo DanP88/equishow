@@ -113,8 +113,20 @@ export default function ReserverTransportScreen() {
     };
 
     notificationsStore.list = [notificationTransport, ...notificationsStore.list];
-    console.log('✅ Réservation transport créée');
-    setShowConfirmation(true);
+    console.log('✅ Réservation transport créée, redirection paiement');
+
+    // Naviguer vers la page de paiement Stripe
+    router.push({
+      pathname: '/paiement-transport',
+      params: {
+        reservationId: nouvelleReservation.id,
+        titre: nouvelleReservation.titre,
+        montant: prixTotalTTC.toFixed(2),
+        nbPlaces: String(nouvelleReservation.nbPlaces),
+        villeDepart: transport.villeDepart,
+        villeArrivee: transport.villeArrivee,
+      },
+    } as any);
   }
 
   // Filtrer les dates sélectionnables (seulement les dates disponibles)
@@ -309,7 +321,7 @@ export default function ReserverTransportScreen() {
         </View>
 
         <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>
-          <Text style={s.submitText}>Envoyer la demande</Text>
+          <Text style={s.submitText}>Valider la demande et payer...</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
