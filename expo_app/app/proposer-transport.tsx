@@ -208,7 +208,7 @@ function Dropdown({ placeholder, value, options, onChange }: {
 }
 
 export default function ProposerTransportScreen() {
-  const { editId } = useLocalSearchParams<{ editId?: string }>();
+  const { editId, type } = useLocalSearchParams<{ editId?: string; type?: string }>();
   const existing = editId ? transportsStore.list.find((t) => t.id === editId) : undefined;
 
   const [villeDepart, setVilleDepart] = useState(existing?.villeDepart ?? '');
@@ -217,8 +217,10 @@ export default function ProposerTransportScreen() {
   const [nbPlaces, setNbPlaces] = useState(existing ? String(existing.nbPlacesTotal) : '');
   const [prix, setPrix] = useState(existing ? String(existing.prixHT) : '');
 
-  // Nouveaux champs transport
-  const [typeTransport, setTypeTransport] = useState<'trajet' | 'location'>(existing?.typeTransport ?? 'trajet');
+  // Nouveaux champs transport — type pré-sélectionné depuis l'onglet services si fourni
+  const defaultType: 'trajet' | 'location' =
+    existing?.typeTransport ?? (type === 'location' ? 'location' : 'trajet');
+  const [typeTransport, setTypeTransport] = useState<'trajet' | 'location'>(defaultType);
   const [adresseVan, setAdresseVan] = useState(existing?.adresseVan ?? '');
   const [heureDepart, setHeureDepart] = useState(existing?.heureDepart ?? '');
 

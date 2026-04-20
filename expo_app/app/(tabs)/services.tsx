@@ -241,7 +241,7 @@ export default function ServicesScreen() {
               text={transportSubTab === 'trajets' ? "Vous avez des places dans votre van ?" : "Vous voulez louer votre van à la journée ?"}
               hint={transportSubTab === 'trajets' ? "Recommandé : 0,8€/km" : "Recommandé : 200-220€/jour"}
               cta="Proposer une annonce"
-              route="/proposer-transport"
+              route={transportSubTab === 'trajets' ? '/proposer-transport?type=trajet' : '/proposer-transport?type=location'}
             />
             {filteredT.length === 0 && <EmptyState text={`Aucun ${transportSubTab === 'trajets' ? 'trajet' : 'van'} ne correspond à vos filtres.`} />}
             {filteredT.map((t) => (
