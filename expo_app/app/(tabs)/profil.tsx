@@ -49,7 +49,9 @@ export default function ProfilScreen() {
     setShowEdit(true);
   }
 
-  const nbChevaux = 3;
+  // Import chevauxStore to count user's horses dynamically
+  const { chevauxStore } = require('../../data/store');
+  const nbChevaux = chevauxStore.list.filter((c: any) => c.proprietaireId === userStore.id).length;
   const nbConcours = 8;
 
   return (
