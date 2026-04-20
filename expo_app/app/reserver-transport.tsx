@@ -9,8 +9,6 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { transportsStore, userStore, transportReservationsStore, notificationsStore } from '../data/store';
 import { prixTTC, getCommissionMontant, getCommission, TransportReservation } from '../types/service';
 import { MultiDatePickerModal } from '../components/DatePickerModal';
-import { getAuthToken } from '../utils/supabaseAuth';
-import { createClient } from '@supabase/supabase-js';
 import { Notification } from '../types/notification';
 
 export default function ReserverTransportScreen() {
@@ -57,125 +55,66 @@ export default function ReserverTransportScreen() {
     prixTotalTTC = prixTotal; // Déjà en TTC
   }
 
-  async function submit() {
+  function submit() {
     if (transport.typeTransport === 'location') {
       if (selectedDates.length === 0) {
-        Alert.alert('Erreur', 'Veuillez sélectionner au moins 1 jour.');
+        if (typeof window !== 'undefined') window.alert('Veuillez sélectionner au moins 1 jour.');
+        else Alert.alert('Erreur', 'Veuillez sélectionner au moins 1 jour.');
         return;
       }
     } else {
       if (nbPlaces < 1 || nbPlaces > transport.nbPlacesDisponibles) {
-        Alert.alert('Erreur', `Sélectionnez entre 1 et ${transport.nbPlacesDisponibles} place(s).`);
+        if (typeof window !== 'undefined') window.alert(`Sélectionnez entre 1 et ${transport.nbPlacesDisponibles} place(s).`);
+        else Alert.alert('Erreur', `Sélectionnez entre 1 et ${transport.nbPlacesDisponibles} place(s).`);
         return;
       }
     }
 
-    console.log('🟢 Transport submit called');
-    setLoading(true);
-    try {
-      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    const nouvelleReservation: TransportReservation = {
+      id: `tr_${Date.now()}`,
+      transportId: transport.id,
+      sellerId: transport.propId || transport.auteurId,
+      buyerId: userStore.id,
+      titre: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
+      villeDepart: transport.villeDepart,
+      villeArrivee: transport.villeArrivee,
+      nbPlaces: transport.typeTransport === 'trajet' ? nbPlaces : 1,
+      message: message.trim(),
+      prixTotalHT: prixTotal,
+      commissionPlateform: prixTotal * 0.05,
+      prixTotalTTC: prixTotalTTC,
+      statut: 'pending' as const,
+      dateCreation: new Date(),
+    };
 
-      console.log('🔑 Checking Supabase config:', { URL: !!SUPABASE_URL, KEY: !!SUPABASE_ANON_KEY });
+    transportReservationsStore.list = [nouvelleReservation, ...transportReservationsStore.list];
 
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        console.log('❌ Supabase config missing!');
-        Alert.alert('Erreur', 'Variables Supabase non configurées');
-        setLoading(false);
-        return;
-      }
-
-      console.log('🔌 Creating Supabase client');
-      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      console.log('✅ Supabase client created');
-      const authToken = await getAuthToken();
-      if (!authToken) {
-        Alert.alert('Erreur', 'Non authentifié');
-        return;
-      }
-
-      // Créer réservation transport en BD
-      const { data: reservation, error: reservError } = await supabase
-        .from('transport_reservations')
-        .insert({
-          transport_id: transport.id,
-          seller_id: transport.propId,
-          buyer_id: userStore.id,
-          title: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
-          ville_depart: transport.villeDepart,
-          ville_arrivee: transport.villeArrivee,
-          nb_places: transport.typeTransport === 'trajet' ? nbPlaces : 1,
-          message: message.trim(),
-          price_total_ht: Math.round(prixTotal * 100),
-          platform_commission: Math.round(prixTotal * 0.05 * 100),
-          price_total_ttc: Math.round(prixTotalTTC * 100),
-          status: 'pending',
-        })
-        .select('id')
-        .single();
-
-      if (reservError || !reservation) {
-        Alert.alert('Erreur', 'Impossible de créer la réservation');
-        return;
-      }
-
-      // Ajouter à la store locale
-      const nouvelleReservation: TransportReservation = {
-        id: reservation.id,
+    const notificationTransport: Notification = {
+      id: `notif_${Date.now()}`,
+      destinataireId: transport.propId || transport.auteurId,
+      type: 'reservation_request',
+      titre: `🚐 Nouvelle réservation de transport`,
+      message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${transport.villeDepart} → ${transport.villeArrivee}`,
+      status: 'pending',
+      lu: false,
+      dateCreation: new Date(),
+      actionUrl: '/transport-pending-demands',
+      auteurId: userStore.id,
+      auteurNom: userStore.nom,
+      auteurPseudo: userStore.pseudo,
+      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+      auteurCouleur: userStore.avatarColor,
+      donnees: {
         transportId: transport.id,
-        sellerId: transport.propId || transport.auteurId,
-        buyerId: userStore.id,
         titre: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
-        villeDepart: transport.villeDepart,
-        villeArrivee: transport.villeArrivee,
-        nbPlaces: transport.typeTransport === 'trajet' ? nbPlaces : 1,
+        prix: prixTotalTTC,
         message: message.trim(),
-        prixTotalHT: prixTotal,
-        commissionPlateform: prixTotal * 0.05,
-        prixTotalTTC: prixTotalTTC,
-        statut: 'pending' as const,
-        dateCreation: new Date(),
-      };
+      },
+    };
 
-      transportReservationsStore.list = [nouvelleReservation, ...transportReservationsStore.list];
-
-      // Créer notification pour le propriétaire du transport
-      const notificationTransport: Notification = {
-        id: `notif_${Date.now()}`,
-        destinataireId: transport.propId || transport.auteurId,
-        type: 'reservation_request',
-        titre: `🚐 Nouvelle réservation de transport`,
-        message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${transport.villeDepart} → ${transport.villeArrivee}`,
-        status: 'pending',
-        lu: false,
-        dateCreation: new Date(),
-        actionUrl: '/transport-pending-demands',
-        auteurId: userStore.id,
-        auteurNom: userStore.nom,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-        auteurCouleur: userStore.avatarColor,
-        donnees: {
-          transportId: transport.id,
-          titre: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
-          prix: prixTotalTTC,
-          message: message.trim(),
-        },
-      };
-
-      notificationsStore.list = [notificationTransport, ...notificationsStore.list];
-
-      // Réservation créée, en attente de validation du propriétaire
-      console.log('✅ Réservation créée, en attente de validation');
-      setShowConfirmation(true);
-    } catch (error) {
-      console.error('❌ Transport submit error:', error);
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.log('Error details:', errorMsg);
-      Alert.alert('Erreur', `Une erreur est survenue: ${errorMsg}`);
-    } finally {
-      setLoading(false);
-    }
+    notificationsStore.list = [notificationTransport, ...notificationsStore.list];
+    console.log('✅ Réservation transport créée');
+    setShowConfirmation(true);
   }
 
   // Filtrer les dates sélectionnables (seulement les dates disponibles)
