@@ -381,24 +381,27 @@ export default function ProposerTransportScreen() {
           </View>
         )}
 
-        <Field label="Type de transport *" required>
-          <View style={s.typeTransportRow}>
-            <TouchableOpacity
-              style={[s.typeBtn, typeTransport === 'trajet' && s.typeBtnActive]}
-              onPress={() => setTypeTransport('trajet')}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.typeBtnText, typeTransport === 'trajet' && s.typeBtnTextActive]}>🚐 Trajet</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={[s.typeBtn, typeTransport === 'location' && s.typeBtnActive]}
-              onPress={() => setTypeTransport('location')}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.typeBtnText, typeTransport === 'location' && s.typeBtnTextActive]}>🔑 Location du van seul</Text>
-            </TouchableOpacity>
-          </View>
-        </Field>
+        {/* Sélecteur visible seulement si le type n'est pas pré-imposé depuis l'onglet */}
+        {(!type || !!editId) && (
+          <Field label="Type de transport *" required>
+            <View style={s.typeTransportRow}>
+              <TouchableOpacity
+                style={[s.typeBtn, typeTransport === 'trajet' && s.typeBtnActive]}
+                onPress={() => setTypeTransport('trajet')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.typeBtnText, typeTransport === 'trajet' && s.typeBtnTextActive]}>🚐 Trajet</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[s.typeBtn, typeTransport === 'location' && s.typeBtnActive]}
+                onPress={() => setTypeTransport('location')}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.typeBtnText, typeTransport === 'location' && s.typeBtnTextActive]}>🔑 Location du van seul</Text>
+              </TouchableOpacity>
+            </View>
+          </Field>
+        )}
 
         <Field label="Ville de départ *" required>
           <VillesPicker value={villeDepart} onChange={setVilleDepart} />
