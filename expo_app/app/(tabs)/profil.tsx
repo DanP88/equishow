@@ -129,7 +129,7 @@ export default function ProfilScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>📧 Comptes de test</Text>
           {TEST_ACCOUNTS.map((account, idx) => (
-            <TestAccountItem key={idx} account={account} />
+            <TestAccountItem key={idx} account={account} onSwitch={() => setUser({ ...userStore })} />
           ))}
         </View>
 
@@ -177,7 +177,7 @@ export default function ProfilScreen() {
   );
 }
 
-function TestAccountItem({ account }: { account: any }) {
+function TestAccountItem({ account, onSwitch }: { account: any; onSwitch: () => void }) {
   const handleCopy = (text: string) => {
     Alert.alert('Copié', `${text} a été copié`);
   };
@@ -185,6 +185,7 @@ function TestAccountItem({ account }: { account: any }) {
   const handleSwitchAccount = () => {
     const success = userStore.switchAccount(account.accountKey);
     if (success) {
+      onSwitch(); // Force re-render of parent with new userStore data
       Alert.alert('✓ Compte changé', `Connecté en tant que ${account.label}`);
     } else {
       Alert.alert('Erreur', 'Impossible de changer de compte');
