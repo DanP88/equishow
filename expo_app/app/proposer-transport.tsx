@@ -272,12 +272,16 @@ export default function ProposerTransportScreen() {
         return;
       }
     } else {
-      if (!villeDepart || !dateTrajet || !nbPlaces || !prix || !adresseVan) {
-        showError('Veuillez remplir : ville, date, nombre de places, prix et adresse du van.');
+      if (!villeDepart || !nbPlaces || !prix || !adresseVan) {
+        showError('Veuillez remplir : ville de départ, nombre de places, prix et adresse du van.');
         return;
       }
-      if (!kmInclus || !tarifKmSupplémentaire || !cautionRéparation || !cautionNettoyage || datesDisponibles.length === 0) {
-        showError('Pour une location, veuillez remplir : kilomètres inclus, tarif par km, cautions et disponibilités.');
+      if (datesDisponibles.length === 0) {
+        showError('Veuillez sélectionner au moins une date de disponibilité.');
+        return;
+      }
+      if (!kmInclus || !tarifKmSupplémentaire || !cautionRéparation || !cautionNettoyage) {
+        showError('Veuillez remplir : kilomètres inclus, tarif par km, caution réparation et caution nettoyage.');
         return;
       }
     }
@@ -292,6 +296,10 @@ export default function ProposerTransportScreen() {
       }
     }
     const nb = parseInt(nbPlaces, 10);
+    // Pour location, dateTrajet = première date disponible (pour tri/affichage)
+    const dateTrajetFinal = typeTransport === 'location'
+      ? (datesDisponibles.length > 0 ? datesDisponibles[0] : new Date())
+      : dateTrajet!;
 
     if (editId && existing) {
       // Modification de l'annonce existante
@@ -299,7 +307,7 @@ export default function ProposerTransportScreen() {
       if (idx !== -1) {
         transportsStore.list[idx] = {
           ...transportsStore.list[idx],
-          dateTrajet,
+          dateTrajet: dateTrajetFinal,
           villeDepart: villeDepart.trim(),
           villeArrivee: '', // Vide pour location
           nbPlacesTotal: nb,
@@ -328,9 +336,9 @@ export default function ProposerTransportScreen() {
         auteurPseudo: userStore.pseudo,
         auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
         auteurCouleur: userStore.avatarColor,
-        dateTrajet,
+        dateTrajet: dateTrajetFinal,
         villeDepart: villeDepart.trim(),
-        villeArrivee: villeArrivee.trim(),
+        villeArrivee: typeTransport === 'location' ? '' : villeArrivee.trim(),
         nbPlacesTotal: nb,
         nbPlacesDisponibles: nb,
         prixHT: parseFloat(prix),
