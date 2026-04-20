@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
   StyleSheet, SafeAreaView, Alert, Modal, FlatList, TextInput,
@@ -20,6 +20,13 @@ export default function ChevauxScreen() {
     chevauxStore.list.filter(c => c.proprietaireId === userStore.id)
   );
   const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const unsubscribe = userStore.onRoleChange(() => {
+      setChevaux(chevauxStore.list.filter(c => c.proprietaireId === userStore.id));
+    });
+    return unsubscribe;
+  }, []);
 
   function handleAdd() {
     const nouveau: Cheval = {

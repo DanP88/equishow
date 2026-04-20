@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Modal, TextInput, Alert,
@@ -29,6 +29,14 @@ export default function ProfilScreen() {
   const [user, setUser] = useState({ ...userStore });
   const [showEdit, setShowEdit] = useState(false);
   const [draft, setDraft] = useState({ ...userStore });
+
+  useEffect(() => {
+    const unsubscribe = userStore.onRoleChange(() => {
+      setUser({ ...userStore });
+      setDraft({ ...userStore });
+    });
+    return unsubscribe;
+  }, []);
 
   function saveEdit() {
     Object.assign(userStore, draft);
