@@ -309,11 +309,7 @@ export default function ProposerTransportScreen() {
           datesDisponibles: typeTransport === 'location' ? datesDisponibles : undefined,
         };
       }
-      Alert.alert(
-        'Annonce modifiée ! ✅',
-        `Votre trajet ${villeDepart} → ${villeArrivee} a été mis à jour.`,
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=transport' as any) }],
-      );
+      router.replace('/(tabs)/services?tab=transport' as any);
     } else {
       const nouvelleAnnonce = {
         id: `t${Date.now()}`,
@@ -342,12 +338,7 @@ export default function ProposerTransportScreen() {
         datesDisponibles: typeTransport === 'location' ? datesDisponibles : undefined,
       };
       transportsStore.list = [nouvelleAnnonce, ...transportsStore.list];
-      console.log('Annonce ajoutée:', nouvelleAnnonce.id);
-      Alert.alert(
-        'Annonce publiée ! 🚐',
-        `Votre trajet ${villeDepart} → ${villeArrivee} est maintenant visible dans la liste.`,
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=transport' as any) }],
-      );
+      router.replace('/(tabs)/services?tab=transport' as any);
     }
     } catch (e: any) {
       console.error('Submit error:', e?.message, e);
