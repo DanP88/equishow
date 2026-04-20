@@ -128,27 +128,103 @@ export const coachAgendaStore: { list: CoachAgendaEvent[] } = { list: [] };
 // Types pour la messagerie
 export interface Message {
   id: string;
+  senderId: string;   // userId de l'expéditeur
   texte: string;
-  moi: boolean;
-  heure: string;
+  heure: string;      // heure d'envoi (string affichage)
+  ts: number;         // timestamp pour tri
 }
 
 export interface Conversation {
   id: string;
-  with: string;
-  pseudo: string;
-  couleur: string;
-  initiales: string;
+  participants: [string, string]; // [userId1, userId2]
+  // Infos affichage pour chaque participant
+  userA: { id: string; nom: string; pseudo: string; couleur: string; initiales: string };
+  userB: { id: string; nom: string; pseudo: string; couleur: string; initiales: string };
   sujet: string;
-  dernierMsg: string;
-  heure: string;
-  nonLus: number;
   annonce?: string;
   annonceType?: 'transport' | 'box' | 'coach';
   messages: Message[];
-  cavalierPseudo?: string;
-  coachPseudo?: string;
+  unreadBy: Record<string, number>; // { [userId]: nombre non lus }
+  dernierMsg: string;
+  heure: string;
 }
 
-// Store global des conversations
+// Store global des conversations — partagé entre tous les comptes de la session
 export const messagesStore: { list: Conversation[] } = { list: [] };
+
+/** Trouve ou crée une conversation entre deux users */
+export function getOrCreateConversation(
+  myId: string, myNom: string, myPseudo: string, myCouleur: string, myInitiales: string,
+  otherId: string, otherNom: string, otherPseudo: string, otherCouleur: string, otherInitiales: string,
+  sujet?: string, annonce?: string, annonceType?: 'transport' | 'box' | 'coach',
+): Conversation {
+  const existing = messagesStore.list.find(
+    c => c.participants.includes(myId) && c.participants.includes(otherId)
+  );
+  if (existing) return existing;
+
+  const conv: Conversation = {
+    id: `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+    participants: [myId, otherId],
+    userA: { id: myId, nom: myNom, pseudo: myPseudo, couleur: myCouleur, initiales: myInitiales },
+    userB: { id: otherId, nom: otherNom, pseudo: otherPseudo, couleur: otherCouleur, initiales: otherInitiales },
+    sujet: sujet ?? '💬 Discussion',
+    annonce,
+    annonceType,
+    messages: [],
+    unreadBy: { [myId]: 0, [otherId]: 0 },
+    dernierMsg: '',
+    heure: '',
+  };
+  messagesStore.list = [conv, ...messagesStore.list];
+  return conv;
+}
+
+/** Envoie un message dans une conversation */
+export function sendMessageToConv(convId: string, senderId: string, texte: string) {
+  const conv = messagesStore.list.find(c => c.id === convId);
+  if (!conv) return;
+  const now = new Date();
+  const heure = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+  const msg: Message = { id: `m_${Date.now()}`, senderId, texte, heure, ts: now.getTime() };
+  conv.messages = [...conv.messages, msg];
+  conv.dernierMsg = texte;
+  conv.heure = heure;
+  // Incrémenter non-lus pour l'autre participant
+  conv.participants.forEach(pid => {
+    if (pid !== senderId) {
+      conv.unreadBy[pid] = (conv.unreadBy[pid] ?? 0) + 1;
+    }
+  });
+  // Créer une notification messagerie pour l'autre
+  const senderInfo = senderId === conv.userA.id ? conv.userA : conv.userB;
+  const otherId = conv.participants.find(p => p !== senderId)!;
+  const notif = {
+    id: `notif_msg_${Date.now()}`,
+    destinataireId: otherId,
+    type: 'message' as const,
+    titre: `💬 Message de @${senderInfo.pseudo}`,
+    message: texte.length > 60 ? texte.slice(0, 60) + '…' : texte,
+    status: 'pending' as const,
+    lu: false,
+    dateCreation: now,
+    auteurId: senderId,
+    auteurNom: senderInfo.nom,
+    auteurPseudo: senderInfo.pseudo,
+    auteurInitiales: senderInfo.initiales,
+    auteurCouleur: senderInfo.couleur,
+    donnees: { convId },
+  };
+  notificationsStore.list = [notif, ...notificationsStore.list];
+}
+
+/** Marque tous les messages d'une conv comme lus pour un user */
+export function markConvAsRead(convId: string, userId: string) {
+  const conv = messagesStore.list.find(c => c.id === convId);
+  if (conv) conv.unreadBy[userId] = 0;
+}
+
+/** Nombre total de messages non lus pour un user */
+export function totalUnreadForUser(userId: string): number {
+  return messagesStore.list.reduce((acc, c) => acc + (c.unreadBy[userId] ?? 0), 0);
+}

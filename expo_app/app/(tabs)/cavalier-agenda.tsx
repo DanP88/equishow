@@ -283,8 +283,15 @@ export default function CavalierAgendaScreen() {
                     <TouchableOpacity
                       style={s.autrePartie}
                       onPress={() => router.push({
-                        pathname: '/cavalier/[id]',
-                        params: { id: item.autrePartieId },
+                        pathname: '/messagerie',
+                        params: {
+                          otherId: item.autrePartieId,
+                          otherNom: item.autrePartieNom,
+                          otherPseudo: item.autrePartiePseudo,
+                          otherCouleur: item.autrePartieCouleur,
+                          otherInitiales: item.autrePartieInitiales,
+                          sujet: `${typeEmoji(item.type)} ${item.titre}`,
+                        },
                       } as any)}
                       activeOpacity={0.75}
                     >
@@ -296,7 +303,7 @@ export default function CavalierAgendaScreen() {
                         <Text style={s.autrePartieNom}>{item.autrePartieNom}</Text>
                         <Text style={s.autrePartiePseudo}>@{item.autrePartiePseudo}</Text>
                       </View>
-                      <Text style={s.chevron}>›</Text>
+                      <Text style={s.chevronMsg}>💬</Text>
                     </TouchableOpacity>
 
                     {/* Montant */}
@@ -363,7 +370,7 @@ const s = StyleSheet.create({
   autrePartieRole: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold, textTransform: 'uppercase', letterSpacing: 0.4 },
   autrePartieNom: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   autrePartiePseudo: { fontSize: FontSize.xs, color: Colors.primary },
-  chevron: { fontSize: 22, color: Colors.textTertiary, fontWeight: FontWeight.bold },
+  chevronMsg: { fontSize: 20 },
   cardBottom: { flexDirection: 'row', justifyContent: 'flex-end', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
   montant: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primary },
 });

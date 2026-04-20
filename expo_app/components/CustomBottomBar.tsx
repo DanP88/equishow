@@ -3,7 +3,7 @@ import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native
 import { useRouter, usePathname, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { useUserRole } from '../hooks/useUserRole';
-import { notificationsStore, userStore, stageReservationsStore, courseDemandesStore, transportReservationsStore, boxReservationsStore } from '../data/store';
+import { notificationsStore, userStore, stageReservationsStore, courseDemandesStore, transportReservationsStore, boxReservationsStore, totalUnreadForUser } from '../data/store';
 
 export interface TabConfig {
   name: string;
@@ -15,10 +15,9 @@ export interface TabConfig {
 const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabConfig[]> = {
   cavalier: [
     { name: 'chevaux', label: 'Chevaux', emoji: '🐴', route: '/(tabs)/chevaux' },
-    { name: 'concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/concours' },
     { name: 'services', label: 'Services', emoji: '🤝', route: '/(tabs)/services' },
     { name: 'cavalier-agenda', label: 'Agenda', emoji: '📅', route: '/(tabs)/cavalier-agenda' },
-    { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
+    { name: 'messagerie', label: 'Messages', emoji: '💬', route: '/messagerie' },
     { name: 'notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/notifications' },
     { name: 'profil', label: 'Profil', emoji: '👤', route: '/(tabs)/profil' },
   ],
@@ -51,6 +50,7 @@ export function CustomBottomBar() {
   const [notificationCount, setNotificationCount] = useState(0);
   const [demandCount, setDemandCount] = useState(0);
   const [agendaCount, setAgendaCount] = useState(0);
+  const [msgCount, setMsgCount] = useState(0);
 
   // Fonction pour compter les notifications et demandes
   const updateNotificationCount = useCallback(() => {
@@ -91,6 +91,7 @@ export function CustomBottomBar() {
         r => r.cavalierUserId === uid && r.statut === 'pending'
       ).length;
       setAgendaCount(pendingTransport + pendingBox + pendingStage + pendingCours);
+      setMsgCount(totalUnreadForUser(uid));
     }
   }, [role]);
 
@@ -125,6 +126,7 @@ export function CustomBottomBar() {
     } else if (role === 'cavalier') {
       if (tab.name === 'notifications') return notificationCount;
       if (tab.name === 'cavalier-agenda') return agendaCount;
+      if (tab.name === 'messagerie') return msgCount;
     }
     return 0;
   };

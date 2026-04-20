@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, KeyboardAvoidingView, Platform,
@@ -6,82 +6,12 @@ import {
 import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { messagesStore, userStore } from '../data/store';
-import { useCallback } from 'react';
-
-type Conversation = {
-  id: string;
-  with: string;
-  pseudo: string;
-  couleur: string;
-  initiales: string;
-  sujet: string;
-  dernierMsg: string;
-  heure: string;
-  nonLus: number;
-  annonce?: string;
-  annonceType?: 'transport' | 'box' | 'coach';
-  messages: { id: string; moi: boolean; texte: string; heure: string }[];
-};
-
-const MOCK_CONVS: Conversation[] = [
-  {
-    id: 'conv1',
-    with: 'Marie Dupont',
-    pseudo: 'MarieDup_KWPN',
-    couleur: '#7C3AED',
-    initiales: 'MD',
-    sujet: '🚐 Transport Grenoble → Lyon',
-    dernierMsg: 'Parfait, je confirme la réservation !',
-    heure: '14:32',
-    nonLus: 2,
-    annonce: 'Grenoble → Lyon · 14 avr',
-    annonceType: 'transport',
-    messages: [
-      { id: 'm1', moi: false, texte: 'Bonjour ! Il me reste 2 places pour le 14 avril, départ Grenoble 6h. Cela vous convient ?', heure: '13:45' },
-      { id: 'm2', moi: true, texte: "Parfait ! Est-ce que votre van a bien accès à l'eau pour les chevaux pendant le trajet ?", heure: '14:10' },
-      { id: 'm3', moi: false, texte: "Oui, j'ai un abreuvoir automatique dans le van. Pas de souci !", heure: '14:28' },
-      { id: 'm4', moi: false, texte: 'Parfait, je confirme la réservation !', heure: '14:32' },
-    ],
-  },
-  {
-    id: 'conv2',
-    with: 'Club Équestre de Lyon',
-    pseudo: 'CELyon_Officiel',
-    couleur: '#F97316',
-    initiales: 'CL',
-    sujet: '🏠 Box Grand Prix de Lyon',
-    dernierMsg: 'La paille est fournie, apportez juste votre matériel.',
-    heure: 'hier',
-    nonLus: 0,
-    annonce: 'Box 14-16 avr · Haras de Lyon',
-    annonceType: 'box',
-    messages: [
-      { id: 'm1', moi: true, texte: 'Bonjour, je souhaite réserver 1 box du 14 au 16 avril. Est-ce que la paille est incluse ?', heure: 'hier 10:20' },
-      { id: 'm2', moi: false, texte: 'Bonjour ! Oui, la paille est incluse dans le prix. Eau courante disponible 24h/24.', heure: 'hier 11:05' },
-      { id: 'm3', moi: false, texte: 'La paille est fournie, apportez juste votre matériel.', heure: 'hier 11:06' },
-    ],
-  },
-  {
-    id: 'conv3',
-    with: 'Émilie Laurent',
-    pseudo: 'EmilieLaurent_Pro',
-    couleur: '#7C3AED',
-    initiales: 'EL',
-    sujet: '🎓 Coaching CSO — Grand Prix Lyon',
-    dernierMsg: 'Je suis disponible le matin dès 7h30.',
-    heure: 'lun',
-    nonLus: 1,
-    annonce: 'Coaching CSO · 65€/h HT',
-    annonceType: 'coach',
-    messages: [
-      { id: 'm1', moi: true, texte: 'Bonjour Émilie, je recherche un coach pour le Grand Prix de Lyon le 14 avril. Êtes-vous disponible ?', heure: 'lun 09:00' },
-      { id: 'm2', moi: false, texte: 'Bonjour ! Oui, je suis disponible ce jour-là. Quel niveau votre cheval ?', heure: 'lun 09:45' },
-      { id: 'm3', moi: true, texte: 'Amateur 2, spécialité CSO. Nous participons en 105cm.', heure: 'lun 10:00' },
-      { id: 'm4', moi: false, texte: 'Je suis disponible le matin dès 7h30.', heure: 'lun 10:15' },
-    ],
-  },
-];
+import {
+  messagesStore, userStore, notificationsStore,
+  getOrCreateConversation, sendMessageToConv, markConvAsRead,
+  Conversation,
+} from '../data/store';
+import { getUserById } from '../data/mockUsers';
 
 const ANNONCE_COLORS: Record<string, string> = {
   transport: '#0369A1',
@@ -91,115 +21,182 @@ const ANNONCE_COLORS: Record<string, string> = {
 
 export default function MessagerieScreen() {
   const params = useLocalSearchParams<{
+    otherId?: string;
+    otherNom?: string;
+    otherPseudo?: string;
+    otherCouleur?: string;
+    otherInitiales?: string;
+    sujet?: string;
+    annonce?: string;
+    annonceType?: string;
+    // Legacy compat
     cavalierNom?: string;
     cavalierPseudo?: string;
     cavalierCouleur?: string;
     titre?: string;
   }>();
-  const [activeConv, setActiveConv] = useState<Conversation | null>(null);
-  const [message, setMessage] = useState('');
-  const [convs, setConvs] = useState<Conversation[]>([...MOCK_CONVS]);
 
-  // Rafraîchir les conversations quand on revient à l'écran
+  const [convs, setConvs] = useState<Conversation[]>([]);
+  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const [message, setMessage] = useState('');
+  const [tick, setTick] = useState(0); // force re-render
+  const scrollRef = useRef<ScrollView>(null);
+
+  const myId = userStore.id;
+
+  // Refresh toutes les 400ms pour voir les messages entrants
+  useEffect(() => {
+    const iv = setInterval(() => setTick(t => t + 1), 400);
+    return () => clearInterval(iv);
+  }, []);
+
   useFocusEffect(useCallback(() => {
-    // Charger depuis le store + mock data
-    setConvs([...messagesStore.list, ...MOCK_CONVS]);
+    refreshConvs();
   }, []));
 
-  // Si on arrive de l'agenda avec des paramètres, charger ou créer la conversation
-  useEffect(() => {
-    if (params.cavalierNom && params.cavalierPseudo) {
-      // Chercher une conversation existante
-      const existing = messagesStore.list.find(c => c.pseudo === params.cavalierPseudo) ||
-                      convs.find(c => c.pseudo === params.cavalierPseudo);
-      if (existing) {
-        setActiveConv(existing);
-      } else {
-        // Créer une nouvelle conversation
-        const initiales = params.cavalierNom.split(' ').map(n => n[0]).join('').substring(0, 2);
-        const newConv: Conversation = {
-          id: `conv_${Date.now()}`,
-          with: params.cavalierNom!,
-          pseudo: params.cavalierPseudo!,
-          couleur: params.cavalierCouleur || '#7C3AED',
-          initiales: initiales.toUpperCase(),
-          sujet: `🎓 ${params.titre || 'Coaching'}`,
-          dernierMsg: '',
-          heure: 'maintenant',
-          nonLus: 0,
-          annonce: params.titre,
-          annonceType: 'coach',
-          messages: [],
-        };
-        messagesStore.list = [newConv, ...messagesStore.list];
-        setConvs([newConv, ...convs]);
-        setActiveConv(newConv);
-      }
-    }
-  }, [params.cavalierNom, params.cavalierPseudo]);
-
-  function sendMessage() {
-    if (!message.trim() || !activeConv) return;
-    const newMsg = { id: Date.now().toString(), moi: true, texte: message.trim(), heure: 'maintenant' };
-
-    // Mettre à jour le store
-    const storeIndex = messagesStore.list.findIndex(c => c.id === activeConv.id);
-    if (storeIndex !== -1) {
-      messagesStore.list[storeIndex].messages.push(newMsg);
-      messagesStore.list[storeIndex].dernierMsg = message.trim();
-      messagesStore.list[storeIndex].heure = 'maintenant';
-    }
-
-    // Mettre à jour l'état local
-    const updated = convs.map((c) =>
-      c.id === activeConv.id
-        ? { ...c, messages: [...c.messages, newMsg], dernierMsg: message.trim(), heure: 'maintenant' }
-        : c,
-    );
-    setConvs(updated);
-    setActiveConv({ ...activeConv, messages: [...activeConv.messages, newMsg], dernierMsg: message.trim() });
-    setMessage('');
+  function refreshConvs() {
+    const mine = messagesStore.list.filter(c => c.participants.includes(myId));
+    setConvs([...mine]);
   }
 
-  if (activeConv) {
+  // Ouvrir/créer une conversation depuis les params
+  useEffect(() => {
+    // Résoudre otherId depuis les params (nouveau format ou legacy)
+    let otherId = params.otherId;
+    let otherNom = params.otherNom;
+    let otherPseudo = params.otherPseudo;
+    let otherCouleur = params.otherCouleur ?? Colors.primary;
+    let otherInitiales = params.otherInitiales;
+    let sujet = params.sujet;
+    let annonce = params.annonce;
+    let annonceType = params.annonceType as 'transport' | 'box' | 'coach' | undefined;
+
+    // Legacy: cavalierNom / titre (venant de l'agenda coach)
+    if (!otherId && params.cavalierNom) {
+      otherNom = params.cavalierNom;
+      otherPseudo = params.cavalierPseudo ?? params.cavalierNom;
+      otherCouleur = params.cavalierCouleur ?? Colors.primary;
+      const parts = params.cavalierNom.split(' ');
+      otherInitiales = parts.map(p => p[0]).join('').slice(0, 2).toUpperCase();
+      sujet = params.titre ? `🎓 ${params.titre}` : '💬 Discussion';
+      annonceType = 'coach';
+    }
+
+    if (!otherNom) return;
+
+    // Chercher otherId dans les utilisateurs connus si pas fourni
+    if (!otherId && otherPseudo) {
+      const all = messagesStore.list.find(c => {
+        const other = c.participants.find(p => p !== myId);
+        return other && (c.userA.pseudo === otherPseudo || c.userB.pseudo === otherPseudo);
+      });
+      if (all) {
+        setActiveConvId(all.id);
+        markConvAsRead(all.id, myId);
+        return;
+      }
+    }
+
+    if (!otherId) return; // pas assez d'info pour créer
+
+    const myNom = `${userStore.prenom} ${userStore.nom}`;
+    const myPseudo = userStore.pseudo;
+    const myCouleur = userStore.avatarColor;
+    const myInitiales = `${userStore.prenom[0]}${userStore.nom[0]}`;
+
+    const conv = getOrCreateConversation(
+      myId, myNom, myPseudo, myCouleur, myInitiales,
+      otherId, otherNom!, otherPseudo ?? otherNom!, otherCouleur, otherInitiales ?? (otherNom!.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()),
+      sujet, annonce, annonceType,
+    );
+    refreshConvs();
+    setActiveConvId(conv.id);
+    markConvAsRead(conv.id, myId);
+  }, [params.otherId, params.cavalierNom, params.otherNom]);
+
+  const activeConv = activeConvId ? messagesStore.list.find(c => c.id === activeConvId) ?? null : null;
+
+  // Infos de l'autre dans la conv active
+  const otherUser = activeConv
+    ? (activeConv.userA.id === myId ? activeConv.userB : activeConv.userA)
+    : null;
+
+  function openConv(conv: Conversation) {
+    markConvAsRead(conv.id, myId);
+    setActiveConvId(conv.id);
+    setTick(t => t + 1);
+  }
+
+  function handleSend() {
+    if (!message.trim() || !activeConv) return;
+    sendMessageToConv(activeConv.id, myId, message.trim());
+    setMessage('');
+    setTick(t => t + 1);
+    setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
+  }
+
+  // ── Vue conversation active ──
+  if (activeConv && otherUser) {
+    // Marquer comme lu à chaque render
+    markConvAsRead(activeConv.id, myId);
+    const msgs = activeConv.messages;
+
     return (
       <SafeAreaView style={s.root}>
-        {/* Header conversation */}
         <View style={s.convHeader}>
-          <TouchableOpacity style={s.backBtn} onPress={() => setActiveConv(null)}>
+          <TouchableOpacity style={s.backBtn} onPress={() => { setActiveConvId(null); refreshConvs(); }}>
             <Text style={s.backIcon}>‹</Text>
           </TouchableOpacity>
-          <View style={[s.convAvatar, { backgroundColor: activeConv.couleur }]}>
-            <Text style={s.convAvatarText}>{activeConv.initiales}</Text>
-          </View>
-          <View style={{ flex: 1 }}>
-            <Text style={s.convName}>{activeConv.with}</Text>
-            <Text style={s.convPseudo}>@{activeConv.pseudo}</Text>
-          </View>
+          <TouchableOpacity
+            style={s.convHeaderInfo}
+            onPress={() => router.push({ pathname: '/cavalier/[id]', params: { id: otherUser.id } } as any)}
+            activeOpacity={0.7}
+          >
+            <View style={[s.convAvatar, { backgroundColor: otherUser.couleur }]}>
+              <Text style={s.convAvatarText}>{otherUser.initiales}</Text>
+            </View>
+            <View>
+              <Text style={s.convName}>{otherUser.nom}</Text>
+              <Text style={s.convPseudo}>@{otherUser.pseudo} · voir profil ›</Text>
+            </View>
+          </TouchableOpacity>
         </View>
 
-        {/* Annonce liée */}
         {activeConv.annonce && (
           <View style={[s.annonceTag, { backgroundColor: ANNONCE_COLORS[activeConv.annonceType!] + '18', borderColor: ANNONCE_COLORS[activeConv.annonceType!] + '55' }]}>
             <Text style={[s.annonceTagText, { color: ANNONCE_COLORS[activeConv.annonceType!] }]}>
-              Annonce : {activeConv.annonce}
+              {activeConv.sujet} · {activeConv.annonce}
             </Text>
           </View>
         )}
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
-          <ScrollView contentContainerStyle={s.messages}>
-            {activeConv.messages.map((msg) => (
-              <View key={msg.id} style={[s.msgRow, msg.moi && s.msgRowMoi]}>
-                <View style={[s.bubble, msg.moi ? s.bubbleMoi : s.bubbleEux]}>
-                  <Text style={[s.bubbleText, msg.moi && s.bubbleTextMoi]}>{msg.texte}</Text>
-                  <Text style={[s.bubbleTime, msg.moi && s.bubbleTimeMoi]}>{msg.heure}</Text>
+          <ScrollView
+            ref={scrollRef}
+            contentContainerStyle={s.messages}
+            onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
+          >
+            {msgs.length === 0 && (
+              <Text style={s.noMsgText}>Commencez la discussion...</Text>
+            )}
+            {msgs.map((msg) => {
+              const isMine = msg.senderId === myId;
+              return (
+                <View key={msg.id} style={[s.msgRow, isMine && s.msgRowMoi]}>
+                  {!isMine && (
+                    <View style={[s.smallAvatar, { backgroundColor: otherUser.couleur }]}>
+                      <Text style={s.smallAvatarText}>{otherUser.initiales}</Text>
+                    </View>
+                  )}
+                  <View style={[s.bubble, isMine ? s.bubbleMoi : s.bubbleEux]}>
+                    <Text style={[s.bubbleText, isMine && s.bubbleTextMoi]}>{msg.texte}</Text>
+                    <Text style={[s.bubbleTime, isMine && s.bubbleTimeMoi]}>{msg.heure}</Text>
+                  </View>
                 </View>
-              </View>
-            ))}
+              );
+            })}
           </ScrollView>
 
-          {/* Input */}
           <View style={s.inputRow}>
             <TextInput
               style={s.input}
@@ -208,10 +205,11 @@ export default function MessagerieScreen() {
               placeholder="Votre message..."
               placeholderTextColor={Colors.textTertiary}
               multiline
+              onSubmitEditing={handleSend}
             />
             <TouchableOpacity
               style={[s.sendBtn, !message.trim() && s.sendBtnDisabled]}
-              onPress={sendMessage}
+              onPress={handleSend}
               disabled={!message.trim()}
             >
               <Text style={s.sendIcon}>➤</Text>
@@ -221,6 +219,9 @@ export default function MessagerieScreen() {
       </SafeAreaView>
     );
   }
+
+  // ── Liste des conversations ──
+  const myConvs = messagesStore.list.filter(c => c.participants.includes(myId));
 
   return (
     <SafeAreaView style={s.root}>
@@ -233,31 +234,40 @@ export default function MessagerieScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.list}>
-        {convs.map((c) => (
-          <TouchableOpacity
-            key={c.id}
-            style={s.convCard}
-            onPress={() => setActiveConv(c)}
-            activeOpacity={0.85}
-          >
-            <View style={[s.convAvatar, { backgroundColor: c.couleur }]}>
-              <Text style={s.convAvatarText}>{c.initiales}</Text>
-            </View>
-            <View style={{ flex: 1 }}>
-              <View style={s.convTopRow}>
-                <Text style={s.convCardName}>{c.with}</Text>
-                <Text style={s.convTime}>{c.heure}</Text>
-              </View>
-              <Text style={s.convSujet}>{c.sujet}</Text>
-              <Text style={s.convLastMsg} numberOfLines={1}>{c.dernierMsg}</Text>
-            </View>
-            {c.nonLus > 0 && (
-              <View style={s.nonLusBadge}>
-                <Text style={s.nonLusText}>{c.nonLus}</Text>
-              </View>
-            )}
-          </TouchableOpacity>
-        ))}
+        {myConvs.length === 0 ? (
+          <View style={s.empty}>
+            <Text style={s.emptyIcon}>💬</Text>
+            <Text style={s.emptyTitle}>Aucun message</Text>
+            <Text style={s.emptyText}>Vos conversations apparaîtront ici.</Text>
+          </View>
+        ) : (
+          myConvs.map((c) => {
+            const other = c.userA.id === myId ? c.userB : c.userA;
+            const nonLus = c.unreadBy[myId] ?? 0;
+            return (
+              <TouchableOpacity key={c.id} style={s.convCard} onPress={() => openConv(c)} activeOpacity={0.85}>
+                <View style={[s.convAvatar, { backgroundColor: other.couleur }]}>
+                  <Text style={s.convAvatarText}>{other.initiales}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <View style={s.convTopRow}>
+                    <Text style={[s.convCardName, nonLus > 0 && s.convCardNameBold]}>{other.nom}</Text>
+                    <Text style={s.convTime}>{c.heure}</Text>
+                  </View>
+                  <Text style={s.convSujet}>{c.sujet}</Text>
+                  <Text style={[s.convLastMsg, nonLus > 0 && s.convLastMsgBold]} numberOfLines={1}>
+                    {c.dernierMsg || 'Démarrez la conversation...'}
+                  </Text>
+                </View>
+                {nonLus > 0 && (
+                  <View style={s.nonLusBadge}>
+                    <Text style={s.nonLusText}>{nonLus > 9 ? '9+' : nonLus}</Text>
+                  </View>
+                )}
+              </TouchableOpacity>
+            );
+          })
+        )}
       </ScrollView>
     </SafeAreaView>
   );
@@ -269,40 +279,48 @@ const s = StyleSheet.create({
   backBtn: { width: 40, height: 40, borderRadius: 20, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
   backIcon: { fontSize: 24, color: Colors.textPrimary, lineHeight: 28 },
   headerTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-
   list: { padding: Spacing.lg, gap: Spacing.sm },
-
+  empty: { alignItems: 'center', paddingVertical: 60, gap: Spacing.md },
+  emptyIcon: { fontSize: 48 },
+  emptyTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  emptyText: { fontSize: FontSize.sm, color: Colors.textSecondary },
   convCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.lg, flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: Colors.border, ...Shadow.card },
   convAvatar: { width: 48, height: 48, borderRadius: 24, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
   convAvatarText: { color: Colors.textInverse, fontSize: FontSize.base, fontWeight: FontWeight.bold },
   convTopRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  convCardName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  convCardName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  convCardNameBold: { fontWeight: FontWeight.extrabold },
   convTime: { fontSize: FontSize.xs, color: Colors.textTertiary },
   convSujet: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold, marginTop: 2 },
   convLastMsg: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  nonLusBadge: { width: 22, height: 22, borderRadius: 11, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  convLastMsgBold: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  nonLusBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   nonLusText: { color: Colors.textInverse, fontSize: 11, fontWeight: FontWeight.bold },
 
   // Conversation view
-  convHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
+  convHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
+  convHeaderInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   convName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  convPseudo: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold },
+  convPseudo: { fontSize: FontSize.xs, color: Colors.primary },
 
-  annonceTag: { margin: Spacing.md, marginBottom: 0, borderRadius: Radius.md, padding: Spacing.sm, borderWidth: 1 },
+  annonceTag: { marginHorizontal: Spacing.md, marginTop: Spacing.sm, borderRadius: Radius.md, padding: Spacing.sm, borderWidth: 1 },
   annonceTagText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
 
   messages: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: 20 },
-  msgRow: { flexDirection: 'row' },
+  noMsgText: { textAlign: 'center', color: Colors.textTertiary, fontSize: FontSize.sm, paddingVertical: 40 },
+  msgRow: { flexDirection: 'row', alignItems: 'flex-end', gap: 8 },
   msgRowMoi: { justifyContent: 'flex-end' },
-  bubble: { maxWidth: '80%', borderRadius: Radius.xl, padding: Spacing.md, gap: 4 },
-  bubbleMoi: { backgroundColor: Colors.primary },
-  bubbleEux: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border },
+  smallAvatar: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center', flexShrink: 0 },
+  smallAvatarText: { fontSize: 10, fontWeight: FontWeight.bold, color: '#fff' },
+  bubble: { maxWidth: '78%', borderRadius: Radius.xl, padding: Spacing.md, gap: 4 },
+  bubbleMoi: { backgroundColor: Colors.primary, borderBottomRightRadius: 4 },
+  bubbleEux: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderBottomLeftRadius: 4 },
   bubbleText: { fontSize: FontSize.base, color: Colors.textPrimary, lineHeight: 20 },
   bubbleTextMoi: { color: Colors.textInverse },
   bubbleTime: { fontSize: 10, color: Colors.textTertiary, alignSelf: 'flex-end' },
-  bubbleTimeMoi: { color: 'rgba(255,255,255,0.7)' },
+  bubbleTimeMoi: { color: 'rgba(255,255,255,0.65)' },
 
-  inputRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.lg, paddingTop: Spacing.sm, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
+  inputRow: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.md, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
   input: { flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surfaceVariant, maxHeight: 100 },
   sendBtn: { width: 44, height: 44, borderRadius: 22, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
   sendBtnDisabled: { backgroundColor: Colors.borderMedium },

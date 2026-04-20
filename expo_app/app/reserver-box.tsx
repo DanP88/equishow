@@ -9,8 +9,6 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
 import { boxesStore, userStore, boxReservationsStore, notificationsStore } from '../data/store';
 import { prixTTC, BoxReservation } from '../types/service';
-import { getAuthToken } from '../utils/supabaseAuth';
-import { createClient } from '@supabase/supabase-js';
 import { Notification } from '../types/notification';
 
 export default function ReserverBoxScreen() {
@@ -50,132 +48,84 @@ export default function ReserverBoxScreen() {
   const prixTotal = box.prixNuitHT * nuitesReservees;
   const prixTotalTTC = prixTTC(prixTotal, 'box');
 
-  async function submit() {
+  function showErr(msg: string) {
+    if (typeof window !== 'undefined') window.alert(msg);
+    else Alert.alert('Erreur', msg);
+  }
+
+  function submit() {
     if (!dateReservationDebut || !dateReservationFin) {
-      Alert.alert('Erreur', 'Sélectionnez les dates de votre réservation.');
-      return;
-    }
-    if (dateReservationDebut.getTime() < box.dateDebut.getTime() || dateReservationFin.getTime() > box.dateFin.getTime()) {
-      Alert.alert('Erreur', 'Les dates doivent être dans la période de disponibilité.');
+      showErr('Sélectionnez les dates de votre réservation.');
       return;
     }
     if (dateReservationFin.getTime() <= dateReservationDebut.getTime()) {
-      Alert.alert('Erreur', 'La date de fin doit être après la date de début.');
+      showErr('La date de fin doit être après la date de début.');
       return;
     }
 
-    console.log('🟢 Box submit called');
-    setLoading(true);
-    try {
-      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+    const nuits = nuitesReservees;
+    const pt = box.prixNuitHT * nuits;
+    const ptTTC = prixTTC(pt, 'box');
+    const sellerId = (box as any).proprietaireId || box.auteurId;
 
-      console.log('🔑 Checking Supabase config:', { URL: !!SUPABASE_URL, KEY: !!SUPABASE_ANON_KEY });
+    const nouvelleReservation: BoxReservation = {
+      id: `br_${Date.now()}`,
+      boxId: box.id,
+      sellerId,
+      buyerId: userStore.id,
+      titre: `Box ${box.lieu}`,
+      lieu: box.lieu,
+      nbNuits: nuits,
+      dateDebut: dateReservationDebut,
+      dateFin: dateReservationFin,
+      message: message.trim(),
+      prixTotalHT: pt,
+      commissionPlateform: pt * 0.05,
+      prixTotalTTC: ptTTC,
+      statut: 'pending' as const,
+      dateCreation: new Date(),
+    };
 
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        console.log('❌ Supabase config missing!');
-        Alert.alert('Erreur', 'Variables Supabase non configurées');
-        setLoading(false);
-        return;
-      }
+    boxReservationsStore.list = [nouvelleReservation, ...boxReservationsStore.list];
 
-      console.log('🔌 Creating Supabase client');
-      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
-      console.log('✅ Supabase client created');
-      const authToken = await getAuthToken();
-      if (!authToken) {
-        Alert.alert('Erreur', 'Non authentifié');
-        return;
-      }
-
-      const nuits = nuitesReservees;
-      const prixTotal = box.prixNuitHT * nuits;
-      const prixTotalTTC = prixTTC(prixTotal, 'box');
-
-      // Créer réservation box en BD
-      const { data: reservation, error: reservError } = await supabase
-        .from('box_reservations')
-        .insert({
-          box_id: box.id,
-          seller_id: box.proprietaireId,
-          buyer_id: userStore.id,
-          title: `Box ${box.lieu}`,
-          lieu: box.lieu,
-          nb_nuits: nuits,
-          date_debut: dateReservationDebut.toISOString().split('T')[0],
-          date_fin: dateReservationFin.toISOString().split('T')[0],
-          message: message.trim(),
-          price_total_ht: Math.round(prixTotal * 100),
-          platform_commission: Math.round(prixTotal * 0.05 * 100),
-          price_total_ttc: Math.round(prixTotalTTC * 100),
-          status: 'pending',
-        })
-        .select('id')
-        .single();
-
-      if (reservError || !reservation) {
-        Alert.alert('Erreur', 'Impossible de créer la réservation');
-        return;
-      }
-
-      // Ajouter à la store locale
-      const nouvelleReservation: BoxReservation = {
-        id: reservation.id,
+    const notificationBox: Notification = {
+      id: `notif_${Date.now()}`,
+      destinataireId: sellerId,
+      type: 'reservation_request',
+      titre: `🏠 Nouvelle réservation de box`,
+      message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${box.lieu}`,
+      status: 'pending',
+      lu: false,
+      dateCreation: new Date(),
+      actionUrl: '/box-pending-demands',
+      auteurId: userStore.id,
+      auteurNom: userStore.nom,
+      auteurPseudo: userStore.pseudo,
+      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+      auteurCouleur: userStore.avatarColor,
+      donnees: {
         boxId: box.id,
-        sellerId: box.proprietaireId || box.auteurId,
-        buyerId: userStore.id,
         titre: `Box ${box.lieu}`,
-        lieu: box.lieu,
-        nbNuits: nuitesReservees,
-        dateDebut: dateReservationDebut,
-        dateFin: dateReservationFin,
+        prix: ptTTC,
         message: message.trim(),
-        prixTotalHT: prixTotal,
-        commissionPlateform: prixTotal * 0.05,
-        prixTotalTTC: prixTotalTTC,
-        statut: 'pending' as const,
-        dateCreation: new Date(),
-      };
+      },
+    };
 
-      boxReservationsStore.list = [nouvelleReservation, ...boxReservationsStore.list];
+    notificationsStore.list = [notificationBox, ...notificationsStore.list];
+    console.log('✅ Réservation box créée, redirection paiement');
 
-      // Créer notification pour le propriétaire du box
-      const notificationBox: Notification = {
-        id: `notif_${Date.now()}`,
-        destinataireId: box.proprietaireId || box.auteurId,
-        type: 'reservation_request',
-        titre: `🏠 Nouvelle réservation de box`,
-        message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${box.lieu}`,
-        status: 'pending',
-        lu: false,
-        dateCreation: new Date(),
-        actionUrl: '/box-pending-demands',
-        auteurId: userStore.id,
-        auteurNom: userStore.nom,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-        auteurCouleur: userStore.avatarColor,
-        donnees: {
-          boxId: box.id,
-          titre: `Box ${box.lieu}`,
-          prix: prixTotalTTC,
-          message: message.trim(),
-        },
-      };
-
-      notificationsStore.list = [notificationBox, ...notificationsStore.list];
-
-      // Réservation créée, en attente de validation du propriétaire
-      console.log('✅ Réservation créée, en attente de validation');
-      setShowConfirmation(true);
-    } catch (error) {
-      console.error('❌ Box submit error:', error);
-      const errorMsg = error instanceof Error ? error.message : String(error);
-      console.log('Error details:', errorMsg);
-      Alert.alert('Erreur', `Une erreur est survenue: ${errorMsg}`);
-    } finally {
-      setLoading(false);
-    }
+    router.push({
+      pathname: '/paiement-box',
+      params: {
+        reservationId: nouvelleReservation.id,
+        titre: `Box ${box.lieu}`,
+        montant: ptTTC.toFixed(2),
+        nbNuits: String(nuits),
+        lieu: box.lieu,
+        dateDebut: dateReservationDebut.toLocaleDateString('fr-FR'),
+        dateFin: dateReservationFin.toLocaleDateString('fr-FR'),
+      },
+    } as any);
   }
 
   return (
@@ -264,7 +214,7 @@ export default function ReserverBoxScreen() {
         </View>
 
         <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>
-          <Text style={s.submitText}>Envoyer la demande</Text>
+          <Text style={s.submitText}>Valider la demande et payer...</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

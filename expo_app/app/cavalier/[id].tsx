@@ -3,6 +3,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { getUserById } from '../../data/mockUsers';
+import { userStore } from '../../data/store';
 
 export default function CavalierPublicProfil() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -81,10 +82,12 @@ export default function CavalierPublicProfil() {
           onPress={() => router.push({
             pathname: '/messagerie',
             params: {
-              cavalierNom: `${user.prenom} ${user.nom}`,
-              cavalierPseudo: user.pseudo,
-              cavalierCouleur: user.avatarColor,
-              titre: `Message à ${user.prenom}`,
+              otherId: user.id,
+              otherNom: `${user.prenom} ${user.nom}`,
+              otherPseudo: user.pseudo,
+              otherCouleur: user.avatarColor,
+              otherInitiales: user.initiales,
+              sujet: '💬 Discussion',
             },
           } as any)}
           activeOpacity={0.85}
