@@ -1,5 +1,3 @@
-*
-!web/dist
-!web/dist/**
-!vercel.json
-# Force redeploy
+node_modules/
+expo_app/node_modules/
+web/node_modules/

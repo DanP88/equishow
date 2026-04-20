@@ -1,19 +1,9 @@
 {
   "version": 2,
-  "buildCommand": "echo 'Vercel deployment ready'",
-  "functions": {
-    "api/index.js": {
-      "memory": 128,
-      "maxDuration": 30
-    }
-  },
+  "outputDirectory": "web/dist",
+  "buildCommand": "echo 'static'",
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "/api",
-      "headers": {
-        "cache-control": "no-store, must-revalidate"
-      }
-    }
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index.html" }
   ]
 }
