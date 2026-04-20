@@ -6,6 +6,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
+import { transportReservationsStore, notificationsStore } from '../data/store';
 
 export default function PaiementTransportScreen() {
   const { reservationId, titre, montant, nbPlaces, villeDepart, villeArrivee } =
@@ -58,6 +59,16 @@ export default function PaiementTransportScreen() {
     setLoading(true);
     // Simuler délai traitement Stripe
     setTimeout(() => {
+      // Mettre à jour le statut de la réservation → 'paid'
+      const reservation = transportReservationsStore.list.find(r => r.id === reservationId);
+      if (reservation) {
+        reservation.statut = 'paid';
+        // Mettre à jour la notification du vendeur → 'paid'
+        const notif = notificationsStore.list.find(
+          n => n.donnees?.transportId === reservation.transportId && n.destinataireId === reservation.sellerId
+        );
+        if (notif) notif.status = 'paid';
+      }
       setLoading(false);
       setPaid(true);
     }, 1800);

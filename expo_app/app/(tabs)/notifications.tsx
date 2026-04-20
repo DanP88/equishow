@@ -205,9 +205,16 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
     <View style={s.card}>
       {/* Statut badge */}
       {notification.status && (
-        <View style={[s.statusBadgeMini, notification.status === 'accepted' ? s.statusAcceptedMini : s.statusRejectedMini]}>
+        <View style={[s.statusBadgeMini,
+          notification.status === 'accepted' || notification.status === 'paid' ? s.statusAcceptedMini
+          : notification.status === 'pending' ? s.statusPendingMini
+          : s.statusRejectedMini
+        ]}>
           <Text style={s.statusBadgeTextMini}>
-            {notification.status === 'accepted' ? '● Acceptée' : '● Refusée'}
+            {notification.status === 'accepted' ? '● Acceptée'
+              : notification.status === 'paid' ? '● Réservé'
+              : notification.status === 'pending' ? '● En attente'
+              : '● Refusée'}
           </Text>
         </View>
       )}
@@ -296,6 +303,7 @@ const s = StyleSheet.create({
   statusBadgeMini: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, borderRadius: Radius.md },
   statusAcceptedMini: { backgroundColor: '#ECFDF5', borderWidth: 1, borderColor: '#10B981' },
   statusRejectedMini: { backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#EF4444' },
+  statusPendingMini: { backgroundColor: '#FFF7ED', borderWidth: 1, borderColor: '#F59E0B' },
   statusBadgeTextMini: { fontWeight: FontWeight.semibold, fontSize: FontSize.xs, color: Colors.textPrimary },
   cavalierPseudo: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold },
   detailsText: { fontSize: FontSize.sm, color: Colors.textSecondary },
