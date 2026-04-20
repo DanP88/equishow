@@ -250,17 +250,24 @@ export default function ProposerTransportScreen() {
   const prixNum = parseFloat(prix);
 
   function submit() {
-    if (!villeDepart || !dateTrajet || !nbPlaces || !prix || !adresseVan) {
-      Alert.alert('Champs manquants', 'Veuillez remplir : ville de départ, date, nombre de places, prix et adresse du van.');
-      return;
-    }
-    if (typeTransport === 'trajet' && !heureDepart) {
-      Alert.alert('Champs manquants', 'Veuillez saisir l\'heure de départ.');
-      return;
-    }
-    if (typeTransport === 'location' && (!kmInclus || !tarifKmSupplémentaire || !cautionRéparation || !cautionNettoyage || datesDisponibles.length === 0)) {
-      Alert.alert('Champs manquants', 'Pour une location, veuillez remplir : kilomètres inclus, tarif par km, cautions (réparation et nettoyage) et disponibilités.');
-      return;
+    if (typeTransport === 'trajet') {
+      if (!villeDepart || !villeArrivee || !dateTrajet || !nbPlaces || !prix) {
+        Alert.alert('Champs manquants', 'Veuillez remplir : ville de départ, ville d\'arrivée, date, nombre de places et prix.');
+        return;
+      }
+      if (!heureDepart) {
+        Alert.alert('Champs manquants', 'Veuillez saisir l\'heure de départ.');
+        return;
+      }
+    } else {
+      if (!villeDepart || !dateTrajet || !nbPlaces || !prix || !adresseVan) {
+        Alert.alert('Champs manquants', 'Veuillez remplir : ville, date, nombre de places, prix et adresse du van.');
+        return;
+      }
+      if (!kmInclus || !tarifKmSupplémentaire || !cautionRéparation || !cautionNettoyage || datesDisponibles.length === 0) {
+        Alert.alert('Champs manquants', 'Pour une location, veuillez remplir : kilomètres inclus, tarif par km, cautions et disponibilités.');
+        return;
+      }
     }
     if (proposerRetour) {
       if (!villedepartRetour || !villearriveeRetour || !dateRetour || !nbPlacesRetour) {
