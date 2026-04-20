@@ -2,6 +2,7 @@ import { UserAuth } from '../types/user';
 
 // Real UUIDs for mock users
 const UUID_CAVALIER = '550e8400-e29b-41d4-a716-446655440001';
+const UUID_CAVALIER2 = '550e8400-e29b-41d4-a716-446655440099';
 const UUID_COACH = '550e8400-e29b-41d4-a716-446655440002';
 const UUID_ORG = '550e8400-e29b-41d4-a716-446655440003';
 const UUID_COACH2 = '550e8400-e29b-41d4-a716-446655440004';
@@ -18,6 +19,17 @@ export const mockUsers: Record<string, UserAuth> = {
     planId: 'gratuit',
     disciplines: ['CSO', 'Dressage'],
     region: 'Auvergne-Rhône-Alpes',
+    avatarUrl: '',
+  },
+  cavalier2: {
+    id: UUID_CAVALIER2,
+    email: 'cavalier2@equishow.test',
+    prenom: 'Sophie',
+    nom: 'Dupont',
+    role: 'cavalier',
+    planId: 'gratuit',
+    disciplines: ['Obstacles', 'Dressage'],
+    region: 'Île-de-France',
     avatarUrl: '',
   },
   coach: {
