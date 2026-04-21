@@ -9,19 +9,13 @@ import { useAuth } from '../hooks/useAuth';
 import { ErrorBoundary } from '../components/ErrorBoundary';
 
 // Initialize Sentry for error tracking
-if (process.env.SENTRY_DSN) {
-  Sentry.init({
-    dsn: process.env.SENTRY_DSN,
-    environment: process.env.APP_ENV || 'development',
-    tracesSampleRate: process.env.APP_ENV === 'production' ? 0.1 : 1.0,
-    attachStacktrace: true,
-    enabled: process.env.APP_ENV === 'production',
-    integrations: [
-      // Note: ReactNativeTracing and NativeLinkedErrorsIntegration are initialized automatically
-      // in newer versions of @sentry/react-native
-    ],
-  });
-}
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'https://95fb80ee023c19b097d1da1c47e705a4@o4511231038980096.ingest.de.sentry.io/4511231145476176',
+  environment: process.env.EXPO_PUBLIC_APP_ENV || 'production',
+  tracesSampleRate: 0.2,
+  attachStacktrace: true,
+  enabled: true,
+});
 
 export default function RootLayout() {
   const { isSignedIn, isLoading } = useAuth();
