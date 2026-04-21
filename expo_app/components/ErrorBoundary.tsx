@@ -55,30 +55,20 @@ export class ErrorBoundary extends React.Component<Props, State> {
       errorId,
     });
 
-    // Log to Sentry for production monitoring
-    if (process.env.APP_ENV === 'production') {
-      Sentry.captureException(error, {
-        contexts: {
-          react: {
-            componentStack: errorInfo.componentStack,
-          },
+    // Log to Sentry
+    Sentry.captureException(error, {
+      contexts: {
+        react: {
+          componentStack: errorInfo.componentStack,
         },
-        tags: {
-          errorId,
-          errorType: 'AppError',
-        },
-      });
-    }
+      },
+      tags: {
+        errorId,
+        errorType: 'AppError',
+      },
+    });
 
-    // Also log locally for debugging
-    console.error(
-      `💥 App Error Caught [${errorId}]:`,
-      error.message,
-      '\nStack:',
-      error.stack,
-      '\nComponent Stack:',
-      errorInfo.componentStack
-    );
+    console.error(`💥 App Error [${errorId}]:`, error.message);
   }
 
   handleRetry = () => {

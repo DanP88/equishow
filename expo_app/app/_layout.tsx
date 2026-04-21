@@ -7,6 +7,7 @@ import * as Sentry from '@sentry/react-native';
 import { Colors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { userStore } from '../data/store';
 
 // Initialize Sentry for error tracking
 Sentry.init({
@@ -17,8 +18,21 @@ Sentry.init({
   enabled: true,
 });
 
-export default function RootLayout() {
+function RootLayout() {
   const { isSignedIn, isLoading } = useAuth();
+
+  useEffect(() => {
+    // Identifier l'utilisateur dans Sentry quand il est connecté
+    if (isSignedIn) {
+      Sentry.setUser({
+        id: userStore.id,
+        username: userStore.pseudo,
+        email: userStore.email,
+      });
+    } else {
+      Sentry.setUser(null);
+    }
+  }, [isSignedIn]);
 
 
   // Show loading while checking auth state
@@ -135,6 +149,8 @@ export default function RootLayout() {
     </ErrorBoundary>
   );
 }
+
+export default Sentry.wrap(RootLayout);
 
 const styles = StyleSheet.create({
   webBg: {
