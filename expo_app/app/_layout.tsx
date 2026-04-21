@@ -17,7 +17,6 @@ Sentry.init({
   attachStacktrace: true,
   enabled: true,
 });
-
 function RootLayout() {
   const { isSignedIn, isLoading } = useAuth();
 
