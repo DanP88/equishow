@@ -1,77 +1,12 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal, KeyboardAvoidingView, Platform,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
-
-interface Comment {
-  id: string;
-  auteur: string;
-  initiales: string;
-  couleur: string;
-  texte: string;
-  date: string;
-}
-
-interface Post {
-  id: string;
-  auteur: string;
-  initiales: string;
-  couleur: string;
-  contenu: string;
-  date: Date;
-  likes: number;
-  liked: boolean;
-  commentaires: Comment[];
-}
-
-const MOCK_POSTS: Post[] = [
-  {
-    id: '1',
-    auteur: 'Marie Dupont',
-    initiales: 'MD',
-    couleur: '#7C3AED',
-    contenu: 'Super week-end au concours de Lyon ! Éclipse a été parfaite sur le parcours 🏆',
-    date: new Date(Date.now() - 2 * 3600000),
-    likes: 14,
-    liked: false,
-    commentaires: [
-      { id: 'c1', auteur: 'Thomas Renard', initiales: 'TR', couleur: '#0369A1', texte: 'Bravo ! Quel beau résultat 👏', date: 'Il y a 1h' },
-      { id: 'c2', auteur: 'Sophie Martin', initiales: 'SM', couleur: '#16A34A', texte: 'Trop contente pour vous ! À bientôt au prochain concours', date: 'Il y a 45min' },
-      { id: 'c3', auteur: 'Pierre Morel', initiales: 'PM', couleur: '#B45309', texte: 'Incroyable parcours !', date: 'Il y a 30min' },
-    ],
-  },
-  {
-    id: '2',
-    auteur: 'Thomas Renard',
-    initiales: 'TR',
-    couleur: '#0369A1',
-    contenu: "Quelqu'un a une recommandation pour un ostéopathe équin dans la région lyonnaise ?",
-    date: new Date(Date.now() - 5 * 3600000),
-    likes: 8,
-    liked: true,
-    commentaires: [
-      { id: 'c1', auteur: 'Marie Dupont', initiales: 'MD', couleur: '#7C3AED', texte: 'Dr. Lefèvre à Grenoble, très bon !', date: 'Il y a 4h' },
-      { id: 'c2', auteur: 'Lucie Bernard', initiales: 'LB', couleur: '#F97316', texte: 'Je te recommande Sophie Marchand, elle intervient sur tout le bassin lyonnais', date: 'Il y a 3h' },
-    ],
-  },
-  {
-    id: '3',
-    auteur: 'Sophie Martin',
-    initiales: 'SM',
-    couleur: '#16A34A',
-    contenu: 'Résultats du Championnat Régional de Dressage disponibles ! Bravo à tous les participants 🎉',
-    date: new Date(Date.now() - 24 * 3600000),
-    likes: 32,
-    liked: false,
-    commentaires: [
-      { id: 'c1', auteur: 'Émilie Laurent', initiales: 'EL', couleur: '#7C3AED', texte: 'Quelle belle compétition, merci aux organisateurs !', date: 'hier' },
-    ],
-  },
-];
+import { postsStore, userStore, notificationsStore, CommunautePost } from '../../data/store';
 
 function timeAgo(date: Date): string {
   const diff = Date.now() - date.getTime();
@@ -81,53 +16,169 @@ function timeAgo(date: Date): string {
   return `Il y a ${Math.floor(h / 24)}j`;
 }
 
+function getUserInitiales(): string {
+  return (userStore.prenom.charAt(0) + userStore.nom.charAt(0)).toUpperCase();
+}
+
 export default function CommunauteScreen() {
-  const [posts, setPosts] = useState<Post[]>(MOCK_POSTS);
+  const [posts, setPosts] = useState<CommunautePost[]>([...postsStore.list]);
   const [showNew, setShowNew] = useState(false);
   const [newText, setNewText] = useState('');
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
-  function toggleLike(id: string) {
-    setPosts((prev) =>
-      prev.map((p) =>
-        p.id === id ? { ...p, liked: !p.liked, likes: p.liked ? p.likes - 1 : p.likes + 1 } : p,
-      ),
-    );
+  useFocusEffect(
+    useCallback(() => {
+      setPosts([...postsStore.list]);
+    }, [])
+  );
+
+  function refresh() {
+    setPosts([...postsStore.list]);
+  }
+
+  function toggleLike(postId: string) {
+    const uid = userStore.id;
+    const post = postsStore.list.find(p => p.id === postId);
+    if (!post) return;
+
+    const alreadyLiked = post.likedBy.includes(uid);
+    if (alreadyLiked) {
+      post.likedBy = post.likedBy.filter(id => id !== uid);
+      post.likes = Math.max(0, post.likes - 1);
+    } else {
+      post.likedBy = [...post.likedBy, uid];
+      post.likes = post.likes + 1;
+      // Notifier l'auteur si c'est pas soi-même
+      if (post.auteurId !== uid) {
+        notificationsStore.list = [
+          {
+            id: `notif_like_${Date.now()}`,
+            destinataireId: post.auteurId,
+            type: 'like' as const,
+            titre: `❤️ @${userStore.pseudo} a aimé votre post`,
+            message: post.contenu.length > 60 ? post.contenu.slice(0, 60) + '…' : post.contenu,
+            status: 'pending' as const,
+            lu: false,
+            dateCreation: new Date(),
+            auteurId: uid,
+            auteurNom: `${userStore.prenom} ${userStore.nom}`,
+            auteurPseudo: userStore.pseudo,
+            auteurInitiales: getUserInitiales(),
+            auteurCouleur: userStore.avatarColor,
+            donnees: { postId },
+          },
+          ...notificationsStore.list,
+        ];
+      }
+    }
+    refresh();
   }
 
   function handlePost() {
     if (!newText.trim()) return;
-    const post: Post = {
-      id: Date.now().toString(),
-      auteur: 'Sarah Lefebvre',
-      initiales: 'SL',
-      couleur: Colors.primary,
+    const post: CommunautePost = {
+      id: `post_${Date.now()}`,
+      auteurId: userStore.id,
+      auteur: `${userStore.prenom} ${userStore.nom}`,
+      initiales: getUserInitiales(),
+      couleur: userStore.avatarColor,
       contenu: newText.trim(),
       date: new Date(),
       likes: 0,
-      liked: false,
+      likedBy: [],
       commentaires: [],
     };
-    setPosts((prev) => [post, ...prev]);
+    postsStore.list = [post, ...postsStore.list];
     setNewText('');
     setShowNew(false);
+    refresh();
   }
 
   function addComment(postId: string) {
     if (!commentText.trim()) return;
-    const c: Comment = {
-      id: Date.now().toString(),
-      auteur: 'Sarah Lefebvre',
-      initiales: 'SL',
-      couleur: Colors.primary,
+    const uid = userStore.id;
+    const post = postsStore.list.find(p => p.id === postId);
+    if (!post) return;
+
+    const comment = {
+      id: `cmt_${Date.now()}`,
+      auteurId: uid,
+      auteur: `${userStore.prenom} ${userStore.nom}`,
+      initiales: getUserInitiales(),
+      couleur: userStore.avatarColor,
       texte: commentText.trim(),
       date: "À l'instant",
+      likes: 0,
+      likedBy: [] as string[],
     };
-    setPosts((prev) =>
-      prev.map((p) => p.id === postId ? { ...p, commentaires: [...p.commentaires, c] } : p),
-    );
+    post.commentaires = [...post.commentaires, comment];
+
+    // Notifier l'auteur du post si c'est pas soi-même
+    if (post.auteurId !== uid) {
+      notificationsStore.list = [
+        {
+          id: `notif_comment_${Date.now()}`,
+          destinataireId: post.auteurId,
+          type: 'comment' as const,
+          titre: `💬 @${userStore.pseudo} a commenté votre post`,
+          message: commentText.trim().length > 60 ? commentText.trim().slice(0, 60) + '…' : commentText.trim(),
+          status: 'pending' as const,
+          lu: false,
+          dateCreation: new Date(),
+          auteurId: uid,
+          auteurNom: `${userStore.prenom} ${userStore.nom}`,
+          auteurPseudo: userStore.pseudo,
+          auteurInitiales: getUserInitiales(),
+          auteurCouleur: userStore.avatarColor,
+          donnees: { postId },
+        },
+        ...notificationsStore.list,
+      ];
+    }
+
     setCommentText('');
+    refresh();
+  }
+
+  function toggleCommentLike(postId: string, commentId: string) {
+    const uid = userStore.id;
+    const post = postsStore.list.find(p => p.id === postId);
+    if (!post) return;
+    const comment = post.commentaires.find(c => c.id === commentId);
+    if (!comment) return;
+
+    const alreadyLiked = comment.likedBy.includes(uid);
+    if (alreadyLiked) {
+      comment.likedBy = comment.likedBy.filter(id => id !== uid);
+      comment.likes = Math.max(0, comment.likes - 1);
+    } else {
+      comment.likedBy = [...comment.likedBy, uid];
+      comment.likes = comment.likes + 1;
+      // Notifier l'auteur du commentaire si c'est pas soi-même
+      if (comment.auteurId !== uid) {
+        notificationsStore.list = [
+          {
+            id: `notif_cmtlike_${Date.now()}`,
+            destinataireId: comment.auteurId,
+            type: 'like' as const,
+            titre: `❤️ @${userStore.pseudo} a aimé votre commentaire`,
+            message: comment.texte.length > 60 ? comment.texte.slice(0, 60) + '…' : comment.texte,
+            status: 'pending' as const,
+            lu: false,
+            dateCreation: new Date(),
+            auteurId: uid,
+            auteurNom: `${userStore.prenom} ${userStore.nom}`,
+            auteurPseudo: userStore.pseudo,
+            auteurInitiales: getUserInitiales(),
+            auteurCouleur: userStore.avatarColor,
+            donnees: { postId },
+          },
+          ...notificationsStore.list,
+        ];
+      }
+    }
+    refresh();
   }
 
   const activePost = posts.find((p) => p.id === openComments);
@@ -140,36 +191,39 @@ export default function CommunauteScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
-        {posts.map((post) => (
-          <View key={post.id} style={styles.card}>
-            <TouchableOpacity
-              style={styles.postHeader}
-              onPress={() => router.push(`/user-profile/${post.auteur}`)}
-              activeOpacity={0.7}
-            >
-              <View style={[styles.avatar, { backgroundColor: post.couleur }]}>
-                <Text style={styles.avatarText}>{post.initiales}</Text>
-              </View>
-              <View style={styles.postMeta}>
-                <Text style={styles.auteur}>{post.auteur}</Text>
-                <Text style={styles.date}>{timeAgo(post.date)}</Text>
-              </View>
-            </TouchableOpacity>
-            <Text style={styles.contenu}>{post.contenu}</Text>
-            <View style={styles.actions}>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => toggleLike(post.id)}>
-                <Text style={[styles.actionIcon, post.liked && { color: Colors.urgent }]}>
-                  {post.liked ? '❤️' : '🤍'}
-                </Text>
-                <Text style={[styles.actionText, post.liked && { color: Colors.urgent }]}>{post.likes}</Text>
+        {posts.map((post) => {
+          const liked = post.likedBy.includes(userStore.id);
+          return (
+            <View key={post.id} style={styles.card}>
+              <TouchableOpacity
+                style={styles.postHeader}
+                onPress={() => router.push(`/user-profile/${post.auteur}`)}
+                activeOpacity={0.7}
+              >
+                <View style={[styles.avatar, { backgroundColor: post.couleur }]}>
+                  <Text style={styles.avatarText}>{post.initiales}</Text>
+                </View>
+                <View style={styles.postMeta}>
+                  <Text style={styles.auteur}>{post.auteur}</Text>
+                  <Text style={styles.date}>{timeAgo(post.date)}</Text>
+                </View>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn} onPress={() => { setOpenComments(post.id); setCommentText(''); }}>
-                <Text style={styles.actionIcon}>💬</Text>
-                <Text style={styles.actionText}>{post.commentaires.length}</Text>
-              </TouchableOpacity>
+              <Text style={styles.contenu}>{post.contenu}</Text>
+              <View style={styles.actions}>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => toggleLike(post.id)}>
+                  <Text style={[styles.actionIcon, liked && { color: Colors.urgent }]}>
+                    {liked ? '❤️' : '🤍'}
+                  </Text>
+                  <Text style={[styles.actionText, liked && { color: Colors.urgent }]}>{post.likes}</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.actionBtn} onPress={() => { setOpenComments(post.id); setCommentText(''); }}>
+                  <Text style={styles.actionIcon}>💬</Text>
+                  <Text style={styles.actionText}>{post.commentaires.length}</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-          </View>
-        ))}
+          );
+        })}
         <View style={{ height: 100 }} />
       </ScrollView>
 
@@ -215,7 +269,9 @@ export default function CommunauteScreen() {
                 Commentaires{activePost ? ` (${activePost.commentaires.length})` : ''}
               </Text>
               <ScrollView style={styles.commentsList}>
-                {activePost?.commentaires.map((c) => (
+                {activePost?.commentaires.map((c) => {
+                  const cmtLiked = c.likedBy.includes(userStore.id);
+                  return (
                   <View key={c.id} style={styles.commentRow}>
                     <TouchableOpacity
                       onPress={() => {
@@ -234,16 +290,31 @@ export default function CommunauteScreen() {
                         <Text style={styles.commentDate}>{c.date}</Text>
                       </View>
                       <Text style={styles.commentTexte}>{c.texte}</Text>
+                      <TouchableOpacity
+                        style={styles.commentLikeBtn}
+                        onPress={() => openComments && toggleCommentLike(openComments, c.id)}
+                        activeOpacity={0.7}
+                      >
+                        <Text style={[styles.commentLikeIcon, cmtLiked && { color: Colors.urgent }]}>
+                          {cmtLiked ? '❤️' : '🤍'}
+                        </Text>
+                        {c.likes > 0 && (
+                          <Text style={[styles.commentLikeCount, cmtLiked && { color: Colors.urgent }]}>
+                            {c.likes}
+                          </Text>
+                        )}
+                      </TouchableOpacity>
                     </View>
                   </View>
-                ))}
+                  );
+                })}
                 {activePost?.commentaires.length === 0 && (
                   <Text style={styles.noComments}>Soyez le premier à commenter ✨</Text>
                 )}
               </ScrollView>
               <View style={styles.commentInputRow}>
-                <View style={[styles.commentAvatar, { backgroundColor: Colors.primary }]}>
-                  <Text style={styles.commentAvatarText}>SL</Text>
+                <View style={[styles.commentAvatar, { backgroundColor: userStore.avatarColor }]}>
+                  <Text style={styles.commentAvatarText}>{getUserInitiales()}</Text>
                 </View>
                 <TextInput
                   style={styles.commentInput}
@@ -312,6 +383,9 @@ const styles = StyleSheet.create({
   commentAuteur: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   commentDate: { fontSize: 10, color: Colors.textTertiary },
   commentTexte: { fontSize: FontSize.sm, color: Colors.textPrimary, lineHeight: 18 },
+  commentLikeBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 4, alignSelf: 'flex-start' },
+  commentLikeIcon: { fontSize: 13 },
+  commentLikeCount: { fontSize: 11, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   noComments: { textAlign: 'center', color: Colors.textTertiary, fontSize: FontSize.sm, paddingVertical: Spacing.xl },
   commentInputRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm, padding: Spacing.lg, borderTopWidth: 1, borderTopColor: Colors.border },
   commentInput: { flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.xl, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surfaceVariant, maxHeight: 80 },

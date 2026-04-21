@@ -1,6 +1,6 @@
 export interface Notification {
   id: string;
-  type: 'stage_reservation' | 'box_reservation' | 'transport_reservation' | 'course_request' | 'reservation_request' | 'message';
+  type: 'stage_reservation' | 'box_reservation' | 'transport_reservation' | 'course_request' | 'reservation_request' | 'message' | 'like' | 'comment';
   titre: string;
   message: string;
   lu?: boolean;
@@ -12,7 +12,7 @@ export interface Notification {
   auteurPseudo?: string;
   auteurInitiales?: string;
   auteurCouleur?: string;
-  status?: 'pending' | 'accepted' | 'rejected';
+  status?: 'pending' | 'accepted' | 'rejected' | 'paid';
   dateCreation: Date;
   actionUrl?: string;
   lien?: string;
@@ -28,5 +28,7 @@ export interface Notification {
     boxId?: string;
     titre?: string;
     prix?: number;
+    postId?: string;
+    convId?: string;
   };
 }
