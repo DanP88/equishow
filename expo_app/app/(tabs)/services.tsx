@@ -7,6 +7,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { transportsStore, boxesStore, coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore } from '../../data/store';
+import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
 
@@ -304,12 +305,26 @@ export default function ServicesScreen() {
                               </Text>
                             )}
                           </View>
-                          <TouchableOpacity
-                            style={s.concoursCreateBtn}
-                            onPress={() => router.push(`/proposer-coach-annonce?concoursId=${concours.id}` as any)}
-                          >
-                            <Text style={s.concoursCreateBtnText}>Créer une annonce</Text>
-                          </TouchableOpacity>
+                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                            <TouchableOpacity
+                              style={[s.concoursCreateBtn, { flex: 1 }]}
+                              onPress={() => router.push(`/proposer-coach-annonce?concoursId=${concours.id}` as any)}
+                            >
+                              <Text style={s.concoursCreateBtnText}>Créer une annonce</Text>
+                            </TouchableOpacity>
+                            {(() => {
+                              const org = getUserById(concours.organisateurId);
+                              if (!org) return null;
+                              return (
+                                <TouchableOpacity
+                                  style={[s.concoursCreateBtn, { flex: 1, backgroundColor: '#EFF6FF', borderColor: '#93C5FD' }]}
+                                  onPress={() => router.push({ pathname: '/messagerie', params: { otherId: org.id, otherNom: org.prenom + ' ' + org.nom, otherPseudo: org.pseudo, otherCouleur: org.avatarColor, otherInitiales: org.initiales, sujet: `🏆 ${concours.nom}` } } as any)}
+                                >
+                                  <Text style={[s.concoursCreateBtnText, { color: '#1D4ED8' }]}>💬 Contacter</Text>
+                                </TouchableOpacity>
+                              );
+                            })()}
+                          </View>
                         </View>
                       ))}
                   </>
@@ -339,6 +354,40 @@ export default function ServicesScreen() {
                 {/* Onglet CONCOURS */}
                 {coachTab === 'concours' && (
                   <>
+                    {/* Concours disponibles avec contact organisateur */}
+                    {concoursStore.list.filter(c => c.statut !== 'brouillon' && c.statut !== 'termine').length > 0 && (
+                      <>
+                        <Text style={s.sectionTitle}>🏆 Concours à venir</Text>
+                        {concoursStore.list
+                          .filter(c => c.statut !== 'brouillon' && c.statut !== 'termine')
+                          .map((concours) => {
+                            const org = getUserById(concours.organisateurId);
+                            return (
+                              <View key={concours.id} style={s.concoursCard}>
+                                <View style={s.concoursInfo}>
+                                  <Text style={s.concoursName}>{concours.nom}</Text>
+                                  <Text style={s.concoursDate}>
+                                    📅 {concours.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {concours.lieu}
+                                  </Text>
+                                  <Text style={s.concoursDetail}>🎯 {concours.disciplines.join(', ')}</Text>
+                                  <Text style={s.concoursDetail}>Niveaux: {concours.typesCavaliers.join(', ')}</Text>
+                                  {concours.prix && <Text style={s.concoursDetail}>💰 {concours.prix}€</Text>}
+                                  <Text style={s.concoursDetail}>👤 {concours.organisateurNom}</Text>
+                                </View>
+                                {org && (
+                                  <TouchableOpacity
+                                    style={[s.concoursCreateBtn, { backgroundColor: '#EFF6FF', borderColor: '#93C5FD' }]}
+                                    onPress={() => router.push({ pathname: '/messagerie', params: { otherId: org.id, otherNom: org.prenom + ' ' + org.nom, otherPseudo: org.pseudo, otherCouleur: org.avatarColor, otherInitiales: org.initiales, sujet: `🏆 ${concours.nom}` } } as any)}
+                                  >
+                                    <Text style={[s.concoursCreateBtnText, { color: '#1D4ED8' }]}>💬 Contacter l'organisateur</Text>
+                                  </TouchableOpacity>
+                                )}
+                              </View>
+                            );
+                          })}
+                      </>
+                    )}
+
                     {/* Filtre concours */}
                     {concoursCoaches.length > 0 && (
                       <View style={s.concoursFilterContainer}>

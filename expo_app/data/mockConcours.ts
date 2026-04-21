@@ -1,5 +1,8 @@
 import { Concours } from '../types/concours';
 
+// UUID du compte organisateur test (doit correspondre à mockUsers.organisateur.id)
+const UUID_ORG = '550e8400-e29b-41d4-a716-446655440003';
+
 export const mockConcours: Concours[] = [
   {
     id: 'c1',
@@ -14,7 +17,7 @@ export const mockConcours: Concours[] = [
     disciplines: ['CSO'],
     epreuves: ['CSO 80cm', 'CSO 105cm', 'CSO 130cm'],
     typesCavaliers: ['Poney', 'Amateur', 'Pro'],
-    organisateurId: 'org1',
+    organisateurId: UUID_ORG,
     organisateurNom: 'Club Équestre de Lyon',
     statut: 'ouvert',
     nbPlaces: 120,

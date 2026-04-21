@@ -36,6 +36,7 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
     { name: 'org-concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/org-concours' },
     { name: 'org-services', label: 'Services', emoji: '📦', route: '/(tabs)/org-services' },
     { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
+    { name: 'org-messages', label: 'Messages', emoji: '💬', route: '/messagerie' },
     { name: 'org-notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/org-notifications' },
     { name: 'profil-org', label: 'Profil', emoji: '👤', route: '/(tabs)/profil-org' },
   ],
@@ -100,6 +101,7 @@ export function CustomBottomBar() {
         n => n.destinataireId === uid && !n.lue && !n.lu
       ).length;
       setNotificationCount(orgNotifs);
+      setMsgCount(totalUnreadForUser(uid));
     }
   }, [role]);
 
@@ -137,6 +139,7 @@ export function CustomBottomBar() {
       if (tab.name === 'messagerie') return msgCount;
     } else if (role === 'organisateur') {
       if (tab.name === 'org-notifications') return notificationCount;
+      if (tab.name === 'org-messages') return msgCount;
     }
     return 0;
   };

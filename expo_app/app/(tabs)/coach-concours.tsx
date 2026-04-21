@@ -4,6 +4,7 @@ import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { concoursStore, coachAnnoncesStore, userStore, courseDemandesStore, notificationsStore } from '../../data/store';
+import { getUserById } from '../../data/mockUsers';
 import { Concours } from '../../types/concours';
 
 type Tab = 'disponibles' | 'mesAnnonces';
@@ -101,6 +102,19 @@ export default function CoachConcoursScreen() {
                   <Text style={s.createBtnText}>Créer une annonce pour ce concours</Text>
                   <Text style={s.createArrow}>→</Text>
                 </TouchableOpacity>
+                {(() => {
+                  const org = getUserById(c.organisateurId);
+                  if (!org) return null;
+                  return (
+                    <TouchableOpacity
+                      style={[s.createBtn, { backgroundColor: '#EFF6FF', borderColor: '#93C5FD', marginTop: 6 }]}
+                      onPress={() => router.push({ pathname: '/messagerie', params: { otherId: org.id, otherNom: org.prenom + ' ' + org.nom, otherPseudo: org.pseudo, otherCouleur: org.avatarColor, otherInitiales: org.initiales, sujet: `🏆 ${c.nom}` } } as any)}
+                      activeOpacity={0.8}
+                    >
+                      <Text style={[s.createBtnText, { color: '#1D4ED8' }]}>💬 Contacter l'organisateur</Text>
+                    </TouchableOpacity>
+                  );
+                })()}
               </View>
             );
             })
