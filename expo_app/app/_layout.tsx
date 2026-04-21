@@ -13,6 +13,7 @@ import { userStore } from '../data/store';
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'https://95fb80ee023c19b097d1da1c47e705a4@o4511231038980096.ingest.de.sentry.io/4511231145476176',
   environment: process.env.EXPO_PUBLIC_APP_ENV || 'production',
+  release: 'equishow@1.0.0',
   tracesSampleRate: 0.2,
   attachStacktrace: true,
   enabled: true,
