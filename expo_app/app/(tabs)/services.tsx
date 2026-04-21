@@ -13,7 +13,7 @@ import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, Coac
 
 type Tab = 'transport' | 'box' | 'coach';
 type TransportSubTab = 'trajets' | 'van';
-type CoachTab = 'concours' | 'stages';
+type CoachTab = 'concours' | 'stages' | 'organisateurs';
 
 /* ─── Filtres ──────────────────────────────────────────────────────────────── */
 
@@ -335,7 +335,7 @@ export default function ServicesScreen() {
             {/* SECTION CAVALIER */}
             {role === 'cavalier' && (
               <>
-                {/* Onglets Concours / Stages */}
+                {/* Onglets Concours / Stages / Organisateurs */}
                 <View style={s.coachTabBar}>
                   <TouchableOpacity
                     style={[s.coachTabBtn, coachTab === 'concours' && s.coachTabBtnActive]}
@@ -349,45 +349,17 @@ export default function ServicesScreen() {
                   >
                     <Text style={[s.coachTabLabel, coachTab === 'stages' && s.coachTabLabelActive]}>📚 Stages</Text>
                   </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[s.coachTabBtn, coachTab === 'organisateurs' && s.coachTabBtnActive]}
+                    onPress={() => setCoachTab('organisateurs')}
+                  >
+                    <Text style={[s.coachTabLabel, coachTab === 'organisateurs' && s.coachTabLabelActive]}>🏟️ Concours</Text>
+                  </TouchableOpacity>
                 </View>
 
                 {/* Onglet CONCOURS */}
                 {coachTab === 'concours' && (
                   <>
-                    {/* Concours disponibles avec contact organisateur */}
-                    {concoursStore.list.filter(c => c.statut !== 'brouillon' && c.statut !== 'termine').length > 0 && (
-                      <>
-                        <Text style={s.sectionTitle}>🏆 Concours à venir</Text>
-                        {concoursStore.list
-                          .filter(c => c.statut !== 'brouillon' && c.statut !== 'termine')
-                          .map((concours) => {
-                            const org = getUserById(concours.organisateurId);
-                            return (
-                              <View key={concours.id} style={s.concoursCard}>
-                                <View style={s.concoursInfo}>
-                                  <Text style={s.concoursName}>{concours.nom}</Text>
-                                  <Text style={s.concoursDate}>
-                                    📅 {concours.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {concours.lieu}
-                                  </Text>
-                                  <Text style={s.concoursDetail}>🎯 {concours.disciplines.join(', ')}</Text>
-                                  <Text style={s.concoursDetail}>Niveaux: {concours.typesCavaliers.join(', ')}</Text>
-                                  {concours.prix && <Text style={s.concoursDetail}>💰 {concours.prix}€</Text>}
-                                  <Text style={s.concoursDetail}>👤 {concours.organisateurNom}</Text>
-                                </View>
-                                {org && (
-                                  <TouchableOpacity
-                                    style={[s.concoursCreateBtn, { backgroundColor: '#EFF6FF', borderColor: '#93C5FD' }]}
-                                    onPress={() => router.push({ pathname: '/messagerie', params: { otherId: org.id, otherNom: org.prenom + ' ' + org.nom, otherPseudo: org.pseudo, otherCouleur: org.avatarColor, otherInitiales: org.initiales, sujet: `🏆 ${concours.nom}` } } as any)}
-                                  >
-                                    <Text style={[s.concoursCreateBtnText, { color: '#1D4ED8' }]}>💬 Contacter l'organisateur</Text>
-                                  </TouchableOpacity>
-                                )}
-                              </View>
-                            );
-                          })}
-                      </>
-                    )}
-
                     {/* Filtre concours */}
                     {concoursCoaches.length > 0 && (
                       <View style={s.concoursFilterContainer}>
@@ -442,6 +414,47 @@ export default function ServicesScreen() {
                 )}
               </>
             )}
+
+            {/* Onglet ORGANISATEURS / CONCOURS À VENIR */}
+            {role === 'cavalier' && coachTab === 'organisateurs' && (
+              <>
+                {concoursStore.list.filter(c => c.statut !== 'brouillon' && c.statut !== 'termine').length === 0 ? (
+                  <EmptyState text="Aucun concours à venir pour le moment." />
+                ) : (
+                  <>
+                    <Text style={s.sectionTitle}>🏟️ Concours à venir</Text>
+                    {concoursStore.list
+                      .filter(c => c.statut !== 'brouillon' && c.statut !== 'termine')
+                      .map((concours) => {
+                        const org = getUserById(concours.organisateurId);
+                        return (
+                          <View key={concours.id} style={s.concoursCard}>
+                            <View style={s.concoursInfo}>
+                              <Text style={s.concoursName}>{concours.nom}</Text>
+                              <Text style={s.concoursDate}>
+                                📅 {concours.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {concours.lieu}
+                              </Text>
+                              <Text style={s.concoursDetail}>🎯 {concours.disciplines.join(', ')}</Text>
+                              <Text style={s.concoursDetail}>Niveaux: {concours.typesCavaliers.join(', ')}</Text>
+                              {concours.prix && <Text style={s.concoursDetail}>💰 {concours.prix}€</Text>}
+                              <Text style={s.concoursDetail}>👤 {concours.organisateurNom}</Text>
+                            </View>
+                            {org && (
+                              <TouchableOpacity
+                                style={[s.concoursCreateBtn, { backgroundColor: '#EFF6FF', borderColor: '#93C5FD' }]}
+                                onPress={() => router.push({ pathname: '/messagerie', params: { otherId: org.id, otherNom: org.prenom + ' ' + org.nom, otherPseudo: org.pseudo, otherCouleur: org.avatarColor, otherInitiales: org.initiales, sujet: `🏆 ${concours.nom}` } } as any)}
+                              >
+                                <Text style={[s.concoursCreateBtnText, { color: '#1D4ED8' }]}>💬 Contacter l'organisateur</Text>
+                              </TouchableOpacity>
+                            )}
+                          </View>
+                        );
+                      })}
+                  </>
+                )}
+              </>
+            )}
+
           </>
         )}
       </ScrollView>
