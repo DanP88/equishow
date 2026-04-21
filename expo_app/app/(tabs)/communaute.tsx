@@ -181,7 +181,8 @@ export default function CommunauteScreen() {
     refresh();
   }
 
-  const activePost = posts.find((p) => p.id === openComments);
+  // Lire directement depuis le store pour avoir les données à jour dans le modal
+  const activePost = openComments ? postsStore.list.find((p) => p.id === openComments) ?? null : null;
 
   return (
     <SafeAreaView style={styles.root}>

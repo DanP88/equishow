@@ -6,7 +6,7 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { notificationsStore, userStore, courseDemandesStore, stageReservationsStore, transportReservationsStore, boxReservationsStore } from '../../data/store';
+import { notificationsStore, userStore } from '../../data/store';
 import { Notification } from '../../types/notification';
 
 export default function OrgNotificationsScreen() {
@@ -45,44 +45,6 @@ export default function OrgNotificationsScreen() {
 
   function confirmDelete() {
     if (deleteNotifId) {
-      const notifToDelete = notificationsStore.list.find(n => n.id === deleteNotifId);
-
-      if (notifToDelete && notifToDelete.status === 'accepted') {
-        let ownerId: string | null = null;
-
-        if (notifToDelete.type === 'course_request') {
-          const demand = courseDemandesStore.list.find(d => d.cavalierUserId === userStore.id && d.statut === 'accepted');
-          if (demand) ownerId = demand.coachId;
-        } else if (notifToDelete.type === 'stage_reservation') {
-          const stage = stageReservationsStore.list.find(s => s.cavalierUserId === userStore.id && s.statut === 'accepted');
-          if (stage) ownerId = stage.coachId;
-        } else if (notifToDelete.type === 'reservation_request') {
-          const transport = transportReservationsStore.list.find(t => t.buyerId === userStore.id && t.statut === 'accepted');
-          const box = boxReservationsStore.list.find(b => b.buyerId === userStore.id && b.statut === 'accepted');
-          if (transport) ownerId = transport.sellerId;
-          if (box) ownerId = box.sellerId;
-        }
-
-        if (ownerId) {
-          const cancelNotif: Notification = {
-            id: `notif_${Date.now()}`,
-            destinataireId: ownerId,
-            type: notifToDelete.type,
-            titre: '❌ Réservation annulée',
-            message: `${userStore.nom} a annulé sa réservation`,
-            status: 'rejected',
-            lu: false,
-            dateCreation: new Date(),
-            auteurId: userStore.id,
-            auteurNom: userStore.nom,
-            auteurPseudo: userStore.pseudo,
-            auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-            auteurCouleur: userStore.avatarColor,
-          };
-          notificationsStore.list = [cancelNotif, ...notificationsStore.list];
-        }
-      }
-
       const newNotifications = notifications.filter((n) => n.id !== deleteNotifId);
       setNotifications(newNotifications);
       notificationsStore.list = notificationsStore.list.filter((n) => n.id !== deleteNotifId);
