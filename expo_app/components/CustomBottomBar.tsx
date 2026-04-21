@@ -60,7 +60,7 @@ export function CustomBottomBar() {
     if (role === 'coach') {
       // Pour les coachs: notifications non lues (demandes en attente)
       const coachNotifs = notificationsStore.list.filter(
-        n => (n.userId === userStore.id || n.destinataireId === userStore.id) && !n.lue && !n.lu
+        n => n.destinataireId === userStore.id && !n.lu
       ).length;
       setNotificationCount(coachNotifs);
 
@@ -76,7 +76,7 @@ export function CustomBottomBar() {
       const uid = userStore.id;
       // Notifications non lues
       const cavalierNotifs = notificationsStore.list.filter(
-        n => n.destinataireId === uid && !n.lue && !n.lu
+        n => n.destinataireId === uid && !n.lu
       ).length;
       setNotificationCount(cavalierNotifs);
       setDemandCount(0);
@@ -98,7 +98,7 @@ export function CustomBottomBar() {
     } else if (role === 'organisateur') {
       const uid = userStore.id;
       const orgNotifs = notificationsStore.list.filter(
-        n => n.destinataireId === uid && !n.lue && !n.lu
+        n => n.destinataireId === uid && !n.lu
       ).length;
       setNotificationCount(orgNotifs);
       setMsgCount(totalUnreadForUser(uid));
