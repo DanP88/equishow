@@ -353,7 +353,7 @@ export default function ServicesScreen() {
                     style={[s.coachTabBtn, coachTab === 'organisateurs' && s.coachTabBtnActive]}
                     onPress={() => setCoachTab('organisateurs')}
                   >
-                    <Text style={[s.coachTabLabel, coachTab === 'organisateurs' && s.coachTabLabelActive]}>🏟️ Concours</Text>
+                    <Text style={[s.coachTabLabel, coachTab === 'organisateurs' && s.coachTabLabelActive]}>📬 Contact concours</Text>
                   </TouchableOpacity>
                 </View>
 
