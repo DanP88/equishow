@@ -126,17 +126,15 @@ jobs:
 
       - name: Validate migrations
         run: |
-          # Check that all migrations are properly formatted
-          for migration in migrations/*.sql; do
+          # Source of truth: supabase/migrations/ (cf migrations_legacy/README.md)
+          for migration in supabase/migrations/*.sql; do
             echo "Validating $migration..."
-            # Basic SQL syntax check
-            grep -E "^(CREATE|ALTER|DROP|UPDATE|DELETE|INSERT)" "$migration" || echo "Warning: $migration may not contain expected SQL"
+            grep -Ei "^(create|alter|drop|update|delete|insert|begin|commit|do|revoke|grant|comment)" "$migration" || echo "Warning: $migration may not contain expected SQL"
           done
 
       - name: Check migration order
         run: |
-          # Ensure migrations are numbered sequentially
-          ls migrations/*.sql | sort -V
+          ls supabase/migrations/*.sql | sort -V
 
   # ============================================================================
   # BUILD

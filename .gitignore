@@ -33,3 +33,6 @@ logs/
 .tmp/
 temp/
 .vercel
+
+# Supabase CLI scratch
+supabase/.temp/

@@ -2,8 +2,7 @@
   "version": 2,
   "outputDirectory": "web/dist",
   "buildCommand": "echo built",
-  "routes": [
-    { "handle": "filesystem" },
-    { "src": "/(.*)", "dest": "/index.html" }
+  "rewrites": [
+    { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
