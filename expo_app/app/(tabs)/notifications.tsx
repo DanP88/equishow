@@ -54,6 +54,14 @@ export default function NotificationsScreen() {
       // Trouver la notification pour vérifier si c'est une acceptation
       const notifToDelete = notificationsStore.list.find(n => n.id === deleteNotifId);
 
+      // Guard IDOR : empêcher la suppression d'une notif appartenant à un autre user
+      if (notifToDelete && notifToDelete.destinataireId !== userStore.id) {
+        console.warn('Delete blocked: notification does not belong to current user');
+        setDeleteModal(false);
+        setDeleteNotifId(null);
+        return;
+      }
+
       if (notifToDelete && notifToDelete.status === 'accepted') {
         // Trouver le propriétaire/coach pour envoyer une notification
         let ownerId: string | null = null;
@@ -188,18 +196,37 @@ interface NotificationCardProps {
 
 function NotificationCard({ notification, onMarkAsRead, onDelete }: NotificationCardProps) {
   const handlePaymentNavigation = () => {
-    console.log('🔵 handlePaymentNavigation called');
-    console.log('📍 actionUrl:', notification.actionUrl);
     if (notification.actionUrl) {
-      console.log('🚀 Navigating to:', notification.actionUrl);
       router.push(notification.actionUrl);
-    } else {
-      console.log('❌ No actionUrl provided');
     }
   };
 
   const showPaymentButton = notification.status === 'accepted' &&
     (notification.type === 'course_request' || notification.type === 'reservation_request');
+
+  const isCommunity = notification.type === 'like' || notification.type === 'comment';
+
+  if (isCommunity) {
+    return (
+      <View style={[s.card, !notification.lu && s.cardUnread]}>
+        <View style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+          <View style={[s.authorAvatar, { backgroundColor: notification.auteurCouleur || '#888' }]}>
+            <Text style={s.authorInitiales}>{notification.auteurInitiales || '?'}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.notificationTitle}>{notification.titre}</Text>
+            <Text style={[s.notificationMessage, { marginTop: 4 }]}>{notification.message}</Text>
+          </View>
+          {!notification.lu && <View style={s.unreadDot} />}
+        </View>
+        <View style={s.buttonRow}>
+          <TouchableOpacity style={[s.actionBtn, s.deleteBtn]} onPress={onDelete}>
+            <Text style={s.deleteBtnText}>🗑 Supprimer</Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    );
+  }
 
   return (
     <View style={s.card}>

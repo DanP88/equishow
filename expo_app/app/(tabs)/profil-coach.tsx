@@ -3,10 +3,10 @@ import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Mod
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { userStore } from '../../data/store';
+import { userStore, getAvisForUser, getFollowers, getFollowing } from '../../data/store';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
-import { useAuth } from '../../hooks/useAuth';
+import { FollowListModal } from '../../components/FollowListModal';
 
 const ROLE_LABELS: Record<string, string> = {
   coach: 'Coach',
@@ -17,10 +17,13 @@ const ROLE_ICONS: Record<string, string> = {
 };
 
 export default function ProfilCoachScreen() {
-  const { profile } = useAuth();
   const [user, setUser] = useState({ ...userStore });
   const [showEdit, setShowEdit] = useState(false);
   const [draft, setDraft] = useState({ ...userStore });
+  const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
+  const nbAvis = getAvisForUser(userStore.id).length;
+  const nbFollowers = getFollowers(userStore.id).length;
+  const nbFollowing = getFollowing(userStore.id).length;
 
   function saveEdit() {
     Object.assign(userStore, draft);
@@ -57,6 +60,19 @@ export default function ProfilCoachScreen() {
           </View>
         </View>
 
+        {/* Followers */}
+        <View style={styles.followRow}>
+          <TouchableOpacity style={styles.followItem} onPress={() => setFollowModal('followers')}>
+            <Text style={styles.followNum}>{nbFollowers}</Text>
+            <Text style={styles.followLabel}>Abonnés</Text>
+          </TouchableOpacity>
+          <View style={styles.statsDivider} />
+          <TouchableOpacity style={styles.followItem} onPress={() => setFollowModal('following')}>
+            <Text style={styles.followNum}>{nbFollowing}</Text>
+            <Text style={styles.followLabel}>Abonnements</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Stats */}
         <View style={styles.statsRow}>
           <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push('/(tabs)/coach-students?tab=coaching')}>
@@ -68,12 +84,12 @@ export default function ProfilCoachScreen() {
           </TouchableOpacity>
           <View style={styles.statsDivider} />
           <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push('/(tabs)/profil-coach#avis')}>
-            <StatBox label="Avis" value={47} icon="⭐" />
+            <StatBox label="Avis" value={nbAvis} icon="⭐" />
           </TouchableOpacity>
         </View>
 
         {/* Avis Section */}
-        {profile && <AvisSection userId={profile.id} />}
+        <AvisSection userId={userStore.id} />
 
         {/* Infos */}
         <View style={styles.section}>
@@ -92,6 +108,31 @@ export default function ProfilCoachScreen() {
         >
           <Text style={styles.editText}>✏️ Modifier mon profil</Text>
         </TouchableOpacity>
+
+        {/* Support */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Support & Aide</Text>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/support?tab=faq' as any)} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>❓</Text>
+            <Text style={styles.menuLabel}>FAQ</Text>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/support?tab=legal' as any)} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>📄</Text>
+            <Text style={styles.menuLabel}>Mentions légales</Text>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/support?tab=contact' as any)} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>📧</Text>
+            <Text style={styles.menuLabel}>Nous contacter</Text>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/support?tab=reclamation' as any)} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>🚨</Text>
+            <Text style={[styles.menuLabel, { color: '#DC2626' }]}>Faire une réclamation</Text>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+        </View>
 
         {/* Logout Button */}
         <TouchableOpacity
@@ -126,6 +167,15 @@ export default function ProfilCoachScreen() {
           </View>
         </View>
       </Modal>
+
+      {followModal && (
+        <FollowListModal
+          visible={!!followModal}
+          onClose={() => setFollowModal(null)}
+          userId={userStore.id}
+          type={followModal}
+        />
+      )}
     </SafeAreaView>
   );
 }
@@ -170,7 +220,7 @@ function InfoRow({ label, value }: { label: string; value: string }) {
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   container: { padding: Spacing.lg, paddingBottom: 100 },
-  heroSection: { alignItems: 'center', marginBottom: Spacing.xxxl },
+  heroSection: { alignItems: 'center', marginBottom: Spacing.lg },
   name: { fontSize: FontSize.xxl, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginTop: Spacing.lg },
   ratingRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, marginTop: Spacing.xs },
   stars: { color: Colors.gold, fontSize: FontSize.base },
@@ -180,7 +230,11 @@ const styles = StyleSheet.create({
   roleText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: '#7C3AED' },
   planBadge: { marginTop: Spacing.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   planText: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  statsRow: { flexDirection: 'row', marginBottom: Spacing.xl, alignItems: 'center' },
+  followRow: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md, paddingVertical: Spacing.md },
+  followItem: { flex: 1, alignItems: 'center', paddingVertical: 4 },
+  followNum: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.primary },
+  followLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  statsRow: { flexDirection: 'row', marginBottom: Spacing.lg, alignItems: 'center' },
   statBox: { flex: 1, alignItems: 'center', gap: Spacing.xs },
   statIcon: { fontSize: 20 },
   statValue: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
@@ -207,4 +261,8 @@ const styles = StyleSheet.create({
   confirmBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
   confirmText: { color: '#FFF', fontWeight: FontWeight.bold },
   Shadow: Shadow.card,
+  menuBtn: { flexDirection: 'row', alignItems: 'center', padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: Spacing.md },
+  menuIcon: { fontSize: 18, width: 24 },
+  menuLabel: { flex: 1, fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  menuArrow: { fontSize: FontSize.xl, color: Colors.textTertiary },
 });

@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
@@ -11,6 +11,8 @@ import {
   courseDemandesStore,
   transportsStore,
   coachStagesStore,
+  hasAlreadyReviewed,
+  addAvis,
 } from '../../data/store';
 import { getUserById } from '../../data/mockUsers';
 
@@ -66,8 +68,42 @@ function formatDate(d: Date) {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
+type AvisModal = { destId: string; destNom: string; type: AgendaItem['type']; refId: string } | null;
+
 export default function CavalierAgendaScreen() {
   const [items, setItems] = useState<AgendaItem[]>([]);
+  const [avisModal, setAvisModal] = useState<AvisModal>(null);
+  const [avisNote, setAvisNote] = useState(5);
+  const [avisComment, setAvisComment] = useState('');
+
+  function openAvis(item: AgendaItem) {
+    setAvisNote(5);
+    setAvisComment('');
+    const type = item.type === 'transport_buyer' || item.type === 'transport_seller' ? 'transport'
+      : item.type === 'box_buyer' || item.type === 'box_seller' ? 'box'
+      : item.type === 'stage' ? 'stage' : 'coach';
+    setAvisModal({ destId: item.autrePartieId, destNom: item.autrePartieNom, type: item.type, refId: item.id });
+  }
+
+  function submitAvis() {
+    if (!avisModal) return;
+    const type = avisModal.type === 'transport_buyer' || avisModal.type === 'transport_seller' ? 'transport'
+      : avisModal.type === 'box_buyer' || avisModal.type === 'box_seller' ? 'box'
+      : avisModal.type === 'stage' ? 'stage' : 'coach';
+    addAvis({
+      auteur_id: userStore.id,
+      auteur_nom: `${userStore.prenom} ${userStore.nom}`,
+      auteur_initiales: `${userStore.prenom[0]}${userStore.nom[0]}`.toUpperCase(),
+      auteur_couleur: userStore.avatarColor,
+      destinataire_id: avisModal.destId,
+      note: avisNote,
+      commentaire: avisComment.trim() || null,
+      type,
+      ref_id: avisModal.refId,
+    });
+    setAvisModal(null);
+    Alert.alert('Merci !', 'Votre avis a bien été enregistré.');
+  }
 
   useFocusEffect(useCallback(() => {
     const uid = userStore.id;
@@ -306,9 +342,20 @@ export default function CavalierAgendaScreen() {
                       <Text style={s.chevronMsg}>💬</Text>
                     </TouchableOpacity>
 
-                    {/* Montant */}
+                    {/* Montant + Avis */}
                     <View style={s.cardBottom}>
                       <Text style={s.montant}>{item.montant.toFixed(2)}€ TTC</Text>
+                      {(item.statut === 'paid' || item.statut === 'accepted') && (
+                        hasAlreadyReviewed(userStore.id, item.autrePartieId, item.id) ? (
+                          <View style={s.avisDoneBadge}>
+                            <Text style={s.avisDoneText}>⭐ Avis déposé</Text>
+                          </View>
+                        ) : (
+                          <TouchableOpacity style={s.avisBtn} onPress={() => openAvis(item)}>
+                            <Text style={s.avisBtnText}>⭐ Laisser un avis</Text>
+                          </TouchableOpacity>
+                        )
+                      )}
                     </View>
                   </View>
                 );
@@ -318,6 +365,44 @@ export default function CavalierAgendaScreen() {
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      {/* Modal Avis */}
+      <Modal visible={!!avisModal} transparent animationType="slide">
+        <View style={s.modalBackdrop}>
+          <View style={s.modalSheet}>
+            <Text style={s.modalTitle}>Laisser un avis</Text>
+            {avisModal && (
+              <Text style={s.modalSubtitle}>Pour {avisModal.destNom}</Text>
+            )}
+            <Text style={s.modalLabel}>Note</Text>
+            <View style={s.starsRow}>
+              {[1, 2, 3, 4, 5].map(star => (
+                <TouchableOpacity key={star} onPress={() => setAvisNote(star)} style={s.starBtn}>
+                  <Text style={s.starIcon}>{star <= avisNote ? '⭐' : '☆'}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+            <Text style={s.modalLabel}>Commentaire (optionnel)</Text>
+            <TextInput
+              style={s.commentInput}
+              placeholder="Partagez votre expérience..."
+              placeholderTextColor={Colors.textTertiary}
+              value={avisComment}
+              onChangeText={setAvisComment}
+              multiline
+              numberOfLines={3}
+            />
+            <View style={s.modalActions}>
+              <TouchableOpacity style={s.cancelBtn} onPress={() => setAvisModal(null)}>
+                <Text style={s.cancelText}>Annuler</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.submitBtn} onPress={submitAvis}>
+                <Text style={s.submitText}>Envoyer</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -371,6 +456,24 @@ const s = StyleSheet.create({
   autrePartieNom: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   autrePartiePseudo: { fontSize: FontSize.xs, color: Colors.primary },
   chevronMsg: { fontSize: 20 },
-  cardBottom: { flexDirection: 'row', justifyContent: 'flex-end', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
+  cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
   montant: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primary },
+  avisBtn: { backgroundColor: '#FEF3C7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 5, borderWidth: 1, borderColor: '#FCD34D' },
+  avisBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#92400E' },
+  avisDoneBadge: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 5 },
+  avisDoneText: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
+  modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  modalSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: 40 },
+  modalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, textAlign: 'center', marginBottom: 4 },
+  modalSubtitle: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.lg },
+  modalLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: Spacing.sm, marginTop: Spacing.md },
+  starsRow: { flexDirection: 'row', justifyContent: 'center', gap: Spacing.md, marginBottom: Spacing.md },
+  starBtn: { padding: 8 },
+  starIcon: { fontSize: 28 },
+  commentInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.md, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surfaceVariant, height: 90, textAlignVertical: 'top', marginBottom: Spacing.lg },
+  modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },
+  cancelBtn: { flex: 1, borderWidth: 1, borderColor: Colors.borderMedium, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
+  cancelText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  submitBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
+  submitText: { color: '#fff', fontWeight: FontWeight.bold },
 });

@@ -6,10 +6,10 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
-import { userStore } from '../../data/store';
+import { userStore, getAvisForUser, getFollowers, getFollowing } from '../../data/store';
+import { FollowListModal } from '../../components/FollowListModal';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
-import { useAuth } from '../../hooks/useAuth';
 import { TEST_ACCOUNTS } from '../../data/mockUsers';
 
 const ROLE_LABELS: Record<string, string> = {
@@ -25,12 +25,12 @@ const ROLE_ICONS: Record<string, string> = {
 };
 
 export default function ProfilScreen() {
-  const { profile } = useAuth();
   // Use a counter to force re-renders when account changes
   const [tick, setTick] = useState(0);
   const [user, setUser] = useState({ ...userStore });
   const [showEdit, setShowEdit] = useState(false);
   const [draft, setDraft] = useState({ ...userStore });
+  const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
 
   // Re-read userStore every time profile screen is focused
   useFocusEffect(useCallback(() => {
@@ -53,6 +53,9 @@ export default function ProfilScreen() {
   const { chevauxStore } = require('../../data/store');
   const nbChevaux = chevauxStore.list.filter((c: any) => c.proprietaireId === userStore.id).length;
   const nbConcours = 8;
+  const nbAvis = getAvisForUser(userStore.id).length;
+  const nbFollowers = getFollowers(userStore.id).length;
+  const nbFollowing = getFollowing(userStore.id).length;
 
   return (
     <SafeAreaView style={styles.root}>
@@ -79,6 +82,19 @@ export default function ProfilScreen() {
           </View>
         </View>
 
+        {/* Followers stats */}
+        <View style={styles.followRow}>
+          <TouchableOpacity style={styles.followItem} onPress={() => setFollowModal('followers')}>
+            <Text style={styles.followNum}>{nbFollowers}</Text>
+            <Text style={styles.followLabel}>Abonnés</Text>
+          </TouchableOpacity>
+          <View style={styles.statsDivider} />
+          <TouchableOpacity style={styles.followItem} onPress={() => setFollowModal('following')}>
+            <Text style={styles.followNum}>{nbFollowing}</Text>
+            <Text style={styles.followLabel}>Abonnements</Text>
+          </TouchableOpacity>
+        </View>
+
         {/* Stats */}
         <View style={styles.statsRow}>
           <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push('/(tabs)/chevaux')}>
@@ -90,7 +106,7 @@ export default function ProfilScreen() {
           </TouchableOpacity>
           <View style={styles.statsDivider} />
           <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push('/(tabs)/profil#reviews')}>
-            <StatBox label="Avis" value={0} icon="⭐" />
+            <StatBox label="Avis" value={nbAvis} icon="⭐" />
           </TouchableOpacity>
         </View>
 
@@ -102,7 +118,7 @@ export default function ProfilScreen() {
         ) : null}
 
         {/* Avis Section */}
-        {profile && <AvisSection userId={profile.id} />}
+        <AvisSection userId={userStore.id} />
 
         {/* Infos */}
         <View style={styles.section}>
@@ -125,6 +141,15 @@ export default function ProfilScreen() {
           <MenuButton icon="🔔" label="Notifications" onPress={() => router.push('/notifications')} />
           <MenuButton icon="🔒" label="Sécurité" onPress={() => router.push('/securite')} />
           <MenuButton icon="💳" label="Abonnement" onPress={() => router.push('/tarification')} color={Colors.gold} />
+        </View>
+
+        {/* Support */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Support & Aide</Text>
+          <MenuButton icon="❓" label="FAQ" onPress={() => router.push('/support?tab=faq' as any)} />
+          <MenuButton icon="📄" label="Mentions légales" onPress={() => router.push('/support?tab=legal' as any)} />
+          <MenuButton icon="📧" label="Nous contacter" onPress={() => router.push('/support?tab=contact' as any)} />
+          <MenuButton icon="🚨" label="Faire une réclamation" onPress={() => router.push('/support?tab=reclamation' as any)} color={Colors.urgent} />
         </View>
 
         {/* Test Accounts — visible uniquement pour admin */}
@@ -192,19 +217,25 @@ export default function ProfilScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Follow List Modal */}
+      {followModal && (
+        <FollowListModal
+          visible={!!followModal}
+          onClose={() => setFollowModal(null)}
+          userId={userStore.id}
+          type={followModal}
+        />
+      )}
     </SafeAreaView>
   );
 }
 
 function TestAccountItem({ account, onSwitch }: { account: any; onSwitch: () => void }) {
-  const handleCopy = (text: string) => {
-    Alert.alert('Copié', `${text} a été copié`);
-  };
-
   const handleSwitchAccount = () => {
     const success = userStore.switchAccount(account.accountKey);
     if (success) {
-      onSwitch(); // Force re-render of parent with new userStore data
+      onSwitch();
       Alert.alert('✓ Compte changé', `Connecté en tant que ${account.label}`);
     } else {
       Alert.alert('Erreur', 'Impossible de changer de compte');
@@ -224,27 +255,10 @@ function TestAccountItem({ account, onSwitch }: { account: any; onSwitch: () => 
           {account.description && (
             <Text style={styles.testAccountDescription}>{account.description}</Text>
           )}
+          <Text style={styles.testAccountEmailText}>{account.email}</Text>
         </View>
         <Text style={styles.testAccountArrow}>›</Text>
       </View>
-      <TouchableOpacity
-        style={styles.testAccountEmail}
-        onPress={(e) => {
-          e.stopPropagation();
-          handleCopy(account.email);
-        }}
-      >
-        <Text style={styles.testAccountEmailText}>{account.email}</Text>
-      </TouchableOpacity>
-      <TouchableOpacity
-        style={styles.testAccountPassword}
-        onPress={(e) => {
-          e.stopPropagation();
-          handleCopy(account.password);
-        }}
-      >
-        <Text style={styles.testAccountPasswordText}>Mot de passe: {account.password}</Text>
-      </TouchableOpacity>
     </TouchableOpacity>
   );
 }
@@ -316,6 +330,10 @@ const styles = StyleSheet.create({
   planBadge: { backgroundColor: Colors.goldBg, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: Colors.goldBorder },
   planText: { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.semibold },
 
+  followRow: { ...CommonStyles.card, flexDirection: 'row', marginBottom: Spacing.md, paddingVertical: Spacing.md },
+  followItem: { flex: 1, alignItems: 'center', paddingVertical: 4 },
+  followNum: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.primary },
+  followLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   statsRow: { ...CommonStyles.card, flexDirection: 'row', marginBottom: Spacing.lg },
   statBox: { flex: 1, alignItems: 'center', paddingVertical: Spacing.lg, gap: 2 },
   statIcon: { fontSize: 18 },

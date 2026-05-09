@@ -42,6 +42,7 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
   ],
   admin: [
     { name: 'admin-settings', label: 'Paramètres', emoji: '⚙️', route: '/(tabs)/admin-settings' },
+    { name: 'import-concours', label: 'CSV Import', emoji: '📋', route: '/(tabs)/import-concours' },
     { name: 'admin-profil', label: 'Profil', emoji: '👤', route: '/(tabs)/admin-profil' },
   ],
 };

@@ -138,7 +138,6 @@ export default function CoachConcoursScreen() {
                 <Text style={s.concoursDate}>
                   📅 {annonce.dateDebut.toLocaleDateString('fr-FR')} - {annonce.dateFin.toLocaleDateString('fr-FR')}
                 </Text>
-                <Text style={s.concoursHoraire}>💰 {annonce.prixHeure}€ / heure</Text>
                 {annonce.description && (
                   <Text style={s.concoursDetail} numberOfLines={2}>{annonce.description}</Text>
                 )}

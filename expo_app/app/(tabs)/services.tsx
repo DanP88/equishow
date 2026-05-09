@@ -1,12 +1,12 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Modal, TextInput, Alert,
+  Modal, TextInput, Alert, Platform,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { transportsStore, boxesStore, coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore } from '../../data/store';
+import { transportsStore, boxesStore, coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore, getAvisMoyenne } from '../../data/store';
 import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
@@ -89,7 +89,7 @@ function applyCoachFilters(list: CoachProfil[], f: FiltersCoach) {
 /* ─── Screen ───────────────────────────────────────────────────────────────── */
 
 export default function ServicesScreen() {
-  const params = useLocalSearchParams<{ tab?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; subTab?: string }>();
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur';
   const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'transport');
   const [transportSubTab, setTransportSubTab] = useState<TransportSubTab>((params.subTab as TransportSubTab) ?? 'trajets');
@@ -116,29 +116,48 @@ export default function ServicesScreen() {
   }, [params.tab, params.subTab]));
 
   function handleCancelTransport(id: string) {
-    Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer ce trajet ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Retirer', style: 'destructive',
-        onPress: () => {
-          transportsStore.list = transportsStore.list.filter((t) => t.id !== id);
-          setTransports([...transportsStore.list]);
-        },
-      },
-    ]);
+    const doDelete = () => {
+      transportsStore.list = transportsStore.list.filter((t) => t.id !== id);
+      setTransports([...transportsStore.list]);
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm('Retirer ce trajet ?')) doDelete();
+    } else {
+      Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer ce trajet ?', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Retirer', style: 'destructive', onPress: doDelete },
+      ]);
+    }
   }
 
   function handleCancelBox(id: string) {
-    Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer cette annonce de boxes ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Retirer', style: 'destructive',
-        onPress: () => {
-          boxesStore.list = boxesStore.list.filter((b) => b.id !== id);
-          setBoxes([...boxesStore.list]);
-        },
-      },
-    ]);
+    const doDelete = () => {
+      boxesStore.list = boxesStore.list.filter((b) => b.id !== id);
+      setBoxes([...boxesStore.list]);
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm('Retirer cette annonce de boxes ?')) doDelete();
+    } else {
+      Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer cette annonce de boxes ?', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Retirer', style: 'destructive', onPress: doDelete },
+      ]);
+    }
+  }
+
+  function handleCancelCoachAnnonce(id: string) {
+    const doDelete = () => {
+      coachAnnoncesStore.list = coachAnnoncesStore.list.filter((ca) => ca.id !== id);
+      setCoachAnnonces([...coachAnnoncesStore.list]);
+    };
+    if (Platform.OS === 'web') {
+      if (window.confirm('Retirer cette annonce de coaching ?')) doDelete();
+    } else {
+      Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer cette annonce ?', [
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Retirer', style: 'destructive', onPress: doDelete },
+      ]);
+    }
   }
 
   // Filtrer les transports par type
@@ -207,9 +226,9 @@ export default function ServicesScreen() {
 
       {/* Tabs */}
       <View style={s.tabBar}>
-        <TabBtn label="🚐 Transport" count={filteredT.length} active={tab === 'transport'} onPress={() => setTab('transport')} />
-        <TabBtn label="🏠 Box" count={filteredB.length} active={tab === 'box'} onPress={() => setTab('box')} />
-        <TabBtn label="🎓 Coachs" count={filteredC.length} active={tab === 'coach'} onPress={() => setTab('coach')} />
+        <TabBtn label="Transport" count={filteredT.length} active={tab === 'transport'} onPress={() => setTab('transport')} />
+        <TabBtn label="Box" count={filteredB.length} active={tab === 'box'} onPress={() => setTab('box')} />
+        <TabBtn label="Coachs" count={filteredC.length} active={tab === 'coach'} onPress={() => setTab('coach')} />
       </View>
 
       {/* Transport Sub-Tabs */}
@@ -228,7 +247,7 @@ export default function ServicesScreen() {
             onPress={() => setTransportSubTab('van')}
           >
             <Text style={[s.subTabLabel, transportSubTab === 'van' && s.subTabLabelActive]}>
-              🔑 Van seul
+              🔑 Transport seul
             </Text>
           </TouchableOpacity>
         </View>
@@ -380,7 +399,13 @@ export default function ServicesScreen() {
                     {filteredCoachAnnonces.length > 0 && (
                       <>
                         <Text style={s.sectionTitle}>📢 Annonces des coachs</Text>
-                        {filteredCoachAnnonces.map((ca) => <CoachAnnonceCard key={ca.id} item={ca} />)}
+                        {filteredCoachAnnonces.map((ca) => (
+                          <CoachAnnonceCard
+                            key={ca.id}
+                            item={ca}
+                            onCancel={() => handleCancelCoachAnnonce(ca.id)}
+                          />
+                        ))}
                       </>
                     )}
                     {filteredCoaches.length > 0 && (
@@ -390,7 +415,7 @@ export default function ServicesScreen() {
                           <CoachCard
                             key={c.id}
                             item={c}
-                            onModify={role === 'coach' && c.auteurId === userStore.id ? () => router.push(`/editer-coach?coachId=${c.id}` as any) : undefined}
+                            onModify={undefined}
                           />
                         ))}
                       </>
@@ -457,6 +482,7 @@ export default function ServicesScreen() {
 
           </>
         )}
+
       </ScrollView>
 
       {/* Filtres modal */}
@@ -550,6 +576,7 @@ export default function ServicesScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
     </SafeAreaView>
   );
 }
@@ -834,6 +861,7 @@ function TransportCard({ item, onCancel, onModify }: {
   const date = item.dateTrajet.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
   const ttc = prixTTC(item.prixHT);
   const left = item.nbPlacesDisponibles;
+  const rating = getAvisMoyenne(item.auteurId);
   return (
     <View style={s.card}>
       {isOwner && <View style={s.ownerBadge}><Text style={s.ownerBadgeText}>Mon annonce</Text></View>}
@@ -849,9 +877,21 @@ function TransportCard({ item, onCancel, onModify }: {
             <Text style={s.routeDepart}>📍 {item.villeDepart}</Text>
           )}
         </View>
-        <View style={s.priceBadge}>
-          <Text style={s.priceHT}>{item.prixHT}€ TTC</Text>
-          {item.typeTransport === 'location' && <Text style={s.priceTTC}>par jour</Text>}
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={s.priceBadge}>
+            {item.typeTransport === 'location' ? (
+              <>
+                <Text style={s.priceHT}>{item.prixHT}€ TTC</Text>
+                <Text style={s.priceTTC}>par jour</Text>
+              </>
+            ) : (
+              <>
+                <Text style={s.priceHT}>{item.pricePerKm ?? item.prixHT}€/km</Text>
+                <Text style={s.priceTTC}>prix au kilomètre</Text>
+              </>
+            )}
+          </View>
+          {rating > 0 && <Text style={s.ratingMini}>⭐ {rating.toFixed(1)}</Text>}
         </View>
       </View>
       <View style={s.tagRow}>
@@ -923,14 +963,18 @@ function BoxCard({ item, onCancel, onModify }: {
   const ttc = prixTTC(item.prixNuitHT);
   const nbJ = Math.max(1, Math.round((item.dateFin.getTime() - item.dateDebut.getTime()) / (1000 * 60 * 60 * 24)));
   const left = item.nbBoxesDisponibles;
+  const rating = getAvisMoyenne(item.auteurId);
   return (
     <View style={s.card}>
       {isOwner && <View style={s.ownerBadge}><Text style={s.ownerBadgeText}>Mon annonce</Text></View>}
       <View style={s.routeRow}>
         <Text style={[s.routeDepart, { flex: 1 }]}>{item.lieu}</Text>
-        <View style={s.priceBadge}>
-          <Text style={s.priceHT}>{item.prixNuitHT}€/nuit HT</Text>
-          <Text style={s.priceTTC}>{ttc}€ TTC</Text>
+        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+          <View style={s.priceBadge}>
+            <Text style={s.priceHT}>{item.prixNuitHT}€/nuit HT</Text>
+            <Text style={s.priceTTC}>{ttc}€ TTC</Text>
+          </View>
+          {rating > 0 && <Text style={s.ratingMini}>⭐ {rating.toFixed(1)}</Text>}
         </View>
       </View>
       <View style={s.tagRow}>
@@ -1049,7 +1093,8 @@ function CoachCard({ item, onModify }: { item: CoachProfil; onModify?: () => voi
   );
 }
 
-function CoachAnnonceCard({ item }: { item: CoachAnnonce }) {
+function CoachAnnonceCard({ item, onCancel }: { item: CoachAnnonce; onCancel?: () => void }) {
+  const isOwner = item.auteurId === userStore.id;
   const dateStr = item.dateDebut.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short', year: '2-digit' });
 
   const handleAuthorPress = () => {
@@ -1111,17 +1156,25 @@ function CoachAnnonceCard({ item }: { item: CoachAnnonce }) {
         </View>
       </View>
 
-      <View style={s.footerBtns}>
-        <TouchableOpacity style={[s.msgContactBtn, { flex: 1 }]} onPress={() => router.push('/messagerie')}>
-          <Text style={s.msgContactText}>💬 Contacter</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.ctaBtn, { flex: 1 }]}
-          onPress={() => router.push(`/reserver-coach?annonceId=${item.id}` as any)}
-        >
-          <Text style={s.ctaText}>Réserver</Text>
-        </TouchableOpacity>
-      </View>
+      {isOwner ? (
+        <View style={s.footerBtns}>
+          <TouchableOpacity style={[s.ownerCancelBtn, { flex: 1 }]} onPress={onCancel}>
+            <Text style={s.ownerCancelText}>🗑 Retirer</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <View style={s.footerBtns}>
+          <TouchableOpacity style={[s.msgContactBtn, { flex: 1 }]} onPress={() => router.push('/messagerie')}>
+            <Text style={s.msgContactText}>💬 Contacter</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[s.ctaBtn, { flex: 1 }]}
+            onPress={() => router.push(`/reserver-coach?annonceId=${item.id}` as any)}
+          >
+            <Text style={s.ctaText}>Réserver</Text>
+          </TouchableOpacity>
+        </View>
+      )}
     </View>
   );
 }
@@ -1223,9 +1276,9 @@ const s = StyleSheet.create({
   tabBar: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.lg, paddingBottom: Spacing.sm },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: Spacing.sm, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  tabLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
+  tabLabel: { fontSize: 10, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
   tabLabelActive: { color: Colors.textInverse },
-  tabCount: { backgroundColor: Colors.border, borderRadius: 8, paddingHorizontal: 5, paddingVertical: 1 },
+  tabCount: { backgroundColor: Colors.border, borderRadius: 10, minWidth: 22, paddingHorizontal: 6, paddingVertical: 2, alignItems: 'center' },
   tabCountActive: { backgroundColor: 'rgba(255,255,255,0.3)' },
   tabCountText: { fontSize: 10, fontWeight: FontWeight.bold, color: Colors.textSecondary },
   tabCountTextActive: { color: Colors.textInverse },
@@ -1247,6 +1300,7 @@ const s = StyleSheet.create({
   priceBadge: { alignItems: 'flex-end' },
   priceHT: { fontSize: FontSize.xs, color: Colors.textTertiary },
   priceTTC: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.primary },
+  ratingMini: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#92400E', backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
   tag: { flexDirection: 'row', alignItems: 'center', gap: 3, backgroundColor: Colors.surfaceVariant, borderRadius: 20, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderWidth: 1, borderColor: Colors.border },
   tagIcon: { fontSize: 10 },
@@ -1333,7 +1387,6 @@ const s = StyleSheet.create({
   concoursDetail: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.xs },
   concoursCreateBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, justifyContent: 'center' },
   concoursCreateBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textInverse, textAlign: 'center' },
-  sectionTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginTop: Spacing.md, marginBottom: Spacing.sm },
 
   // Dropdown menu
   dropdownBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center' },

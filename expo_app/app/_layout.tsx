@@ -7,7 +7,11 @@ import * as Sentry from '@sentry/react-native';
 import { Colors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
 import { ErrorBoundary } from '../components/ErrorBoundary';
+import { ExpiredAccessScreen } from '../components/ExpiredAccessScreen';
+import { isTestAccessExpired } from '../config/testExpiration';
 import { userStore } from '../data/store';
+import { usePushNotifications } from '../hooks/usePushNotifications';
+import { usePlatformSettings } from '../hooks/usePlatformSettings';
 
 // Initialize Sentry for error tracking
 Sentry.init({
@@ -21,6 +25,12 @@ Sentry.init({
 function RootLayout() {
   const { isSignedIn, isLoading } = useAuth();
 
+  // Charger les commissions depuis Supabase au démarrage
+  usePlatformSettings();
+
+  // Enregistrer le token push et gérer les notifications
+  usePushNotifications();
+
   useEffect(() => {
     // Identifier l'utilisateur dans Sentry quand il est connecté
     if (isSignedIn) {
@@ -33,6 +43,12 @@ function RootLayout() {
       Sentry.setUser(null);
     }
   }, [isSignedIn]);
+
+  // Blocage testeurs : actif uniquement en production Vercel après la date d'expiration
+  // Guard placé après les hooks pour respecter les Rules of Hooks
+  if (isTestAccessExpired) {
+    return <ExpiredAccessScreen />;
+  }
 
 
   // Show loading while checking auth state

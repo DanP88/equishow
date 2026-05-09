@@ -1,34 +1,58 @@
 import { useState } from 'react';
 import {
   View, Text, TextInput, TouchableOpacity,
-  StyleSheet, KeyboardAvoidingView, Platform, ScrollView,
+  StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
+import { useAuth } from '../../hooks/useAuth';
 import { TEST_ACCOUNTS } from '../../data/mockUsers';
 import { userStore } from '../../data/store';
+import { loginLimiter } from '../../lib/rateLimiter';
+
+const SCREEN_BY_ROLE: Record<string, string> = {
+  cavalier: '/(tabs)/chevaux',
+  coach: '/(tabs)/coach-agenda',
+  organisateur: '/(tabs)/profil-org',
+  admin: '/(tabs)/admin-settings',
+};
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-
-  function handleLogin() {
-    // TODO: Supabase auth
-    router.replace('/(tabs)/chevaux');
-  }
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const { login, isSigningIn } = useAuth();
 
   function handleTestAccountLogin(accountKey: string, role: string) {
     userStore.switchAccount(accountKey as any);
+    const screen = SCREEN_BY_ROLE[role] || '/(tabs)/chevaux';
+    router.replace(screen as any);
+  }
 
-    const firstScreenByRole: Record<string, string> = {
-      cavalier: '/(tabs)/chevaux',
-      coach: '/(tabs)/coach-agenda',
-      organisateur: '/(tabs)/profil-org',
-      admin: '/(tabs)/admin-settings',
-    };
+  async function handleLogin() {
+    setErrorMsg(null);
+    if (!email.trim() || !password) {
+      setErrorMsg('Veuillez remplir tous les champs.');
+      return;
+    }
 
-    router.replace((firstScreenByRole[role] || '/(tabs)/chevaux') as any);
+    const limitState = await loginLimiter.getState();
+    if (limitState.locked) {
+      const mins = Math.ceil((limitState.resetAt - Date.now()) / 60000);
+      setErrorMsg(`Trop de tentatives. Réessayez dans ${mins} minute${mins > 1 ? 's' : ''}.`);
+      return;
+    }
+
+    const { user, error } = await login(email.trim(), password);
+    if (error) {
+      await loginLimiter.recordFailure(email.trim());
+      setErrorMsg(typeof error === 'string' ? error : 'Email ou mot de passe incorrect.');
+      return;
+    }
+    await loginLimiter.reset();
+    const screen = (user?.role && SCREEN_BY_ROLE[user.role]) || '/(tabs)/chevaux';
+    router.replace(screen as any);
   }
 
   return (
@@ -46,28 +70,36 @@ export default function LoginScreen() {
           <Text style={styles.tagline}>La plateforme des cavaliers</Text>
         </View>
 
-        {/* Test Accounts Quick Access */}
-        <View style={styles.testSection}>
-          <Text style={styles.testTitle}>Comptes de test</Text>
-          <View style={styles.testGrid}>
-            {TEST_ACCOUNTS.map((account) => (
-              <TouchableOpacity
-                key={account.accountKey}
-                style={styles.testCard}
-                onPress={() => handleTestAccountLogin(account.accountKey, account.role)}
-                activeOpacity={0.8}
-              >
-                <Text style={styles.testIcon}>{account.icon}</Text>
-                <Text style={styles.testLabel}>{account.label}</Text>
-                <Text style={styles.testEmail}>{account.email}</Text>
-              </TouchableOpacity>
-            ))}
+        {/* Comptes de test — visibles uniquement en build de dev */}
+        {__DEV__ && TEST_ACCOUNTS.length > 0 && (
+          <View style={styles.testSection}>
+            <Text style={styles.testTitle}>Comptes de test</Text>
+            <View style={styles.testGrid}>
+              {TEST_ACCOUNTS.map((account) => (
+                <TouchableOpacity
+                  key={account.accountKey}
+                  style={styles.testCard}
+                  onPress={() => handleTestAccountLogin(account.accountKey, account.role)}
+                  activeOpacity={0.8}
+                >
+                  <Text style={styles.testIcon}>{account.icon}</Text>
+                  <Text style={styles.testLabel}>{account.label}</Text>
+                  <Text style={styles.testEmail}>{account.email}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
-        </View>
+        )}
 
         {/* Form */}
         <View style={styles.form}>
           <Text style={styles.title}>Connexion</Text>
+
+          {errorMsg ? (
+            <View style={styles.errorBox}>
+              <Text style={styles.errorText}>{errorMsg}</Text>
+            </View>
+          ) : null}
 
           <View style={styles.field}>
             <Text style={styles.label}>Email</Text>
@@ -79,6 +111,8 @@ export default function LoginScreen() {
               placeholderTextColor={Colors.textTertiary}
               keyboardType="email-address"
               autoCapitalize="none"
+              autoCorrect={false}
+              editable={!isSigningIn}
             />
           </View>
 
@@ -91,11 +125,20 @@ export default function LoginScreen() {
               placeholder="••••••••"
               placeholderTextColor={Colors.textTertiary}
               secureTextEntry
+              editable={!isSigningIn}
             />
           </View>
 
-          <TouchableOpacity style={styles.btn} onPress={handleLogin} activeOpacity={0.85}>
-            <Text style={styles.btnText}>Se connecter</Text>
+          <TouchableOpacity
+            style={[styles.btn, isSigningIn && styles.btnDisabled]}
+            onPress={handleLogin}
+            activeOpacity={0.85}
+            disabled={isSigningIn}
+          >
+            {isSigningIn
+              ? <ActivityIndicator color={Colors.textInverse} />
+              : <Text style={styles.btnText}>Se connecter</Text>
+            }
           </TouchableOpacity>
 
           <TouchableOpacity onPress={() => router.push('/(auth)/signup')} style={styles.link}>
@@ -192,6 +235,18 @@ const styles = StyleSheet.create({
     color: Colors.textPrimary,
     marginBottom: Spacing.xl,
   },
+  errorBox: {
+    backgroundColor: '#FEF2F2',
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+    marginBottom: Spacing.lg,
+    borderWidth: 1,
+    borderColor: '#FECACA',
+  },
+  errorText: {
+    fontSize: FontSize.sm,
+    color: '#DC2626',
+  },
   field: {
     marginBottom: Spacing.lg,
   },
@@ -217,6 +272,9 @@ const styles = StyleSheet.create({
     paddingVertical: Spacing.md,
     alignItems: 'center',
     marginTop: Spacing.sm,
+  },
+  btnDisabled: {
+    opacity: 0.6,
   },
   btnText: {
     color: Colors.textInverse,
