@@ -9,7 +9,6 @@ const corsHeaders = {
 interface CourseCalculationRequest {
   annonce_id: string;
   nb_jours: number;
-  commission_rate?: number; // En pourcentage (ex: 5 = 5%)
 }
 
 interface CourseCalculationResponse {
@@ -97,10 +96,7 @@ export async function handler(
     if (!authHeader) {
       return new Response(
         JSON.stringify({ error: "Missing authorization header" }),
-        {
-          status: 401,
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        }
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -120,11 +116,19 @@ export async function handler(
       );
     }
 
-    // Récupérer le client Supabase avec clé service_role
+    // Vérifier le JWT
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
     );
+    const token = authHeader.replace("Bearer ", "");
+    const { data: { user }, error: userError } = await supabase.auth.getUser(token);
+    if (userError || !user) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     // ========================================================================
     // ÉTAPE 1: Récupérer l'annonce depuis la BD
@@ -159,9 +163,18 @@ export async function handler(
     }
 
     // ========================================================================
-    // ÉTAPE 2: Calculer les prix côté serveur
+    // ÉTAPE 2: Lire le taux de commission depuis la DB (jamais depuis le client)
     // ========================================================================
-    const commission_rate = body.commission_rate ?? DEFAULT_COMMISSION_RATE;
+    let commission_rate = DEFAULT_COMMISSION_RATE;
+    const { data: settings } = await supabase
+      .from("platform_settings")
+      .select("commission_cours")
+      .limit(1)
+      .maybeSingle();
+    if (settings?.commission_cours != null) {
+      // Stocké en décimal (0.05 = 5%), on convertit en pourcentage pour la fonction
+      commission_rate = settings.commission_cours * 100;
+    }
 
     const calculation = calculateCoursePrice(
       annonce.prix_heure_ttc,

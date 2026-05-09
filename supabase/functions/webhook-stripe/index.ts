@@ -91,10 +91,18 @@ async function handleChargeSucceeded(
   const charge = event.data.object;
 
   // Find payment by payment_id from metadata
+  const paymentMetaId = charge.metadata?.payment_id
+    ?? charge.payment_intent_data?.metadata?.payment_id;
+
+  if (!paymentMetaId) {
+    console.log("Charge without payment_id metadata:", charge.id);
+    return;
+  }
+
   const { data: payments } = await supabase
     .from("payments")
     .select("*")
-    .eq("id", charge.metadata?.payment_id)
+    .eq("id", paymentMetaId)
     .limit(1);
 
   if (!payments || payments.length === 0) {
@@ -104,65 +112,73 @@ async function handleChargeSucceeded(
 
   const payment = payments[0];
 
-  // Update payment status
+  // Update payment status + propagate transfer_id if Stripe auto-transferred
+  // (Connect destination charge with transfer_data → charge.transfer is set).
+  const updateFields: Record<string, unknown> = {
+    payment_status: "succeeded",
+    stripe_charge_id: charge.id,
+    paid_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  if (charge.transfer) {
+    updateFields.stripe_transfer_id = charge.transfer;
+  }
   await supabase
     .from("payments")
-    .update({
-      payment_status: "succeeded",
-      stripe_charge_id: charge.id,
-      updated_at: new Date().toISOString(),
-    })
+    .update(updateFields)
     .eq("id", payment.id);
 
   // Update demand or reservation status to 'paid'
   if (payment.course_demand_id) {
     await supabase
       .from("course_demands")
-      .update({
-        status: "paid",
-        updated_at: new Date().toISOString(),
-      })
+      .update({ status: "paid", updated_at: new Date().toISOString() })
       .eq("id", payment.course_demand_id);
   } else if (payment.stage_reservation_id) {
     await supabase
       .from("stage_reservations")
-      .update({
-        status: "paid",
-        updated_at: new Date().toISOString(),
-      })
+      .update({ status: "paid", updated_at: new Date().toISOString() })
       .eq("id", payment.stage_reservation_id);
+  } else if (payment.box_reservation_id) {
+    await supabase
+      .from("box_reservations")
+      .update({ status: "paid", updated_at: new Date().toISOString() })
+      .eq("id", payment.box_reservation_id);
+  } else if (payment.transport_reservation_id) {
+    await supabase
+      .from("transport_reservations")
+      .update({ statut: "paid" })
+      .eq("id", payment.transport_reservation_id);
   }
 
-  // Get seller's Stripe account
-  const { data: seller } = await supabase
-    .from("users")
-    .select("stripe_account_id")
-    .eq("id", payment.seller_id)
-    .single();
+  // If Stripe didn't auto-transfer (legacy non-Connect or transfer_data absent),
+  // fall back to manual transfer creation.
+  if (!charge.transfer) {
+    const { data: seller } = await supabase
+      .from("users")
+      .select("stripe_account_id")
+      .eq("id", payment.seller_id)
+      .single();
 
-  if (seller?.stripe_account_id) {
-    // Create Stripe Transfer to seller
-    const transferResponse = await callStripeAPI("/transfers", "POST", {
-      amount: payment.amount_seller_ht.toString(),
-      currency: "eur",
-      destination: seller.stripe_account_id,
-      description: `Payment from Equishow - ${payment.id}`,
-      metadata: {
-        payment_id: payment.id,
-        charge_id: charge.id,
-      },
-    });
+    if (seller?.stripe_account_id) {
+      const transferResponse = await callStripeAPI("/transfers", "POST", {
+        amount: payment.amount_seller_ht.toString(),
+        currency: "eur",
+        destination: seller.stripe_account_id,
+        description: `Equishow payment ${payment.id}`,
+        "metadata[payment_id]": payment.id,
+        "metadata[charge_id]": charge.id,
+      });
 
-    if (transferResponse.id) {
-      await supabase
-        .from("payments")
-        .update({
-          stripe_transfer_id: transferResponse.id,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", payment.id);
-
-      console.log("Transfer created:", transferResponse.id);
+      if (transferResponse.id) {
+        await supabase
+          .from("payments")
+          .update({
+            stripe_transfer_id: transferResponse.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", payment.id);
+      }
     }
   }
 }

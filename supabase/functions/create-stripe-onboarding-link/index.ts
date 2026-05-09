@@ -6,12 +6,9 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "Content-Type, Authorization",
 };
 
-interface OnboardingRequest {
-  seller_id?: string;
-}
-
 const STRIPE_SECRET_KEY = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
+const APP_URL = Deno.env.get("APP_URL") ?? "";
 
 // ============================================================================
 // STRIPE API HELPER
@@ -36,7 +33,11 @@ async function callStripeAPI(
   }
 
   const response = await fetch(url, options);
-  return response.json();
+  const json = await response.json();
+  if (!response.ok) {
+    throw new Error(json.error?.message ?? `Stripe error ${response.status}`);
+  }
+  return json;
 }
 
 // ============================================================================
@@ -60,9 +61,6 @@ export async function handler(req: Request): Promise<Response> {
 
     const token = authHeader.replace("Bearer ", "");
 
-    // Parse request
-    const body: OnboardingRequest = await req.json();
-
     // Initialize Supabase
     const supabase = createClient(
       SUPABASE_URL,
@@ -85,8 +83,8 @@ export async function handler(req: Request): Promise<Response> {
       );
     }
 
-    // Use seller_id from request or current user
-    const sellerId = body.seller_id || user.id;
+    // Toujours utiliser l'utilisateur authentifié — jamais accepter un seller_id externe (IDOR)
+    const sellerId = user.id;
 
     // ========================================================================
     // STEP 1: Fetch seller from database
@@ -151,8 +149,8 @@ export async function handler(req: Request): Promise<Response> {
     const accountLink = await callStripeAPI("/account_links", "POST", {
       account: stripeAccountId,
       type: "account_onboarding",
-      return_url: `${SUPABASE_URL}/../stripe-onboarding`,
-      refresh_url: `${SUPABASE_URL}/../stripe-onboarding`,
+      return_url: `${APP_URL}/stripe-onboarding`,
+      refresh_url: `${APP_URL}/stripe-onboarding`,
       collect: "eventually_due",
     });
 

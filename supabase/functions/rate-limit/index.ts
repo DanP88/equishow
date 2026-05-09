@@ -1,20 +1,14 @@
-/**
- * Rate Limiting Edge Function
- *
- * Enforces rate limits on sensitive operations:
- * - Authentication attempts (5 per 15 minutes)
- * - API requests (100 per minute per user)
- * - IP-based blocking for excessive failures
- *
- * Uses Supabase storage for distributed rate limit tracking
- */
-
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
 
 interface RateLimitRequest {
   action: "login" | "signup" | "api" | "password-reset";
-  identifier: string; // email or IP address
-  userId?: string; // optional, for authenticated requests
+  identifier: string;
 }
 
 interface RateLimitResponse {
@@ -24,95 +18,29 @@ interface RateLimitResponse {
   message?: string;
 }
 
-// ============================================================================
-// RATE LIMIT CONFIGURATION
-// ============================================================================
-
 const LIMITS = {
-  login: {
-    maxAttempts: 5,
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    message: "Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.",
-  },
-  signup: {
-    maxAttempts: 3,
-    windowMs: 60 * 60 * 1000, // 1 hour
-    message: "Trop de tentatives d'inscription. Veuillez réessayer dans 1 heure.",
-  },
-  api: {
-    maxAttempts: 100,
-    windowMs: 60 * 1000, // 1 minute
-    message: "Trop de requêtes. Veuillez réessayer dans 1 minute.",
-  },
-  "password-reset": {
-    maxAttempts: 3,
-    windowMs: 60 * 60 * 1000, // 1 hour
-    message: "Trop de tentatives de réinitialisation. Veuillez réessayer dans 1 heure.",
-  },
+  login: { maxAttempts: 5, windowMs: 15 * 60 * 1000 },
+  signup: { maxAttempts: 3, windowMs: 60 * 60 * 1000 },
+  api: { maxAttempts: 100, windowMs: 60 * 1000 },
+  "password-reset": { maxAttempts: 3, windowMs: 60 * 60 * 1000 },
+} as const;
+
+const MESSAGES: Record<string, string> = {
+  login: "Trop de tentatives de connexion. Veuillez réessayer dans 15 minutes.",
+  signup: "Trop de tentatives d'inscription. Veuillez réessayer dans 1 heure.",
+  api: "Trop de requêtes. Veuillez réessayer dans 1 minute.",
+  "password-reset": "Trop de tentatives de réinitialisation. Veuillez réessayer dans 1 heure.",
 };
 
-// ============================================================================
-// HELPER FUNCTIONS
-// ============================================================================
-
-/**
- * Get storage key for rate limit tracking
- */
-function getStorageKey(action: string, identifier: string): string {
-  return `rate-limit:${action}:${identifier}`;
-}
-
-/**
- * Get client IP from request
- */
-function getClientIp(req: Request): string {
-  const forwarded = req.headers.get("x-forwarded-for");
-  const clientIp = req.headers.get("cf-connecting-ip") || forwarded?.split(",")[0] || "unknown";
-  return clientIp.trim();
-}
-
-/**
- * Check if identifier should be permanently blocked
- */
-function shouldBlockPermanently(identifier: string): boolean {
-  // List of permanently blocked IPs/emails (hardcoded for now, could use a table)
-  const blocklist: string[] = [];
-  return blocklist.includes(identifier);
-}
-
-/**
- * Create Supabase client from request
- */
-function createSupabaseClient(req: Request) {
-  const token = req.headers.get("authorization")?.replace("Bearer ", "");
-  if (!token) {
-    throw new Error("No authorization token");
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
   }
 
-  // In production, you would create a proper Supabase client here
-  // For now, we'll use a simpler approach with environment variables
-  return {
-    getAttempts: async (key: string) => {
-      // Simulate getting from storage
-      return JSON.parse(localStorage.getItem(key) || '{"count": 0, "resetAt": 0}');
-    },
-    setAttempts: async (key: string, data: any) => {
-      // Simulate setting in storage
-      localStorage.setItem(key, JSON.stringify(data));
-    },
-  };
-}
-
-// ============================================================================
-// MAIN HANDLER
-// ============================================================================
-
-Deno.serve(async (req: Request) => {
-  // Only allow POST requests
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -120,98 +48,59 @@ Deno.serve(async (req: Request) => {
     const body = (await req.json()) as RateLimitRequest;
     const { action, identifier } = body;
 
-    // Validate action
-    if (!Object.keys(LIMITS).includes(action)) {
+    if (!action || !identifier || !LIMITS[action]) {
       return new Response(
-        JSON.stringify({ error: "Invalid action" }),
-        { status: 400, headers: { "Content-Type": "application/json" } }
+        JSON.stringify({ error: "Invalid action or missing identifier" }),
+        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
-    const limit = LIMITS[action as keyof typeof LIMITS];
-    const storageKey = getStorageKey(action, identifier);
+    const limit = LIMITS[action];
+    const kvKey = ["rate-limit", action, identifier];
     const now = Date.now();
 
-    // Check permanent blocklist
-    if (shouldBlockPermanently(identifier)) {
-      return new Response(
-        JSON.stringify({
-          allowed: false,
-          remaining: 0,
-          resetAt: Date.now() + 24 * 60 * 60 * 1000, // 24 hours
-          message: "Ce compte a été temporairement bloqué pour raison de sécurité.",
-        } as RateLimitResponse),
-        {
-          status: 429,
-          headers: { "Content-Type": "application/json" },
-        }
-      );
+    const kv = await Deno.openKv();
+    const record = await kv.get<{ count: number; resetAt: number }>(kvKey);
+
+    let { count, resetAt } = record.value ?? { count: 0, resetAt: now + limit.windowMs };
+
+    // Reset if window has expired
+    if (now > resetAt) {
+      count = 0;
+      resetAt = now + limit.windowMs;
     }
 
-    // For demo purposes, we'll store in memory
-    // In production, you'd use Supabase database or Redis
-    // Using Deno KV would be ideal: https://deno.com/kv
-
-    // Get current attempt record
-    const recordJson = await Deno.env.get(`RATE_LIMIT_${storageKey}`);
-    let record = recordJson
-      ? JSON.parse(recordJson)
-      : { count: 0, resetAt: now + limit.windowMs };
-
-    // Reset if window has passed
-    if (now > record.resetAt) {
-      record = { count: 0, resetAt: now + limit.windowMs };
-    }
-
-    // Check if limit exceeded
-    const isLimited = record.count >= limit.maxAttempts;
+    const isLimited = count >= limit.maxAttempts;
 
     if (!isLimited) {
-      // Increment counter
-      record.count += 1;
-
-      // Store updated record
-      // Note: In production, use proper database/cache
-      console.log(`Rate limit check: ${action} ${identifier} - ${record.count}/${limit.maxAttempts}`);
-    }
-
-    // Log suspicious activity
-    if (record.count > limit.maxAttempts * 2) {
-      console.warn(`SECURITY: Excessive attempts on ${action} from ${identifier}`);
-      // In production, you'd:
-      // - Send alert to security team
-      // - Add to blocklist
-      // - Trigger CAPTCHA verification
+      count += 1;
+      const ttl = resetAt - now;
+      await kv.set(kvKey, { count, resetAt }, { expireIn: ttl });
     }
 
     const response: RateLimitResponse = {
       allowed: !isLimited,
-      remaining: Math.max(0, limit.maxAttempts - record.count),
-      resetAt: record.resetAt,
-      ...(isLimited && { message: limit.message }),
+      remaining: Math.max(0, limit.maxAttempts - count),
+      resetAt,
+      ...(isLimited && { message: MESSAGES[action] }),
     };
 
     return new Response(JSON.stringify(response), {
       status: isLimited ? 429 : 200,
       headers: {
+        ...corsHeaders,
         "Content-Type": "application/json",
         "X-RateLimit-Limit": limit.maxAttempts.toString(),
         "X-RateLimit-Remaining": response.remaining.toString(),
-        "X-RateLimit-Reset": response.resetAt.toString(),
+        "X-RateLimit-Reset": resetAt.toString(),
       },
     });
   } catch (error) {
-    console.error("Rate limit check error:", error);
+    console.error("Rate limit error:", error);
+    // Fail open — don't block legitimate requests on internal error
     return new Response(
-      JSON.stringify({
-        allowed: true, // Fail open to not block legitimate requests
-        remaining: -1,
-        resetAt: 0,
-      } as RateLimitResponse),
-      {
-        status: 500,
-        headers: { "Content-Type": "application/json" },
-      }
+      JSON.stringify({ allowed: true, remaining: -1, resetAt: 0 } as RateLimitResponse),
+      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
 });

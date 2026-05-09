@@ -24,7 +24,11 @@ async function callStripeAPI(
       "Authorization": `Bearer ${STRIPE_SECRET_KEY}`,
     },
   });
-  return response.json();
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message ?? `Stripe error ${response.status}`);
+  }
+  return data;
 }
 
 // ============================================================================
@@ -117,9 +121,11 @@ export async function handler(req: Request): Promise<Response> {
     const requirements = stripeAccount.requirements || {};
     const status = stripeAccount.charges_enabled && stripeAccount.payouts_enabled
       ? "active"
-      : requirements.pending_verification?.length > 0
-        ? "pending"
-        : "restricted";
+      : requirements.disabled_reason
+        ? "restricted"
+        : requirements.pending_verification?.length > 0
+          ? "pending"
+          : "restricted";
 
     const { error: updateError } = await supabase
       .from("users")
@@ -132,7 +138,7 @@ export async function handler(req: Request): Promise<Response> {
           currently_due: requirements.currently_due || [],
           eventually_due: requirements.eventually_due || [],
         },
-        stripe_details_submitted: true,
+        stripe_details_submitted: stripeAccount.details_submitted ?? false,
         stripe_last_updated: new Date().toISOString(),
       })
       .eq("id", user.id);

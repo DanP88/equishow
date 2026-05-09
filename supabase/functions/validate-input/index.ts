@@ -74,7 +74,13 @@ function sanitizePhone(value: string): string {
  */
 function sanitizeUrl(value: string): string {
   if (!value || typeof value !== "string") return "";
-  return value.trim().slice(0, 2048);
+  const trimmed = value.trim();
+  // Block dangerous protocols
+  const lower = trimmed.toLowerCase();
+  if (lower.startsWith("javascript:") || lower.startsWith("data:") || lower.startsWith("vbscript:")) {
+    return "";
+  }
+  return trimmed.slice(0, 2048);
 }
 
 /**
@@ -237,11 +243,11 @@ const validationSchemas = {
       }
     }
 
-    // Password validation
+    // Password validation (never return password in sanitized response)
     if (data.password) {
       const passwordError = validatePassword(data.password);
       if (passwordError) errors.password = passwordError;
-      else sanitized.password = data.password; // Don't sanitize passwords
+      // password intentionally omitted from sanitized — caller already has it
     }
 
     // Prenom validation
@@ -400,12 +406,21 @@ const validationSchemas = {
 // MAIN HANDLER
 // ============================================================================
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+};
+
 Deno.serve(async (req: Request) => {
-  // Only allow POST requests
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   if (req.method !== "POST") {
     return new Response(JSON.stringify({ error: "Method not allowed" }), {
       status: 405,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 
@@ -442,7 +457,7 @@ Deno.serve(async (req: Request) => {
 
     return new Response(JSON.stringify(response), {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
     console.error("Validation error:", error);
@@ -453,7 +468,7 @@ Deno.serve(async (req: Request) => {
       }),
       {
         status: 500,
-        headers: { "Content-Type": "application/json" },
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       }
     );
   }

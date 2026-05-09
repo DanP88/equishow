@@ -37,8 +37,14 @@ async function callStripeAPI(
   }
 
   const response = await fetch(url, options);
-  return response.json();
+  const result = await response.json();
+  if (!response.ok) {
+    throw new Error(result?.error?.message ?? `Stripe error ${response.status}`);
+  }
+  return result;
 }
+
+const VALID_REFUND_REASONS = ["duplicate", "fraudulent", "requested_by_customer"];
 
 // ============================================================================
 // HANDLER
@@ -111,12 +117,12 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     // ========================================================================
-    // STEP 2: Verify requester is buyer or seller
+    // STEP 2: Verify requester is the buyer (only buyers can request refunds)
     // ========================================================================
 
-    if (user.id !== payment.buyer_id && user.id !== payment.seller_id) {
+    if (user.id !== payment.buyer_id) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized: not involved in this payment" }),
+        JSON.stringify({ error: "Unauthorized: only the buyer can request a refund" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -124,6 +130,14 @@ export async function handler(req: Request): Promise<Response> {
     // ========================================================================
     // STEP 3: Verify payment can be refunded
     // ========================================================================
+
+    // Idempotency: already refunded
+    if (payment.payment_status === "refunded" || payment.stripe_refund_id) {
+      return new Response(
+        JSON.stringify({ error: "Payment has already been refunded" }),
+        { status: 409, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
 
     if (payment.payment_status !== "succeeded") {
       return new Response(
@@ -141,30 +155,29 @@ export async function handler(req: Request): Promise<Response> {
       );
     }
 
+    // Validate reason against Stripe enum
+    const reason = VALID_REFUND_REASONS.includes(body.reason ?? "")
+      ? body.reason!
+      : "requested_by_customer";
+
     // ========================================================================
-    // STEP 4: Create refund with Stripe
+    // STEP 4: Create refund with Stripe (P4)
+    // - refund_application_fee=true : la commission plateforme est rendue au buyer
+    // - reverse_transfer=true       : le transfert au seller est reversé
+    // Stripe Connect (transfer_data) requiert ces deux flags pour annuler
+    // proprement à la fois la portion seller et la commission plateforme.
     // ========================================================================
 
     const refundResponse = await callStripeAPI("/refunds", "POST", {
       charge: payment.stripe_charge_id,
-      reason: body.reason || "requested_by_customer",
-      metadata: {
-        payment_id: body.paymentId,
-        reason: body.reason,
-        refunded_by: user.id,
-        refunded_at: new Date().toISOString(),
-      },
+      reason,
+      refund_application_fee: "true",
+      reverse_transfer: "true",
+      "metadata[payment_id]": body.paymentId,
+      "metadata[reason]": reason,
+      "metadata[refunded_by]": user.id,
+      "metadata[refunded_at]": new Date().toISOString(),
     });
-
-    if (refundResponse.error) {
-      return new Response(
-        JSON.stringify({
-          error: "Failed to create refund in Stripe",
-          details: refundResponse.error.message,
-        }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
 
     // ========================================================================
     // STEP 5: Update payment record in database

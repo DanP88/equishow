@@ -8,6 +8,7 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { boxReservationsStore, userStore, notificationsStore } from '../data/store';
 import { Notification } from '../types/notification';
+import { getAuthToken } from '../utils/supabaseAuth';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -51,19 +52,24 @@ export default function PendingBoxPaymentsScreen() {
         return;
       }
 
-      // Appeler l'Edge Function pour créer une session de paiement Stripe
+      const userToken = await getAuthToken();
+      if (!userToken) {
+        Alert.alert('Erreur', 'Session expirée, veuillez vous reconnecter');
+        return;
+      }
+
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/create-checkout-session`,
         {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+            'Authorization': `Bearer ${userToken}`,
+            'apikey': SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({
             type: 'box',
             reservationId: reservation.id,
-            amount: reservation.prixTotalTTC,
             description: `Box à ${reservation.lieu} du ${reservation.dateDebut.toLocaleDateString('fr-FR')} au ${reservation.dateFin.toLocaleDateString('fr-FR')}`,
           }),
         }

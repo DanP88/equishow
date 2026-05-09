@@ -24,7 +24,11 @@ async function callStripeAPI(
       "Authorization": `Bearer ${STRIPE_SECRET_KEY}`,
     },
   });
-  return response.json();
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data?.error?.message ?? `Stripe error ${response.status}`);
+  }
+  return data;
 }
 
 // ============================================================================
@@ -41,9 +45,10 @@ export async function handler(req: Request): Promise<Response> {
     const url = new URL(req.url);
     const sellerId = url.pathname.split("/").pop();
 
-    if (!sellerId) {
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    if (!sellerId || !UUID_RE.test(sellerId)) {
       return new Response(
-        JSON.stringify({ error: "Missing seller ID" }),
+        JSON.stringify({ error: "Invalid seller ID" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
@@ -79,6 +84,17 @@ export async function handler(req: Request): Promise<Response> {
         JSON.stringify({ error: "Unauthorized" }),
         { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
+    }
+
+    // AuthZ: only the seller themselves or an admin may read this status.
+    if (user.id !== sellerId) {
+      const { data: isAdmin, error: adminErr } = await supabase.rpc("is_app_admin");
+      if (adminErr || isAdmin !== true) {
+        return new Response(
+          JSON.stringify({ error: "Forbidden" }),
+          { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
     }
 
     // ========================================================================
@@ -118,24 +134,20 @@ export async function handler(req: Request): Promise<Response> {
 
     const stripeAccount = await callStripeAPI(`/accounts/${seller.stripe_account_id}`);
 
-    if (stripeAccount.error) {
-      return new Response(
-        JSON.stringify({ error: "Failed to fetch account status from Stripe" }),
-        { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
-    }
-
     // ========================================================================
     // STEP 3: Update local cache if status changed
     // ========================================================================
 
-    const requirements = stripeAccount.requirements?.pending_verification || [];
+    const stripeRequirements = stripeAccount.requirements || {};
+    const requirements = stripeRequirements.pending_verification || [];
 
     const updatedStatus = stripeAccount.charges_enabled && stripeAccount.payouts_enabled
-      ? "ready"
-      : requirements.length > 0
-        ? "pending"
-        : "restricted";
+      ? "active"
+      : stripeRequirements.disabled_reason
+        ? "restricted"
+        : requirements.length > 0
+          ? "pending"
+          : "restricted";
 
     if (
       seller.stripe_charges_enabled !== stripeAccount.charges_enabled ||
@@ -150,8 +162,8 @@ export async function handler(req: Request): Promise<Response> {
           stripe_account_status: updatedStatus,
           stripe_requirements_json: {
             pending_verification: requirements,
-            currently_due: stripeAccount.requirements?.currently_due || [],
-            eventually_due: stripeAccount.requirements?.eventually_due || [],
+            currently_due: stripeRequirements.currently_due || [],
+            eventually_due: stripeRequirements.eventually_due || [],
           },
           stripe_last_updated: new Date().toISOString(),
         })
