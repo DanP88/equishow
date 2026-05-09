@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate, MultiDatePickerModal } from '../components/DatePickerModal';
+import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { mockConcours } from '../data/mockConcours';
 import { transportsStore, userStore } from '../data/store';
 import { VILLES_POPULAIRES } from '../data/mockVilles';
@@ -222,6 +223,11 @@ export default function ProposerTransportScreen() {
     existing?.typeTransport ?? (type === 'location' ? 'location' : 'trajet');
   const [typeTransport, setTypeTransport] = useState<'trajet' | 'location'>(defaultType);
   const [adresseVan, setAdresseVan] = useState(existing?.adresseVan ?? '');
+  const [adresseVanLat, setAdresseVanLat] = useState<number | undefined>(existing?.startLat);
+  const [adresseVanLng, setAdresseVanLng] = useState<number | undefined>(existing?.startLng);
+  const [adresseArrivee, setAdresseArrivee] = useState(existing?.adresseArrivee ?? '');
+  const [adresseArriveeLat, setAdresseArriveeLat] = useState<number | undefined>(existing?.destinationLat);
+  const [adresseArriveeLng, setAdresseArriveeLng] = useState<number | undefined>(existing?.destinationLng);
   const [heureDepart, setHeureDepart] = useState(existing?.heureDepart ?? '');
 
   // Retour
@@ -265,6 +271,10 @@ export default function ProposerTransportScreen() {
     if (typeTransport === 'trajet') {
       if (!villeDepart || !villeArrivee || !dateTrajet || !nbPlaces || !prix) {
         showError('Veuillez remplir : ville de départ, ville d\'arrivée, date, nombre de places et prix.');
+        return;
+      }
+      if (!adresseArrivee.trim()) {
+        showError('Veuillez saisir l\'adresse précise d\'arrivée.');
         return;
       }
       if (!heureDepart) {
@@ -313,10 +323,16 @@ export default function ProposerTransportScreen() {
           nbPlacesTotal: nb,
           nbPlacesDisponibles: nb,
           prixHT: parseFloat(prix),
+          pricePerKm: typeTransport === 'trajet' ? parseFloat(prix) : undefined,
           concours: concours || undefined,
           description: description || undefined,
           typeTransport,
           adresseVan: adresseVan || undefined,
+          startLat: adresseVanLat,
+          startLng: adresseVanLng,
+          adresseArrivee: typeTransport === 'trajet' ? adresseArrivee.trim() || undefined : undefined,
+          destinationLat: typeTransport === 'trajet' ? adresseArriveeLat : undefined,
+          destinationLng: typeTransport === 'trajet' ? adresseArriveeLng : undefined,
           heureDepart: typeTransport === 'trajet' ? heureDepart || undefined : undefined,
           allerRetour: proposerRetour && typeTransport === 'trajet' ? true : false,
           dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
@@ -342,10 +358,16 @@ export default function ProposerTransportScreen() {
         nbPlacesTotal: nb,
         nbPlacesDisponibles: nb,
         prixHT: parseFloat(prix),
+        pricePerKm: typeTransport === 'trajet' ? parseFloat(prix) : undefined,
         concours: concours || undefined,
         description: description || undefined,
         typeTransport,
         adresseVan: adresseVan || undefined,
+        startLat: adresseVanLat,
+        startLng: adresseVanLng,
+        adresseArrivee: typeTransport === 'trajet' ? adresseArrivee.trim() || undefined : undefined,
+        destinationLat: typeTransport === 'trajet' ? adresseArriveeLat : undefined,
+        destinationLng: typeTransport === 'trajet' ? adresseArriveeLng : undefined,
         heureDepart: typeTransport === 'trajet' ? heureDepart || undefined : undefined,
         allerRetour: proposerRetour && typeTransport === 'trajet' ? true : false,
         dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
@@ -405,7 +427,7 @@ export default function ProposerTransportScreen() {
                 onPress={() => setTypeTransport('location')}
                 activeOpacity={0.8}
               >
-                <Text style={[s.typeBtnText, typeTransport === 'location' && s.typeBtnTextActive]}>🔑 Location du van seul</Text>
+                <Text style={[s.typeBtnText, typeTransport === 'location' && s.typeBtnTextActive]}>🔑 Location du transport seul</Text>
               </TouchableOpacity>
             </View>
           </Field>
@@ -421,17 +443,33 @@ export default function ProposerTransportScreen() {
           </Field>
         )}
 
+        {typeTransport === 'trajet' && (
+          <Field label="Adresse précise d'arrivée *" required hint="Ex: Haras du Pin, 61310 Exmes">
+            <AddressAutocomplete
+              value={adresseArrivee}
+              onChange={(addr, lat, lng) => {
+                setAdresseArrivee(addr);
+                setAdresseArriveeLat(lat);
+                setAdresseArriveeLng(lng);
+              }}
+              placeholder="Ex: 12 avenue du Concours, 69006 Lyon"
+            />
+          </Field>
+        )}
+
         <Field label="Date du trajet *" required>
           <DateButton label="Sélectionner une date" value={dateTrajet} onPress={() => setShowDate(true)} />
         </Field>
 
         <Field label="Adresse précise du van *" required>
-          <TextInput
-            style={s.input}
+          <AddressAutocomplete
             value={adresseVan}
-            onChangeText={setAdresseVan}
+            onChange={(addr, lat, lng) => {
+              setAdresseVan(addr);
+              setAdresseVanLat(lat);
+              setAdresseVanLng(lng);
+            }}
             placeholder="Ex: 5 rue de la Gare, 75001 Paris"
-            placeholderTextColor="#999"
           />
         </Field>
 
@@ -523,17 +561,17 @@ export default function ProposerTransportScreen() {
         )}
 
         {typeTransport === 'trajet' ? (
-          <Field label="Prix par place (€ TTC) *" required hint="Recommandé : 0,8€/km">
+          <Field label="Prix au kilomètre *" required hint="Recommandé : 0,8€/km — distance totale × ce tarif">
             <View style={f.priceRow}>
               <TextInput
                 style={[f.input, { flex: 1 }, !!prix && f.inputFilled]}
                 value={prix}
                 onChangeText={setPrix}
-                placeholder="50"
+                placeholder="0.8"
                 placeholderTextColor={Colors.textTertiary}
                 keyboardType="decimal-pad"
               />
-              <View style={f.priceUnit}><Text style={f.priceUnitText}>€ TTC</Text></View>
+              <View style={f.priceUnit}><Text style={f.priceUnitText}>€/km</Text></View>
             </View>
           </Field>
         ) : (
@@ -681,7 +719,7 @@ export default function ProposerTransportScreen() {
 
             {typeTransport === 'location' && (
               <View style={s.confirmationHint}>
-                <Text style={s.confirmationHintText}>📍 Trouvez-la dans Transport > Van seul</Text>
+                <Text style={s.confirmationHintText}>📍 Trouvez-la dans Transport {'>'} Transport seul</Text>
               </View>
             )}
 

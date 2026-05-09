@@ -90,16 +90,23 @@ export interface TransportAnnonce {
   description?: string;
   // Nouveaux champs pour transport
   typeTransport?: 'trajet' | 'location'; // trajet classique ou location de van
-  adresseVan?: string; // Adresse précise du van
+  adresseVan?: string;
+  adresseArrivee?: string;
   heureDepart?: string; // Heure du départ (ex: "14:30")
   allerRetour?: boolean; // true si aller-retour, false si aller simple
   dateRetour?: Date; // Date du retour si allerRetour
   // Champs pour location du van
-  kmInclus?: number; // Nombre de kilomètres inclus dans le tarif journalier
-  tarifKmSupplémentaire?: number; // Tarif par km supplémentaire
-  cautionRéparation?: number; // Montant de la caution réparation
-  cautionNettoyage?: number; // Montant de la caution nettoyage
-  datesDisponibles?: Date[]; // Dates où le van est disponible
+  kmInclus?: number;
+  tarifKmSupplémentaire?: number;
+  cautionRéparation?: number;
+  cautionNettoyage?: number;
+  datesDisponibles?: Date[];
+  // Route pricing (trajets)
+  pricePerKm?: number;
+  startLat?: number;
+  startLng?: number;
+  destinationLat?: number;
+  destinationLng?: number;
 }
 
 export interface BoxAnnonce {
@@ -201,7 +208,7 @@ export interface StageReservation {
   nombreParticipants: number;
   prixTotal: number;
   message: string;
-  statut: 'pending' | 'accepted' | 'rejected';
+  statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
   dateReservation: Date;
 }
 
@@ -226,7 +233,7 @@ export interface CourseDemande {
   message: string;
   prixParJour: number;
   prix: number;
-  statut: 'pending' | 'accepted' | 'rejected';
+  statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
   dateCreation: Date;
 }
 
@@ -262,6 +269,21 @@ export interface TransportReservation {
   prixTotalTTC: number;
   statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
   dateCreation: Date;
+  // Route pricing snapshot (optionnel — rempli si le calcul a été fait)
+  pickupAddress?: string;
+  pickupLat?: number;
+  pickupLng?: number;
+  pickupSource?: 'manual' | 'geolocation';
+  distanceOwnerToPickupKm?: number;
+  distancePickupToDestinationKm?: number;
+  totalDistanceKm?: number;
+  estimatedDurationMinutes?: number;
+  pricePerKmSnapshot?: number;
+  calculatedTransportPrice?: number;
+  finalPrice?: number;
+  routeProvider?: string;
+  routeSnapshotJson?: unknown;
+  routePricingStatus?: 'pending' | 'calculated' | 'skipped';
 }
 
 export interface BoxReservation {

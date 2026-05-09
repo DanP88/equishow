@@ -1,121 +1,249 @@
-import { useEffect, useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
+import { useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../../constants/theme';
-import { supabase, User } from '../../lib/supabase';
+import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
+import { coachesStore, userStore, getAvisMoyenne } from '../../data/store';
 import { AvisSection } from '../../components/AvisSection';
+import { useFollow } from '../../hooks/useFollow';
 
 export default function ViewCoachScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const [coach, setCoach] = useState<User | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    if (!id) {
-      setIsLoading(false);
-      return;
-    }
-
-    const load = async () => {
-      try {
-        const { data } = await supabase
-          .from('users')
-          .select('*')
-          .eq('id', id)
-          .single();
-        setCoach(data);
-      } catch (err) {
-        console.error(err);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    load();
-  }, [id]);
-
-  if (isLoading) {
-    return (
-      <SafeAreaView style={s.root}>
-        <View style={s.center}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-        </View>
-      </SafeAreaView>
-    );
-  }
+  const coach = coachesStore.list.find(c => c.auteurId === id || c.id === id);
 
   if (!coach) {
     return (
       <SafeAreaView style={s.root}>
         <View style={s.center}>
-          <Text>Coach non trouvé</Text>
+          <Text style={{ color: Colors.textTertiary, marginBottom: 16 }}>Coach non trouvé</Text>
           <TouchableOpacity onPress={() => router.back()}>
-            <Text style={{ color: Colors.primary, marginTop: 16 }}>← Retour</Text>
+            <Text style={{ color: Colors.primary }}>← Retour</Text>
           </TouchableOpacity>
         </View>
       </SafeAreaView>
     );
   }
 
+  const coachUserId = coach.auteurId ?? coach.id;
+  const isOwnProfile = coachUserId === userStore.id;
+  const avgRating = getAvisMoyenne(coachUserId);
+
   return (
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={s.container}>
         <TouchableOpacity onPress={() => router.back()}>
-          <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '600' }}>← Retour</Text>
+          <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '600', marginBottom: 16 }}>← Retour</Text>
         </TouchableOpacity>
 
-        <View style={s.header}>
-          <View style={s.avatar}>
-            <Text style={{ fontSize: 40 }}>🎓</Text>
+        {/* Hero */}
+        <View style={s.hero}>
+          <View style={[s.avatar, { backgroundColor: coach.couleur }]}>
+            <Text style={s.avatarText}>{coach.initiales}</Text>
           </View>
           <Text style={s.name}>{coach.prenom} {coach.nom}</Text>
           <Text style={s.pseudo}>@{coach.pseudo}</Text>
+          {!coach.disponible && (
+            <View style={s.indispoBadge}><Text style={s.indispoText}>Indisponible</Text></View>
+          )}
+          {avgRating > 0 && (
+            <Text style={s.ratingText}>⭐ {avgRating.toFixed(1)} / 5</Text>
+          )}
+
+          {/* Follow button */}
+          {!isOwnProfile && <FollowButton targetId={coachUserId} />}
         </View>
 
-        <View style={s.statsBox}>
-          <StatItem value="5" label="Élèves en coaching" icon="🐴" />
-          <StatItem value="12" label="Élèves passé" icon="✓" />
-          <StatItem value="48" label="Séances" icon="📅" />
+        {/* Stats */}
+        <FollowStats targetId={coachUserId} />
+
+        {/* Infos */}
+        <View style={s.section}>
+          <Text style={s.sectionTitle}>Infos</Text>
+          {coach.region && <InfoRow label="Région" value={coach.region} />}
+          {coach.disciplines && coach.disciplines.length > 0 && (
+            <InfoRow label="Disciplines" value={coach.disciplines.join(', ')} />
+          )}
+          {coach.niveaux && coach.niveaux.length > 0 && (
+            <InfoRow label="Niveaux" value={coach.niveaux.join(', ')} />
+          )}
+          <InfoRow label="Tarif" value={`${coach.tarifHeure}€/h HT`} />
+          {coach.specialites && coach.specialites.length > 0 && (
+            <InfoRow label="Spécialités" value={coach.specialites.join(', ')} />
+          )}
         </View>
 
-        {id && <AvisSection userId={id} />}
-
-        <View style={s.infoSection}>
-          <Text style={s.infoTitle}>Infos</Text>
-          <View style={s.infoContent}>
-            <Text style={{ color: Colors.textSecondary }}>Région: <Text style={{ fontWeight: 'bold', color: Colors.textPrimary }}>{coach.region || 'N/A'}</Text></Text>
-            <Text style={{ color: Colors.textSecondary, marginTop: 8 }}>Tarif: <Text style={{ fontWeight: 'bold', color: Colors.textPrimary }}>65€/h HT</Text></Text>
+        {/* Bio */}
+        {coach.bio ? (
+          <View style={s.section}>
+            <Text style={s.sectionTitle}>À propos</Text>
+            <Text style={s.bioText}>{coach.bio}</Text>
           </View>
-        </View>
+        ) : null}
+
+        {/* CTA */}
+        {!isOwnProfile && (
+          <TouchableOpacity
+            style={s.ctaBtn}
+            onPress={() => router.push({
+              pathname: '/messagerie',
+              params: {
+                otherId: coachUserId,
+                otherNom: `${coach.prenom} ${coach.nom}`,
+                otherPseudo: coach.pseudo,
+                otherCouleur: coach.couleur,
+                otherInitiales: coach.initiales,
+                sujet: `🎓 Coach ${coach.prenom} ${coach.nom}`,
+              },
+            } as any)}
+          >
+            <Text style={s.ctaBtnText}>💬 Contacter ce coach</Text>
+          </TouchableOpacity>
+        )}
+
+        {/* Avis */}
+        <AvisSection userId={coachUserId} />
+
+        <View style={{ height: 40 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
-function StatItem({ value, label, icon }: { value: string; label: string; icon: string }) {
+function FollowButton({ targetId }: { targetId: string }) {
+  const { following, toggle } = useFollow(targetId);
   return (
-    <View style={{ flex: 1, alignItems: 'center' }}>
-      <Text style={{ fontSize: 24, marginBottom: 4 }}>{icon}</Text>
-      <Text style={{ fontSize: 18, fontWeight: 'bold', color: Colors.primary }}>{value}</Text>
-      <Text style={{ fontSize: 11, color: Colors.textSecondary, textAlign: 'center', marginTop: 4 }}>{label}</Text>
+    <TouchableOpacity
+      style={[s.followBtn, following && s.followBtnActive]}
+      onPress={toggle}
+      activeOpacity={0.8}
+    >
+      <Text style={[s.followBtnText, following && s.followBtnTextActive]}>
+        {following ? '✓ Abonné' : '+ Suivre'}
+      </Text>
+    </TouchableOpacity>
+  );
+}
+
+function FollowStats({ targetId }: { targetId: string }) {
+  const { followersCount, followingCount } = useFollow(targetId);
+  return (
+    <View style={s.followStats}>
+      <View style={s.followStatItem}>
+        <Text style={s.followStatNum}>{followersCount}</Text>
+        <Text style={s.followStatLabel}>Abonnés</Text>
+      </View>
+      <View style={s.followStatDivider} />
+      <View style={s.followStatItem}>
+        <Text style={s.followStatNum}>{followingCount}</Text>
+        <Text style={s.followStatLabel}>Abonnements</Text>
+      </View>
+    </View>
+  );
+}
+
+function InfoRow({ label, value }: { label: string; value: string }) {
+  return (
+    <View style={s.infoRow}>
+      <Text style={s.infoLabel}>{label}</Text>
+      <Text style={s.infoValue}>{value}</Text>
     </View>
   );
 }
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
-  container: { padding: 16, paddingBottom: 100 },
+  container: { padding: Spacing.lg, paddingBottom: 100 },
   center: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-
-  header: { alignItems: 'center', marginVertical: 20, gap: 8 },
-  avatar: { width: 80, height: 80, borderRadius: 40, backgroundColor: Colors.primary, justifyContent: 'center', alignItems: 'center' },
-  name: { fontSize: 24, fontWeight: 'bold', color: Colors.textPrimary },
-  pseudo: { fontSize: 14, color: Colors.primary },
-
-  statsBox: { flexDirection: 'row', gap: 12, marginBottom: 20, backgroundColor: Colors.surface, padding: 16, borderRadius: 12, borderWidth: 1, borderColor: Colors.border },
-
-  infoSection: { backgroundColor: Colors.surface, borderRadius: 12, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden' },
-  infoTitle: { padding: 16, fontSize: 12, fontWeight: 'bold', color: Colors.textTertiary, textTransform: 'uppercase' },
-  infoContent: { paddingHorizontal: 16, paddingBottom: 16 },
+  hero: {
+    alignItems: 'center',
+    paddingVertical: Spacing.xl,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+    gap: 6,
+  },
+  avatar: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: 4,
+  },
+  avatarText: { fontSize: 32, fontWeight: FontWeight.extrabold, color: '#fff' },
+  name: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
+  pseudo: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold },
+  indispoBadge: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 3 },
+  indispoText: { fontSize: FontSize.xs, color: Colors.textTertiary },
+  ratingText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#92400E' },
+  followBtn: {
+    marginTop: 4,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.lg,
+    backgroundColor: Colors.primary,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  followBtnActive: { backgroundColor: 'transparent', borderColor: Colors.border },
+  followBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
+  followBtnTextActive: { color: Colors.textSecondary },
+  followStats: {
+    flexDirection: 'row',
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+    padding: Spacing.lg,
+    justifyContent: 'center',
+    gap: 0,
+  },
+  followStatItem: { flex: 1, alignItems: 'center' },
+  followStatDivider: { width: 1, backgroundColor: Colors.border, marginHorizontal: Spacing.lg },
+  followStatNum: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.primary },
+  followStatLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  section: {
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    marginBottom: Spacing.md,
+    overflow: 'hidden',
+  },
+  sectionTitle: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.textTertiary,
+    textTransform: 'uppercase',
+    letterSpacing: 0.5,
+    paddingHorizontal: Spacing.lg,
+    paddingTop: Spacing.lg,
+    paddingBottom: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingHorizontal: Spacing.lg,
+    paddingVertical: Spacing.sm,
+    borderBottomWidth: 1,
+    borderBottomColor: Colors.border,
+  },
+  infoLabel: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  infoValue: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary, maxWidth: '60%', textAlign: 'right' },
+  bioText: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 22, padding: Spacing.lg },
+  ctaBtn: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.xl,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    marginBottom: Spacing.md,
+  },
+  ctaBtnText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: '#fff' },
 });

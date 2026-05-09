@@ -56,6 +56,7 @@ export default function ReserverCoachScreen() {
   const [cheval, setCheval] = useState('');
   const [message, setMessage] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [reservationRef, setReservationRef] = useState<string>('');
   const [loading, setLoading] = useState(false);
 
   // Nombre de jours sélectionnés
@@ -78,7 +79,7 @@ export default function ReserverCoachScreen() {
     }
   };
 
-  async function submit() {
+  const submit = async () => {
     try {
       console.log('🟢 Submit called');
 
@@ -155,6 +156,9 @@ export default function ReserverCoachScreen() {
         return;
       }
 
+      const reference = `EQ-CSH-${demand.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
+      setReservationRef(reference);
+
       // 2. La demande est créée, en attente de validation du coach
       console.log('✅ Demande créée, en attente de validation du coach');
 
@@ -205,7 +209,6 @@ export default function ReserverCoachScreen() {
         donnees: {
           annonceId: annonce.id,
           annonceTitre: annonce.titre,
-          concoursNom: annonce.concours,
           prix: prixTTCTotal,
           message: message.trim(),
         },
@@ -404,6 +407,12 @@ export default function ReserverCoachScreen() {
                 <Text style={s.detailIcon}>💳</Text>
                 <Text style={s.detailText}>{prixTTCTotal}€ TTC</Text>
               </View>
+              {reservationRef ? (
+                <View style={s.detailRow}>
+                  <Text style={s.detailIcon}>🔖</Text>
+                  <Text style={[s.detailText, { color: Colors.primary, fontWeight: FontWeight.bold }]}>{reservationRef}</Text>
+                </View>
+              ) : null}
             </View>
 
             {/* Boutons */}

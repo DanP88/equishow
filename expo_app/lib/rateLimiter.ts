@@ -12,7 +12,6 @@
  */
 
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { supabase } from './supabase';
 
 interface RateLimitConfig {
   maxAttempts: number;
@@ -166,32 +165,13 @@ export class RateLimiter {
   }
 
   /**
-   * Record a failed attempt and check with server
+   * Record a failed attempt (increments local counter)
    */
-  async recordFailure(identifier: string): Promise<void> {
-    // This is called after a failed authentication attempt
-    // Could trigger CAPTCHA or other security measures
-    console.warn(`${this.action} failed for ${identifier}`);
-
+  async recordFailure(_identifier: string): Promise<void> {
     const record = await this.getRecord();
     record.count += 1;
+    record.lastAttempt = Date.now();
     await this.setRecord(record);
-
-    // Log to server for security monitoring
-    try {
-      await supabase
-        .from('security_events')
-        .insert({
-          event_type: 'rate_limit_failure',
-          action: this.action,
-          identifier,
-          attempt_count: record.count,
-          created_at: new Date().toISOString(),
-        })
-        .single();
-    } catch (error) {
-      console.error('Error logging security event:', error);
-    }
   }
 
   /**
@@ -265,18 +245,6 @@ export async function checkMultipleLimits(
     allowed: results.every((r) => r.allowed),
     messages,
   };
-}
-
-/**
- * Reset all rate limiters (for testing)
- */
-export async function resetAllLimiters(): Promise<void> {
-  await Promise.all([
-    loginLimiter.reset(),
-    signupLimiter.reset(),
-    passwordResetLimiter.reset(),
-    apiLimiter.reset(),
-  ]);
 }
 
 export default RateLimiter;

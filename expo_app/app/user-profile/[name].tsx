@@ -5,6 +5,8 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
+import { userStore } from '../../data/store';
+import { useFollow } from '../../hooks/useFollow';
 
 interface UserProfile {
   name: string;
@@ -20,6 +22,24 @@ interface UserProfile {
     date: Date;
     likes: number;
   }>;
+}
+
+// Map display names → stable user IDs (pour le système followers)
+const NAME_TO_ID: Record<string, string> = {
+  'Émilie Laurent': '550e8400-e29b-41d4-a716-446655440002',
+  'Marc Dubois': '550e8400-e29b-41d4-a716-446655440004',
+  'Sophie Martin': '550e8400-e29b-41d4-a716-446655440005',
+  'Julien Mercier': '550e8400-e29b-41d4-a716-446655440003',
+  'Sarah Lefebvre': '550e8400-e29b-41d4-a716-446655440001',
+  'Sophie Dupont': '550e8400-e29b-41d4-a716-446655440099',
+  'Marie Dupont': 'user_marie',
+  'Thomas Renard': 'user_thomas',
+  'Pierre Morel': 'user_pierre',
+  'Lucie Bernard': 'user_lucie',
+};
+
+function nameToId(name: string): string {
+  return NAME_TO_ID[name] ?? `uid_${name.replace(/\s+/g, '_').toLowerCase()}`;
 }
 
 const USERNAME_MAP: Record<string, string> = {
@@ -175,9 +195,9 @@ const USERS_MAP: Record<string, UserProfile> = {
       },
     ],
   },
-  'Émilie Laurent': {
-    name: 'Émilie Laurent',
-    initiales: 'EL',
+  'Camille Lefebvre': {
+    name: 'Camille Lefebvre',
+    initiales: 'CL',
     couleur: '#7C3AED',
     role: 'Cavalier',
     location: 'Bron, France',
@@ -266,6 +286,10 @@ export default function UserProfileScreen() {
   const userProfile = USERS_MAP[decodedName] || (decodedName ? generateUserProfile(decodedName) : null);
   const [liked, setLiked] = useState<Record<string, boolean>>({});
 
+  const targetId = nameToId(decodedName);
+  const isOwnProfile = targetId === userStore.id;
+  const { following, toggle, followersCount, followingCount } = useFollow(targetId);
+
   if (!userProfile) {
     return (
       <SafeAreaView style={styles.root}>
@@ -300,12 +324,36 @@ export default function UserProfileScreen() {
           <Text style={styles.role}>{userProfile.role}</Text>
           <Text style={styles.location}>📍 {userProfile.location}</Text>
 
+          {/* Follow button */}
+          {!isOwnProfile && (
+            <TouchableOpacity
+              style={[styles.followBtn, following && styles.followBtnActive]}
+              onPress={toggle}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
+                {following ? '✓ Abonné' : '+ Suivre'}
+              </Text>
+            </TouchableOpacity>
+          )}
+
           {/* Stats inline */}
           <View style={styles.statsRow}>
+            <View style={styles.statItem}>
+              <Text style={styles.statNum}>{followersCount}</Text>
+              <Text style={styles.statLabel}>Abonnés</Text>
+            </View>
+            <View style={styles.statDivider} />
+            <View style={styles.statItem}>
+              <Text style={styles.statNum}>{followingCount}</Text>
+              <Text style={styles.statLabel}>Abonnements</Text>
+            </View>
+            <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statNum}>{userProfile.chevaux}</Text>
               <Text style={styles.statLabel}>Chevaux</Text>
             </View>
+            <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statNum}>{userProfile.concours}</Text>
               <Text style={styles.statLabel}>Concours</Text>
@@ -404,19 +452,47 @@ const styles = StyleSheet.create({
     color: Colors.textTertiary,
     marginBottom: Spacing.md,
   },
+  followBtn: {
+    marginTop: Spacing.md,
+    paddingHorizontal: Spacing.xl,
+    paddingVertical: Spacing.sm,
+    borderRadius: Radius.lg,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+    backgroundColor: Colors.primary,
+  },
+  followBtnActive: {
+    backgroundColor: 'transparent',
+    borderColor: Colors.border,
+  },
+  followBtnText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: '#fff',
+  },
+  followBtnTextActive: {
+    color: Colors.textSecondary,
+  },
   statsRow: {
     flexDirection: 'row',
-    gap: Spacing.lg,
+    alignItems: 'center',
     marginTop: Spacing.md,
     paddingTop: Spacing.md,
     borderTopWidth: 1,
     borderTopColor: Colors.border,
   },
+  statDivider: {
+    width: 1,
+    height: 28,
+    backgroundColor: Colors.border,
+    marginHorizontal: Spacing.md,
+  },
   statItem: {
     alignItems: 'center',
+    minWidth: 52,
   },
   statNum: {
-    fontSize: FontSize.lg,
+    fontSize: FontSize.base,
     fontWeight: FontWeight.extrabold,
     color: Colors.primary,
   },

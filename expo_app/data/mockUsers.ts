@@ -12,7 +12,7 @@ const UUID_ADMIN = '550e8400-e29b-41d4-a716-446655440006';
 export const mockUsers: Record<string, UserAuth> = {
   cavalier: {
     id: UUID_CAVALIER,
-    email: 'sarah.lefebvre@email.fr',
+    email: 'sarah.l@equishow.test',
     prenom: 'Sarah',
     nom: 'Lefebvre',
     role: 'cavalier',
@@ -34,7 +34,7 @@ export const mockUsers: Record<string, UserAuth> = {
   },
   coach: {
     id: UUID_COACH,
-    email: 'emilie.laurent@email.fr',
+    email: 'emilie.l@equishow.test',
     prenom: 'Émilie',
     nom: 'Laurent',
     role: 'coach',
@@ -45,7 +45,7 @@ export const mockUsers: Record<string, UserAuth> = {
   },
   organisateur: {
     id: UUID_ORG,
-    email: 'contact@ceclyon.fr',
+    email: 'julien.m@equishow.test',
     prenom: 'Julien',
     nom: 'Mercier',
     role: 'organisateur',
@@ -71,7 +71,7 @@ export const mockUsers: Record<string, UserAuth> = {
 export const ADDITIONAL_COACHES = {
   coach2: {
     id: UUID_COACH2,
-    email: 'marc.dubois@email.fr',
+    email: 'marc.d@equishow.test',
     prenom: 'Marc',
     nom: 'Dubois',
     role: 'coach' as const,
@@ -82,7 +82,7 @@ export const ADDITIONAL_COACHES = {
   },
   coach3: {
     id: UUID_COACH3,
-    email: 'sophie.laurent@email.fr',
+    email: 'sophie.l@equishow.test',
     prenom: 'Sophie',
     nom: 'Laurent',
     role: 'coach' as const,
@@ -121,47 +121,57 @@ export function getUserById(id: string): {
   };
 }
 
-export const TEST_ACCOUNTS = [
-  {
-    accountKey: 'cavalier' as const,
-    role: 'cavalier' as const,
-    email: 'sarah.lefebvre@email.fr',
-    password: 'test123',
-    label: 'Sarah Lefebvre',
-    icon: '🏇',
-    description: 'Cavalier test #1',
-  },
-  {
-    accountKey: 'cavalier2' as const,
-    role: 'cavalier' as const,
-    email: 'cavalier2@equishow.test',
-    password: 'test123',
-    label: 'Sophie Dupont',
-    icon: '🏇',
-    description: 'Cavalier test #2 - Annonces: Trajet, Van, Box',
-  },
-  {
-    accountKey: 'coach' as const,
-    role: 'coach' as const,
-    email: 'emilie.laurent@email.fr',
-    password: 'test123',
-    label: 'Émilie Laurent',
-    icon: '🎓',
-  },
-  {
-    accountKey: 'organisateur' as const,
-    role: 'organisateur' as const,
-    email: 'contact@ceclyon.fr',
-    password: 'test123',
-    label: 'Club Équestre de Lyon',
-    icon: '🏟️',
-  },
-  {
-    accountKey: 'admin' as const,
-    role: 'admin' as const,
-    email: 'admin@equishow.fr',
-    password: 'admin123',
-    label: 'Admin Equishow',
-    icon: '⚙️',
-  },
-];
+type TestAccount = {
+  accountKey: 'cavalier' | 'cavalier2' | 'coach' | 'organisateur' | 'admin';
+  role: 'cavalier' | 'coach' | 'organisateur' | 'admin';
+  email: string;
+  label: string;
+  icon: string;
+  description?: string;
+};
+
+// Comptes de test : disponibles uniquement en build de développement.
+// En build production le tableau est vide → boutons "Comptes de test" et
+// shortcut login admin/coach disparaissent du bundle, et tout appel à
+// userStore.switchAccount(...) deviendra un no-op (cf. data/store.ts).
+export const TEST_ACCOUNTS: TestAccount[] = __DEV__
+  ? [
+      {
+        accountKey: 'cavalier',
+        role: 'cavalier',
+        email: 'sarah.l@equishow.test',
+        label: 'Sarah Lefebvre',
+        icon: '🏇',
+        description: 'Cavalier test #1',
+      },
+      {
+        accountKey: 'cavalier2',
+        role: 'cavalier',
+        email: 'cavalier2@equishow.test',
+        label: 'Sophie Dupont',
+        icon: '🏇',
+        description: 'Cavalier test #2 - Annonces: Trajet, Van, Box',
+      },
+      {
+        accountKey: 'coach',
+        role: 'coach',
+        email: 'emilie.l@equishow.test',
+        label: 'Émilie Laurent',
+        icon: '🎓',
+      },
+      {
+        accountKey: 'organisateur',
+        role: 'organisateur',
+        email: 'julien.m@equishow.test',
+        label: 'Club Équestre de Lyon',
+        icon: '🏟️',
+      },
+      {
+        accountKey: 'admin',
+        role: 'admin',
+        email: 'admin@equishow.fr',
+        label: 'Admin Equishow',
+        icon: '⚙️',
+      },
+    ]
+  : [];

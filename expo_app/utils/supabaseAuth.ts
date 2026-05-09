@@ -15,24 +15,13 @@ export async function getAuthToken(): Promise<string | null> {
     const { data, error } = await supabase.auth.getSession();
 
     if (error || !data.session) {
-      console.warn("No active session found - using development token");
-      // Development: return a mock token
-      // In production, this should fail and require actual authentication
-      if (process.env.NODE_ENV === 'development' || true) {
-        // Create a simple development token
-        const devToken = "dev_token_" + Date.now();
-        console.log("✅ Using development token:", devToken);
-        return devToken;
-      }
       return null;
     }
 
     return data.session.access_token;
   } catch (err) {
     console.error("Error getting auth token:", err);
-    // Fallback to development token in case of error
-    console.log("⚠️ Falling back to development token due to error");
-    return "dev_token_" + Date.now();
+    return null;
   }
 }
 

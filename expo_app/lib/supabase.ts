@@ -1,5 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import Constants from 'expo-constants';
 import { AppError } from './errorHandler';
 
 // Get credentials from environment variables
@@ -19,7 +18,7 @@ export const supabase = createClient(
     auth: {
       persistSession: true,
       autoRefreshToken: true,
-      detectSessionInUrl: false,
+      detectSessionInUrl: true,
     },
     realtime: {
       params: {
@@ -36,7 +35,7 @@ export type User = {
   prenom: string;
   nom: string;
   pseudo: string;
-  role: 'cavalier' | 'coach' | 'organisateur';
+  role: 'cavalier' | 'coach' | 'organisateur' | 'admin';
   plan: string;
   region?: string;
   avatar_color?: string;
@@ -159,8 +158,10 @@ export const signUp = async (
 
     if (dbError) throw dbError;
 
-    // Note: Full user profile is fetched from database, not auth
-    return { user: null, error: null };
+    const { data: profileData, error: profileError } = await getUserProfile(user.id);
+    if (profileError) throw profileError;
+
+    return { user: profileData, error: null };
   } catch (err: unknown) {
     console.error('❌ Sign up error:', err);
     const error = err instanceof AppError
@@ -181,9 +182,12 @@ export const signIn = async (email: string, password: string): Promise<{ user: U
     });
 
     if (error) throw error;
+    if (!user) throw new Error('No user returned from sign in');
 
-    // Note: Full user profile is fetched from database, not auth
-    return { user: null, error: null };
+    const { data: profileData, error: profileError } = await getUserProfile(user.id);
+    if (profileError) throw profileError;
+
+    return { user: profileData, error: null };
   } catch (err: unknown) {
     console.error('❌ Sign in error:', err);
     const error = err instanceof AppError

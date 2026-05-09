@@ -6,21 +6,20 @@ import {
   TouchableOpacity,
   Modal,
   TextInput,
-  ScrollView,
   ActivityIndicator,
   FlatList,
 } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../constants/theme';
 import { useAvis, Avis } from '../hooks/useAvis';
-import { useAuth } from '../hooks/useAuth';
+import { userStore } from '../data/store';
 
 interface AvisSectionProps {
   userId: string;
 }
 
 export function AvisSection({ userId }: AvisSectionProps) {
-  const { profile } = useAuth();
+  const currentUserId = userStore.id;
   const { avis, isLoading, averageRating, totalReviews, createAvis, deleteAvis } = useAvis(userId);
   const [showForm, setShowForm] = useState(false);
   const [rating, setRating] = useState(5);
@@ -28,8 +27,6 @@ export function AvisSection({ userId }: AvisSectionProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async () => {
-    if (!profile) return;
-
     setIsSubmitting(true);
     try {
       const { error } = await createAvis(userId, rating, comment);
@@ -43,8 +40,8 @@ export function AvisSection({ userId }: AvisSectionProps) {
     }
   };
 
-  const canCreateReview = profile?.id !== userId;
-  const userReview = avis.find((a) => a.auteur_id === profile?.id);
+  const canCreateReview = currentUserId !== userId;
+  const userReview = avis.find((a) => a.auteur_id === currentUserId);
 
   return (
     <>
@@ -78,7 +75,7 @@ export function AvisSection({ userId }: AvisSectionProps) {
             renderItem={({ item }) => (
               <AvisCard
                 avis={item}
-                canDelete={profile?.id === item.auteur_id}
+                canDelete={currentUserId === item.auteur_id}
                 onDelete={() => deleteAvis(item.id)}
               />
             )}

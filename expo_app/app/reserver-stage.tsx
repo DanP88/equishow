@@ -1,23 +1,24 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal,
+  TextInput, Alert, Modal, ActivityIndicator, Platform, Linking,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { coachStagesStore, userStore, notificationsStore, stageReservationsStore } from '../data/store';
-import { CoachStage, StageReservation } from '../types/service';
-import { Notification } from '../types/notification';
+import { coachStagesStore, userStore } from '../data/store';
+import { supabase } from '../lib/supabase';
+import { getAuthToken } from '../utils/supabaseAuth';
 
 export default function ReserverStageScreen() {
   const { stageId } = useLocalSearchParams<{ stageId: string }>();
   const stage = coachStagesStore.list.find((s) => s.id === stageId);
 
   const [showDetailsModal, setShowDetailsModal] = useState(true);
-  const [showConfirmation, setShowConfirmation] = useState(false);
   const [nombreParticipants, setNombreParticipants] = useState('1');
   const [message, setMessage] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [reservationRef, setReservationRef] = useState<string | null>(null);
 
   if (!stage) {
     return (
@@ -35,7 +36,7 @@ export default function ReserverStageScreen() {
   const nbParticipants = parseInt(nombreParticipants) || 1;
   const prixTotal = stage.prixTTC * nbParticipants;
 
-  function handleInscription() {
+  const handleInscription = async () => {
     if (nbParticipants > stage.placesDisponibles) {
       Alert.alert('Erreur', `Seulement ${stage.placesDisponibles} place(s) disponible(s)`);
       return;
@@ -44,76 +45,66 @@ export default function ReserverStageScreen() {
       Alert.alert('Erreur', 'Veuillez sélectionner au moins 1 participant');
       return;
     }
-    setShowDetailsModal(false);
-    setShowConfirmation(true);
-  }
 
-  function handleConfirmation() {
-    // Créer la réservation
-    const reservation = {
-      id: `res_stage_${Date.now()}`,
-      stageId: stage.id,
-      cavalierNom: userStore.nom,
-      cavalierPseudo: userStore.pseudo,
-      nombreParticipants: nbParticipants,
-      prixTotal,
-      message,
-      dateReservation: new Date(),
-    };
+    setLoading(true);
+    try {
+      // 1. Insert la réservation en DB
+      const { data: reservation, error: dbError } = await supabase
+        .from('stage_reservations')
+        .insert({
+          stage_id: stage.id,
+          coach_id: stage.auteurId,
+          cavalier_id: userStore.id,
+          nombre_participants: nbParticipants,
+          prix_total_ttc: Math.round(prixTotal * 100),
+          message: message.trim() || null,
+          statut: 'pending',
+        })
+        .select('id')
+        .single();
 
-    // Créer et envoyer la notification au coach
-    const notification: Notification = {
-      id: `notif_${Date.now()}`,
-      type: 'stage_reservation',
-      titre: '📚 Nouvelle inscription à un stage',
-      message: `${userStore.prenom} ${userStore.nom} s'est inscrit(e) à votre stage "${stage.titre}"`,
-      lu: false,
-      status: 'pending',
-      dateCreation: new Date(),
-      destinataireId: stage.auteurId,
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: userStore.prenom.charAt(0) + userStore.nom.charAt(0),
-      auteurCouleur: userStore.avatarColor,
-      lien: `/(tabs)/coach-stages`,
-      donnees: {
-        stageId: stage.id,
-        stageTitre: stage.titre,
-        nombreParticipants: nbParticipants,
-        prixTotal,
-        message,
-      },
-    };
+      if (dbError || !reservation) {
+        Alert.alert('Erreur', 'Impossible de créer la réservation.');
+        return;
+      }
 
-    // Créer une réservation de stage
-    const stageReservation: StageReservation = {
-      id: `res_${Date.now()}`,
-      stageId: stage.id,
-      stageTitre: stage.titre,
-      coachId: stage.auteurId,
-      coachNom: stage.auteurNom,
-      cavalierNom: userStore.nom,
-      cavalierPseudo: userStore.pseudo,
-      cavalierInitiales: userStore.prenom.charAt(0) + userStore.nom.charAt(0),
-      cavalierCouleur: userStore.avatarColor,
-      cavalierUserId: userStore.id,
-      nombreParticipants: nbParticipants,
-      prixTotal,
-      message,
-      statut: 'pending',
-      dateReservation: new Date(),
-    };
+      const reference = `EQ-STG-${reservation.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
+      setReservationRef(reference);
 
-    // Ajouter la notification et la réservation au store
-    notificationsStore.list.push(notification);
-    stageReservationsStore.list.push(stageReservation);
+      // 2. Créer la session Stripe Checkout
+      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl) throw new Error('Configuration manquante.');
 
-    console.log('📬 Notification envoyée au coach:', stage.auteurNom);
-    console.log('Réservation créée:', stageReservation);
+      const token = await getAuthToken();
+      const resp = await fetch(`${supabaseUrl}/functions/v1/create-checkout-session`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify({
+          type: 'stage',
+          reservationId: reservation.id,
+          amount: prixTotal,
+          description: `Stage "${stage.titre}" · ${nbParticipants} participant${nbParticipants > 1 ? 's' : ''}`,
+        }),
+      });
 
-    setShowConfirmation(false);
-    router.push('/(tabs)/services?tab=coach' as any);
+      const data = await resp.json();
+      if (!resp.ok || !data.checkoutUrl) throw new Error(data.error || 'Erreur Stripe');
+
+      setShowDetailsModal(false);
+
+      if (Platform.OS === 'web') {
+        window.location.href = data.checkoutUrl;
+      } else {
+        await Linking.openURL(data.checkoutUrl);
+      }
+    } catch (err: any) {
+      Alert.alert('Erreur', err.message || 'Impossible de démarrer le paiement.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -266,8 +257,23 @@ export default function ReserverStageScreen() {
                 <Text style={s.priceValue}>{prixTotal}€ TTC</Text>
               </View>
 
-              <TouchableOpacity style={s.submitBtn} onPress={handleInscription}>
-                <Text style={s.submitText}>Procéder au paiement</Text>
+              {reservationRef ? (
+                <View style={s.refBox}>
+                  <Text style={s.refBoxLabel}>Votre référence</Text>
+                  <Text style={s.refBoxValue}>{reservationRef}</Text>
+                  <Text style={s.refBoxHint}>Conservez ce numéro pour le suivi de votre réservation.</Text>
+                </View>
+              ) : null}
+
+              <TouchableOpacity
+                style={[s.submitBtn, loading && { opacity: 0.6 }]}
+                onPress={handleInscription}
+                disabled={loading}
+              >
+                {loading
+                  ? <ActivityIndicator color={Colors.textInverse} />
+                  : <Text style={s.submitText}>Procéder au paiement</Text>
+                }
               </TouchableOpacity>
 
               <View style={{ height: 20 }} />
@@ -276,52 +282,6 @@ export default function ReserverStageScreen() {
         </View>
       </Modal>
 
-      {/* Modal confirmation */}
-      <Modal visible={showConfirmation} transparent animationType="fade">
-        <View style={s.confirmBackdrop}>
-          <View style={s.confirmCard}>
-            <Text style={s.confirmIcon}>✅</Text>
-
-            <Text style={s.confirmTitle}>Inscription confirmée !</Text>
-
-            <Text style={s.confirmMessage}>
-              Le coach a reçu votre demande d'inscription
-            </Text>
-
-            <View style={s.confirmDetails}>
-              <View style={s.detailRow}>
-                <Text style={s.detailIcon}>📚</Text>
-                <Text style={s.detailText}>{stage.titre}</Text>
-              </View>
-              <View style={s.detailRow}>
-                <Text style={s.detailIcon}>👤</Text>
-                <Text style={s.detailText}>
-                  {nbParticipants} participant{nbParticipants > 1 ? 's' : ''}
-                </Text>
-              </View>
-              <View style={s.detailRow}>
-                <Text style={s.detailIcon}>💳</Text>
-                <Text style={s.detailText}>{prixTotal}€ TTC</Text>
-              </View>
-              <View style={s.detailRow}>
-                <Text style={s.detailIcon}>📍</Text>
-                <Text style={s.detailText}>
-                  {stage.dateDebut.toLocaleDateString('fr-FR')} - {stage.nbJours}j
-                </Text>
-              </View>
-            </View>
-
-            <View style={s.confirmButtons}>
-              <TouchableOpacity
-                style={s.confirmBtn}
-                onPress={handleConfirmation}
-              >
-                <Text style={s.confirmBtnText}>Retour aux services</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -584,56 +544,16 @@ const s = StyleSheet.create({
     fontSize: FontSize.base,
   },
 
-  // Confirmation modal
-  confirmBackdrop: {
-    flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  confirmCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xl,
-    padding: Spacing.xl,
-    alignItems: 'center',
-    marginHorizontal: Spacing.lg,
-    ...Shadow.card,
-  },
-  confirmIcon: { fontSize: 64, marginBottom: Spacing.lg },
-  confirmTitle: {
-    fontSize: FontSize.xxl,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.textPrimary,
-    marginBottom: Spacing.sm,
-    textAlign: 'center',
-  },
-  confirmMessage: {
-    fontSize: FontSize.base,
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: Spacing.lg,
-  },
-  confirmDetails: {
-    width: '100%',
-    backgroundColor: Colors.background,
-    borderRadius: Radius.md,
-    padding: Spacing.md,
-    marginBottom: Spacing.lg,
-    gap: Spacing.sm,
-  },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  detailIcon: { fontSize: 18, width: 28 },
-  detailText: { fontSize: FontSize.sm, color: Colors.textPrimary, flex: 1 },
-  confirmButtons: { width: '100%', gap: Spacing.md },
-  confirmBtn: {
-    backgroundColor: Colors.primary,
+  refBox: {
+    backgroundColor: Colors.primaryLight,
     borderRadius: Radius.lg,
-    paddingVertical: Spacing.md + 4,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
     alignItems: 'center',
+    gap: Spacing.xs,
   },
-  confirmBtnText: {
-    color: Colors.textInverse,
-    fontWeight: FontWeight.extrabold,
-    fontSize: FontSize.base,
-  },
+  refBoxLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.8 },
+  refBoxValue: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.primary, letterSpacing: 1 },
+  refBoxHint: { fontSize: FontSize.xs, color: Colors.textSecondary, textAlign: 'center' },
 });

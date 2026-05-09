@@ -84,7 +84,7 @@ export default function StripeOnboardingScreen() {
   };
 
   const handleReturn = () => {
-    router.push('/(tabs)/coach-annonces');
+    router.push('/(tabs)/coach-services');
   };
 
   return (

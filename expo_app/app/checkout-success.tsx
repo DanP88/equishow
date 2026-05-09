@@ -414,4 +414,7 @@ const s = StyleSheet.create({
     fontWeight: FontWeight.bold,
     color: Colors.textPrimary,
   },
+  loader: {
+    marginTop: Spacing.md,
+  },
 });

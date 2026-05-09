@@ -6,8 +6,7 @@ import {
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../../constants/theme';
-import { chevauxStore, userStore } from '../../data/store';
-import { notificationsStore } from '../../data/notificationsStore';
+import { chevauxStore, userStore, notificationsStore } from '../../data/store';
 import { Cheval, TypeChevalLabel, getChevalAge } from '../../types/cheval';
 import { DatePickerModal, DateButton, formatDate } from '../../components/DatePickerModal';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
@@ -166,14 +165,20 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose 
     setCoachPseudo(coach.id);
 
     // Send notification to coach
-    notificationsStore.addNotification({
-      type: 'mention',
-      title: `🏇 ${userStore.prenom} ${userStore.nom} vous a assigné son cheval`,
+    notificationsStore.list = [{
+      id: `notif_${Date.now()}`,
+      type: 'message',
+      titre: `🏇 ${userStore.prenom} ${userStore.nom} vous a assigné son cheval`,
       message: `Vous avez été assigné comme coach pour ${cheval.nom}`,
-      author: `${userStore.prenom} ${userStore.nom}`,
-      authorRole: 'Cavalier',
-      relatedId: cheval.id,
-    });
+      destinataireId: coach.id,
+      auteurId: userStore.id,
+      auteurNom: `${userStore.prenom} ${userStore.nom}`,
+      auteurPseudo: userStore.pseudo,
+      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
+      auteurCouleur: userStore.avatarColor,
+      lu: false,
+      dateCreation: new Date(),
+    }, ...notificationsStore.list];
 
     setTagCoachModalVisible(false);
     setCoachSearchQuery('');

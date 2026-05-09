@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal, Linking,
+  TextInput, Alert, ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
-import { boxesStore, userStore, boxReservationsStore, notificationsStore } from '../data/store';
-import { prixTTC, BoxReservation } from '../types/service';
-import { Notification } from '../types/notification';
+import { boxesStore, userStore } from '../data/store';
+import { prixTTC, getCommission } from '../types/service';
+import { supabase } from '../lib/supabase';
 
 export default function ReserverBoxScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -35,7 +35,6 @@ export default function ReserverBoxScreen() {
   const [dateReservationDebut, setDateReservationDebut] = useState<Date | undefined>(box.dateDebut);
   const [dateReservationFin, setDateReservationFin] = useState<Date | undefined>(new Date(box.dateDebut.getTime() + 24 * 60 * 60 * 1000)); // Par défaut 1 nuit
   const [message, setMessage] = useState('');
-  const [showConfirmation, setShowConfirmation] = useState(false);
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -53,7 +52,7 @@ export default function ReserverBoxScreen() {
     else Alert.alert('Erreur', msg);
   }
 
-  function submit() {
+  const submit = async () => {
     if (!dateReservationDebut || !dateReservationFin) {
       showErr('Sélectionnez les dates de votre réservation.');
       return;
@@ -62,70 +61,64 @@ export default function ReserverBoxScreen() {
       showErr('La date de fin doit être après la date de début.');
       return;
     }
+    // Valider que les dates sont dans la période disponible du box
+    if (dateReservationDebut < box.dateDebut || dateReservationFin > box.dateFin) {
+      showErr(`Le box n'est disponible que du ${box.dateDebut.toLocaleDateString('fr-FR')} au ${box.dateFin.toLocaleDateString('fr-FR')}.`);
+      return;
+    }
 
     const nuits = nuitesReservees;
     const pt = box.prixNuitHT * nuits;
     const ptTTC = prixTTC(pt, 'box');
-    const sellerId = (box as any).proprietaireId || box.auteurId;
+    const commissionRate = getCommission('box');
+    const commissionMontant = Math.round(pt * commissionRate * 100) / 100;
+    const sellerId = box.auteurId;
 
-    const nouvelleReservation: BoxReservation = {
-      id: `br_${Date.now()}`,
-      boxId: box.id,
-      sellerId,
-      buyerId: userStore.id,
-      titre: `Box ${box.lieu}`,
-      lieu: box.lieu,
-      nbNuits: nuits,
-      dateDebut: dateReservationDebut,
-      dateFin: dateReservationFin,
-      message: message.trim(),
-      prixTotalHT: pt,
-      commissionPlateform: pt * 0.05,
-      prixTotalTTC: ptTTC,
-      statut: 'pending' as const,
-      dateCreation: new Date(),
-    };
+    setLoading(true);
+    try {
+      const { data: reservation, error: dbError } = await supabase
+        .from('box_reservations')
+        .insert({
+          box_id: box.id,
+          seller_id: sellerId,
+          buyer_id: userStore.id,
+          date_debut: dateReservationDebut.toISOString().split('T')[0],
+          date_fin: dateReservationFin.toISOString().split('T')[0],
+          nb_nuits: nuits,
+          prix_total_ht: Math.round(pt * 100),
+          commission_plateforme: Math.round(commissionMontant * 100),
+          prix_total_ttc: Math.round(ptTTC * 100),
+          message: message.trim() || null,
+          statut: 'pending',
+        })
+        .select('id')
+        .single();
 
-    boxReservationsStore.list = [nouvelleReservation, ...boxReservationsStore.list];
+      if (dbError || !reservation) {
+        showErr('Impossible de créer la réservation.');
+        return;
+      }
 
-    const notificationBox: Notification = {
-      id: `notif_${Date.now()}`,
-      destinataireId: sellerId,
-      type: 'reservation_request',
-      titre: `🏠 Nouvelle réservation de box`,
-      message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${box.lieu}`,
-      status: 'pending',
-      lu: false,
-      dateCreation: new Date(),
-      actionUrl: '/box-pending-demands',
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
-      donnees: {
-        boxId: box.id,
-        titre: `Box ${box.lieu}`,
-        prix: ptTTC,
-        message: message.trim(),
-      },
-    };
+      const reference = `EQ-BOX-${reservation.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
 
-    notificationsStore.list = [notificationBox, ...notificationsStore.list];
-    console.log('✅ Réservation box créée, redirection paiement');
-
-    router.push({
-      pathname: '/paiement-box',
-      params: {
-        reservationId: nouvelleReservation.id,
-        titre: `Box ${box.lieu}`,
-        montant: ptTTC.toFixed(2),
-        nbNuits: String(nuits),
-        lieu: box.lieu,
-        dateDebut: dateReservationDebut.toLocaleDateString('fr-FR'),
-        dateFin: dateReservationFin.toLocaleDateString('fr-FR'),
-      },
-    } as any);
+      router.push({
+        pathname: '/paiement-box',
+        params: {
+          reservationId: reservation.id,
+          titre: `Box ${box.lieu}`,
+          montant: ptTTC.toFixed(2),
+          nbNuits: String(nuits),
+          lieu: box.lieu,
+          dateDebut: dateReservationDebut.toLocaleDateString('fr-FR'),
+          dateFin: dateReservationFin.toLocaleDateString('fr-FR'),
+          reference,
+        },
+      } as any);
+    } catch {
+      showErr('Erreur lors de la création de la réservation.');
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
@@ -213,60 +206,21 @@ export default function ReserverBoxScreen() {
           </View>
         </View>
 
-        <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>
-          <Text style={s.submitText}>Valider la demande et payer...</Text>
+        <TouchableOpacity
+          style={[s.submitBtn, loading && { opacity: 0.6 }]}
+          onPress={submit}
+          activeOpacity={0.85}
+          disabled={loading}
+        >
+          {loading
+            ? <ActivityIndicator color={Colors.textInverse} />
+            : <Text style={s.submitText}>Valider la demande et payer</Text>
+          }
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
 
-      {/* Modal de confirmation */}
-      <Modal visible={showConfirmation} transparent animationType="fade">
-        <View style={s.confirmationBackdrop}>
-          <View style={s.confirmationCard}>
-            <Text style={s.confirmationIcon}>✅</Text>
-
-            <Text style={s.confirmationTitle}>Demande envoyée !</Text>
-
-            <Text style={s.confirmationMessage}>
-              Le gestionnaire prendra connaissance de votre demande rapidement
-            </Text>
-
-            <View style={s.confirmationDetails}>
-              <View style={s.detailRow}>
-                <Text style={s.detailIcon}>🏠</Text>
-                <Text style={s.detailText}>{box.lieu}</Text>
-              </View>
-              <View style={s.detailRow}>
-                <Text style={s.detailIcon}>📅</Text>
-                <Text style={s.detailText}>
-                  {dateReservationDebut?.toLocaleDateString('fr-FR')} → {dateReservationFin?.toLocaleDateString('fr-FR')}
-                </Text>
-              </View>
-              <View style={s.detailRow}>
-                <Text style={s.detailIcon}>🌙</Text>
-                <Text style={s.detailText}>{nuitesReservees} nuit{nuitesReservees > 1 ? 's' : ''}</Text>
-              </View>
-              <View style={s.detailRow}>
-                <Text style={s.detailIcon}>💳</Text>
-                <Text style={s.detailText}>{prixTotalTTC}€ TTC (à confirmer)</Text>
-              </View>
-            </View>
-
-            <View style={s.confirmationButtons}>
-              <TouchableOpacity
-                style={s.confirmationBtn}
-                onPress={() => {
-                  setShowConfirmation(false);
-                  router.push('/(tabs)/services?tab=box' as any);
-                }}
-              >
-                <Text style={s.confirmationBtnText}>Retour aux boxes</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
     </SafeAreaView>
   );
 }
@@ -314,16 +268,4 @@ const s = StyleSheet.create({
   prixTotalVal: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.primary },
   submitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', ...Shadow.fab },
   submitText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
-  confirmationBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.5)', justifyContent: 'center', alignItems: 'center' },
-  confirmationCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xl, alignItems: 'center', marginHorizontal: Spacing.lg, ...Shadow.card },
-  confirmationIcon: { fontSize: 64, marginBottom: Spacing.lg },
-  confirmationTitle: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center' },
-  confirmationMessage: { fontSize: FontSize.base, color: Colors.textSecondary, textAlign: 'center', marginBottom: Spacing.lg },
-  confirmationDetails: { width: '100%', backgroundColor: Colors.background, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg, gap: Spacing.sm },
-  detailRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
-  detailIcon: { fontSize: 18, width: 28 },
-  detailText: { fontSize: FontSize.sm, color: Colors.textPrimary, flex: 1 },
-  confirmationButtons: { width: '100%', gap: Spacing.md },
-  confirmationBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center' },
-  confirmationBtnText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
 });

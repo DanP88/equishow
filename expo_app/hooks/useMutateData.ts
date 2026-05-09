@@ -51,7 +51,7 @@ export const useMutateData = <T,>(table: string) => {
 
       const { data: result, error: err } = await supabase
         .from(table)
-        .update(updates)
+        .update(updates as any)
         .eq('id', id)
         .select()
         .single();

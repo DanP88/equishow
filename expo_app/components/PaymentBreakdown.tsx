@@ -137,7 +137,7 @@ const s = StyleSheet.create({
     color: Colors.primary,
   },
   footer: {
-    backgroundColor: Colors.successLight,
+    backgroundColor: Colors.successBg,
     paddingHorizontal: Spacing.lg,
     paddingVertical: Spacing.md,
     borderTopWidth: 1,
