@@ -4,24 +4,40 @@ import { ActivityIndicator, View } from 'react-native';
 import { useAuth } from '../hooks/useAuth';
 import { Colors } from '../constants/colors';
 
+export type AuthGuardRole = 'cavalier' | 'coach' | 'organisateur' | 'admin';
+
 /**
  * Auth Guard Component
- * Protects routes and handles auth-based navigation
+ * Protects routes and handles auth-based navigation.
+ * Pass `requiredRole` (single role or array) to gate a screen by role.
+ * - not signed in → redirect to /(auth)/login
+ * - signed in but role mismatch → redirect to /(tabs)
  */
-export function AuthGuard({ children }: { children: React.ReactNode }) {
+export function AuthGuard({
+  children,
+  requiredRole,
+}: {
+  children: React.ReactNode;
+  requiredRole?: AuthGuardRole | AuthGuardRole[];
+}) {
   const router = useRouter();
-  const { isSignedIn, isLoading } = useAuth();
+  const { isSignedIn, isLoading, profile } = useAuth();
+
+  const allowed: AuthGuardRole[] | null = requiredRole
+    ? (Array.isArray(requiredRole) ? requiredRole : [requiredRole])
+    : null;
+  const hasRole = !allowed
+    || (profile?.role ? allowed.includes(profile.role as AuthGuardRole) : false);
 
   useEffect(() => {
-    if (!isLoading) {
-      if (!isSignedIn) {
-        // Redirect to login if not signed in
-        router.replace('/(auth)/login');
-      }
+    if (isLoading) return;
+    if (!isSignedIn) {
+      router.replace('/(auth)/login');
+    } else if (allowed && !hasRole) {
+      router.replace('/(tabs)');
     }
-  }, [isSignedIn, isLoading, router]);
+  }, [isSignedIn, isLoading, hasRole, router]);
 
-  // Show loading while checking auth
   if (isLoading) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: Colors.background }}>
@@ -29,11 +45,8 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
       </View>
     );
   }
-
-  // Only render children if signed in
-  if (!isSignedIn) {
-    return null;
-  }
+  if (!isSignedIn) return null;
+  if (allowed && !hasRole) return null;
 
   return <>{children}</>;
 }

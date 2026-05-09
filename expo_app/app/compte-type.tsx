@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 
@@ -10,12 +10,14 @@ const PREVIEW_ROUTES: Partial<Record<string, string>> = {
 };
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { userStore } from '../data/store';
+import { userStore, supabase } from '../data/store';
+import { useAuth } from '../hooks/useAuth';
 
-type Role = 'cavalier' | 'coach' | 'organisateur';
+type Role = 'cavalier' | 'coach' | 'organisateur' | 'admin';
+type SelectableRole = 'cavalier' | 'coach' | 'organisateur';
 
 const ROLES: {
-  id: Role;
+  id: SelectableRole;
   icon: string;
   title: string;
   subtitle: string;
@@ -69,12 +71,67 @@ const ROLES: {
   },
 ];
 
-export default function CompteTypeScreen() {
-  const [selected, setSelected] = useState<Role>(userStore.role);
+const ERROR_LABELS: Record<string, string> = {
+  forbidden_admin_promotion:
+    "Le rôle administrateur ne peut pas être attribué depuis l'application.",
+  forbidden_organisateur_promotion:
+    "Pour devenir organisateur, contactez le support Equishow.",
+  unauthenticated: "Session expirée, veuillez vous reconnecter.",
+  invalid_role: "Rôle invalide.",
+  user_not_found: "Profil utilisateur introuvable.",
+};
 
-  function confirm() {
-    userStore.role = selected;
-    router.back();
+function mapErrorMessage(err: any): string {
+  const raw = (err?.message ?? '').toLowerCase();
+  for (const key of Object.keys(ERROR_LABELS)) {
+    if (raw.includes(key)) return ERROR_LABELS[key];
+  }
+  return "Impossible de changer de rôle pour le moment.";
+}
+
+export default function CompteTypeScreen() {
+  const { refetchProfile } = useAuth();
+  const initialRole: Role = (userStore.role as Role) ?? 'cavalier';
+  const [selected, setSelected] = useState<SelectableRole>(
+    (initialRole === 'admin' ? 'cavalier' : initialRole) as SelectableRole
+  );
+  const [submitting, setSubmitting] = useState(false);
+
+  async function confirm() {
+    if (submitting || selected === userStore.role) return;
+    setSubmitting(true);
+    try {
+      // 1. RPC sécurisée : la DB applique les règles métier (admin/organisateur reservés)
+      const { error: rpcError } = await supabase.rpc('change_user_role', {
+        p_new_role: selected,
+      });
+      if (rpcError) throw rpcError;
+
+      // 2. Recharger le profil canonique : useAuth state + store local en parallèle
+      const remoteProfile = await refetchProfile();
+      if (remoteProfile) {
+        userStore.applyRemoteProfile({
+          id: remoteProfile.id,
+          prenom: remoteProfile.prenom,
+          nom: remoteProfile.nom,
+          email: remoteProfile.email,
+          role: remoteProfile.role,
+          region: (remoteProfile as any).region ?? null,
+          disciplines: (remoteProfile as any).disciplines ?? [],
+        });
+      } else {
+        // Fallback : RPC OK mais refetch fail → au moins refléter localement
+        userStore.role = selected;
+      }
+
+      // 3. Reset state AVANT navigation pour éviter setState sur composant démonté
+      setSubmitting(false);
+      router.back();
+      return;
+    } catch (err: any) {
+      Alert.alert('Changement de rôle refusé', mapErrorMessage(err));
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -157,13 +214,17 @@ export default function CompteTypeScreen() {
 
       <View style={s.footer}>
         <TouchableOpacity
-          style={[s.confirmBtn, selected !== userStore.role && s.confirmBtnActive]}
+          style={[s.confirmBtn, selected !== userStore.role && !submitting && s.confirmBtnActive]}
           onPress={confirm}
-          disabled={selected === userStore.role}
+          disabled={selected === userStore.role || submitting}
         >
-          <Text style={s.confirmText}>
-            {selected === userStore.role ? 'Aucun changement' : `Passer en compte ${ROLES.find(r => r.id === selected)?.title}`}
-          </Text>
+          {submitting ? (
+            <ActivityIndicator color={Colors.textInverse} />
+          ) : (
+            <Text style={s.confirmText}>
+              {selected === userStore.role ? 'Aucun changement' : `Passer en compte ${ROLES.find(r => r.id === selected)?.title}`}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>

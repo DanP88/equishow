@@ -2,11 +2,27 @@ import { createClient } from '@supabase/supabase-js';
 import { mockChevaux } from './mockChevaux';
 import { Cheval } from '../types/cheval';
 import { TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, StageReservation, CourseDemande, CoachAgendaEvent, TransportReservation, BoxReservation } from '../types/service';
-import { Concours } from '../types/concours';
+import { Concours, ConcoursCSV, ImportBatch, ImportError } from '../types/concours';
 import { Notification } from '../types/notification';
 import { mockTransports, mockBoxes, mockCoachs, mockCoachAnnonces, mockCoachStages } from './mockServices';
 import { mockConcours } from './mockConcours';
+import { mockConcoursCsv } from './mockConcoursCsv';
 import { mockUsers } from './mockUsers';
+
+// ── Type Avis local ─────────────────────────────────────────────────────────
+export interface AvisItem {
+  id: string;
+  auteur_id: string;
+  auteur_nom: string;
+  auteur_initiales: string;
+  auteur_couleur: string;
+  destinataire_id: string;
+  note: number;
+  commentaire: string | null;
+  type: 'coach' | 'transport' | 'box' | 'stage';
+  ref_id?: string;
+  created_at: string;
+}
 
 // Supabase client
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
@@ -35,6 +51,15 @@ export interface UserStore {
   avatarColor: string;
   switchAccount(accountKey: 'cavalier' | 'cavalier2' | 'coach' | 'coach2' | 'coach3' | 'organisateur' | 'admin'): boolean;
   onRoleChange(callback: () => void): () => void;
+  applyRemoteProfile(remote: {
+    id: string;
+    prenom: string;
+    nom: string;
+    email: string;
+    role: 'cavalier' | 'coach' | 'organisateur' | 'admin';
+    region?: string | null;
+    disciplines?: string[] | null;
+  }): void;
 }
 
 // Helper function to get avatar color by role
@@ -64,6 +89,12 @@ const createUserStore = (): UserStore => {
     bio: '',
     avatarColor: getAvatarColorForRole(user.role),
     switchAccount(accountKey: 'cavalier' | 'cavalier2' | 'coach' | 'coach2' | 'coach3' | 'organisateur' | 'admin') {
+      // Hors build de développement, switchAccount est un no-op pour empêcher
+      // qu'on puisse changer de rôle/identité depuis la console navigateur en prod.
+      if (!__DEV__) {
+        console.warn('switchAccount is disabled in production builds');
+        return false;
+      }
       let newUser = (mockUsers as any)[accountKey];
       // Handle coach2 and coach3 from ADDITIONAL_COACHES
       if (!newUser && (accountKey === 'coach2' || accountKey === 'coach3')) {
@@ -92,6 +123,18 @@ const createUserStore = (): UserStore => {
       return () => {
         roleChangeListeners.delete(callback);
       };
+    },
+    applyRemoteProfile(remote) {
+      this.id = remote.id;
+      this.prenom = remote.prenom;
+      this.nom = remote.nom;
+      this.pseudo = `${remote.prenom}${remote.nom.charAt(0)}`;
+      this.email = remote.email;
+      this.role = remote.role;
+      this.region = remote.region || 'Non défini';
+      this.disciplines = remote.disciplines || [];
+      this.avatarColor = getAvatarColorForRole(remote.role);
+      roleChangeListeners.forEach(callback => callback());
     }
   };
   return store;
@@ -106,6 +149,25 @@ export const coachesStore: { list: CoachProfil[] } = { list: [...mockCoachs] };
 export const coachAnnoncesStore: { list: CoachAnnonce[] } = { list: [...mockCoachAnnonces] };
 export const coachStagesStore: { list: CoachStage[] } = { list: [...mockCoachStages] };
 export const concoursStore: { list: Concours[] } = { list: [...mockConcours] };
+
+// Store des concours importés via CSV
+export const concoursCsvStore: {
+  list: ConcoursCSV[];
+  batches: ImportBatch[];
+  errors: ImportError[];
+} = {
+  list: [...mockConcoursCsv],
+  batches: [{
+    id: 'batch_demo_100',
+    filename: 'concours_demo_100.csv',
+    imported_at: new Date().toISOString(),
+    total_rows: 100,
+    imported_count: 100,
+    error_count: 0,
+    skipped_count: 0,
+  }],
+  errors: [],
+};
 
 // Store des notifications
 export const notificationsStore: { list: Notification[] } = { list: [] };
@@ -124,6 +186,44 @@ export const boxReservationsStore: { list: BoxReservation[] } = { list: [] };
 
 // Store de l'agenda des coachs
 export const coachAgendaStore: { list: CoachAgendaEvent[] } = { list: [] };
+
+// Store des avis (local, sans Supabase)
+const COACH1_ID = mockUsers.coach.id;
+const CAV_ID = mockUsers.cavalier.id;
+
+export const avisStore: { list: AvisItem[] } = {
+  list: [
+    { id: 'av1', auteur_id: CAV_ID, auteur_nom: 'Sophie Martin', auteur_initiales: 'SM', auteur_couleur: '#F97316', destinataire_id: COACH1_ID, note: 5, commentaire: 'Excellent coach, très pédagogue et patient. Je recommande vivement !', type: 'coach', created_at: new Date('2026-03-15').toISOString() },
+    { id: 'av2', auteur_id: 'user2', auteur_nom: 'Marie Dupont', auteur_initiales: 'MD', auteur_couleur: '#7C3AED', destinataire_id: COACH1_ID, note: 5, commentaire: 'Progression visible dès le premier cours. Méthode top.', type: 'coach', created_at: new Date('2026-03-20').toISOString() },
+    { id: 'av3', auteur_id: 'user3', auteur_nom: 'Thomas Renard', auteur_initiales: 'TR', auteur_couleur: '#0369A1', destinataire_id: COACH1_ID, note: 4, commentaire: 'Très bon coach, quelques retards mais qualité au top.', type: 'coach', created_at: new Date('2026-04-01').toISOString() },
+    { id: 'av4', auteur_id: CAV_ID, auteur_nom: 'Sophie Martin', auteur_initiales: 'SM', auteur_couleur: '#F97316', destinataire_id: 'user2', note: 5, commentaire: 'Van impeccable, cheval bien arrivé. Conductrice très sympa !', type: 'transport', created_at: new Date('2026-04-05').toISOString() },
+  ],
+};
+
+// Helpers avis
+export function getAvisForUser(userId: string): AvisItem[] {
+  return avisStore.list.filter(a => a.destinataire_id === userId);
+}
+
+export function getAvisMoyenne(userId: string): number {
+  const list = getAvisForUser(userId);
+  if (list.length === 0) return 0;
+  return Math.round((list.reduce((s, a) => s + a.note, 0) / list.length) * 10) / 10;
+}
+
+export function hasAlreadyReviewed(auteurId: string, destinataireId: string, refId?: string): boolean {
+  return avisStore.list.some(a =>
+    a.auteur_id === auteurId &&
+    a.destinataire_id === destinataireId &&
+    (refId ? a.ref_id === refId : true)
+  );
+}
+
+export function addAvis(a: Omit<AvisItem, 'id' | 'created_at'>): AvisItem {
+  const item: AvisItem = { ...a, id: `av_${Date.now()}`, created_at: new Date().toISOString() };
+  avisStore.list.unshift(item);
+  return item;
+}
 
 // Types pour la messagerie
 export interface Message {
@@ -303,3 +403,81 @@ export const postsStore: { list: CommunautePost[] } = {
     },
   ],
 };
+
+// ── Followers system ─────────────────────────────────────────────────────────
+
+export interface FollowItem {
+  followerId: string;
+  followedId: string;
+  created_at: string;
+}
+
+// UUIDs des comptes mock
+const _CAV1 = '550e8400-e29b-41d4-a716-446655440001'; // Sarah Lefebvre
+const _CAV2 = '550e8400-e29b-41d4-a716-446655440099'; // Sophie Dupont
+const _COACH1 = '550e8400-e29b-41d4-a716-446655440002'; // Émilie Laurent
+const _COACH2 = '550e8400-e29b-41d4-a716-446655440004'; // Marc Dubois
+const _COACH3 = '550e8400-e29b-41d4-a716-446655440005'; // Sophie Martin (coach3)
+const _ORG = '550e8400-e29b-41d4-a716-446655440003';   // Julien Mercier
+
+function fw(followerId: string, followedId: string): FollowItem {
+  return { followerId, followedId, created_at: new Date().toISOString() };
+}
+
+export const followStore: { list: FollowItem[] } = {
+  list: [
+    // Sarah suit les coachs et l'organisateur
+    fw(_CAV1, _COACH1), fw(_CAV1, _COACH2), fw(_CAV1, _ORG),
+    // Sophie suit Sarah et Émilie
+    fw(_CAV2, _CAV1), fw(_CAV2, _COACH1),
+    // Marc suit Sarah et l'org
+    fw(_COACH2, _CAV1), fw(_COACH2, _ORG),
+    // Émilie suit Sarah
+    fw(_COACH1, _CAV1),
+    // Communauté users suivent Sarah
+    fw('user_thomas', _CAV1), fw('user_marie', _CAV1), fw('user_sophie', _COACH1),
+  ],
+};
+
+export function isFollowing(followerId: string, followedId: string): boolean {
+  return followStore.list.some(f => f.followerId === followerId && f.followedId === followedId);
+}
+
+export function getFollowers(userId: string): FollowItem[] {
+  return followStore.list.filter(f => f.followedId === userId);
+}
+
+export function getFollowing(userId: string): FollowItem[] {
+  return followStore.list.filter(f => f.followerId === userId);
+}
+
+/** Bascule le suivi. Retourne true si maintenant suivi, false si désabonné. */
+export function toggleFollow(followerId: string, followedId: string): boolean {
+  const idx = followStore.list.findIndex(f => f.followerId === followerId && f.followedId === followedId);
+  if (idx >= 0) {
+    followStore.list.splice(idx, 1);
+    return false;
+  }
+  followStore.list.push(fw(followerId, followedId));
+  return true;
+}
+
+/** Résout un userId en infos d'affichage (nom, initiales, couleur, rôle, pseudo) */
+export function getUserInfo(id: string): {
+  nom: string; initiales: string; couleur: string; role: string; pseudo: string;
+} {
+  const { getUserById } = require('./mockUsers');
+  const u = getUserById(id);
+  if (u) return { nom: `${u.prenom} ${u.nom}`.trim(), initiales: u.initiales, couleur: u.avatarColor, role: u.role, pseudo: u.pseudo };
+  const coach = coachesStore.list.find(c => c.auteurId === id || c.id === id);
+  if (coach) return { nom: `${coach.prenom} ${coach.nom}`.trim(), initiales: coach.initiales, couleur: coach.couleur, role: 'coach', pseudo: coach.pseudo };
+  const community: Record<string, { nom: string; initiales: string; couleur: string; role: string; pseudo: string }> = {
+    user_thomas: { nom: 'Thomas Renard', initiales: 'TR', couleur: '#0369A1', role: 'cavalier', pseudo: 'ThomasR_CCE' },
+    user_marie: { nom: 'Marie Dupont', initiales: 'MD', couleur: '#7C3AED', role: 'cavalier', pseudo: 'MarieDup_KWPN' },
+    user_sophie: { nom: 'Sophie Martin', initiales: 'SM', couleur: '#16A34A', role: 'coach', pseudo: 'SophieM_Coach' },
+    user_emilie: { nom: 'Émilie Laurent', initiales: 'EL', couleur: '#7C3AED', role: 'cavalier', pseudo: 'EmilieL_Cav' },
+    user_lucie: { nom: 'Lucie Bernard', initiales: 'LB', couleur: '#F97316', role: 'cavalier', pseudo: 'LucieBernard' },
+    user_pierre: { nom: 'Pierre Morel', initiales: 'PM', couleur: '#B45309', role: 'cavalier', pseudo: 'PierreM_Equi' },
+  };
+  return community[id] ?? { nom: 'Utilisateur', initiales: '?', couleur: '#9CA3AF', role: 'cavalier', pseudo: id };
+}

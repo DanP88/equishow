@@ -139,6 +139,21 @@ export const useAuth = () => {
     []
   );
 
+  // Re-fetch the user's profile from Supabase (single source of truth).
+  // Use after a server-side mutation that changes the profile (role change, etc.).
+  const refetchProfile = useCallback(async () => {
+    const { data: { session: s } } = await supabase.auth.getSession();
+    const uid = s?.user?.id;
+    if (!uid) return null;
+    const { data, error } = await getUserProfile(uid);
+    if (error) {
+      console.error('refetchProfile error:', error);
+      return null;
+    }
+    setProfile(data);
+    return data;
+  }, []);
+
   // Sign out
   const logout = useCallback(async () => {
     try {
@@ -181,6 +196,7 @@ export const useAuth = () => {
     register,
     login,
     logout,
+    refetchProfile,
   };
 };
 

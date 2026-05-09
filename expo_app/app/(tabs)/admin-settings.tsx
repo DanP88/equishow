@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity,
+  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert,
 } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { getCommissions, setCommissions, ServiceType, CommissionConfig } from '../../types/service';
+import { ServiceType, CommissionConfig } from '../../types/service';
 import { useCommissions } from '../../hooks/useCommissions';
-import { userStore } from '../../data/store';
+import { savePlatformCommissions } from '../../hooks/usePlatformSettings';
+import { useAuth } from '../../hooks/useAuth';
+import { AuthGuard } from '../../components/AuthGuard';
 
 const SERVICE_LABELS: Record<ServiceType, string> = {
   trajet: 'Trajets',
@@ -30,6 +32,15 @@ interface CommissionInput {
 }
 
 export default function AdminSettingsScreen() {
+  return (
+    <AuthGuard requiredRole="admin">
+      <AdminSettingsContent />
+    </AuthGuard>
+  );
+}
+
+function AdminSettingsContent() {
+  const { profile, isLoading } = useAuth();
   const commissions = useCommissions();
   const [commissionInputs, setCommissionInputs] = useState<CommissionInput>({
     trajet: (commissions.trajet * 100).toFixed(1),
@@ -38,6 +49,7 @@ export default function AdminSettingsScreen() {
     box: (commissions.box * 100).toFixed(1),
   });
   const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saving, setSaving] = useState(false);
 
   const handleCommissionChange = (serviceType: ServiceType, value: string) => {
     setCommissionInputs(prev => ({
@@ -46,7 +58,7 @@ export default function AdminSettingsScreen() {
     }));
   };
 
-  const handleSaveAllCommissions = () => {
+  const handleSaveAllCommissions = async () => {
     const newCommissions: Partial<CommissionConfig> = {};
     let isValid = true;
 
@@ -59,8 +71,15 @@ export default function AdminSettingsScreen() {
       }
     });
 
-    if (isValid) {
-      setCommissions(newCommissions as CommissionConfig);
+    if (!isValid) return;
+
+    setSaving(true);
+    const { error } = await savePlatformCommissions(newCommissions as CommissionConfig);
+    setSaving(false);
+
+    if (error) {
+      Alert.alert('Erreur', `Impossible de sauvegarder : ${error}`);
+    } else {
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 2000);
     }
@@ -75,6 +94,18 @@ export default function AdminSettingsScreen() {
 
   const serviceTypes: ServiceType[] = ['trajet', 'location', 'cours', 'box'];
 
+  if (isLoading) return null;
+
+  if (profile?.role !== 'admin') {
+    return (
+      <View style={styles.accessDenied}>
+        <Text style={styles.accessDeniedIcon}>🔒</Text>
+        <Text style={styles.accessDeniedTitle}>Accès refusé</Text>
+        <Text style={styles.accessDeniedText}>Cette page est réservée aux administrateurs.</Text>
+      </View>
+    );
+  }
+
   return (
     <ScrollView style={styles.container} contentContainerStyle={styles.content}>
       {/* Header */}
@@ -88,11 +119,11 @@ export default function AdminSettingsScreen() {
         <Text style={styles.cardTitle}>Informations Admin</Text>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Nom:</Text>
-          <Text style={styles.infoValue}>{userStore.prenom} {userStore.nom}</Text>
+          <Text style={styles.infoValue}>{profile.prenom} {profile.nom}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Email:</Text>
-          <Text style={styles.infoValue}>{userStore.email}</Text>
+          <Text style={styles.infoValue}>{profile.email}</Text>
         </View>
         <View style={styles.infoRow}>
           <Text style={styles.infoLabel}>Rôle:</Text>
@@ -137,12 +168,14 @@ export default function AdminSettingsScreen() {
         </View>
 
         <TouchableOpacity
-          style={[styles.button, !isValidCommissions() && styles.buttonDisabled]}
+          style={[styles.button, (!isValidCommissions() || saving) && styles.buttonDisabled]}
           onPress={handleSaveAllCommissions}
-          disabled={!isValidCommissions()}
+          disabled={!isValidCommissions() || saving}
           activeOpacity={0.8}
         >
-          <Text style={styles.buttonText}>Enregistrer toutes les commissions</Text>
+          <Text style={styles.buttonText}>
+            {saving ? 'Enregistrement...' : 'Enregistrer toutes les commissions'}
+          </Text>
         </TouchableOpacity>
 
         {saveSuccess && (
@@ -306,6 +339,25 @@ const styles = StyleSheet.create({
     color: '#065F46',
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
+  },
+  accessDenied: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: Colors.background,
+    padding: Spacing.xl,
+    gap: Spacing.md,
+  },
+  accessDeniedIcon: { fontSize: 48 },
+  accessDeniedTitle: {
+    fontSize: FontSize.xxl,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+  },
+  accessDeniedText: {
+    fontSize: FontSize.base,
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
   commissionsGrid: {
     gap: Spacing.md,
