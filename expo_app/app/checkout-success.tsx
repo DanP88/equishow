@@ -35,6 +35,9 @@ export default function CheckoutSuccessScreen() {
   useEffect(() => {
     if (sessionId) {
       confirmPayment(sessionId);
+    } else {
+      setStatus('error');
+      setError('Identifiant de session manquant');
     }
   }, [sessionId]);
 

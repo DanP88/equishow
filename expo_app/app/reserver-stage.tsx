@@ -49,16 +49,25 @@ export default function ReserverStageScreen() {
     setLoading(true);
     try {
       // 1. Insert la réservation en DB
+      // Les montants sont recalculés serveur-side par le trigger
+      // `trg_stage_reservations_recalc` (migration 012) — les valeurs
+      // envoyées ici servent juste à passer les CHECK NOT NULL/> 0.
+      const placeholderHt  = Math.max(0.01, Math.round((stage.prixTTC * nbParticipants / 1.20) * 100) / 100);
+      const placeholderTtc = Math.max(0.01, Math.round(stage.prixTTC * nbParticipants * 100) / 100);
+
       const { data: reservation, error: dbError } = await supabase
         .from('stage_reservations')
         .insert({
           stage_id: stage.id,
           coach_id: stage.auteurId,
           cavalier_id: userStore.id,
-          nombre_participants: nbParticipants,
-          prix_total_ttc: Math.round(prixTotal * 100),
+          title: stage.titre,
+          nb_participants: nbParticipants,
+          price_total_ht: placeholderHt,
+          platform_commission: 0,
+          price_total_ttc: placeholderTtc,
           message: message.trim() || null,
-          statut: 'pending',
+          status: 'pending',
         })
         .select('id')
         .single();

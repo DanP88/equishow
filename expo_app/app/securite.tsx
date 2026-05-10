@@ -5,15 +5,21 @@ import {
 import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
+import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 
 export default function SecuriteScreen() {
+  const { authUser } = useAuth();
+  const email = authUser?.email ?? '';
+
   const [currentPwd, setCurrentPwd] = useState('');
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [showCurrent, setShowCurrent] = useState(false);
   const [showNew, setShowNew] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  function changePassword() {
+  async function changePassword() {
     if (!currentPwd || !newPwd || !confirmPwd) {
       Alert.alert('Champs manquants', 'Veuillez remplir tous les champs.');
       return;
@@ -26,17 +32,48 @@ export default function SecuriteScreen() {
       Alert.alert('Mot de passe trop court', 'Minimum 8 caractères requis.');
       return;
     }
-    Alert.alert('Succès', 'Mot de passe modifié avec succès.', [{ text: 'OK', onPress: () => router.back() }]);
+    if (currentPwd === newPwd) {
+      Alert.alert('Erreur', 'Le nouveau mot de passe doit être différent.');
+      return;
+    }
+    if (!email) {
+      Alert.alert('Erreur', 'Session introuvable, reconnectez-vous.');
+      return;
+    }
+
+    setSaving(true);
+    try {
+      // Re-authentification : vérifie le mot de passe actuel.
+      const { error: signInErr } = await supabase.auth.signInWithPassword({
+        email,
+        password: currentPwd,
+      });
+      if (signInErr) {
+        Alert.alert('Mot de passe actuel incorrect', 'Vérifiez votre saisie.');
+        return;
+      }
+
+      const { error: updateErr } = await supabase.auth.updateUser({ password: newPwd });
+      if (updateErr) {
+        Alert.alert('Erreur', updateErr.message);
+        return;
+      }
+
+      Alert.alert('Succès', 'Mot de passe modifié avec succès.', [
+        { text: 'OK', onPress: () => router.back() },
+      ]);
+      setCurrentPwd('');
+      setNewPwd('');
+      setConfirmPwd('');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function deleteAccount() {
     Alert.alert(
-      'Supprimer mon compte',
-      'Cette action est irréversible. Toutes vos données seront supprimées définitivement.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: () => router.replace('/(auth)/login') },
-      ],
+      'Bientôt disponible',
+      "La suppression de compte sera disponible prochainement. Pour supprimer vos données dès maintenant, contactez le support depuis l'onglet Profil.",
     );
   }
 
@@ -56,7 +93,7 @@ export default function SecuriteScreen() {
           <Text style={s.emailIcon}>📧</Text>
           <View>
             <Text style={s.emailLabel}>Compte connecté</Text>
-            <Text style={s.emailValue}>sarah.lefebvre@email.fr</Text>
+            <Text style={s.emailValue}>{email || '—'}</Text>
           </View>
           <View style={s.verifiedBadge}>
             <Text style={s.verifiedText}>✓ Vérifié</Text>
@@ -93,8 +130,15 @@ export default function SecuriteScreen() {
               secure
             />
           </View>
-          <TouchableOpacity style={s.saveBtn} onPress={changePassword} activeOpacity={0.85}>
-            <Text style={s.saveBtnText}>Enregistrer le nouveau mot de passe</Text>
+          <TouchableOpacity
+            style={[s.saveBtn, saving && { opacity: 0.6 }]}
+            onPress={changePassword}
+            activeOpacity={0.85}
+            disabled={saving}
+          >
+            <Text style={s.saveBtnText}>
+              {saving ? 'Enregistrement…' : 'Enregistrer le nouveau mot de passe'}
+            </Text>
           </TouchableOpacity>
         </View>
 
