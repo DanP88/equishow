@@ -3,9 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } fr
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { coachesStore, userStore, getAvisMoyenne } from '../../data/store';
+import { coachesStore, userStore } from '../../data/store';
 import { AvisSection } from '../../components/AvisSection';
 import { useFollow } from '../../hooks/useFollow';
+import { useAvisStats } from '../../hooks/useAvis';
 
 export default function ViewCoachScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -27,7 +28,7 @@ export default function ViewCoachScreen() {
 
   const coachUserId = coach.auteurId ?? coach.id;
   const isOwnProfile = coachUserId === userStore.id;
-  const avgRating = getAvisMoyenne(coachUserId);
+  const { average: avgRating } = useAvisStats(coachUserId);
 
   return (
     <SafeAreaView style={s.root}>

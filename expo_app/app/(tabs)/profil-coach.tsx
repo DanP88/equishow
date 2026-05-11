@@ -3,7 +3,8 @@ import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Mod
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { userStore, getAvisForUser, getFollowers, getFollowing } from '../../data/store';
+import { userStore, getFollowers, getFollowing } from '../../data/store';
+import { useAvisStats } from '../../hooks/useAvis';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
 import { FollowListModal } from '../../components/FollowListModal';
@@ -21,7 +22,7 @@ export default function ProfilCoachScreen() {
   const [showEdit, setShowEdit] = useState(false);
   const [draft, setDraft] = useState({ ...userStore });
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
-  const nbAvis = getAvisForUser(userStore.id).length;
+  const { count: nbAvis } = useAvisStats(userStore.id);
   const nbFollowers = getFollowers(userStore.id).length;
   const nbFollowing = getFollowing(userStore.id).length;
 

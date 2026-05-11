@@ -8,18 +8,22 @@ import {
   TextInput,
   ActivityIndicator,
   FlatList,
+  Alert,
 } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../constants/theme';
-import { useAvis, Avis } from '../hooks/useAvis';
-import { userStore } from '../data/store';
+import { useAvis, Avis, AvisType } from '../hooks/useAvis';
+import { useAuth } from '../hooks/useAuth';
 
 interface AvisSectionProps {
   userId: string;
+  type?: AvisType;
+  refId?: string;
 }
 
-export function AvisSection({ userId }: AvisSectionProps) {
-  const currentUserId = userStore.id;
+export function AvisSection({ userId, type = 'coach', refId }: AvisSectionProps) {
+  const { profile } = useAuth();
+  const currentUserId = profile?.id ?? null;
   const { avis, isLoading, averageRating, totalReviews, createAvis, deleteAvis } = useAvis(userId);
   const [showForm, setShowForm] = useState(false);
   const [rating, setRating] = useState(5);
@@ -29,19 +33,26 @@ export function AvisSection({ userId }: AvisSectionProps) {
   const handleSubmit = async () => {
     setIsSubmitting(true);
     try {
-      const { error } = await createAvis(userId, rating, comment);
-      if (!error) {
-        setRating(5);
-        setComment('');
-        setShowForm(false);
+      const { error } = await createAvis(userId, rating, comment, type, refId);
+      if (error) {
+        Alert.alert('Erreur', error);
+        return;
       }
+      setRating(5);
+      setComment('');
+      setShowForm(false);
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const canCreateReview = currentUserId !== userId;
-  const userReview = avis.find((a) => a.auteur_id === currentUserId);
+  const handleDelete = async (id: string) => {
+    const { error } = await deleteAvis(id);
+    if (error) Alert.alert('Erreur', error);
+  };
+
+  const canCreateReview = !!currentUserId && currentUserId !== userId;
+  const userReview = currentUserId ? avis.find((a) => a.auteur_id === currentUserId) : undefined;
 
   return (
     <>
@@ -75,8 +86,8 @@ export function AvisSection({ userId }: AvisSectionProps) {
             renderItem={({ item }) => (
               <AvisCard
                 avis={item}
-                canDelete={currentUserId === item.auteur_id}
-                onDelete={() => deleteAvis(item.id)}
+                canDelete={!!currentUserId && currentUserId === item.auteur_id}
+                onDelete={() => handleDelete(item.id)}
               />
             )}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
@@ -154,7 +165,7 @@ function AvisCard({ avis, canDelete, onDelete }: AvisCardProps) {
     <View style={styles.avisCard}>
       <View style={styles.avisHeader}>
         <View>
-          <Text style={styles.avisAuthor}>{avis.auteur_nom}</Text>
+          <Text style={styles.avisAuthor}>{avis.auteur_nom ?? 'Anonyme'}</Text>
           <Text style={styles.avisDate}>
             {new Date(avis.created_at).toLocaleDateString('fr-FR')}
           </Text>

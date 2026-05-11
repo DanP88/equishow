@@ -6,7 +6,8 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { transportsStore, boxesStore, coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore, getAvisMoyenne } from '../../data/store';
+import { transportsStore, boxesStore, coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore } from '../../data/store';
+import { useAvisStats } from '../../hooks/useAvis';
 import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
@@ -861,7 +862,7 @@ function TransportCard({ item, onCancel, onModify }: {
   const date = item.dateTrajet.toLocaleDateString('fr-FR', { weekday: 'short', day: '2-digit', month: 'short' });
   const ttc = prixTTC(item.prixHT);
   const left = item.nbPlacesDisponibles;
-  const rating = getAvisMoyenne(item.auteurId);
+  const { average: rating } = useAvisStats(item.auteurId);
   return (
     <View style={s.card}>
       {isOwner && <View style={s.ownerBadge}><Text style={s.ownerBadgeText}>Mon annonce</Text></View>}
@@ -963,7 +964,7 @@ function BoxCard({ item, onCancel, onModify }: {
   const ttc = prixTTC(item.prixNuitHT);
   const nbJ = Math.max(1, Math.round((item.dateFin.getTime() - item.dateDebut.getTime()) / (1000 * 60 * 60 * 24)));
   const left = item.nbBoxesDisponibles;
-  const rating = getAvisMoyenne(item.auteurId);
+  const { average: rating } = useAvisStats(item.auteurId);
   return (
     <View style={s.card}>
       {isOwner && <View style={s.ownerBadge}><Text style={s.ownerBadgeText}>Mon annonce</Text></View>}

@@ -11,10 +11,9 @@ import {
   courseDemandesStore,
   transportsStore,
   coachStagesStore,
-  hasAlreadyReviewed,
-  addAvis,
 } from '../../data/store';
 import { getUserById } from '../../data/mockUsers';
+import { useAvis, useMyAvisRefs, AvisType } from '../../hooks/useAvis';
 
 type AgendaItem = {
   id: string;
@@ -70,39 +69,48 @@ function formatDate(d: Date) {
 
 type AvisModal = { destId: string; destNom: string; type: AgendaItem['type']; refId: string } | null;
 
+function avisTypeFromAgenda(t: AgendaItem['type']): AvisType {
+  if (t === 'transport_buyer' || t === 'transport_seller') return 'transport';
+  if (t === 'box_buyer' || t === 'box_seller') return 'box';
+  if (t === 'stage') return 'stage';
+  return 'coach';
+}
+
 export default function CavalierAgendaScreen() {
   const [items, setItems] = useState<AgendaItem[]>([]);
   const [avisModal, setAvisModal] = useState<AvisModal>(null);
   const [avisNote, setAvisNote] = useState(5);
   const [avisComment, setAvisComment] = useState('');
+  const [avisSubmitting, setAvisSubmitting] = useState(false);
+  const { createAvis } = useAvis();
+  const myAvisRefs = useMyAvisRefs();
 
   function openAvis(item: AgendaItem) {
     setAvisNote(5);
     setAvisComment('');
-    const type = item.type === 'transport_buyer' || item.type === 'transport_seller' ? 'transport'
-      : item.type === 'box_buyer' || item.type === 'box_seller' ? 'box'
-      : item.type === 'stage' ? 'stage' : 'coach';
     setAvisModal({ destId: item.autrePartieId, destNom: item.autrePartieNom, type: item.type, refId: item.id });
   }
 
-  function submitAvis() {
-    if (!avisModal) return;
-    const type = avisModal.type === 'transport_buyer' || avisModal.type === 'transport_seller' ? 'transport'
-      : avisModal.type === 'box_buyer' || avisModal.type === 'box_seller' ? 'box'
-      : avisModal.type === 'stage' ? 'stage' : 'coach';
-    addAvis({
-      auteur_id: userStore.id,
-      auteur_nom: `${userStore.prenom} ${userStore.nom}`,
-      auteur_initiales: `${userStore.prenom[0]}${userStore.nom[0]}`.toUpperCase(),
-      auteur_couleur: userStore.avatarColor,
-      destinataire_id: avisModal.destId,
-      note: avisNote,
-      commentaire: avisComment.trim() || null,
-      type,
-      ref_id: avisModal.refId,
-    });
-    setAvisModal(null);
-    Alert.alert('Merci !', 'Votre avis a bien été enregistré.');
+  async function submitAvis() {
+    if (!avisModal || avisSubmitting) return;
+    setAvisSubmitting(true);
+    try {
+      const { error } = await createAvis(
+        avisModal.destId,
+        avisNote,
+        avisComment,
+        avisTypeFromAgenda(avisModal.type),
+        avisModal.refId,
+      );
+      if (error) {
+        Alert.alert('Erreur', error);
+        return;
+      }
+      setAvisModal(null);
+      Alert.alert('Merci !', 'Votre avis a bien été enregistré.');
+    } finally {
+      setAvisSubmitting(false);
+    }
   }
 
   useFocusEffect(useCallback(() => {
@@ -346,7 +354,7 @@ export default function CavalierAgendaScreen() {
                     <View style={s.cardBottom}>
                       <Text style={s.montant}>{item.montant.toFixed(2)}€ TTC</Text>
                       {(item.statut === 'paid' || item.statut === 'accepted') && (
-                        hasAlreadyReviewed(userStore.id, item.autrePartieId, item.id) ? (
+                        myAvisRefs.has(item.id) ? (
                           <View style={s.avisDoneBadge}>
                             <Text style={s.avisDoneText}>⭐ Avis déposé</Text>
                           </View>
@@ -396,8 +404,12 @@ export default function CavalierAgendaScreen() {
               <TouchableOpacity style={s.cancelBtn} onPress={() => setAvisModal(null)}>
                 <Text style={s.cancelText}>Annuler</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={s.submitBtn} onPress={submitAvis}>
-                <Text style={s.submitText}>Envoyer</Text>
+              <TouchableOpacity
+                style={[s.submitBtn, avisSubmitting && { opacity: 0.6 }]}
+                onPress={submitAvis}
+                disabled={avisSubmitting}
+              >
+                <Text style={s.submitText}>{avisSubmitting ? 'Envoi…' : 'Envoyer'}</Text>
               </TouchableOpacity>
             </View>
           </View>

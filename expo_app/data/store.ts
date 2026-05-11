@@ -9,21 +9,6 @@ import { mockConcours } from './mockConcours';
 import { mockConcoursCsv } from './mockConcoursCsv';
 import { mockUsers } from './mockUsers';
 
-// ── Type Avis local ─────────────────────────────────────────────────────────
-export interface AvisItem {
-  id: string;
-  auteur_id: string;
-  auteur_nom: string;
-  auteur_initiales: string;
-  auteur_couleur: string;
-  destinataire_id: string;
-  note: number;
-  commentaire: string | null;
-  type: 'coach' | 'transport' | 'box' | 'stage';
-  ref_id?: string;
-  created_at: string;
-}
-
 // Supabase client
 const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -186,44 +171,6 @@ export const boxReservationsStore: { list: BoxReservation[] } = { list: [] };
 
 // Store de l'agenda des coachs
 export const coachAgendaStore: { list: CoachAgendaEvent[] } = { list: [] };
-
-// Store des avis (local, sans Supabase)
-const COACH1_ID = mockUsers.coach.id;
-const CAV_ID = mockUsers.cavalier.id;
-
-export const avisStore: { list: AvisItem[] } = {
-  list: [
-    { id: 'av1', auteur_id: CAV_ID, auteur_nom: 'Sophie Martin', auteur_initiales: 'SM', auteur_couleur: '#F97316', destinataire_id: COACH1_ID, note: 5, commentaire: 'Excellent coach, très pédagogue et patient. Je recommande vivement !', type: 'coach', created_at: new Date('2026-03-15').toISOString() },
-    { id: 'av2', auteur_id: 'user2', auteur_nom: 'Marie Dupont', auteur_initiales: 'MD', auteur_couleur: '#7C3AED', destinataire_id: COACH1_ID, note: 5, commentaire: 'Progression visible dès le premier cours. Méthode top.', type: 'coach', created_at: new Date('2026-03-20').toISOString() },
-    { id: 'av3', auteur_id: 'user3', auteur_nom: 'Thomas Renard', auteur_initiales: 'TR', auteur_couleur: '#0369A1', destinataire_id: COACH1_ID, note: 4, commentaire: 'Très bon coach, quelques retards mais qualité au top.', type: 'coach', created_at: new Date('2026-04-01').toISOString() },
-    { id: 'av4', auteur_id: CAV_ID, auteur_nom: 'Sophie Martin', auteur_initiales: 'SM', auteur_couleur: '#F97316', destinataire_id: 'user2', note: 5, commentaire: 'Van impeccable, cheval bien arrivé. Conductrice très sympa !', type: 'transport', created_at: new Date('2026-04-05').toISOString() },
-  ],
-};
-
-// Helpers avis
-export function getAvisForUser(userId: string): AvisItem[] {
-  return avisStore.list.filter(a => a.destinataire_id === userId);
-}
-
-export function getAvisMoyenne(userId: string): number {
-  const list = getAvisForUser(userId);
-  if (list.length === 0) return 0;
-  return Math.round((list.reduce((s, a) => s + a.note, 0) / list.length) * 10) / 10;
-}
-
-export function hasAlreadyReviewed(auteurId: string, destinataireId: string, refId?: string): boolean {
-  return avisStore.list.some(a =>
-    a.auteur_id === auteurId &&
-    a.destinataire_id === destinataireId &&
-    (refId ? a.ref_id === refId : true)
-  );
-}
-
-export function addAvis(a: Omit<AvisItem, 'id' | 'created_at'>): AvisItem {
-  const item: AvisItem = { ...a, id: `av_${Date.now()}`, created_at: new Date().toISOString() };
-  avisStore.list.unshift(item);
-  return item;
-}
 
 // Types pour la messagerie
 export interface Message {

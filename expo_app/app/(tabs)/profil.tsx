@@ -6,7 +6,8 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
-import { userStore, getAvisForUser, getFollowers, getFollowing } from '../../data/store';
+import { userStore, getFollowers, getFollowing } from '../../data/store';
+import { useAvisStats } from '../../hooks/useAvis';
 import { FollowListModal } from '../../components/FollowListModal';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
@@ -53,7 +54,7 @@ export default function ProfilScreen() {
   const { chevauxStore } = require('../../data/store');
   const nbChevaux = chevauxStore.list.filter((c: any) => c.proprietaireId === userStore.id).length;
   const nbConcours = 8;
-  const nbAvis = getAvisForUser(userStore.id).length;
+  const { count: nbAvis } = useAvisStats(userStore.id);
   const nbFollowers = getFollowers(userStore.id).length;
   const nbFollowing = getFollowing(userStore.id).length;
 
