@@ -844,9 +844,7 @@ function TransportCard({ item, onCancel, onModify }: {
             ) : (
               <>
                 <Text style={s.priceHT}>{item.pricePerKm ?? item.prixHT}€/km</Text>
-                <Text style={s.priceTTC}>
-                  {item.allerRetour ? 'facturé ×2 (A/R)' : 'aller simple'}
-                </Text>
+                <Text style={s.priceTTC}>prix au kilomètre</Text>
               </>
             )}
           </View>

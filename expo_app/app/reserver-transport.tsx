@@ -515,9 +515,7 @@ export default function ReserverTransportScreen() {
                   <Text style={s.routeResultVal}>{routeResult.distancePickupToDestinationKm} km</Text>
                 </View>
                 <View style={[s.routeResultRow, s.routeResultDivider]}>
-                  <Text style={s.routeResultLabelBold}>
-                    Distance totale{transport.allerRetour ? ' (×2 A/R)' : ''}
-                  </Text>
+                  <Text style={s.routeResultLabelBold}>Distance totale</Text>
                   <Text style={s.routeResultValBold}>{routeResult.totalDistanceKm} km</Text>
                 </View>
                 <View style={s.routeResultRow}>
