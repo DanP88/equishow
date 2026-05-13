@@ -76,17 +76,21 @@ export default function ReserverTransportScreen() {
   let prixTotalTTC = 0;
   let nombreJours = 1;
 
+  // Multiplicateur A/R appliqué côté FRONT seulement quand routeResult absent.
+  // Quand routeResult est présent, l'Edge calculate-route-price a déjà inclus
+  // le ×2 dans totalPrice (anti-fraud server-side).
+  const tripMultiplierFallback = isTrajet && transport.allerRetour ? 2 : 1;
+
   if (!isTrajet && selectedDates.length > 0) {
     nombreJours = selectedDates.length;
     prixTotal = transport.prixHT * nombreJours;
     prixTotalTTC = prixTotal;
   } else if (isTrajet) {
     if (routeResult) {
-      // Prix calculé côté backend — multiplié par le nombre de places
       prixTotal = routeResult.totalPrice * nbPlaces;
       prixTotalTTC = prixTotal;
     } else {
-      prixTotal = transport.prixHT * nbPlaces;
+      prixTotal = transport.prixHT * nbPlaces * tripMultiplierFallback;
       prixTotalTTC = prixTotal;
     }
   }
@@ -268,7 +272,7 @@ export default function ReserverTransportScreen() {
       },
     });
 
-    // Montant final = backend price si calculé
+    // Montant final = backend price (déjà × 2 côté Edge si A/R) × nbPlaces.
     const montantPaiement = routeResult
       ? (routeResult.totalPrice * nbPlaces).toFixed(2)
       : prixTotalTTC.toFixed(2);

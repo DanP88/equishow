@@ -182,7 +182,7 @@ Deno.serve(async (req: Request) => {
     // ── Load annonce server-side (RLS : tout authentifié peut voir) ────────
     const { data: annonce, error: annonceErr } = await supabase
       .from("transport_annonces")
-      .select("id, price_per_km, adresse_van, ville_depart, adresse_arrivee, ville_arrivee, start_lat, start_lng, destination_lat, destination_lng")
+      .select("id, price_per_km, aller_retour, adresse_van, ville_depart, adresse_arrivee, ville_arrivee, start_lat, start_lng, destination_lat, destination_lng")
       .eq("id", transportId)
       .maybeSingle();
 
@@ -257,8 +257,12 @@ Deno.serve(async (req: Request) => {
 
     const distOwnerToPickupKm = round1(seg1.distanceM / 1000);
     const distPickupToDestKm = round1(seg2.distanceM / 1000);
-    const totalDistKm = round1(distOwnerToPickupKm + distPickupToDestKm);
-    const totalDurationMin = Math.round((seg1.durationS + seg2.durationS) / 60);
+    const oneWayKm = distOwnerToPickupKm + distPickupToDestKm;
+    // Aller-retour : on facture le trajet 2 fois (anti-fraud server-side).
+    const isAllerRetour = annonce.aller_retour === true;
+    const tripMultiplier = isAllerRetour ? 2 : 1;
+    const totalDistKm = round1(oneWayKm * tripMultiplier);
+    const totalDurationMin = Math.round(((seg1.durationS + seg2.durationS) * tripMultiplier) / 60);
     const totalPrice = round2(totalDistKm * pricePerKm);
 
     const result: RoutePricingResult = {
