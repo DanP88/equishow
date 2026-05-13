@@ -199,18 +199,26 @@ export default function ReserverTransportScreen() {
     }
   }
 
+  // Sur web, Alert.alert est silencieux → on bascule sur window.alert.
+  function showErr(msg: string) {
+    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
+    else Alert.alert('Erreur', msg);
+  }
+
   // ─── Soumission ──────────────────────────────────────────────────────────────
   async function submit() {
     if (!isTrajet) {
       if (selectedDates.length === 0) {
-        if (typeof window !== 'undefined') window.alert('Veuillez sélectionner au moins 1 jour.');
-        else Alert.alert('Erreur', 'Veuillez sélectionner au moins 1 jour.');
+        showErr('Veuillez sélectionner au moins 1 jour.');
         return;
       }
     } else {
       if (nbPlaces < 1 || nbPlaces > transport.nbPlacesDisponibles) {
-        if (typeof window !== 'undefined') window.alert(`Sélectionnez entre 1 et ${transport.nbPlacesDisponibles} place(s).`);
-        else Alert.alert('Erreur', `Sélectionnez entre 1 et ${transport.nbPlacesDisponibles} place(s).`);
+        showErr(`Sélectionnez entre 1 et ${transport.nbPlacesDisponibles} place(s).`);
+        return;
+      }
+      if (showRoutePricing && !routeResult) {
+        showErr('Veuillez d\'abord calculer le prix de votre trajet (bouton "Calculer mon prix").');
         return;
       }
     }
@@ -251,7 +259,7 @@ export default function ReserverTransportScreen() {
     });
 
     if (createErr || !created) {
-      Alert.alert('Erreur', createErr ?? 'Impossible de créer la réservation.');
+      showErr(createErr ?? 'Impossible de créer la réservation.');
       return;
     }
 
@@ -646,11 +654,10 @@ export default function ReserverTransportScreen() {
           )}
         </View>
 
-        {/* Bouton soumettre */}
+        {/* Bouton soumettre — toujours cliquable, submit() affiche un alert si calc manquant */}
         <TouchableOpacity
           style={[s.submitBtn, (showRoutePricing && !routeResult) && s.submitBtnDisabled]}
           onPress={submit}
-          disabled={showRoutePricing && !routeResult}
           activeOpacity={0.85}
         >
           <Text style={s.submitText}>
