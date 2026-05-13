@@ -185,7 +185,14 @@ export async function handler(req: Request): Promise<Response> {
     if (sellerErr || !seller) {
       return jsonResponse({ error: "Seller not found" }, 404);
     }
-    if (!seller.stripe_account_id || !seller.stripe_charges_enabled) {
+
+    // En mode test Stripe (`sk_test_*`), on autorise un seller sans compte
+    // Connect configuré — le paiement se fait sans transfer_data, ce qui
+    // permet de tester le flow E2E sans onboarding réel.
+    const isStripeTestMode = STRIPE_SECRET_KEY.startsWith("sk_test_");
+    const sellerHasConnect = !!seller.stripe_account_id && !!seller.stripe_charges_enabled;
+
+    if (!isStripeTestMode && !sellerHasConnect) {
       return jsonResponse(
         { error: "Le vendeur n'a pas finalisé ses paiements." },
         409
@@ -236,15 +243,18 @@ export async function handler(req: Request): Promise<Response> {
     formData.append("line_items[0][price_data][unit_amount]", String(amountBuyerCents));
     formData.append("line_items[0][quantity]", "1");
 
-    // Stripe Connect Option A : transfer auto + application_fee
-    formData.append(
-      "payment_intent_data[transfer_data][destination]",
-      seller.stripe_account_id
-    );
-    formData.append(
-      "payment_intent_data[application_fee_amount]",
-      String(platformFeeCents)
-    );
+    // Stripe Connect Option A : transfer auto + application_fee.
+    // Skip si test mode et seller pas onboardé → paiement direct (testable).
+    if (sellerHasConnect) {
+      formData.append(
+        "payment_intent_data[transfer_data][destination]",
+        seller.stripe_account_id!,
+      );
+      formData.append(
+        "payment_intent_data[application_fee_amount]",
+        String(platformFeeCents)
+      );
+    }
 
     // Métadonnées indispensables pour le webhook
     formData.append("payment_intent_data[metadata][payment_id]", paymentId);
