@@ -8,6 +8,7 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
 import { userStore, getFollowers, getFollowing } from '../../data/store';
 import { useAvisStats } from '../../hooks/useAvis';
+import { useMyChevauxCount } from '../../hooks/useChevaux';
 import { FollowListModal } from '../../components/FollowListModal';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
@@ -50,9 +51,7 @@ export default function ProfilScreen() {
     setShowEdit(true);
   }
 
-  // Import chevauxStore to count user's horses dynamically
-  const { chevauxStore } = require('../../data/store');
-  const nbChevaux = chevauxStore.list.filter((c: any) => c.proprietaireId === userStore.id).length;
+  const nbChevaux = useMyChevauxCount();
   const nbConcours = 8;
   const { count: nbAvis } = useAvisStats(userStore.id);
   const nbFollowers = getFollowers(userStore.id).length;

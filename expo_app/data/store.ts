@@ -1,6 +1,4 @@
 import { createClient } from '@supabase/supabase-js';
-import { mockChevaux } from './mockChevaux';
-import { Cheval } from '../types/cheval';
 import { TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, StageReservation, CourseDemande, CoachAgendaEvent, TransportReservation, BoxReservation } from '../types/service';
 import { Concours, ConcoursCSV, ImportBatch, ImportError } from '../types/concours';
 import { Notification } from '../types/notification';
@@ -18,8 +16,6 @@ if (!supabaseUrl || !supabaseAnonKey) {
 }
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
-
-export const chevauxStore: { list: Cheval[] } = { list: [...mockChevaux] };
 
 // Interface for userStore with switchAccount method
 export interface UserStore {

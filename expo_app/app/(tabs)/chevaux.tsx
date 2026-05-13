@@ -1,44 +1,32 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, Alert, Modal, FlatList, TextInput,
+  StyleSheet, SafeAreaView, Alert, ActivityIndicator,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../../constants/theme';
+import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../../constants/theme';
 import { Cheval, getChevalAge, TypeChevalEmoji } from '../../types/cheval';
-import { chevauxStore, userStore } from '../../data/store';
-
-const AVAILABLE_COACHS = [
-  { id: 'coach1', nom: 'Émilie Laurent', emoji: '🎓' },
-  { id: 'coach2', nom: 'Marc Dubois', emoji: '🎓' },
-  { id: 'coach3', nom: 'Sophie Laurent', emoji: '🎓' },
-];
+import { useMyChevaux } from '../../hooks/useChevaux';
 
 export default function ChevauxScreen() {
-  const [chevaux, setChevaux] = useState<Cheval[]>(
-    chevauxStore.list.filter(c => c.proprietaireId === userStore.id)
-  );
+  const { chevaux, isLoading, createCheval, deleteCheval } = useMyChevaux();
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [creating, setCreating] = useState(false);
 
-  // Re-filter horses every time this screen is focused (handles account switching)
-  useFocusEffect(useCallback(() => {
-    setChevaux(chevauxStore.list.filter(c => c.proprietaireId === userStore.id));
-  }, []));
-
-  function handleAdd() {
-    const nouveau: Cheval = {
-      id: Date.now().toString(),
-      nom: 'Nouveau cheval',
-      proprietaireId: userStore.id,
-      type: 'cheval',
-      temperament: [],
-      disciplines: [],
-      concours: [],
-    };
-    chevauxStore.list = [...chevauxStore.list, nouveau];
-    setChevaux([...chevauxStore.list]);
-    router.push(`/cheval/${nouveau.id}?new=true`);
+  async function handleAdd() {
+    if (creating) return;
+    setCreating(true);
+    try {
+      const { data, error } = await createCheval({ nom: 'Nouveau cheval', type: 'cheval' });
+      if (error || !data) {
+        Alert.alert('Erreur', error ?? "Impossible d'ajouter le cheval.");
+        return;
+      }
+      router.push(`/cheval/${data.id}?new=true`);
+    } finally {
+      setCreating(false);
+    }
   }
 
   function handleDelete(id: string) {
@@ -48,12 +36,9 @@ export default function ChevauxScreen() {
       [
         { text: 'Annuler', style: 'cancel', onPress: () => setDeletingId(null) },
         {
-          text: 'Supprimer', style: 'destructive', onPress: () => {
-            // Mettre à jour l'état EN PREMIER
-            const newChevaux = chevaux.filter((c) => c.id !== id);
-            setChevaux(newChevaux);
-            // Puis mettre à jour le store
-            chevauxStore.list = newChevaux;
+          text: 'Supprimer', style: 'destructive', onPress: async () => {
+            const { error } = await deleteCheval(id);
+            if (error) Alert.alert('Erreur', error);
             setDeletingId(null);
           },
         },
@@ -63,7 +48,6 @@ export default function ChevauxScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
-      {/* Header - Titre seulement (les icônes sont dans CustomTopBar) */}
       <View style={styles.header}>
         <View>
           <Text style={styles.headerTitle}>Mes Chevaux</Text>
@@ -72,31 +56,39 @@ export default function ChevauxScreen() {
       </View>
 
       <ScrollView contentContainerStyle={styles.list}>
-        {chevaux.map((cheval) => (
-          <View key={cheval.id}>
-            <ChevalCard
-              cheval={cheval}
-              onPress={() => { setDeletingId(null); router.push(`/cheval/${cheval.id}`); }}
-              onLongPress={() => setDeletingId(deletingId === cheval.id ? null : cheval.id)}
-              dimmed={deletingId !== null && deletingId !== cheval.id}
-            />
-            {deletingId === cheval.id && (
-              <View style={styles.deleteRow}>
-                <TouchableOpacity style={styles.deleteCancelBtn} onPress={() => setDeletingId(null)}>
-                  <Text style={styles.deleteCancelText}>Annuler</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={styles.deleteConfirmBtn} onPress={() => handleDelete(cheval.id)}>
-                  <Text style={styles.deleteConfirmText}>🗑 Supprimer ce cheval</Text>
-                </TouchableOpacity>
-              </View>
-            )}
-          </View>
-        ))}
+        {isLoading && chevaux.length === 0 ? (
+          <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.xl }} />
+        ) : (
+          chevaux.map((cheval) => (
+            <View key={cheval.id}>
+              <ChevalCard
+                cheval={cheval}
+                onPress={() => { setDeletingId(null); router.push(`/cheval/${cheval.id}`); }}
+                onLongPress={() => setDeletingId(deletingId === cheval.id ? null : cheval.id)}
+                dimmed={deletingId !== null && deletingId !== cheval.id}
+              />
+              {deletingId === cheval.id && (
+                <View style={styles.deleteRow}>
+                  <TouchableOpacity style={styles.deleteCancelBtn} onPress={() => setDeletingId(null)}>
+                    <Text style={styles.deleteCancelText}>Annuler</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.deleteConfirmBtn} onPress={() => handleDelete(cheval.id)}>
+                    <Text style={styles.deleteConfirmText}>🗑 Supprimer ce cheval</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          ))
+        )}
 
-        {/* Ajouter un cheval */}
-        <TouchableOpacity style={styles.addCard} onPress={handleAdd} activeOpacity={0.8}>
+        <TouchableOpacity
+          style={[styles.addCard, creating && { opacity: 0.6 }]}
+          onPress={handleAdd}
+          disabled={creating}
+          activeOpacity={0.8}
+        >
           <Text style={styles.addIcon}>+</Text>
-          <Text style={styles.addText}>Ajouter un cheval</Text>
+          <Text style={styles.addText}>{creating ? 'Création…' : 'Ajouter un cheval'}</Text>
         </TouchableOpacity>
       </ScrollView>
 
@@ -115,7 +107,6 @@ function ChevalCard({ cheval, onPress, onLongPress, dimmed }: {
   return (
     <View>
       <TouchableOpacity style={[styles.card, dimmed && { opacity: 0.4 }]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
-        {/* Avatar couleur */}
         <View style={[styles.cardAvatar, { backgroundColor: cheval.photoColor ?? Colors.primaryLight }]}>
           <Text style={styles.cardAvatarEmoji}>{emoji}</Text>
         </View>
@@ -129,7 +120,6 @@ function ChevalCard({ cheval, onPress, onLongPress, dimmed }: {
           <Text style={styles.cardName}>{cheval.nom}</Text>
           {subtitle ? <Text style={styles.cardSub}>{subtitle}</Text> : null}
 
-          {/* Disciplines */}
           {cheval.disciplines.length > 0 && (
             <View style={styles.chips}>
               {cheval.disciplines.map((d) => (
@@ -140,11 +130,12 @@ function ChevalCard({ cheval, onPress, onLongPress, dimmed }: {
             </View>
           )}
 
-          {/* Prochain concours */}
           {nextConcours && (
             <View style={styles.nextConcours}>
               <Text style={styles.nextConcoursText}>
-                🏆 {nextConcours.nom} · {nextConcours.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
+                🏆 {nextConcours.nom} · {nextConcours.date instanceof Date
+                  ? nextConcours.date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })
+                  : new Date(nextConcours.date).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}
               </Text>
             </View>
           )}
@@ -169,11 +160,6 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   headerSub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
-  notifBadge: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.surfaceVariant, alignItems: 'center', justifyContent: 'center' },
-  notifIcon: { fontSize: 18 },
-  avatar: { width: 36, height: 36, borderRadius: 18, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  avatarText: { color: Colors.textInverse, fontSize: FontSize.sm, fontWeight: FontWeight.bold },
   list: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 100 },
   card: {
     ...CommonStyles.card,

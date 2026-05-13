@@ -1,12 +1,13 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity,
-  StyleSheet, SafeAreaView, Modal, TextInput, Alert, FlatList,
+  StyleSheet, SafeAreaView, Modal, TextInput, Alert, FlatList, ActivityIndicator,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../../constants/theme';
-import { chevauxStore, userStore, notificationsStore } from '../../data/store';
+import { useCheval } from '../../hooks/useChevaux';
+import { useAuth } from '../../hooks/useAuth';
 import { Cheval, TypeChevalLabel, getChevalAge } from '../../types/cheval';
 import { DatePickerModal, DateButton, formatDate } from '../../components/DatePickerModal';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
@@ -163,23 +164,7 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose 
   function tagCoach(coach: typeof AVAILABLE_COACHS[0]) {
     setCoachNom(coach.nom);
     setCoachPseudo(coach.id);
-
-    // Send notification to coach
-    notificationsStore.list = [{
-      id: `notif_${Date.now()}`,
-      type: 'message',
-      titre: `🏇 ${userStore.prenom} ${userStore.nom} vous a assigné son cheval`,
-      message: `Vous avez été assigné comme coach pour ${cheval.nom}`,
-      destinataireId: coach.id,
-      auteurId: userStore.id,
-      auteurNom: `${userStore.prenom} ${userStore.nom}`,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
-      lu: false,
-      dateCreation: new Date(),
-    }, ...notificationsStore.list];
-
+    // TODO(P25): notifier le coach via Supabase une fois notifications migrées.
     setTagCoachModalVisible(false);
     setCoachSearchQuery('');
   }
@@ -536,15 +521,30 @@ function sociabiliteKey(l: string) { return { 'Sociable — se mélange bien': '
 
 export default function ChevalDetailScreen() {
   const { id, new: isNew } = useLocalSearchParams<{ id: string; new?: string }>();
-  const [chevaux, setChevaux] = useState(chevauxStore.list);
+  const { profile } = useAuth();
+  const { cheval, isLoading, update, remove } = useCheval(id);
   const [showEdit, setShowEdit] = useState(isNew === 'true');
   const [editSection, setEditSection] = useState<EditSection>('identite');
-
-  const cheval = chevaux.find((c) => c.id === id);
 
   function handleBack() {
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)/chevaux');
+  }
+
+  // UX ownership guard : RLS bloque déjà côté DB, on évite juste qu'un user
+  // tombe sur la fiche d'un cheval qui n'est pas le sien.
+  useEffect(() => {
+    if (!cheval || !profile?.id) return;
+    if (cheval.proprietaireId !== profile.id) handleBack();
+  }, [cheval, profile?.id]);
+
+  if (isLoading && !cheval) {
+    return (
+      <SafeAreaView style={styles.root}>
+        <TouchableOpacity style={styles.backBtn} onPress={handleBack}><Text style={styles.backIcon}>←</Text></TouchableOpacity>
+        <View style={styles.notFound}><ActivityIndicator color={Colors.primary} /></View>
+      </SafeAreaView>
+    );
   }
 
   if (!cheval) {
@@ -556,9 +556,12 @@ export default function ChevalDetailScreen() {
     );
   }
 
-  function handleSave(updated: Cheval) {
-    chevauxStore.list = chevauxStore.list.map((c) => (c.id === updated.id ? updated : c));
-    setChevaux([...chevauxStore.list]);
+  async function handleSave(updated: Cheval) {
+    const { error } = await update(updated);
+    if (error) {
+      Alert.alert('Erreur', error);
+      return;
+    }
     setShowEdit(false);
   }
 
@@ -575,10 +578,12 @@ export default function ChevalDetailScreen() {
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Supprimer', style: 'destructive', onPress: () => {
-            // Mettre à jour le store
-            chevauxStore.list = chevauxStore.list.filter((c) => c.id !== id);
-            // Retourner à la liste
+          text: 'Supprimer', style: 'destructive', onPress: async () => {
+            const { error } = await remove();
+            if (error) {
+              Alert.alert('Erreur', error);
+              return;
+            }
             handleBack();
           },
         },
