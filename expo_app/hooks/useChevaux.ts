@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import {
@@ -113,6 +113,7 @@ interface ChevalResult {
 // ── Hook : tous les chevaux du user courant ────────────────────────────────
 export function useMyChevaux() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [list, setList] = useState<Cheval[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -146,7 +147,7 @@ export function useMyChevaux() {
   useEffect(() => {
     if (!profile?.id) return;
     const channel = supabase
-      .channel(`chevaux-${profile.id}`)
+      .channel(`chevaux-${profile.id}-${channelId}`)
       .on(
         'postgres_changes',
         {
@@ -220,6 +221,7 @@ export function useMyChevaux() {
 
 // ── Hook : un cheval par id (pour l'écran détail) ──────────────────────────
 export function useCheval(id?: string) {
+  const channelId = useId();
   const [cheval, setCheval] = useState<Cheval | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -252,7 +254,7 @@ export function useCheval(id?: string) {
   useEffect(() => {
     if (!id) return;
     const channel = supabase
-      .channel(`cheval-${id}`)
+      .channel(`cheval-${id}-${channelId}`)
       .on(
         'postgres_changes',
         {
@@ -306,6 +308,7 @@ export function useCheval(id?: string) {
 // ── Hook : count mes chevaux (lightweight) ─────────────────────────────────
 export function useMyChevauxCount() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [count, setCount] = useState(0);
 
   const load = useCallback(async () => {
@@ -331,7 +334,7 @@ export function useMyChevauxCount() {
   useEffect(() => {
     if (!profile?.id) return;
     const channel = supabase
-      .channel(`chevaux-count-${profile.id}`)
+      .channel(`chevaux-count-${profile.id}-${channelId}`)
       .on(
         'postgres_changes',
         {

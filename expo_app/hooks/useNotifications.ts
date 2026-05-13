@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { Notification } from '../types/notification';
@@ -95,6 +95,7 @@ export async function createNotification(
 // ── Hook principal : boîte de réception du user courant ────────────────────
 export function useNotifications() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +129,7 @@ export function useNotifications() {
   useEffect(() => {
     if (!profile?.id) return;
     const channel = supabase
-      .channel(`notifications-${profile.id}`)
+      .channel(`notifications-${profile.id}-${channelId}`)
       .on(
         'postgres_changes',
         {
@@ -184,6 +185,7 @@ export function useNotifications() {
 // ── Hook léger : juste le count (pour bottom bar, badges) ──────────────────
 export function useUnreadNotificationsCount() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [count, setCount] = useState(0);
 
   const load = useCallback(async () => {
@@ -210,7 +212,7 @@ export function useUnreadNotificationsCount() {
   useEffect(() => {
     if (!profile?.id) return;
     const channel = supabase
-      .channel(`notifications-count-${profile.id}`)
+      .channel(`notifications-count-${profile.id}-${channelId}`)
       .on(
         'postgres_changes',
         {

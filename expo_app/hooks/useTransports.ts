@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { TransportAnnonce, TransportReservation } from '../types/service';
@@ -112,6 +112,7 @@ interface AnnonceResult {
 
 // ── Hook : toutes les annonces transport (marketplace) ─────────────────────
 export function useTransportAnnonces() {
+  const channelId = useId();
   const [list, setList] = useState<TransportAnnonce[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +139,7 @@ export function useTransportAnnonces() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('transport-annonces-all')
+      .channel(`transport-annonces-all-${channelId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transport_annonces' },
@@ -156,6 +157,7 @@ export function useTransportAnnonces() {
 // ── Hook : annonces du user courant + create/update/delete ─────────────────
 export function useMyTransportAnnonces() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [list, setList] = useState<TransportAnnonce[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -188,7 +190,7 @@ export function useMyTransportAnnonces() {
   useEffect(() => {
     if (!profile?.id) return;
     const channel = supabase
-      .channel(`transport-annonces-${profile.id}`)
+      .channel(`transport-annonces-${profile.id}-${channelId}`)
       .on(
         'postgres_changes',
         {
@@ -354,6 +356,7 @@ export interface CreateTransportReservationInput {
 // ── Hook : réservations transport pour le user courant (buyer + seller) ────
 export function useMyTransportReservations() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [list, setList] = useState<TransportReservation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -388,7 +391,7 @@ export function useMyTransportReservations() {
     // Realtime : 2 filtres (buyer/seller). Supabase ne supporte pas OR dans filter,
     // donc on s'abonne à toute la table et on reload — la RLS borne déjà côté DB.
     const channel = supabase
-      .channel(`transport-reservations-${profile.id}`)
+      .channel(`transport-reservations-${profile.id}-${channelId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'transport_reservations' },

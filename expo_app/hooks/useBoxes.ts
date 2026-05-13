@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { BoxAnnonce, BoxReservation } from '../types/service';
@@ -65,6 +65,7 @@ interface AnnonceResult {
 
 // ── Hook : toutes les annonces box (marketplace) ───────────────────────────
 export function useBoxAnnonces() {
+  const channelId = useId();
   const [list, setList] = useState<BoxAnnonce[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -89,7 +90,7 @@ export function useBoxAnnonces() {
 
   useEffect(() => {
     const channel = supabase
-      .channel('box-annonces-all')
+      .channel(`box-annonces-all-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'box_annonces' }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };
@@ -101,6 +102,7 @@ export function useBoxAnnonces() {
 // ── Hook : annonces box du user + CRUD ─────────────────────────────────────
 export function useMyBoxAnnonces() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [list, setList] = useState<BoxAnnonce[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -128,7 +130,7 @@ export function useMyBoxAnnonces() {
   useEffect(() => {
     if (!profile?.id) return;
     const channel = supabase
-      .channel(`box-annonces-${profile.id}`)
+      .channel(`box-annonces-${profile.id}-${channelId}`)
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'box_annonces', filter: `auteur_id=eq.${profile.id}` },
@@ -248,6 +250,7 @@ export interface CreateBoxReservationInput {
 // ── Hook : réservations box pour le user courant (buyer + seller) ──────────
 export function useMyBoxReservations() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [list, setList] = useState<BoxReservation[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -276,7 +279,7 @@ export function useMyBoxReservations() {
     if (!profile?.id) return;
     // Filter OR pas supporté : on s'abonne à toute la table (RLS borne déjà).
     const channel = supabase
-      .channel(`box-reservations-${profile.id}`)
+      .channel(`box-reservations-${profile.id}-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'box_reservations' }, () => load())
       .subscribe();
     return () => { supabase.removeChannel(channel); };

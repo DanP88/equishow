@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 
@@ -38,6 +38,7 @@ function describeError(message: string): string {
 
 export function useAvis(destinataireId?: string) {
   const { profile } = useAuth();
+  const channelId = useId();
   const [list, setList] = useState<Avis[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -71,7 +72,7 @@ export function useAvis(destinataireId?: string) {
   useEffect(() => {
     if (!destinataireId) return;
     const channel = supabase
-      .channel(`avis-${destinataireId}`)
+      .channel(`avis-${destinataireId}-${channelId}`)
       .on(
         'postgres_changes',
         {
@@ -145,6 +146,7 @@ export function useAvis(destinataireId?: string) {
  * Optimisé pour les listes/cards : 1 query par utilisateur monitoré.
  */
 export function useAvisStats(userId?: string) {
+  const channelId = useId();
   const [stats, setStats] = useState<{ count: number; average: number }>({ count: 0, average: 0 });
 
   const load = useCallback(async () => {
@@ -174,7 +176,7 @@ export function useAvisStats(userId?: string) {
   useEffect(() => {
     if (!userId) return;
     const channel = supabase
-      .channel(`avis-stats-${userId}`)
+      .channel(`avis-stats-${userId}-${channelId}`)
       .on(
         'postgres_changes',
         {
@@ -201,6 +203,7 @@ export function useAvisStats(userId?: string) {
  */
 export function useMyAvisRefs() {
   const { profile } = useAuth();
+  const channelId = useId();
   const [refs, setRefs] = useState<Set<string>>(new Set());
 
   const load = useCallback(async () => {
@@ -226,7 +229,7 @@ export function useMyAvisRefs() {
   useEffect(() => {
     if (!profile?.id) return;
     const channel = supabase
-      .channel(`my-avis-${profile.id}`)
+      .channel(`my-avis-${profile.id}-${channelId}`)
       .on(
         'postgres_changes',
         {
