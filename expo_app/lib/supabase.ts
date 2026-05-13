@@ -1,6 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 import { AppError } from './errorHandler';
 
+// Extract a human-readable message from anything thrown.
+// PostgrestError / AuthError ne sont pas toujours `instanceof Error` selon la
+// version du SDK → on regarde le shape, sinon on retombe sur le fallback
+// (sans `String(err)` qui produit "[object Object]").
+function extractErrorMessage(err: unknown, fallback: string): string {
+  if (err instanceof Error) return err.message;
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object') {
+    const m = (err as { message?: unknown }).message;
+    if (typeof m === 'string' && m.trim()) return m;
+  }
+  return fallback;
+}
+
 // Get credentials from environment variables
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
@@ -166,7 +180,7 @@ export const signUp = async (
     console.error('❌ Sign up error:', err);
     const error = err instanceof AppError
       ? err
-      : new AppError(err instanceof Error ? err.message : String(err), 'SIGNUP_ERROR', 500);
+      : new AppError(extractErrorMessage(err, "Échec de l'inscription"), 'SIGNUP_ERROR', 500);
     return { user: null, error };
   }
 };
@@ -192,7 +206,7 @@ export const signIn = async (email: string, password: string): Promise<{ user: U
     console.error('❌ Sign in error:', err);
     const error = err instanceof AppError
       ? err
-      : new AppError(err instanceof Error ? err.message : String(err), 'SIGNIN_ERROR', 401);
+      : new AppError(extractErrorMessage(err, 'Échec de la connexion'), 'SIGNIN_ERROR', 401);
     return { user: null, error };
   }
 };
@@ -209,7 +223,7 @@ export const signOut = async (): Promise<{ error: AppError | null }> => {
     console.error('❌ Sign out error:', err);
     const error = err instanceof AppError
       ? err
-      : new AppError(err instanceof Error ? err.message : String(err), 'SIGNOUT_ERROR', 500);
+      : new AppError(extractErrorMessage(err, 'Échec de la déconnexion'), 'SIGNOUT_ERROR', 500);
     return { error };
   }
 };
