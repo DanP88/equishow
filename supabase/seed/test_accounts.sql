@@ -1,6 +1,15 @@
 -- ─────────────────────────────────────────────────────────────────────────────
 -- Equishow — Seed des 5 comptes de test sur le nouveau projet
--- À exécuter dans le SQL Editor du dashboard :
+--
+-- ⚠️ DEPRECATED : utiliser plutôt `node scripts/seed-test-accounts.mjs` qui
+-- passe par l'Admin API gotrue (path canonique). L'INSERT SQL direct dans
+-- auth.users peut désynchroniser le schema gotrue sur certaines versions.
+--
+-- ⚠️ TLDs interdits : `.test`/`.invalid`/`.example` (RFC 2606) sont rejetés
+-- par gotrue avec un 500 trompeur "Database error checking email". Idem pour
+-- les domaines sans DNS routable. On utilise `.app`.
+--
+-- À exécuter dans le SQL Editor du dashboard si l'Admin API n'est pas dispo :
 -- https://supabase.com/dashboard/project/vhkjvnpxcqlmpokrgymx/sql/new
 --
 -- Crée auth.users + auth.identities (login email/password) + public.users.
@@ -14,11 +23,11 @@ begin
   for acct in
     select * from (values
       -- (id,                                     email,                       password,   prenom,   nom,       role)
-      ('550e8400-e29b-41d4-a716-446655440001'::uuid, 'sarah.l@equishow.test',     'test123',  'Sarah',  'Lefebvre','cavalier'),
-      ('550e8400-e29b-41d4-a716-446655440099'::uuid, 'cavalier2@equishow.test',   'test123',  'Sophie', 'Dupont',  'cavalier'),
-      ('550e8400-e29b-41d4-a716-446655440002'::uuid, 'emilie.l@equishow.test',    'test123',  'Émilie', 'Laurent', 'coach'),
-      ('550e8400-e29b-41d4-a716-446655440003'::uuid, 'julien.m@equishow.test',    'test123',  'Julien', 'Mercier', 'organisateur'),
-      ('550e8400-e29b-41d4-a716-446655440006'::uuid, 'admin@equishow.fr',         'admin123', 'Admin',  'Equishow','admin')
+      ('550e8400-e29b-41d4-a716-446655440001'::uuid, 'sarah.l@equishow.app',      'test123',  'Sarah',  'Lefebvre','cavalier'),
+      ('550e8400-e29b-41d4-a716-446655440099'::uuid, 'cavalier2@equishow.app',    'test123',  'Sophie', 'Dupont',  'cavalier'),
+      ('550e8400-e29b-41d4-a716-446655440002'::uuid, 'emilie.l@equishow.app',     'test123',  'Émilie', 'Laurent', 'coach'),
+      ('550e8400-e29b-41d4-a716-446655440003'::uuid, 'julien.m@equishow.app',     'test123',  'Julien', 'Mercier', 'organisateur'),
+      ('550e8400-e29b-41d4-a716-446655440006'::uuid, 'admin@equishow.app',        'admin123', 'Admin',  'Equishow','admin')
     ) as t(id, email, password, prenom, nom, role)
   loop
     -- 1. auth.users (compte authentifié Supabase)
