@@ -2,10 +2,11 @@
   "buildCommand": "npm install && npx expo export --platform web",
   "outputDirectory": "dist",
   "installCommand": "echo skip install",
-  "routes": [
+
+  "rewrites": [
     {
-      "src": "/.*",
-      "dest": "/index.html"
+      "source": "/((?!.*\\.).*)",
+      "destination": "/index.html"
     }
   ]
 }
