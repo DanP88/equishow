@@ -13,7 +13,45 @@ import { userStore } from '../data/store';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { usePlatformSettings } from '../hooks/usePlatformSettings';
 
-// Initialize Sentry for error tracking
+// Scrub sensitive patterns from any string before it leaves the device.
+// Audit P25-bis : on évite que tokens / clés / cartes / emails fuient dans Sentry.
+const SECRET_PATTERNS: { re: RegExp; replace: string }[] = [
+  { re: /\bsk_(live|test)_[A-Za-z0-9]{16,}/g, replace: 'sk_[REDACTED]' },        // Stripe secret
+  { re: /\bpk_(live|test)_[A-Za-z0-9]{16,}/g, replace: 'pk_[REDACTED]' },        // Stripe publishable
+  { re: /\brk_(live|test)_[A-Za-z0-9]{16,}/g, replace: 'rk_[REDACTED]' },        // Stripe restricted
+  { re: /\bwhsec_[A-Za-z0-9]{16,}/g, replace: 'whsec_[REDACTED]' },              // Stripe webhook secret
+  { re: /\beyJ[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}\.[A-Za-z0-9_\-]{20,}/g, replace: '[JWT_REDACTED]' },
+  { re: /\bBearer\s+[A-Za-z0-9._\-]{20,}/gi, replace: 'Bearer [REDACTED]' },
+  { re: /\b\d{13,19}\b/g, replace: '[CARD_REDACTED]' },                          // Carte bancaire
+  { re: /\b[A-Z0-9._%+\-]+@[A-Z0-9.\-]+\.[A-Z]{2,}\b/gi, replace: '[EMAIL_REDACTED]' },
+];
+
+function scrubString(s: string): string {
+  let out = s;
+  for (const { re, replace } of SECRET_PATTERNS) {
+    out = out.replace(re, replace);
+  }
+  return out;
+}
+
+function scrubValue(v: unknown): unknown {
+  if (typeof v === 'string') return scrubString(v);
+  if (Array.isArray(v)) return v.map(scrubValue);
+  if (v && typeof v === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, val] of Object.entries(v as Record<string, unknown>)) {
+      // Drop entirely les clés notoirement sensibles (Sentry les loggue parfois en clair).
+      if (/^(password|access_token|refresh_token|api_key|secret|authorization|cookie)$/i.test(k)) {
+        out[k] = '[REDACTED]';
+      } else {
+        out[k] = scrubValue(val);
+      }
+    }
+    return out;
+  }
+  return v;
+}
+
 Sentry.init({
   dsn: process.env.EXPO_PUBLIC_SENTRY_DSN || 'https://95fb80ee023c19b097d1da1c47e705a4@o4511231038980096.ingest.de.sentry.io/4511231145476176',
   environment: process.env.EXPO_PUBLIC_APP_ENV || 'production',
@@ -21,6 +59,30 @@ Sentry.init({
   tracesSampleRate: 0.2,
   attachStacktrace: true,
   enabled: true,
+  // PII : on ne demande jamais Sentry de capturer les corps de requêtes.
+  sendDefaultPii: false,
+  beforeSend(event) {
+    // Anonymiser user : on garde l'id (UUID) pour groupage, on retire email/username.
+    if (event.user) {
+      event.user = { id: event.user.id };
+    }
+    if (event.message) event.message = scrubString(event.message);
+    if (event.exception?.values) {
+      for (const ex of event.exception.values) {
+        if (ex.value) ex.value = scrubString(ex.value);
+      }
+    }
+    if (event.request) event.request = scrubValue(event.request) as typeof event.request;
+    if (event.extra)   event.extra   = scrubValue(event.extra)   as typeof event.extra;
+    if (event.contexts) event.contexts = scrubValue(event.contexts) as typeof event.contexts;
+    if (event.tags)    event.tags    = scrubValue(event.tags)    as typeof event.tags;
+    return event;
+  },
+  beforeBreadcrumb(crumb) {
+    if (crumb.message) crumb.message = scrubString(crumb.message);
+    if (crumb.data)    crumb.data    = scrubValue(crumb.data) as typeof crumb.data;
+    return crumb;
+  },
 });
 function RootLayout() {
   const { isSignedIn, isLoading } = useAuth();
@@ -32,13 +94,10 @@ function RootLayout() {
   usePushNotifications();
 
   useEffect(() => {
-    // Identifier l'utilisateur dans Sentry quand il est connecté
+    // PII : seul l'UUID part vers Sentry — pas d'email ni de pseudo.
+    // Le pseudo suffit pour identifier en interne, on le résout depuis l'UUID.
     if (isSignedIn) {
-      Sentry.setUser({
-        id: userStore.id,
-        username: userStore.pseudo,
-        email: userStore.email,
-      });
+      Sentry.setUser({ id: userStore.id });
     } else {
       Sentry.setUser(null);
     }
