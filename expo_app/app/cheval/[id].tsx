@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../
 import { useCheval } from '../../hooks/useChevaux';
 import { createNotification } from '../../hooks/useNotifications';
 import { useAuth } from '../../hooks/useAuth';
+import { pickImageFromLibrary, uploadChevalPhoto, deleteChevalPhoto } from '../../lib/photoUpload';
 import { Cheval, TypeChevalLabel, getChevalAge } from '../../types/cheval';
 import { DatePickerModal, DateButton, formatDate } from '../../components/DatePickerModal';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
@@ -113,8 +114,13 @@ function FieldLabel({ label }: { label: string }) {
 
 type EditSection = 'identite' | 'sante' | 'sport' | null;
 
-function EditModal({ cheval, section: initSection = 'identite', onSave, onClose }: {
-  cheval: Cheval; section?: EditSection; onSave: (c: Cheval) => void; onClose: () => void;
+function EditModal({ cheval, section: initSection = 'identite', onSave, onClose, onPickPhoto, onRemovePhoto }: {
+  cheval: Cheval;
+  section?: EditSection;
+  onSave: (c: Cheval) => void;
+  onClose: () => void;
+  onPickPhoto?: () => Promise<void>;
+  onRemovePhoto?: () => Promise<void>;
 }) {
   // Identité
   const [nom, setNom] = useState(cheval.nom);
@@ -245,10 +251,13 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose 
                 <PhotoAvatar
                   color={avatarColor}
                   emoji={avatarEmoji}
+                  photoUrl={cheval.photoUrl}
                   size={64}
                   onEdit={(c, e) => { setAvatarColor(c); setAvatarEmoji(e); }}
+                  onPickPhoto={onPickPhoto}
+                  onRemovePhoto={onRemovePhoto}
                 />
-                <Text style={styles.avatarHint}>Appuyez sur l'avatar pour le personnaliser</Text>
+                <Text style={styles.avatarHint}>Importez une photo ou personnalisez l'avatar.</Text>
               </View>
 
               <FieldLabel label="Type" />
@@ -603,6 +612,39 @@ export default function ChevalDetailScreen() {
 
   const hasPhoto = !!cheval.photoColor;
 
+  async function handlePickPhoto() {
+    if (!cheval || !profile?.id) return;
+    const picked = await pickImageFromLibrary();
+    if ('canceled' in picked) return;
+    if ('error' in picked) {
+      Alert.alert('Erreur', picked.error);
+      return;
+    }
+    const { url, error: upErr } = await uploadChevalPhoto({
+      auteurId: profile.id,
+      chevalId: cheval.id,
+      pick: picked.result,
+    });
+    if (upErr || !url) {
+      Alert.alert('Erreur', upErr ?? 'Upload échoué.');
+      return;
+    }
+    const { error: updErr } = await update({ photoUrl: url });
+    if (updErr) Alert.alert('Erreur', updErr);
+  }
+
+  async function handleRemovePhoto() {
+    if (!cheval || !profile?.id || !cheval.photoUrl) return;
+    // Best-effort sur le storage (le fichier peut être en .jpg ou .png) — on
+    // tente l'extension qu'on devine depuis l'URL. Si remove échoue, on update
+    // quand même la DB pour éviter la photo orpheline côté UI.
+    const m = cheval.photoUrl.match(/\.(jpg|png|webp)(?:\?|$)/i);
+    const ext = (m?.[1]?.toLowerCase() as 'jpg' | 'png' | 'webp' | undefined) ?? 'jpg';
+    await deleteChevalPhoto({ auteurId: profile.id, chevalId: cheval.id, ext });
+    const { error: updErr } = await update({ photoUrl: undefined });
+    if (updErr) Alert.alert('Erreur', updErr);
+  }
+
   return (
     <SafeAreaView style={styles.root}>
       {/* Hero */}
@@ -616,7 +658,7 @@ export default function ChevalDetailScreen() {
           </TouchableOpacity>
         </View>
         <View style={styles.heroBody}>
-          <PhotoAvatar color={cheval.photoColor ?? Colors.primaryDark} emoji="🐴" size={72} />
+          <PhotoAvatar color={cheval.photoColor ?? Colors.primaryDark} emoji="🐴" photoUrl={cheval.photoUrl} size={72} />
           <View style={styles.heroText}>
             <View style={styles.typePillWrap}>
               <Text style={styles.typePillText}>{TypeChevalLabel[cheval.type]}</Text>
@@ -734,7 +776,14 @@ export default function ChevalDetailScreen() {
       </TouchableOpacity>
 
       <Modal visible={showEdit} transparent animationType="fade">
-        <EditModal cheval={cheval} section={editSection} onSave={handleSave} onClose={() => setShowEdit(false)} />
+        <EditModal
+          cheval={cheval}
+          section={editSection}
+          onSave={handleSave}
+          onClose={() => setShowEdit(false)}
+          onPickPhoto={handlePickPhoto}
+          onRemovePhoto={handleRemovePhoto}
+        />
       </Modal>
     </SafeAreaView>
   );

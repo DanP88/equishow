@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity,
+  View, Text, ScrollView, TouchableOpacity, Image,
   StyleSheet, SafeAreaView, Alert, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -107,8 +107,12 @@ function ChevalCard({ cheval, onPress, onLongPress, dimmed }: {
   return (
     <View>
       <TouchableOpacity style={[styles.card, dimmed && { opacity: 0.4 }]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
-        <View style={[styles.cardAvatar, { backgroundColor: cheval.photoColor ?? Colors.primaryLight }]}>
-          <Text style={styles.cardAvatarEmoji}>{emoji}</Text>
+        <View style={[styles.cardAvatar, { backgroundColor: cheval.photoColor ?? Colors.primaryLight, overflow: 'hidden' }]}>
+          {cheval.photoUrl ? (
+            <Image source={{ uri: cheval.photoUrl }} style={{ width: '100%', height: '100%' }} />
+          ) : (
+            <Text style={styles.cardAvatarEmoji}>{emoji}</Text>
+          )}
         </View>
 
         <View style={styles.cardContent}>
