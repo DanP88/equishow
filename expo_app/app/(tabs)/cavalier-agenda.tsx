@@ -5,12 +5,12 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import {
   userStore,
-  boxReservationsStore,
   stageReservationsStore,
   courseDemandesStore,
   coachStagesStore,
 } from '../../data/store';
 import { useTransportAnnonces, useMyTransportReservations } from '../../hooks/useTransports';
+import { useMyBoxReservations } from '../../hooks/useBoxes';
 import { getUserById } from '../../data/mockUsers';
 import { useAvis, useMyAvisRefs, AvisType } from '../../hooks/useAvis';
 
@@ -79,6 +79,7 @@ export default function CavalierAgendaScreen() {
   const [items, setItems] = useState<AgendaItem[]>([]);
   const { transports } = useTransportAnnonces();
   const { reservations: transportReservations } = useMyTransportReservations();
+  const { reservations: boxReservations } = useMyBoxReservations();
   const [tick, setTick] = useState(0);
   const [avisModal, setAvisModal] = useState<AvisModal>(null);
   const [avisNote, setAvisNote] = useState(5);
@@ -178,7 +179,7 @@ export default function CavalierAgendaScreen() {
       });
 
     // ── Box acheteur ──
-    boxReservationsStore.list
+    boxReservations
       .filter(r => r.buyerId === uid)
       .forEach(r => {
         const seller = getUserById(r.sellerId);
@@ -200,7 +201,7 @@ export default function CavalierAgendaScreen() {
       });
 
     // ── Box vendeur ──
-    boxReservationsStore.list
+    boxReservations
       .filter(r => r.sellerId === uid)
       .forEach(r => {
         const buyer = getUserById(r.buyerId);
@@ -268,7 +269,7 @@ export default function CavalierAgendaScreen() {
 
     all.sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
     setItems(all);
-  }, [tick, transports, transportReservations]);
+  }, [tick, transports, transportReservations, boxReservations]);
 
   // Grouper par date
   const byDate = new Map<string, AgendaItem[]>();

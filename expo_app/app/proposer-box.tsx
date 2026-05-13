@@ -9,7 +9,8 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
 import { mockConcours } from '../data/mockConcours';
-import { boxesStore, userStore } from '../data/store';
+import { useMyBoxAnnonces } from '../hooks/useBoxes';
+import { BoxAnnonce } from '../types/service';
 import { prixTTC as calculatePrixTTC } from '../types/service';
 
 const CONCOURS_OPTIONS = mockConcours
@@ -102,7 +103,8 @@ function ConcoursPicker({ value, onChange }: { value: string; onChange: (v: stri
 
 export default function ProposerBoxScreen() {
   const { editId } = useLocalSearchParams<{ editId?: string }>();
-  const existing = editId ? boxesStore.list.find((b) => b.id === editId) : undefined;
+  const { annonces, createAnnonce, updateAnnonce } = useMyBoxAnnonces();
+  const existing = editId ? annonces.find((b) => b.id === editId) : undefined;
 
   const [lieu, setLieu] = useState(existing?.lieu ?? '');
   const [showLieuSuggestions, setShowLieuSuggestions] = useState(false);
@@ -138,7 +140,7 @@ export default function ProposerBoxScreen() {
     ? Math.max(1, Math.round((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
 
-  function submit() {
+  async function submit() {
     if (!lieu || !dateDebut || !dateFin || !prix) {
       Alert.alert('Champs manquants', 'Veuillez remplir : lieu, dates et prix.');
       return;
@@ -149,44 +151,28 @@ export default function ProposerBoxScreen() {
       description,
     ].filter(Boolean).join('\n');
 
+    const payload: Partial<BoxAnnonce> = {
+      lieu: lieu.trim(),
+      dateDebut,
+      dateFin,
+      nbBoxes: nb,
+      nbBoxesDisponibles: nb,
+      prixNuitHT: parseFloat(prix),
+      concours: concours || undefined,
+      description: descFull || undefined,
+    };
+
     if (editId && existing) {
-      const idx = boxesStore.list.findIndex((b) => b.id === editId);
-      if (idx !== -1) {
-        boxesStore.list[idx] = {
-          ...boxesStore.list[idx],
-          lieu: lieu.trim(),
-          dateDebut,
-          dateFin,
-          nbBoxes: nb,
-          nbBoxesDisponibles: nb,
-          prixNuitHT: parseFloat(prix),
-          concours: concours || undefined,
-          description: descFull || undefined,
-        };
-      }
+      const { error } = await updateAnnonce(editId, payload);
+      if (error) { Alert.alert('Erreur', error); return; }
       Alert.alert(
         'Annonce modifiée ! ✅',
         `Votre annonce de boxes à "${lieu}" a été mise à jour.`,
         [{ text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=box' as any) }],
       );
     } else {
-      const nouvelleAnnonce = {
-        id: `b${Date.now()}`,
-        auteurId: userStore.id,
-        auteurNom: `${userStore.prenom} ${userStore.nom}`,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-        auteurCouleur: userStore.avatarColor,
-        lieu: lieu.trim(),
-        dateDebut,
-        dateFin,
-        nbBoxes: nb,
-        nbBoxesDisponibles: nb,
-        prixNuitHT: parseFloat(prix),
-        concours: concours || undefined,
-        description: descFull || undefined,
-      };
-      boxesStore.list = [nouvelleAnnonce, ...boxesStore.list];
+      const { error } = await createAnnonce(payload);
+      if (error) { Alert.alert('Erreur', error); return; }
       Alert.alert(
         'Annonce publiée ! 🏠',
         `Votre annonce de boxes à "${lieu}" (${joursDisponibles} jour${joursDisponibles > 1 ? 's' : ''}) est maintenant visible dans la liste.`,

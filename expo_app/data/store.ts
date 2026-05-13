@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import { BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, StageReservation, CourseDemande, CoachAgendaEvent, BoxReservation } from '../types/service';
+import { CoachProfil, CoachAnnonce, CoachStage, StageReservation, CourseDemande, CoachAgendaEvent } from '../types/service';
 import { Concours, ConcoursCSV, ImportBatch, ImportError } from '../types/concours';
-import { mockBoxes, mockCoachs, mockCoachAnnonces, mockCoachStages } from './mockServices';
+import { mockCoachs, mockCoachAnnonces, mockCoachStages } from './mockServices';
 import { mockConcours } from './mockConcours';
 import { mockConcoursCsv } from './mockConcoursCsv';
 import { mockUsers } from './mockUsers';
@@ -122,9 +122,7 @@ const createUserStore = (): UserStore => {
 
 export const userStore = createUserStore();
 
-// Stores partagés pour les annonces (s'alimentent depuis les formulaires).
-// transportsStore retiré P22 (hooks Supabase useTransportAnnonces / useMyTransportReservations).
-export const boxesStore: { list: BoxAnnonce[] } = { list: [...mockBoxes] };
+// Stores partagés pour les annonces. transportsStore retiré P22, boxesStore retiré P23.
 export const coachesStore: { list: CoachProfil[] } = { list: [...mockCoachs] };
 export const coachAnnoncesStore: { list: CoachAnnonce[] } = { list: [...mockCoachAnnonces] };
 export const coachStagesStore: { list: CoachStage[] } = { list: [...mockCoachStages] };
@@ -156,9 +154,7 @@ export const stageReservationsStore: { list: StageReservation[] } = { list: [] }
 export const courseDemandesStore: { list: CourseDemande[] } = { list: [] };
 
 // transportReservationsStore retiré P22 (hook useMyTransportReservations).
-
-// Store des réservations de box
-export const boxReservationsStore: { list: BoxReservation[] } = { list: [] };
+// boxReservationsStore retiré P23 (hook useMyBoxReservations).
 
 // Store de l'agenda des coachs
 export const coachAgendaStore: { list: CoachAgendaEvent[] } = { list: [] };

@@ -1,32 +1,29 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Alert, Modal,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { boxReservationsStore, userStore } from '../data/store';
+import { useAuth } from '../hooks/useAuth';
+import { useMyBoxReservations } from '../hooks/useBoxes';
 import { createNotification } from '../hooks/useNotifications';
 import { BoxReservation } from '../types/service';
 
 export default function BoxPendingDemandsScreen() {
-  const [demands, setDemands] = useState<BoxReservation[]>([]);
+  const { profile } = useAuth();
+  const { reservations, updateStatut } = useMyBoxReservations();
   const [selectedDemand, setSelectedDemand] = useState<BoxReservation | null>(null);
   const [showModal, setShowModal] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    // Récupérer les réservations en attente du propriétaire
-    const pending = boxReservationsStore.list.filter(
-      d => d.sellerId === userStore.id && d.statut === 'pending'
-    );
-    setDemands(pending);
-  }, []));
+  const demands = reservations.filter(
+    (r) => r.sellerId === profile?.id && r.statut === 'pending',
+  );
 
   const handleAccept = async (demand: BoxReservation) => {
-    demand.statut = 'accepted';
-    boxReservationsStore.list = [...boxReservationsStore.list];
-    setDemands(demands.filter(d => d.id !== demand.id));
+    const { error } = await updateStatut(demand.id, 'accepted');
+    if (error) { Alert.alert('Erreur', error); return; }
 
     await createNotification({
       destinataireId: demand.buyerId,
@@ -47,9 +44,8 @@ export default function BoxPendingDemandsScreen() {
   };
 
   const handleReject = async (demand: BoxReservation) => {
-    demand.statut = 'rejected';
-    boxReservationsStore.list = [...boxReservationsStore.list];
-    setDemands(demands.filter(d => d.id !== demand.id));
+    const { error } = await updateStatut(demand.id, 'rejected');
+    if (error) { Alert.alert('Erreur', error); return; }
 
     await createNotification({
       destinataireId: demand.buyerId,

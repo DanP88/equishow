@@ -5,7 +5,8 @@ import { Colors } from '../constants/colors';
 import { useUserRole } from '../hooks/useUserRole';
 import { useUnreadNotificationsCount } from '../hooks/useNotifications';
 import { useMyTransportReservations } from '../hooks/useTransports';
-import { userStore, stageReservationsStore, courseDemandesStore, boxReservationsStore, totalUnreadForUser } from '../data/store';
+import { useMyBoxReservations } from '../hooks/useBoxes';
+import { userStore, stageReservationsStore, courseDemandesStore, totalUnreadForUser } from '../data/store';
 
 export interface TabConfig {
   name: string;
@@ -55,6 +56,7 @@ export function CustomBottomBar() {
   const pathname = usePathname();
   const notificationCount = useUnreadNotificationsCount();
   const { reservations: transportReservations } = useMyTransportReservations();
+  const { reservations: boxReservations } = useMyBoxReservations();
   const [demandCount, setDemandCount] = useState(0);
   const [agendaCount, setAgendaCount] = useState(0);
   const [msgCount, setMsgCount] = useState(0);
@@ -75,7 +77,7 @@ export function CustomBottomBar() {
       const pendingTransport = transportReservations.filter(
         r => (r.buyerId === uid || r.sellerId === uid) && r.statut === 'pending'
       ).length;
-      const pendingBox = boxReservationsStore.list.filter(
+      const pendingBox = boxReservations.filter(
         r => (r.buyerId === uid || r.sellerId === uid) && r.statut === 'pending'
       ).length;
       const pendingStage = stageReservationsStore.list.filter(
@@ -90,7 +92,7 @@ export function CustomBottomBar() {
       const uid = userStore.id;
       setMsgCount(totalUnreadForUser(uid));
     }
-  }, [role, transportReservations]);
+  }, [role, transportReservations, boxReservations]);
 
   // Refresh notifications count quand on revient
   useFocusEffect(useCallback(() => {

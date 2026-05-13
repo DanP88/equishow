@@ -1,46 +1,29 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Alert, ActivityIndicator, Linking,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { boxReservationsStore, userStore } from '../data/store';
+import { userStore } from '../data/store';
+import { useAuth } from '../hooks/useAuth';
+import { useMyBoxReservations } from '../hooks/useBoxes';
 import { createNotification } from '../hooks/useNotifications';
+import { BoxReservation } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-interface BoxReservation {
-  id: string;
-  boxId: string;
-  sellerId: string;
-  buyerId: string;
-  titre: string;
-  lieu: string;
-  nbNuits: number;
-  dateDebut: Date;
-  dateFin: Date;
-  message: string;
-  prixTotalHT: number;
-  commissionPlateform: number;
-  prixTotalTTC: number;
-  statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
-}
-
 export default function PendingBoxPaymentsScreen() {
-  const [validatedReservations, setValidatedReservations] = useState<BoxReservation[]>([]);
+  const { profile } = useAuth();
+  const { reservations, updateStatut } = useMyBoxReservations();
   const [loading, setLoading] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    // Récupérer les réservations de box acceptées du cavalier
-    const validated = boxReservationsStore.list.filter(
-      (r: BoxReservation) => r.buyerId === userStore.id && r.statut === 'accepted'
-    );
-    setValidatedReservations(validated);
-  }, []));
+  const validatedReservations = reservations.filter(
+    (r) => r.buyerId === profile?.id && r.statut === 'accepted',
+  );
 
   const handlePayNow = async (reservation: BoxReservation) => {
     try {
@@ -89,9 +72,7 @@ export default function PendingBoxPaymentsScreen() {
         return;
       }
 
-      // Marquer comme en attente de paiement
-      reservation.statut = 'awaiting_payment';
-      boxReservationsStore.list = [...boxReservationsStore.list];
+      await updateStatut(reservation.id, 'awaiting_payment');
 
       await createNotification({
         destinataireId: reservation.sellerId,

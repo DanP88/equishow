@@ -9,13 +9,15 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 import { useAuth } from '../../hooks/useAuth';
 import { useNotifications, createNotification } from '../../hooks/useNotifications';
 import { useMyTransportReservations } from '../../hooks/useTransports';
-import { courseDemandesStore, stageReservationsStore, boxReservationsStore } from '../../data/store';
+import { useMyBoxReservations } from '../../hooks/useBoxes';
+import { courseDemandesStore, stageReservationsStore } from '../../data/store';
 import { Notification } from '../../types/notification';
 
 export default function NotificationsScreen() {
   const { profile } = useAuth();
   const { notifications, unreadCount: totalUnread, markAsRead, markAllAsRead, removeNotification } = useNotifications();
   const { reservations: transportReservations } = useMyTransportReservations();
+  const { reservations: boxReservations } = useMyBoxReservations();
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
@@ -56,7 +58,7 @@ export default function NotificationsScreen() {
         if (stage) ownerId = stage.coachId;
       } else if (notifToDelete.type === 'reservation_request') {
         const transport = transportReservations.find(t => t.buyerId === profile.id && t.statut === 'accepted');
-        const box = boxReservationsStore.list.find(b => b.buyerId === profile.id && b.statut === 'accepted');
+        const box = boxReservations.find(b => b.buyerId === profile.id && b.statut === 'accepted');
         if (transport) ownerId = transport.sellerId;
         if (box) ownerId = box.sellerId;
       }

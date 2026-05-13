@@ -6,8 +6,9 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { boxesStore, coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore } from '../../data/store';
+import { coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore } from '../../data/store';
 import { useTransportAnnonces, useMyTransportAnnonces } from '../../hooks/useTransports';
+import { useBoxAnnonces, useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useAvisStats } from '../../hooks/useAvis';
 import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
@@ -98,7 +99,8 @@ export default function ServicesScreen() {
   const [coachTab, setCoachTab] = useState<CoachTab>('concours');
   const { transports } = useTransportAnnonces();
   const { deleteAnnonce: deleteTransportAnnonce } = useMyTransportAnnonces();
-  const [boxes, setBoxes] = useState(boxesStore.list);
+  const { boxes } = useBoxAnnonces();
+  const { deleteAnnonce: deleteBoxAnnonce } = useMyBoxAnnonces();
   const [coachAnnonces, setCoachAnnonces] = useState(coachAnnoncesStore.list);
   const [stages, setStages] = useState(coachStagesStore.list);
 
@@ -108,9 +110,8 @@ export default function ServicesScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [showConcoursDropdown, setShowConcoursDropdown] = useState(false);
 
-  // Refresh quand on revient sur l'écran (transports = realtime hook, le reste = mock).
+  // Refresh quand on revient (transports + box = realtime hook, coach/stages = mock).
   useFocusEffect(useCallback(() => {
-    setBoxes([...boxesStore.list]);
     setCoachAnnonces([...coachAnnoncesStore.list]);
     setStages([...coachStagesStore.list]);
     if (params.tab) setTab(params.tab as Tab);
@@ -133,9 +134,9 @@ export default function ServicesScreen() {
   }
 
   function handleCancelBox(id: string) {
-    const doDelete = () => {
-      boxesStore.list = boxesStore.list.filter((b) => b.id !== id);
-      setBoxes([...boxesStore.list]);
+    const doDelete = async () => {
+      const { error } = await deleteBoxAnnonce(id);
+      if (error) Alert.alert('Erreur', error);
     };
     if (Platform.OS === 'web') {
       if (window.confirm('Retirer cette annonce de boxes ?')) doDelete();

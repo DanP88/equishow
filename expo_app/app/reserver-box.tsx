@@ -7,13 +7,17 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
-import { boxesStore, userStore } from '../data/store';
+import { useBoxAnnonces, useMyBoxReservations } from '../hooks/useBoxes';
+import { createNotification } from '../hooks/useNotifications';
+import { useAuth } from '../hooks/useAuth';
 import { prixTTC, getCommission } from '../types/service';
-import { supabase } from '../lib/supabase';
 
 export default function ReserverBoxScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const box = boxesStore.list.find((b) => b.id === id);
+  const { profile } = useAuth();
+  const { boxes } = useBoxAnnonces();
+  const { createReservation } = useMyBoxReservations();
+  const box = boxes.find((b) => b.id === id);
 
   if (!box) {
     return (
@@ -76,36 +80,43 @@ export default function ReserverBoxScreen() {
 
     setLoading(true);
     try {
-      const { data: reservation, error: dbError } = await supabase
-        .from('box_reservations')
-        .insert({
-          box_id: box.id,
-          seller_id: sellerId,
-          buyer_id: userStore.id,
-          date_debut: dateReservationDebut.toISOString().split('T')[0],
-          date_fin: dateReservationFin.toISOString().split('T')[0],
-          nb_nuits: nuits,
-          prix_total_ht: Math.round(pt * 100),
-          commission_plateforme: Math.round(commissionMontant * 100),
-          prix_total_ttc: Math.round(ptTTC * 100),
-          message: message.trim() || null,
-          statut: 'pending',
-        })
-        .select('id')
-        .single();
+      const titre = `Box ${box.lieu}`;
+      const { data: created, error: createErr } = await createReservation({
+        boxId: box.id,
+        sellerId,
+        titre,
+        lieu: box.lieu,
+        nbNuits: nuits,
+        dateDebut: dateReservationDebut,
+        dateFin: dateReservationFin,
+        message: message.trim(),
+        prixTotalHT: pt,
+        commissionPlateform: commissionMontant,
+        prixTotalTTC: ptTTC,
+      });
 
-      if (dbError || !reservation) {
-        showErr('Impossible de créer la réservation.');
+      if (createErr || !created) {
+        showErr(createErr ?? 'Impossible de créer la réservation.');
         return;
       }
 
-      const reference = `EQ-BOX-${reservation.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
+      const reference = `EQ-BOX-${created.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
+
+      await createNotification({
+        destinataireId: sellerId,
+        type: 'reservation_request',
+        titre: '🏠 Nouvelle demande de box',
+        message: `${profile?.prenom ?? ''} ${profile?.nom ?? ''} demande à réserver "${box.lieu}" du ${dateReservationDebut.toLocaleDateString('fr-FR')} au ${dateReservationFin.toLocaleDateString('fr-FR')}.`,
+        status: 'pending',
+        actionUrl: '/box-pending-demands',
+        donnees: { boxId: box.id, titre, prix: ptTTC, message: message.trim() },
+      });
 
       router.push({
         pathname: '/paiement-box',
         params: {
-          reservationId: reservation.id,
-          titre: `Box ${box.lieu}`,
+          reservationId: created.id,
+          titre,
           montant: ptTTC.toFixed(2),
           nbNuits: String(nuits),
           lieu: box.lieu,

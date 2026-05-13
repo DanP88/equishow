@@ -1,4 +1,4 @@
-import { BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage } from '../types/service';
+import { CoachProfil, CoachAnnonce, CoachStage } from '../types/service';
 import { mockUsers, ADDITIONAL_COACHES } from './mockUsers';
 
 // Get real coach IDs
@@ -6,56 +6,6 @@ const COACH1_ID = mockUsers.coach.id; // Émilie Laurent
 const COACH2_ID = ADDITIONAL_COACHES.coach2.id; // Jacques Moreau
 const COACH3_ID = ADDITIONAL_COACHES.coach3.id; // Camille Poncet
 
-
-export const mockBoxes: BoxAnnonce[] = [
-  {
-    id: 'b1',
-    auteurId: 'org1',
-    auteurNom: 'Club Équestre de Lyon',
-    auteurPseudo: 'CELyon_Officiel',
-    auteurInitiales: 'CL',
-    auteurCouleur: '#F97316',
-    lieu: 'Haras de Lyon — 69',
-    dateDebut: new Date('2026-04-14'),
-    dateFin: new Date('2026-04-16'),
-    nbBoxes: 20,
-    nbBoxesDisponibles: 8,
-    prixNuitHT: 35,
-    concours: 'Grand Prix de Lyon',
-    description: 'Boxes 3×4m avec litière paille. Eau courante. Parking sécurisé.',
-  },
-  {
-    id: 'b2',
-    auteurId: 'user5',
-    auteurNom: 'Pierre Morel',
-    auteurPseudo: 'PierreM_Haras',
-    auteurInitiales: 'PM',
-    auteurCouleur: '#B45309',
-    lieu: 'Haras du Dauphiné — 38',
-    dateDebut: new Date('2026-04-21'),
-    dateFin: new Date('2026-04-23'),
-    nbBoxes: 4,
-    nbBoxesDisponibles: 4,
-    prixNuitHT: 28,
-    concours: 'Championnat Dressage',
-    description: 'Boxes spacieux 4×4m sur propriété privée. Paddock disponible.',
-  },
-  {
-    id: 'b3',
-    auteurId: '550e8400-e29b-41d4-a716-446655440099',
-    auteurNom: 'Sophie Dupont',
-    auteurPseudo: 'Sophie_Eq',
-    auteurInitiales: 'SD',
-    auteurCouleur: '#f59e0b',
-    lieu: 'Haras de Chevreuse — 78',
-    dateDebut: new Date('2026-04-01'),
-    dateFin: new Date('2026-12-31'),
-    nbBoxes: 1,
-    nbBoxesDisponibles: 1,
-    prixNuitHT: 24,
-    description: 'Box complète au Haras de Chevreuse. Très bien situé en Île-de-France. Paddock, carrière, parking.',
-  },
-];
 
 export const mockCoachs: CoachProfil[] = [
   {
