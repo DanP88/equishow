@@ -1,5 +1,5 @@
 {
-  "buildCommand": "cd expo_app && npm install && npx expo export --platform web",
-  "outputDirectory": "expo_app/dist",
-  "installCommand": "echo skip root install"
+  "buildCommand": "npm install && npx expo export --platform web",
+  "outputDirectory": "dist",
+  "installCommand": "echo skip install"
 }
