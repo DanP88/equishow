@@ -6,8 +6,8 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { transportReservationsStore, userStore, notificationsStore } from '../data/store';
-import { Notification } from '../types/notification';
+import { transportReservationsStore, userStore } from '../data/store';
+import { createNotification } from '../hooks/useNotifications';
 import { getAuthToken } from '../utils/supabaseAuth';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -92,27 +92,17 @@ export default function PendingTransportPaymentsScreen() {
       reservation.statut = 'awaiting_payment';
       transportReservationsStore.list = [...transportReservationsStore.list];
 
-      // Envoyer notification au propriétaire que le cavalier va payer
-      const paymentNotif: Notification = {
-        id: `notif_${Date.now()}`,
+      await createNotification({
         destinataireId: reservation.sellerId,
         type: 'reservation_request',
         titre: '💳 Paiement en cours',
         message: `${userStore.nom} procède au paiement pour "${reservation.titre}"`,
         status: 'pending',
-        lu: false,
-        dateCreation: new Date(),
-        auteurId: userStore.id,
-        auteurNom: userStore.nom,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-        auteurCouleur: userStore.avatarColor,
         donnees: {
           titre: reservation.titre,
           prix: reservation.prixTotalTTC,
         },
-      };
-      notificationsStore.list = [paymentNotif, ...notificationsStore.list];
+      });
 
       // Rediriger vers Stripe
       await Linking.openURL(data.checkoutUrl);

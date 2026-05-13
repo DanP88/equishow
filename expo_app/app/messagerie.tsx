@@ -7,7 +7,7 @@ import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import {
-  messagesStore, userStore, notificationsStore,
+  messagesStore, userStore,
   getOrCreateConversation, sendMessageToConv, markConvAsRead,
   Conversation,
 } from '../data/store';

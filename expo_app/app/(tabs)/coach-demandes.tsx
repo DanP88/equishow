@@ -3,8 +3,8 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Ale
 import { useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { stageReservationsStore, userStore, notificationsStore, coachStagesStore, courseDemandesStore, coachAgendaStore } from '../../data/store';
-import { Notification } from '../../types/notification';
+import { stageReservationsStore, userStore, coachStagesStore, courseDemandesStore, coachAgendaStore } from '../../data/store';
+import { createNotification } from '../../hooks/useNotifications';
 
 export default function CoachDemandesScreen() {
   const [courseDemandes, setCourseDemandes] = useState(courseDemandesStore.list);
@@ -20,163 +20,117 @@ export default function CoachDemandesScreen() {
   const myCourseDemandes = courseDemandes.filter(d => d.coachId === userStore.id && d.statut === 'pending');
   const myStageReservations = stageReservations.filter(r => r.coachId === userStore.id && r.statut === 'pending');
 
-  const handleAcceptCourse = useCallback((demandeId: string) => {
-    const demande = courseDemandesStore.list.find(d => d.id === demandeId);
-    if (demande) {
-      demande.statut = 'accepted';
-
-      // Créer une notification pour le cavalier (acceptation)
-      const notificationAuCavalier: Notification = {
-        id: `notif_${Date.now()}`,
-        type: 'course_request',
-        titre: '✓ Votre réservation a été acceptée !',
-        message: `${userStore.prenom} ${userStore.nom} a accepté votre demande pour "${demande.annonceTitre}"`,
-        lue: false,
-        status: 'accepted',
-        dateCreation: new Date(),
-        actionUrl: '/pending-payments',
-        destinataireId: demande.cavalierUserId,
-        auteurId: userStore.id,
-        auteurNom: userStore.nom,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: userStore.prenom.charAt(0) + userStore.nom.charAt(0),
-        auteurCouleur: userStore.avatarColor,
-        donnees: {
-          annonceId: demande.annonceId,
-          annonceTitre: demande.annonceTitre,
-          prix: demande.prix,
-        },
-      };
-      notificationsStore.list.push(notificationAuCavalier);
-
-      // Ajouter l'événement à l'agenda du coach (créer un événement par jour si plusieurs jours)
-      const agendaEvents = [];
-      const current = new Date(demande.dateDebut);
-      while (current <= demande.dateFin) {
-        agendaEvents.push({
-          id: `agenda_${Date.now()}_${current.getTime()}`,
-          coachId: userStore.id,
-          type: 'course' as const,
-          titre: demande.annonceTitre,
-          cavalierNom: demande.cavalierNom,
-          cavalierPseudo: demande.cavalierPseudo,
-          cavalierCouleur: demande.cavalierCouleur,
-          discipline: demande.discipline,
-          niveau: demande.niveau,
-          date: new Date(current),
-          concours: demande.concoursNom,
-          description: demande.message,
-          prix: demande.prix,
-        });
-        current.setDate(current.getDate() + 1);
-      }
-      coachAgendaStore.list = [...agendaEvents, ...coachAgendaStore.list];
-
-      setCourseDemandes([...courseDemandesStore.list]);
-      Alert.alert('✓ Demande acceptée', `Réservation de ${demande.cavalierNom} confirmée.\nL'événement a été ajouté à votre agenda.`);
-    }
-  }, []);
-
-  const handleRejectCourse = useCallback((demandeId: string) => {
+  const handleAcceptCourse = useCallback(async (demandeId: string) => {
     const demande = courseDemandesStore.list.find(d => d.id === demandeId);
     if (!demande) return;
+    demande.statut = 'accepted';
 
+    await createNotification({
+      destinataireId: demande.cavalierUserId,
+      type: 'course_request',
+      titre: '✓ Votre réservation a été acceptée !',
+      message: `${userStore.prenom} ${userStore.nom} a accepté votre demande pour "${demande.annonceTitre}"`,
+      status: 'accepted',
+      actionUrl: '/pending-payments',
+      donnees: {
+        annonceId: demande.annonceId,
+        annonceTitre: demande.annonceTitre,
+        prix: demande.prix,
+      },
+    });
+
+    // Ajouter l'événement à l'agenda du coach (un par jour si plusieurs jours)
+    const agendaEvents = [];
+    const current = new Date(demande.dateDebut);
+    while (current <= demande.dateFin) {
+      agendaEvents.push({
+        id: `agenda_${Date.now()}_${current.getTime()}`,
+        coachId: userStore.id,
+        type: 'course' as const,
+        titre: demande.annonceTitre,
+        cavalierNom: demande.cavalierNom,
+        cavalierPseudo: demande.cavalierPseudo,
+        cavalierCouleur: demande.cavalierCouleur,
+        discipline: demande.discipline,
+        niveau: demande.niveau,
+        date: new Date(current),
+        concours: demande.concoursNom,
+        description: demande.message,
+        prix: demande.prix,
+      });
+      current.setDate(current.getDate() + 1);
+    }
+    coachAgendaStore.list = [...agendaEvents, ...coachAgendaStore.list];
+
+    setCourseDemandes([...courseDemandesStore.list]);
+    Alert.alert('✓ Demande acceptée', `Réservation de ${demande.cavalierNom} confirmée.\nL'événement a été ajouté à votre agenda.`);
+  }, []);
+
+  const handleRejectCourse = useCallback(async (demandeId: string) => {
+    const demande = courseDemandesStore.list.find(d => d.id === demandeId);
+    if (!demande) return;
     demande.statut = 'rejected';
 
-    // Créer une notification pour le cavalier (refus)
-    const notificationAuCavalier: Notification = {
-      id: `notif_${Date.now()}`,
+    await createNotification({
+      destinataireId: demande.cavalierUserId,
       type: 'course_request',
       titre: '✕ Votre réservation a été refusée',
       message: `${userStore.prenom} ${userStore.nom} a refusé votre demande pour "${demande.annonceTitre}"`,
-      lue: false,
       status: 'rejected',
-      dateCreation: new Date(),
-      destinataireId: demande.cavalierUserId,
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: userStore.prenom.charAt(0) + userStore.nom.charAt(0),
-      auteurCouleur: userStore.avatarColor,
       donnees: {
         annonceId: demande.annonceId,
         annonceTitre: demande.annonceTitre,
       },
-    };
-    notificationsStore.list.push(notificationAuCavalier);
+    });
     setCourseDemandes([...courseDemandesStore.list]);
   }, []);
 
-  const handleAcceptStage = useCallback((reservationId: string) => {
-    const reservation = stageReservationsStore.list.find(r => r.id === reservationId);
-    if (reservation) {
-      reservation.statut = 'accepted';
-
-      // Créer une notification pour le cavalier (acceptation)
-      const notificationAuCavalier: Notification = {
-        id: `notif_${Date.now()}`,
-        type: 'stage_reservation',
-        titre: '✓ Votre réservation a été acceptée !',
-        message: `${userStore.prenom} ${userStore.nom} a accepté votre réservation pour le stage "${reservation.stageTitre}"`,
-        lu: false,
-        status: 'accepted',
-        dateCreation: new Date(),
-        actionUrl: '/pending-payments',
-        destinataireId: reservation.cavalierUserId,
-        auteurId: userStore.id,
-        auteurNom: userStore.nom,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: userStore.prenom.charAt(0) + userStore.nom.charAt(0),
-        auteurCouleur: userStore.avatarColor,
-        donnees: {
-          stageId: reservation.stageId,
-          stageTitre: reservation.stageTitre,
-          nombreParticipants: reservation.nombreParticipants,
-          prixTotal: reservation.prixTotal,
-        },
-      };
-      notificationsStore.list.push(notificationAuCavalier);
-
-      // Mettre à jour l'agenda du coach (réduire la place disponible)
-      const stage = coachStagesStore.list.find(s => s.id === reservation.stageId);
-      if (stage) {
-        stage.placesDisponibles -= reservation.nombreParticipants;
-      }
-
-      setStageReservations([...stageReservationsStore.list]);
-      Alert.alert('✓ Demande acceptée', `Réservation de ${reservation.cavalierNom} confirmée.`);
-    }
-  }, []);
-
-  const handleRejectStage = useCallback((reservationId: string) => {
+  const handleAcceptStage = useCallback(async (reservationId: string) => {
     const reservation = stageReservationsStore.list.find(r => r.id === reservationId);
     if (!reservation) return;
+    reservation.statut = 'accepted';
 
+    await createNotification({
+      destinataireId: reservation.cavalierUserId,
+      type: 'stage_reservation',
+      titre: '✓ Votre réservation a été acceptée !',
+      message: `${userStore.prenom} ${userStore.nom} a accepté votre réservation pour le stage "${reservation.stageTitre}"`,
+      status: 'accepted',
+      actionUrl: '/pending-payments',
+      donnees: {
+        stageId: reservation.stageId,
+        stageTitre: reservation.stageTitre,
+        nombreParticipants: reservation.nombreParticipants,
+        prixTotal: reservation.prixTotal,
+      },
+    });
+
+    const stage = coachStagesStore.list.find(s => s.id === reservation.stageId);
+    if (stage) {
+      stage.placesDisponibles -= reservation.nombreParticipants;
+    }
+
+    setStageReservations([...stageReservationsStore.list]);
+    Alert.alert('✓ Demande acceptée', `Réservation de ${reservation.cavalierNom} confirmée.`);
+  }, []);
+
+  const handleRejectStage = useCallback(async (reservationId: string) => {
+    const reservation = stageReservationsStore.list.find(r => r.id === reservationId);
+    if (!reservation) return;
     reservation.statut = 'rejected';
 
-    // Créer une notification pour le cavalier (refus)
-    const notificationAuCavalier: Notification = {
-      id: `notif_${Date.now()}`,
+    await createNotification({
+      destinataireId: reservation.cavalierUserId,
       type: 'stage_reservation',
       titre: '✕ Votre réservation a été refusée',
       message: `${userStore.prenom} ${userStore.nom} a refusé votre réservation pour le stage "${reservation.stageTitre}"`,
-      lu: false,
       status: 'rejected',
-      dateCreation: new Date(),
-      destinataireId: reservation.cavalierUserId,
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: userStore.prenom.charAt(0) + userStore.nom.charAt(0),
-      auteurCouleur: userStore.avatarColor,
       donnees: {
         stageId: reservation.stageId,
         stageTitre: reservation.stageTitre,
       },
-    };
-    notificationsStore.list.push(notificationAuCavalier);
+    });
 
-    // Mettre à jour l'agenda du coach (libérer la place)
     const stage = coachStagesStore.list.find(s => s.id === reservation.stageId);
     if (stage) {
       stage.placesDisponibles += reservation.nombreParticipants;

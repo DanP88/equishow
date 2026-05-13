@@ -6,7 +6,8 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { transportReservationsStore, userStore, notificationsStore } from '../data/store';
+import { transportReservationsStore, userStore } from '../data/store';
+import { createNotification } from '../hooks/useNotifications';
 import { TransportReservation } from '../types/service';
 
 export default function TransportPendingDemandsScreen() {
@@ -22,61 +23,41 @@ export default function TransportPendingDemandsScreen() {
     setDemands(pending);
   }, []));
 
-  const handleAccept = (demand: TransportReservation) => {
-    // Marquer comme acceptée
+  const handleAccept = async (demand: TransportReservation) => {
     demand.statut = 'accepted';
     transportReservationsStore.list = [...transportReservationsStore.list];
     setDemands(demands.filter(d => d.id !== demand.id));
 
-    // Envoyer notification au cavalier
-    notificationsStore.list = [{
-      id: `notif_${Date.now()}`,
+    await createNotification({
       destinataireId: demand.buyerId,
       type: 'reservation_request',
       titre: '✅ Votre réservation de transport a été acceptée!',
       message: `Votre réservation pour "${demand.titre}" a été acceptée. Vous pouvez maintenant procéder au paiement.`,
       status: 'accepted',
-      lu: false,
-      dateCreation: new Date(),
       actionUrl: '/pending-transport-payments',
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
       donnees: {
         transportId: demand.transportId,
         titre: demand.titre,
         prix: demand.prixTotalTTC,
       },
-    }, ...notificationsStore.list];
+    });
 
     setShowModal(false);
     Alert.alert('✅ Réservation acceptée', 'Le cavalier a été notifié et peut maintenant payer.');
   };
 
-  const handleReject = (demand: TransportReservation) => {
-    // Marquer comme rejetée
+  const handleReject = async (demand: TransportReservation) => {
     demand.statut = 'rejected';
     transportReservationsStore.list = [...transportReservationsStore.list];
     setDemands(demands.filter(d => d.id !== demand.id));
 
-    // Envoyer notification au cavalier
-    notificationsStore.list = [{
-      id: `notif_${Date.now()}`,
+    await createNotification({
       destinataireId: demand.buyerId,
       type: 'reservation_request',
       titre: '❌ Votre réservation de transport a été refusée',
       message: `Votre réservation pour "${demand.titre}" a été refusée.`,
       status: 'rejected',
-      lu: false,
-      dateCreation: new Date(),
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
-    }, ...notificationsStore.list];
+    });
 
     setShowModal(false);
     Alert.alert('Réservation refusée', 'Le cavalier a été notifié du refus.');

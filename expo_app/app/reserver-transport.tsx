@@ -6,10 +6,10 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { transportsStore, userStore, transportReservationsStore, notificationsStore, supabase } from '../data/store';
+import { transportsStore, userStore, transportReservationsStore, supabase } from '../data/store';
+import { createNotification } from '../hooks/useNotifications';
 import { prixTTC, getCommissionMontant, getCommission, TransportReservation } from '../types/service';
 import { MultiDatePickerModal } from '../components/DatePickerModal';
-import { Notification } from '../types/notification';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
 
 const ROUTE_PRICING_ENABLED = process.env.EXPO_PUBLIC_ENABLE_ROUTE_PRICING === 'true';
@@ -201,7 +201,7 @@ export default function ReserverTransportScreen() {
   }
 
   // ─── Soumission ──────────────────────────────────────────────────────────────
-  function submit() {
+  async function submit() {
     if (!isTrajet) {
       if (selectedDates.length === 0) {
         if (typeof window !== 'undefined') window.alert('Veuillez sélectionner au moins 1 jour.');
@@ -257,30 +257,20 @@ export default function ReserverTransportScreen() {
     const transportRef = `EQ-TRP-${nouvelleReservation.id.replace(/[^A-Z0-9]/gi, '').substring(0, 8).toUpperCase()}`;
     transportReservationsStore.list = [nouvelleReservation, ...transportReservationsStore.list];
 
-    const notificationTransport: Notification = {
-      id: `notif_${Date.now()}`,
+    await createNotification({
       destinataireId: transport.auteurId,
       type: 'reservation_request',
       titre: '🚐 Nouvelle réservation de transport',
       message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${transport.villeDepart} → ${transport.villeArrivee}`,
       status: 'pending',
-      lu: false,
-      dateCreation: new Date(),
       actionUrl: '/transport-pending-demands',
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
       donnees: {
         transportId: transport.id,
         titre: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
         prix: prixTotalTTC,
         message: message.trim(),
       },
-    };
-
-    notificationsStore.list = [notificationTransport, ...notificationsStore.list];
+    });
 
     // Le montant final envoyé au paiement est toujours le prix calculé côté backend
     const montantPaiement = routeResult

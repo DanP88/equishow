@@ -1,6 +1,6 @@
 export interface Notification {
   id: string;
-  type: 'stage_reservation' | 'box_reservation' | 'transport_reservation' | 'course_request' | 'reservation_request' | 'message' | 'like' | 'comment';
+  type: 'stage_reservation' | 'box_reservation' | 'transport_reservation' | 'course_request' | 'reservation_request' | 'message' | 'like' | 'comment' | 'mention';
   titre: string;
   message: string;
   lu?: boolean;

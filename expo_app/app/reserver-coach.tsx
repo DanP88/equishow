@@ -6,10 +6,10 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { coachAnnoncesStore, userStore, courseDemandesStore, notificationsStore } from '../data/store';
+import { coachAnnoncesStore, userStore, courseDemandesStore } from '../data/store';
+import { createNotification } from '../hooks/useNotifications';
 import { CoachAnnonce, CourseDemande } from '../types/service';
 import { useCommission } from '../hooks/useCommissions';
-import { Notification } from '../types/notification';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createClient } from '@supabase/supabase-js';
 
@@ -190,31 +190,20 @@ export default function ReserverCoachScreen() {
 
       courseDemandesStore.list = [nouvelleDemande, ...courseDemandesStore.list];
 
-      // 5. Créer notification
-      const notification: Notification = {
-        id: `notif_${Date.now()}`,
+      await createNotification({
         destinataireId: annonce.auteurId,
         type: 'course_request',
         titre: `🎓 Nouvelle demande de cours`,
         message: `${userStore.prenom} ${userStore.nom} demande une séance pour "${annonce.titre}"`,
         status: 'pending',
-        lu: false,
-        dateCreation: new Date(),
         actionUrl: '/(tabs)/coach-pending-demands',
-        auteurId: userStore.id,
-        auteurNom: userStore.nom,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-        auteurCouleur: userStore.avatarColor,
         donnees: {
           annonceId: annonce.id,
           annonceTitre: annonce.titre,
           prix: prixTTCTotal,
           message: message.trim(),
         },
-      };
-
-      notificationsStore.list = [notification, ...notificationsStore.list];
+      });
 
       setShowConfirmation(true);
     } catch (error) {

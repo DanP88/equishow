@@ -6,7 +6,8 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { courseDemandesStore, userStore, notificationsStore } from '../../data/store';
+import { courseDemandesStore, userStore } from '../../data/store';
+import { createNotification } from '../../hooks/useNotifications';
 import { CourseDemande } from '../../types/service';
 
 export default function CoachPendingDemandsScreen() {
@@ -22,61 +23,41 @@ export default function CoachPendingDemandsScreen() {
     setDemands(pending);
   }, []));
 
-  const handleAccept = (demand: CourseDemande) => {
-    // Marquer comme acceptée
+  const handleAccept = async (demand: CourseDemande) => {
     demand.statut = 'accepted';
     courseDemandesStore.list = [...courseDemandesStore.list];
     setDemands(demands.filter(d => d.id !== demand.id));
 
-    // Envoyer notification au cavalier
-    notificationsStore.list = [{
-      id: `notif_${Date.now()}`,
+    await createNotification({
       destinataireId: demand.cavalierUserId,
       type: 'course_request',
       titre: '✅ Votre demande a été acceptée!',
       message: `${demand.coachNom} a accepté votre demande pour "${demand.annonceTitre}"`,
       status: 'accepted',
-      lu: false,
-      dateCreation: new Date(),
       actionUrl: '/pending-payments',
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
       donnees: {
         annonceId: demand.annonceId,
         annonceTitre: demand.annonceTitre,
         prix: demand.prix,
       },
-    }, ...notificationsStore.list];
+    });
 
     setShowModal(false);
     Alert.alert('✅ Demande acceptée', 'Le cavalier a été notifié et peut maintenant payer.');
   };
 
-  const handleReject = (demand: CourseDemande) => {
-    // Marquer comme rejetée
+  const handleReject = async (demand: CourseDemande) => {
     demand.statut = 'rejected';
     courseDemandesStore.list = [...courseDemandesStore.list];
     setDemands(demands.filter(d => d.id !== demand.id));
 
-    // Envoyer notification au cavalier
-    notificationsStore.list = [{
-      id: `notif_${Date.now()}`,
+    await createNotification({
       destinataireId: demand.cavalierUserId,
       type: 'course_request',
       titre: '❌ Votre demande a été refusée',
       message: `${demand.coachNom} a refusé votre demande pour "${demand.annonceTitre}"`,
       status: 'rejected',
-      lu: false,
-      dateCreation: new Date(),
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
-    }, ...notificationsStore.list];
+    });
 
     setShowModal(false);
     Alert.alert('Demande refusée', 'Le cavalier a été notifié du refus.');

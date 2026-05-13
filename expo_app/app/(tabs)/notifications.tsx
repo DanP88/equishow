@@ -1,112 +1,77 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Alert, Modal,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { notificationsStore, userStore, courseDemandesStore, stageReservationsStore, transportReservationsStore, boxReservationsStore } from '../../data/store';
+import { useAuth } from '../../hooks/useAuth';
+import { useNotifications, createNotification } from '../../hooks/useNotifications';
+import { courseDemandesStore, stageReservationsStore, transportReservationsStore, boxReservationsStore } from '../../data/store';
 import { Notification } from '../../types/notification';
 
 export default function NotificationsScreen() {
-  const [notifications, setNotifications] = useState(notificationsStore.list);
+  const { profile } = useAuth();
+  const { notifications, unreadCount: totalUnread, markAsRead, markAllAsRead, removeNotification } = useNotifications();
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
-  // Refresh quand on revient sur l'écran
-  useFocusEffect(useCallback(() => {
-    setNotifications([...notificationsStore.list]);
-    // Marquer automatiquement toutes les notifications comme lues quand on ouvre la page
-    notificationsStore.list.forEach((n) => {
-      if (n.destinataireId === userStore.id && !n.lu) {
-        n.lu = true;
-      }
-    });
-    setNotifications([...notificationsStore.list]);
-  }, []));
-
-  // Filtrer pour ne montrer que les notifications du cavalier actuel
-  const myNotifications = notifications.filter(
-    (n) => n.destinataireId === userStore.id && n.type !== 'message'
-  );
-
+  // Filtrer pour ne montrer que les notifications du cavalier actuel (hors messages).
+  const myNotifications = notifications.filter((n) => n.type !== 'message');
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
 
-  function markAsRead(notificationId: string) {
-    const notification = notificationsStore.list.find((n) => n.id === notificationId);
-    if (notification) {
-      notification.lu = true;
-      setNotifications([...notificationsStore.list]);
+  // Marquer auto comme lu au focus (RLS bloque déjà l'IDOR côté serveur).
+  useEffect(() => {
+    if (totalUnread > 0) {
+      markAllAsRead();
     }
-  }
+  }, [totalUnread, markAllAsRead]);
 
   function handleDelete(notificationId: string) {
-    console.log('🗑️ Delete clicked for notification:', notificationId);
     setDeleteNotifId(notificationId);
     setDeleteModal(true);
   }
 
-  function confirmDelete() {
-    if (deleteNotifId) {
-      console.log('✅ Confirmed delete for:', deleteNotifId);
-
-      // Trouver la notification pour vérifier si c'est une acceptation
-      const notifToDelete = notificationsStore.list.find(n => n.id === deleteNotifId);
-
-      // Guard IDOR : empêcher la suppression d'une notif appartenant à un autre user
-      if (notifToDelete && notifToDelete.destinataireId !== userStore.id) {
-        console.warn('Delete blocked: notification does not belong to current user');
-        setDeleteModal(false);
-        setDeleteNotifId(null);
-        return;
-      }
-
-      if (notifToDelete && notifToDelete.status === 'accepted') {
-        // Trouver le propriétaire/coach pour envoyer une notification
-        let ownerId: string | null = null;
-
-        if (notifToDelete.type === 'course_request') {
-          // Trouver le coach associé à cette demande
-          const demand = courseDemandesStore.list.find(d => d.cavalierUserId === userStore.id && d.statut === 'accepted');
-          if (demand) ownerId = demand.coachId;
-        } else if (notifToDelete.type === 'stage_reservation') {
-          const stage = stageReservationsStore.list.find(s => s.cavalierUserId === userStore.id && s.statut === 'accepted');
-          if (stage) ownerId = stage.coachId;
-        } else if (notifToDelete.type === 'reservation_request') {
-          // Trouver le propriétaire du transport ou du box
-          const transport = transportReservationsStore.list.find(t => t.buyerId === userStore.id && t.statut === 'accepted');
-          const box = boxReservationsStore.list.find(b => b.buyerId === userStore.id && b.statut === 'accepted');
-          if (transport) ownerId = transport.sellerId;
-          if (box) ownerId = box.sellerId;
-        }
-
-        // Envoyer notification au propriétaire
-        if (ownerId) {
-          const cancelNotif: Notification = {
-            id: `notif_${Date.now()}`,
-            destinataireId: ownerId,
-            type: notifToDelete.type,
-            titre: '❌ Réservation annulée',
-            message: `${userStore.nom} a annulé sa réservation`,
-            status: 'rejected',
-            lu: false,
-            dateCreation: new Date(),
-            auteurId: userStore.id,
-            auteurNom: userStore.nom,
-            auteurPseudo: userStore.pseudo,
-            auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-            auteurCouleur: userStore.avatarColor,
-          };
-          notificationsStore.list = [cancelNotif, ...notificationsStore.list];
-        }
-      }
-
-      const newNotifications = notifications.filter((n) => n.id !== deleteNotifId);
-      setNotifications(newNotifications);
-      notificationsStore.list = notificationsStore.list.filter((n) => n.id !== deleteNotifId);
-      console.log('✅ Notification deleted');
+  async function confirmDelete() {
+    if (!deleteNotifId || !profile?.id) {
+      setDeleteModal(false);
+      setDeleteNotifId(null);
+      return;
     }
+
+    const notifToDelete = myNotifications.find((n) => n.id === deleteNotifId);
+
+    if (notifToDelete && notifToDelete.status === 'accepted') {
+      // Trouver le propriétaire/coach pour envoyer une notification d'annulation.
+      // Lookups encore sur mock stores (P22-P24 pas migrés) — sans effet quand vide.
+      let ownerId: string | null = null;
+      if (notifToDelete.type === 'course_request') {
+        const demand = courseDemandesStore.list.find(d => d.cavalierUserId === profile.id && d.statut === 'accepted');
+        if (demand) ownerId = demand.coachId;
+      } else if (notifToDelete.type === 'stage_reservation') {
+        const stage = stageReservationsStore.list.find(s => s.cavalierUserId === profile.id && s.statut === 'accepted');
+        if (stage) ownerId = stage.coachId;
+      } else if (notifToDelete.type === 'reservation_request') {
+        const transport = transportReservationsStore.list.find(t => t.buyerId === profile.id && t.statut === 'accepted');
+        const box = boxReservationsStore.list.find(b => b.buyerId === profile.id && b.statut === 'accepted');
+        if (transport) ownerId = transport.sellerId;
+        if (box) ownerId = box.sellerId;
+      }
+
+      if (ownerId) {
+        await createNotification({
+          destinataireId: ownerId,
+          type: notifToDelete.type,
+          titre: '❌ Réservation annulée',
+          message: `${profile.prenom} ${profile.nom} a annulé sa réservation`,
+          status: 'rejected',
+        });
+      }
+    }
+
+    const { error } = await removeNotification(deleteNotifId);
+    if (error) Alert.alert('Erreur', error);
     setDeleteModal(false);
     setDeleteNotifId(null);
   }
@@ -126,17 +91,7 @@ export default function NotificationsScreen() {
           )}
         </View>
         {unreadCount > 0 && (
-          <TouchableOpacity
-            style={s.markAllBtn}
-            onPress={() => {
-              notificationsStore.list.forEach((n) => {
-                if (n.destinataireId === userStore.id) {
-                  n.lu = true;
-                }
-              });
-              setNotifications([...notificationsStore.list]);
-            }}
-          >
+          <TouchableOpacity style={s.markAllBtn} onPress={() => markAllAsRead()}>
             <Text style={s.markAllText}>Marquer tout comme lu</Text>
           </TouchableOpacity>
         )}
@@ -154,7 +109,7 @@ export default function NotificationsScreen() {
             <NotificationCard
               key={notif.id}
               notification={notif}
-              onMarkAsRead={() => markAsRead(notif.id)}
+              onMarkAsRead={() => { markAsRead(notif.id); }}
               onDelete={() => handleDelete(notif.id)}
             />
           ))

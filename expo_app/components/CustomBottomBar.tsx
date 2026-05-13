@@ -3,7 +3,8 @@ import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native
 import { useRouter, usePathname, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { useUserRole } from '../hooks/useUserRole';
-import { notificationsStore, userStore, stageReservationsStore, courseDemandesStore, transportReservationsStore, boxReservationsStore, totalUnreadForUser } from '../data/store';
+import { useUnreadNotificationsCount } from '../hooks/useNotifications';
+import { userStore, stageReservationsStore, courseDemandesStore, transportReservationsStore, boxReservationsStore, totalUnreadForUser } from '../data/store';
 
 export interface TabConfig {
   name: string;
@@ -51,21 +52,14 @@ export function CustomBottomBar() {
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur' | 'admin';
   const router = useRouter();
   const pathname = usePathname();
-  const [notificationCount, setNotificationCount] = useState(0);
+  const notificationCount = useUnreadNotificationsCount();
   const [demandCount, setDemandCount] = useState(0);
   const [agendaCount, setAgendaCount] = useState(0);
   const [msgCount, setMsgCount] = useState(0);
 
-  // Fonction pour compter les notifications et demandes
+  // Demandes / agenda / messages restent sur les mock stores tant que P22-P24 ne sont pas migrés.
   const updateNotificationCount = useCallback(() => {
     if (role === 'coach') {
-      // Pour les coachs: notifications non lues (demandes en attente)
-      const coachNotifs = notificationsStore.list.filter(
-        n => n.destinataireId === userStore.id && !n.lu
-      ).length;
-      setNotificationCount(coachNotifs);
-
-      // Demandes en attente: cours + stages
       const pendingCourses = courseDemandesStore.list.filter(
         d => d.coachId === userStore.id && d.statut === 'pending'
       ).length;
@@ -75,13 +69,7 @@ export function CustomBottomBar() {
       setDemandCount(pendingCourses + pendingStages);
     } else if (role === 'cavalier') {
       const uid = userStore.id;
-      // Notifications non lues
-      const cavalierNotifs = notificationsStore.list.filter(
-        n => n.destinataireId === uid && !n.lu
-      ).length;
-      setNotificationCount(cavalierNotifs);
       setDemandCount(0);
-      // Réservations en attente dans l'agenda
       const pendingTransport = transportReservationsStore.list.filter(
         r => (r.buyerId === uid || r.sellerId === uid) && r.statut === 'pending'
       ).length;
@@ -98,10 +86,6 @@ export function CustomBottomBar() {
       setMsgCount(totalUnreadForUser(uid));
     } else if (role === 'organisateur') {
       const uid = userStore.id;
-      const orgNotifs = notificationsStore.list.filter(
-        n => n.destinataireId === uid && !n.lu
-      ).length;
-      setNotificationCount(orgNotifs);
       setMsgCount(totalUnreadForUser(uid));
     }
   }, [role]);

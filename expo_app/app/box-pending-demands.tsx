@@ -6,7 +6,8 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { boxReservationsStore, userStore, notificationsStore } from '../data/store';
+import { boxReservationsStore, userStore } from '../data/store';
+import { createNotification } from '../hooks/useNotifications';
 import { BoxReservation } from '../types/service';
 
 export default function BoxPendingDemandsScreen() {
@@ -22,61 +23,41 @@ export default function BoxPendingDemandsScreen() {
     setDemands(pending);
   }, []));
 
-  const handleAccept = (demand: BoxReservation) => {
-    // Marquer comme acceptée
+  const handleAccept = async (demand: BoxReservation) => {
     demand.statut = 'accepted';
     boxReservationsStore.list = [...boxReservationsStore.list];
     setDemands(demands.filter(d => d.id !== demand.id));
 
-    // Envoyer notification au cavalier
-    notificationsStore.list = [{
-      id: `notif_${Date.now()}`,
+    await createNotification({
       destinataireId: demand.buyerId,
       type: 'reservation_request',
       titre: '✅ Votre réservation de box a été acceptée!',
       message: `Votre réservation pour "${demand.titre}" a été acceptée. Vous pouvez maintenant procéder au paiement.`,
       status: 'accepted',
-      lu: false,
-      dateCreation: new Date(),
       actionUrl: '/pending-box-payments',
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
       donnees: {
         boxId: demand.boxId,
         titre: demand.titre,
         prix: demand.prixTotalTTC,
       },
-    }, ...notificationsStore.list];
+    });
 
     setShowModal(false);
     Alert.alert('✅ Réservation acceptée', 'Le cavalier a été notifié et peut maintenant payer.');
   };
 
-  const handleReject = (demand: BoxReservation) => {
-    // Marquer comme rejetée
+  const handleReject = async (demand: BoxReservation) => {
     demand.statut = 'rejected';
     boxReservationsStore.list = [...boxReservationsStore.list];
     setDemands(demands.filter(d => d.id !== demand.id));
 
-    // Envoyer notification au cavalier
-    notificationsStore.list = [{
-      id: `notif_${Date.now()}`,
+    await createNotification({
       destinataireId: demand.buyerId,
       type: 'reservation_request',
       titre: '❌ Votre réservation de box a été refusée',
       message: `Votre réservation pour "${demand.titre}" a été refusée.`,
       status: 'rejected',
-      lu: false,
-      dateCreation: new Date(),
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-      auteurCouleur: userStore.avatarColor,
-    }, ...notificationsStore.list];
+    });
 
     setShowModal(false);
     Alert.alert('Réservation refusée', 'Le cavalier a été notifié du refus.');

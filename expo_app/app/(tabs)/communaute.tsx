@@ -6,7 +6,8 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
-import { postsStore, userStore, notificationsStore, concoursCsvStore, CommunautePost } from '../../data/store';
+import { postsStore, userStore, concoursCsvStore, CommunautePost } from '../../data/store';
+import { createNotification } from '../../hooks/useNotifications';
 import { ConcoursCSV } from '../../types/concours';
 
 function timeAgo(date: Date): string {
@@ -51,7 +52,7 @@ export default function CommunauteScreen() {
     setPosts([...postsStore.list]);
   }
 
-  function toggleLike(postId: string) {
+  async function toggleLike(postId: string) {
     const uid = userStore.id;
     const post = postsStore.list.find(p => p.id === postId);
     if (!post) return;
@@ -60,33 +61,21 @@ export default function CommunauteScreen() {
     if (alreadyLiked) {
       post.likedBy = post.likedBy.filter(id => id !== uid);
       post.likes = Math.max(0, post.likes - 1);
+      refresh();
     } else {
       post.likedBy = [...post.likedBy, uid];
       post.likes = post.likes + 1;
-      // Notifier l'auteur si c'est pas soi-même
+      refresh();
       if (post.auteurId !== uid) {
-        notificationsStore.list = [
-          {
-            id: `notif_like_${Date.now()}`,
-            destinataireId: post.auteurId,
-            type: 'like' as const,
-            titre: `❤️ @${userStore.pseudo} a aimé votre post`,
-            message: post.contenu.length > 60 ? post.contenu.slice(0, 60) + '…' : post.contenu,
-            status: 'pending' as const,
-            lu: false,
-            dateCreation: new Date(),
-            auteurId: uid,
-            auteurNom: `${userStore.prenom} ${userStore.nom}`,
-            auteurPseudo: userStore.pseudo,
-            auteurInitiales: getUserInitiales(),
-            auteurCouleur: userStore.avatarColor,
-            donnees: { postId },
-          },
-          ...notificationsStore.list,
-        ];
+        await createNotification({
+          destinataireId: post.auteurId,
+          type: 'like',
+          titre: `❤️ @${userStore.pseudo} a aimé votre post`,
+          message: post.contenu.length > 60 ? post.contenu.slice(0, 60) + '…' : post.contenu,
+          donnees: { postId },
+        });
       }
     }
-    refresh();
   }
 
   function handlePost() {
@@ -109,53 +98,40 @@ export default function CommunauteScreen() {
     refresh();
   }
 
-  function addComment(postId: string) {
+  async function addComment(postId: string) {
     if (!commentText.trim()) return;
     const uid = userStore.id;
     const post = postsStore.list.find(p => p.id === postId);
     if (!post) return;
 
+    const trimmed = commentText.trim();
     const comment = {
       id: `cmt_${Date.now()}`,
       auteurId: uid,
       auteur: `${userStore.prenom} ${userStore.nom}`,
       initiales: getUserInitiales(),
       couleur: userStore.avatarColor,
-      texte: commentText.trim(),
+      texte: trimmed,
       date: "À l'instant",
       likes: 0,
       likedBy: [] as string[],
     };
     post.commentaires = [...post.commentaires, comment];
-
-    // Notifier l'auteur du post si c'est pas soi-même
-    if (post.auteurId !== uid) {
-      notificationsStore.list = [
-        {
-          id: `notif_comment_${Date.now()}`,
-          destinataireId: post.auteurId,
-          type: 'comment' as const,
-          titre: `💬 @${userStore.pseudo} a commenté votre post`,
-          message: commentText.trim().length > 60 ? commentText.trim().slice(0, 60) + '…' : commentText.trim(),
-          status: 'pending' as const,
-          lu: false,
-          dateCreation: new Date(),
-          auteurId: uid,
-          auteurNom: `${userStore.prenom} ${userStore.nom}`,
-          auteurPseudo: userStore.pseudo,
-          auteurInitiales: getUserInitiales(),
-          auteurCouleur: userStore.avatarColor,
-          donnees: { postId },
-        },
-        ...notificationsStore.list,
-      ];
-    }
-
     setCommentText('');
     refresh();
+
+    if (post.auteurId !== uid) {
+      await createNotification({
+        destinataireId: post.auteurId,
+        type: 'comment',
+        titre: `💬 @${userStore.pseudo} a commenté votre post`,
+        message: trimmed.length > 60 ? trimmed.slice(0, 60) + '…' : trimmed,
+        donnees: { postId },
+      });
+    }
   }
 
-  function toggleCommentLike(postId: string, commentId: string) {
+  async function toggleCommentLike(postId: string, commentId: string) {
     const uid = userStore.id;
     const post = postsStore.list.find(p => p.id === postId);
     if (!post) return;
@@ -166,33 +142,21 @@ export default function CommunauteScreen() {
     if (alreadyLiked) {
       comment.likedBy = comment.likedBy.filter(id => id !== uid);
       comment.likes = Math.max(0, comment.likes - 1);
+      refresh();
     } else {
       comment.likedBy = [...comment.likedBy, uid];
       comment.likes = comment.likes + 1;
-      // Notifier l'auteur du commentaire si c'est pas soi-même
+      refresh();
       if (comment.auteurId !== uid) {
-        notificationsStore.list = [
-          {
-            id: `notif_cmtlike_${Date.now()}`,
-            destinataireId: comment.auteurId,
-            type: 'like' as const,
-            titre: `❤️ @${userStore.pseudo} a aimé votre commentaire`,
-            message: comment.texte.length > 60 ? comment.texte.slice(0, 60) + '…' : comment.texte,
-            status: 'pending' as const,
-            lu: false,
-            dateCreation: new Date(),
-            auteurId: uid,
-            auteurNom: `${userStore.prenom} ${userStore.nom}`,
-            auteurPseudo: userStore.pseudo,
-            auteurInitiales: getUserInitiales(),
-            auteurCouleur: userStore.avatarColor,
-            donnees: { postId },
-          },
-          ...notificationsStore.list,
-        ];
+        await createNotification({
+          destinataireId: comment.auteurId,
+          type: 'like',
+          titre: `❤️ @${userStore.pseudo} a aimé votre commentaire`,
+          message: comment.texte.length > 60 ? comment.texte.slice(0, 60) + '…' : comment.texte,
+          donnees: { postId },
+        });
       }
     }
-    refresh();
   }
 
   // Lire directement depuis le store pour avoir les données à jour dans le modal

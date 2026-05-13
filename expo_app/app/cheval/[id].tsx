@@ -7,6 +7,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../../constants/theme';
 import { useCheval } from '../../hooks/useChevaux';
+import { createNotification } from '../../hooks/useNotifications';
 import { useAuth } from '../../hooks/useAuth';
 import { Cheval, TypeChevalLabel, getChevalAge } from '../../types/cheval';
 import { DatePickerModal, DateButton, formatDate } from '../../components/DatePickerModal';
@@ -161,12 +162,21 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose 
     coach.id.toLowerCase().includes(coachSearchQuery.toLowerCase())
   );
 
-  function tagCoach(coach: typeof AVAILABLE_COACHS[0]) {
+  async function tagCoach(coach: typeof AVAILABLE_COACHS[0]) {
     setCoachNom(coach.nom);
     setCoachPseudo(coach.id);
-    // TODO(P25): notifier le coach via Supabase une fois notifications migrées.
     setTagCoachModalVisible(false);
     setCoachSearchQuery('');
+    // TODO(P24): coach.id ici est un mock string ; remplacer par un user.id réel
+    // quand les coachs seront migrés. La notif n'aboutit pas tant que `coach.id`
+    // n'est pas un UUID valide de public.users (FK destinataire_id).
+    await createNotification({
+      destinataireId: coach.id,
+      type: 'mention',
+      titre: `🏇 Vous avez été assigné à un cheval`,
+      message: `${cheval.nom} vous a tagué comme coach.`,
+      donnees: { chevalId: cheval.id, chevalNom: cheval.nom },
+    });
   }
 
   function save() {

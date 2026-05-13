@@ -1,53 +1,37 @@
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Modal,
+  Alert, Modal,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { notificationsStore, userStore } from '../../data/store';
+import { useNotifications } from '../../hooks/useNotifications';
 import { Notification } from '../../types/notification';
 
 export default function OrgNotificationsScreen() {
-  const [notifications, setNotifications] = useState(notificationsStore.list);
+  const { notifications, unreadCount: totalUnread, markAsRead, markAllAsRead, removeNotification } = useNotifications();
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
-  useFocusEffect(useCallback(() => {
-    setNotifications([...notificationsStore.list]);
-    notificationsStore.list.forEach((n) => {
-      if (n.destinataireId === userStore.id && !n.lu) {
-        n.lu = true;
-      }
-    });
-    setNotifications([...notificationsStore.list]);
-  }, []));
-
-  const myNotifications = notifications.filter(
-    (n) => n.destinataireId === userStore.id && n.type !== 'message'
-  );
-
+  const myNotifications = notifications.filter((n) => n.type !== 'message');
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
 
-  function markAsRead(notificationId: string) {
-    const notification = notificationsStore.list.find((n) => n.id === notificationId);
-    if (notification) {
-      notification.lu = true;
-      setNotifications([...notificationsStore.list]);
+  useEffect(() => {
+    if (totalUnread > 0) {
+      markAllAsRead();
     }
-  }
+  }, [totalUnread, markAllAsRead]);
 
   function handleDelete(notificationId: string) {
     setDeleteNotifId(notificationId);
     setDeleteModal(true);
   }
 
-  function confirmDelete() {
+  async function confirmDelete() {
     if (deleteNotifId) {
-      const newNotifications = notifications.filter((n) => n.id !== deleteNotifId);
-      setNotifications(newNotifications);
-      notificationsStore.list = notificationsStore.list.filter((n) => n.id !== deleteNotifId);
+      const { error } = await removeNotification(deleteNotifId);
+      if (error) Alert.alert('Erreur', error);
     }
     setDeleteModal(false);
     setDeleteNotifId(null);
@@ -68,17 +52,7 @@ export default function OrgNotificationsScreen() {
           )}
         </View>
         {unreadCount > 0 && (
-          <TouchableOpacity
-            style={s.markAllBtn}
-            onPress={() => {
-              notificationsStore.list.forEach((n) => {
-                if (n.destinataireId === userStore.id) {
-                  n.lu = true;
-                }
-              });
-              setNotifications([...notificationsStore.list]);
-            }}
-          >
+          <TouchableOpacity style={s.markAllBtn} onPress={() => markAllAsRead()}>
             <Text style={s.markAllText}>Marquer tout comme lu</Text>
           </TouchableOpacity>
         )}
@@ -96,7 +70,7 @@ export default function OrgNotificationsScreen() {
             <NotificationCard
               key={notif.id}
               notification={notif}
-              onMarkAsRead={() => markAsRead(notif.id)}
+              onMarkAsRead={() => { markAsRead(notif.id); }}
               onDelete={() => handleDelete(notif.id)}
             />
           ))

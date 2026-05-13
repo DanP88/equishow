@@ -3,7 +3,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Ale
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { concoursStore, coachAnnoncesStore, userStore, courseDemandesStore, notificationsStore } from '../../data/store';
+import { concoursStore, coachAnnoncesStore, userStore, courseDemandesStore } from '../../data/store';
 import { getUserById } from '../../data/mockUsers';
 import { Concours } from '../../types/concours';
 
@@ -38,10 +38,9 @@ export default function CoachConcoursScreen() {
     // Supprimer les demandes associées
     courseDemandesStore.list = courseDemandesStore.list.filter(d => d.annonceId !== annonceId);
 
-    // Supprimer les notifications associées
-    notificationsStore.list = notificationsStore.list.filter(n =>
-      !(n.donnees?.annonceId === annonceId)
-    );
+    // TODO(P25-bis): cleanup notifications via Edge function service_role (RLS bloque
+    // la suppression cross-user côté client). Les notifs liées resteront affichées
+    // chez le cavalier jusqu'à dismiss manuel.
   };
 
   return (

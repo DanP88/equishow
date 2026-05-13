@@ -1,7 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, StageReservation, CourseDemande, CoachAgendaEvent, TransportReservation, BoxReservation } from '../types/service';
 import { Concours, ConcoursCSV, ImportBatch, ImportError } from '../types/concours';
-import { Notification } from '../types/notification';
 import { mockTransports, mockBoxes, mockCoachs, mockCoachAnnonces, mockCoachStages } from './mockServices';
 import { mockConcours } from './mockConcours';
 import { mockConcoursCsv } from './mockConcoursCsv';
@@ -150,9 +149,6 @@ export const concoursCsvStore: {
   errors: [],
 };
 
-// Store des notifications
-export const notificationsStore: { list: Notification[] } = { list: [] };
-
 // Store des réservations de stages
 export const stageReservationsStore: { list: StageReservation[] } = { list: [] };
 
@@ -239,26 +235,8 @@ export function sendMessageToConv(convId: string, senderId: string, texte: strin
       conv.unreadBy[pid] = (conv.unreadBy[pid] ?? 0) + 1;
     }
   });
-  // Créer une notification messagerie pour l'autre
-  const senderInfo = senderId === conv.userA.id ? conv.userA : conv.userB;
-  const otherId = conv.participants.find(p => p !== senderId)!;
-  const notif = {
-    id: `notif_msg_${Date.now()}`,
-    destinataireId: otherId,
-    type: 'message' as const,
-    titre: `💬 Message de @${senderInfo.pseudo}`,
-    message: texte.length > 60 ? texte.slice(0, 60) + '…' : texte,
-    status: 'pending' as const,
-    lu: false,
-    dateCreation: now,
-    auteurId: senderId,
-    auteurNom: senderInfo.nom,
-    auteurPseudo: senderInfo.pseudo,
-    auteurInitiales: senderInfo.initiales,
-    auteurCouleur: senderInfo.couleur,
-    donnees: { convId },
-  };
-  notificationsStore.list = [notif, ...notificationsStore.list];
+  // Les notifs type='message' n'étaient lues par personne (filtrées hors des
+  // écrans notifs). Le badge "non lus messages" passe par messagesStore.unreadBy.
 }
 
 /** Marque tous les messages d'une conv comme lus pour un user */
