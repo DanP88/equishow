@@ -1,8 +1,5 @@
 {
-  "version": 2,
-  "outputDirectory": "web/dist",
-  "buildCommand": "echo built",
-  "rewrites": [
-    { "source": "/(.*)", "destination": "/index.html" }
-  ]
+  "buildCommand": "cd expo_app && npm install && npx expo export --platform web",
+  "outputDirectory": "expo_app/dist",
+  "installCommand": "echo skip root install"
 }
