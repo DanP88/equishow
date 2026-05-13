@@ -6,8 +6,9 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
-import { postsStore, userStore, concoursCsvStore, CommunautePost } from '../../data/store';
+import { postsStore, userStore, concoursCsvStore, concoursStore, CommunautePost } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
+import { getUserById } from '../../data/mockUsers';
 import { ConcoursCSV } from '../../types/concours';
 
 function timeAgo(date: Date): string {
@@ -22,7 +23,7 @@ function getUserInitiales(): string {
   return (userStore.prenom.charAt(0) + userStore.nom.charAt(0)).toUpperCase();
 }
 
-type MainTab = 'communaute' | 'concours';
+type MainTab = 'communaute' | 'concours' | 'contact-concours';
 type SortMode = 'date_asc' | 'date_desc' | 'region_asc';
 
 export default function CommunauteScreen() {
@@ -196,7 +197,67 @@ export default function CommunauteScreen() {
             </View>
           )}
         </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.mainTabBtn, mainTab === 'contact-concours' && styles.mainTabBtnActive]}
+          onPress={() => setMainTab('contact-concours')}
+          activeOpacity={0.8}
+        >
+          <Text style={[styles.mainTabLabel, mainTab === 'contact-concours' && styles.mainTabLabelActive]}>
+            📬 Contact concours
+          </Text>
+        </TouchableOpacity>
       </View>
+
+      {/* ── ONGLET CONTACT CONCOURS ──────────────────────────────── */}
+      {mainTab === 'contact-concours' && (() => {
+        const upcoming = concoursStore.list.filter(c => c.statut !== 'brouillon' && c.statut !== 'termine');
+        if (upcoming.length === 0) {
+          return (
+            <View style={styles.contactEmpty}>
+              <Text style={styles.contactEmptyIcon}>🏟️</Text>
+              <Text style={styles.contactEmptyText}>Aucun concours à venir pour le moment.</Text>
+            </View>
+          );
+        }
+        return (
+          <ScrollView contentContainerStyle={styles.contactList}>
+            <Text style={styles.contactSectionTitle}>🏟️ Concours à venir</Text>
+            {upcoming.map((concours) => {
+              const org = getUserById(concours.organisateurId);
+              return (
+                <View key={concours.id} style={styles.contactCard}>
+                  <Text style={styles.contactName}>{concours.nom}</Text>
+                  <Text style={styles.contactMeta}>
+                    📅 {concours.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {concours.lieu}
+                  </Text>
+                  <Text style={styles.contactMeta}>🎯 {concours.disciplines.join(', ')}</Text>
+                  <Text style={styles.contactMeta}>Niveaux : {concours.typesCavaliers.join(', ')}</Text>
+                  {concours.prix ? <Text style={styles.contactMeta}>💰 {concours.prix}€</Text> : null}
+                  <Text style={styles.contactMeta}>👤 {concours.organisateurNom}</Text>
+                  {org && (
+                    <TouchableOpacity
+                      style={styles.contactBtn}
+                      onPress={() => router.push({
+                        pathname: '/messagerie',
+                        params: {
+                          otherId: org.id,
+                          otherNom: org.prenom + ' ' + org.nom,
+                          otherPseudo: org.pseudo,
+                          otherCouleur: org.avatarColor,
+                          otherInitiales: org.initiales,
+                          sujet: `🏆 ${concours.nom}`,
+                        },
+                      } as any)}
+                    >
+                      <Text style={styles.contactBtnText}>💬 Contacter l'organisateur</Text>
+                    </TouchableOpacity>
+                  )}
+                </View>
+              );
+            })}
+          </ScrollView>
+        );
+      })()}
 
       {/* ── ONGLET INFO CONCOURS ─────────────────────────────────── */}
       {mainTab === 'concours' && (() => {
@@ -709,6 +770,16 @@ const styles = StyleSheet.create({
 
   // Onglets principaux
   mainTabBar: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  contactList: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 120 },
+  contactSectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.sm },
+  contactCard: { ...CommonStyles.card, padding: Spacing.lg, gap: 4 },
+  contactName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
+  contactMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  contactBtn: { marginTop: Spacing.sm, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Radius.md, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', alignItems: 'center' },
+  contactBtnText: { color: '#1D4ED8', fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
+  contactEmpty: { alignItems: 'center', justifyContent: 'center', padding: Spacing.xxl, gap: Spacing.md },
+  contactEmptyIcon: { fontSize: 48 },
+  contactEmptyText: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center' },
   mainTabBtn: { flexDirection: 'row', alignItems: 'center', gap: 6, paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm, borderBottomWidth: 2, borderBottomColor: 'transparent' },
   mainTabBtnActive: { borderBottomColor: Colors.primary },
   mainTabLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary },

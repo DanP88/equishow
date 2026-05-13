@@ -9,9 +9,9 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { DatePickerModal, DateButton, formatDate, MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { mockConcours } from '../data/mockConcours';
-import { transportsStore, userStore } from '../data/store';
+import { useMyTransportAnnonces } from '../hooks/useTransports';
 import { VILLES_POPULAIRES } from '../data/mockVilles';
-import { getCommission } from '../types/service';
+import { getCommission, TransportAnnonce } from '../types/service';
 
 const CONCOURS_OPTIONS = mockConcours
   .filter(c => c.statut !== 'brouillon')
@@ -210,7 +210,8 @@ function Dropdown({ placeholder, value, options, onChange }: {
 
 export default function ProposerTransportScreen() {
   const { editId, type } = useLocalSearchParams<{ editId?: string; type?: string }>();
-  const existing = editId ? transportsStore.list.find((t) => t.id === editId) : undefined;
+  const { annonces, createAnnonce, updateAnnonce } = useMyTransportAnnonces();
+  const existing = editId ? annonces.find((t) => t.id === editId) : undefined;
 
   const [villeDepart, setVilleDepart] = useState(existing?.villeDepart ?? '');
   const [villeArrivee, setVilleArrivee] = useState(existing?.villeArrivee ?? '');
@@ -265,7 +266,7 @@ export default function ProposerTransportScreen() {
     }
   }
 
-  function submit() {
+  async function submit() {
     try {
     console.log('Submit called', { typeTransport, villeDepart, villeArrivee, dateTrajet, nbPlaces, prix, heureDepart });
     if (typeTransport === 'trajet') {
@@ -311,75 +312,41 @@ export default function ProposerTransportScreen() {
       ? (datesDisponibles.length > 0 ? datesDisponibles[0] : new Date())
       : dateTrajet!;
 
+    const payload: Partial<TransportAnnonce> = {
+      dateTrajet: dateTrajetFinal,
+      villeDepart: villeDepart.trim(),
+      villeArrivee: typeTransport === 'location' ? '' : villeArrivee.trim(),
+      nbPlacesTotal: nb,
+      nbPlacesDisponibles: nb,
+      prixHT: parseFloat(prix),
+      pricePerKm: typeTransport === 'trajet' ? parseFloat(prix) : 0,
+      concours: concours || undefined,
+      description: description || undefined,
+      typeTransport,
+      adresseVan: adresseVan || undefined,
+      startLat: adresseVanLat,
+      startLng: adresseVanLng,
+      adresseArrivee: typeTransport === 'trajet' ? adresseArrivee.trim() || undefined : undefined,
+      destinationLat: typeTransport === 'trajet' ? adresseArriveeLat : undefined,
+      destinationLng: typeTransport === 'trajet' ? adresseArriveeLng : undefined,
+      heureDepart: typeTransport === 'trajet' ? heureDepart || undefined : undefined,
+      allerRetour: proposerRetour && typeTransport === 'trajet' ? true : false,
+      dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
+      kmInclus: typeTransport === 'location' ? parseInt(kmInclus, 10) : undefined,
+      tarifKmSupplémentaire: typeTransport === 'location' ? parseFloat(tarifKmSupplémentaire) : undefined,
+      cautionRéparation: typeTransport === 'location' ? parseInt(cautionRéparation, 10) : undefined,
+      cautionNettoyage: typeTransport === 'location' ? parseInt(cautionNettoyage, 10) : undefined,
+      datesDisponibles: typeTransport === 'location' ? datesDisponibles : undefined,
+    };
+
     if (editId && existing) {
-      // Modification de l'annonce existante
-      const idx = transportsStore.list.findIndex((t) => t.id === editId);
-      if (idx !== -1) {
-        transportsStore.list[idx] = {
-          ...transportsStore.list[idx],
-          dateTrajet: dateTrajetFinal,
-          villeDepart: villeDepart.trim(),
-          villeArrivee: '', // Vide pour location
-          nbPlacesTotal: nb,
-          nbPlacesDisponibles: nb,
-          prixHT: parseFloat(prix),
-          pricePerKm: typeTransport === 'trajet' ? parseFloat(prix) : undefined,
-          concours: concours || undefined,
-          description: description || undefined,
-          typeTransport,
-          adresseVan: adresseVan || undefined,
-          startLat: adresseVanLat,
-          startLng: adresseVanLng,
-          adresseArrivee: typeTransport === 'trajet' ? adresseArrivee.trim() || undefined : undefined,
-          destinationLat: typeTransport === 'trajet' ? adresseArriveeLat : undefined,
-          destinationLng: typeTransport === 'trajet' ? adresseArriveeLng : undefined,
-          heureDepart: typeTransport === 'trajet' ? heureDepart || undefined : undefined,
-          allerRetour: proposerRetour && typeTransport === 'trajet' ? true : false,
-          dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
-          kmInclus: typeTransport === 'location' ? parseInt(kmInclus, 10) : undefined,
-          tarifKmSupplémentaire: typeTransport === 'location' ? parseFloat(tarifKmSupplémentaire) : undefined,
-          cautionRéparation: typeTransport === 'location' ? parseInt(cautionRéparation, 10) : undefined,
-          cautionNettoyage: typeTransport === 'location' ? parseInt(cautionNettoyage, 10) : undefined,
-          datesDisponibles: typeTransport === 'location' ? datesDisponibles : undefined,
-        };
-      }
-      router.replace('/(tabs)/services?tab=transport' as any);
+      const { error } = await updateAnnonce(editId, payload);
+      if (error) { showError(error); return; }
     } else {
-      const nouvelleAnnonce = {
-        id: `t${Date.now()}`,
-        auteurId: userStore.id,
-        auteurNom: `${userStore.prenom} ${userStore.nom}`,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-        auteurCouleur: userStore.avatarColor,
-        dateTrajet: dateTrajetFinal,
-        villeDepart: villeDepart.trim(),
-        villeArrivee: typeTransport === 'location' ? '' : villeArrivee.trim(),
-        nbPlacesTotal: nb,
-        nbPlacesDisponibles: nb,
-        prixHT: parseFloat(prix),
-        pricePerKm: typeTransport === 'trajet' ? parseFloat(prix) : undefined,
-        concours: concours || undefined,
-        description: description || undefined,
-        typeTransport,
-        adresseVan: adresseVan || undefined,
-        startLat: adresseVanLat,
-        startLng: adresseVanLng,
-        adresseArrivee: typeTransport === 'trajet' ? adresseArrivee.trim() || undefined : undefined,
-        destinationLat: typeTransport === 'trajet' ? adresseArriveeLat : undefined,
-        destinationLng: typeTransport === 'trajet' ? adresseArriveeLng : undefined,
-        heureDepart: typeTransport === 'trajet' ? heureDepart || undefined : undefined,
-        allerRetour: proposerRetour && typeTransport === 'trajet' ? true : false,
-        dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
-        kmInclus: typeTransport === 'location' ? parseInt(kmInclus, 10) : undefined,
-        tarifKmSupplémentaire: typeTransport === 'location' ? parseFloat(tarifKmSupplémentaire) : undefined,
-        cautionRéparation: typeTransport === 'location' ? parseInt(cautionRéparation, 10) : undefined,
-        cautionNettoyage: typeTransport === 'location' ? parseInt(cautionNettoyage, 10) : undefined,
-        datesDisponibles: typeTransport === 'location' ? datesDisponibles : undefined,
-      };
-      transportsStore.list = [nouvelleAnnonce, ...transportsStore.list];
-      router.replace('/(tabs)/services?tab=transport' as any);
+      const { error } = await createAnnonce(payload);
+      if (error) { showError(error); return; }
     }
+    router.replace('/(tabs)/services?tab=transport' as any);
     } catch (e: any) {
       console.error('Submit error:', e?.message, e);
       Alert.alert('Erreur', e?.message || 'Une erreur est survenue');

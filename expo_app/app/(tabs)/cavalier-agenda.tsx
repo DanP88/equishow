@@ -1,17 +1,16 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
 import { useFocusEffect, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import {
   userStore,
-  transportReservationsStore,
   boxReservationsStore,
   stageReservationsStore,
   courseDemandesStore,
-  transportsStore,
   coachStagesStore,
 } from '../../data/store';
+import { useTransportAnnonces, useMyTransportReservations } from '../../hooks/useTransports';
 import { getUserById } from '../../data/mockUsers';
 import { useAvis, useMyAvisRefs, AvisType } from '../../hooks/useAvis';
 
@@ -78,6 +77,9 @@ function avisTypeFromAgenda(t: AgendaItem['type']): AvisType {
 
 export default function CavalierAgendaScreen() {
   const [items, setItems] = useState<AgendaItem[]>([]);
+  const { transports } = useTransportAnnonces();
+  const { reservations: transportReservations } = useMyTransportReservations();
+  const [tick, setTick] = useState(0);
   const [avisModal, setAvisModal] = useState<AvisModal>(null);
   const [avisNote, setAvisNote] = useState(5);
   const [avisComment, setAvisComment] = useState('');
@@ -114,14 +116,18 @@ export default function CavalierAgendaScreen() {
   }
 
   useFocusEffect(useCallback(() => {
+    setTick((t) => t + 1);
+  }, []));
+
+  useEffect(() => {
     const uid = userStore.id;
     const all: AgendaItem[] = [];
 
     // ── Transports acheteur ──
-    transportReservationsStore.list
+    transportReservations
       .filter(r => r.buyerId === uid)
       .forEach(r => {
-        const annonce = transportsStore.list.find(t => t.id === r.transportId);
+        const annonce = transports.find(t => t.id === r.transportId);
         const seller = getUserById(r.sellerId) ?? {
           id: r.sellerId, prenom: annonce?.auteurNom?.split(' ')[0] ?? '?', nom: annonce?.auteurNom?.split(' ')[1] ?? '',
           pseudo: annonce?.auteurPseudo ?? '?', initiales: annonce?.auteurInitiales ?? '?',
@@ -146,10 +152,10 @@ export default function CavalierAgendaScreen() {
       });
 
     // ── Transports vendeur ──
-    transportReservationsStore.list
+    transportReservations
       .filter(r => r.sellerId === uid)
       .forEach(r => {
-        const annonce = transportsStore.list.find(t => t.id === r.transportId);
+        const annonce = transports.find(t => t.id === r.transportId);
         const buyer = getUserById(r.buyerId) ?? {
           id: r.buyerId, prenom: '?', nom: '', pseudo: '?', initiales: '?',
           avatarColor: Colors.primary, role: 'cavalier', disciplines: [], region: '',
@@ -262,7 +268,7 @@ export default function CavalierAgendaScreen() {
 
     all.sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
     setItems(all);
-  }, []));
+  }, [tick, transports, transportReservations]);
 
   // Grouper par date
   const byDate = new Map<string, AgendaItem[]>();

@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
-import { TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, StageReservation, CourseDemande, CoachAgendaEvent, TransportReservation, BoxReservation } from '../types/service';
+import { BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, StageReservation, CourseDemande, CoachAgendaEvent, BoxReservation } from '../types/service';
 import { Concours, ConcoursCSV, ImportBatch, ImportError } from '../types/concours';
-import { mockTransports, mockBoxes, mockCoachs, mockCoachAnnonces, mockCoachStages } from './mockServices';
+import { mockBoxes, mockCoachs, mockCoachAnnonces, mockCoachStages } from './mockServices';
 import { mockConcours } from './mockConcours';
 import { mockConcoursCsv } from './mockConcoursCsv';
 import { mockUsers } from './mockUsers';
@@ -122,8 +122,8 @@ const createUserStore = (): UserStore => {
 
 export const userStore = createUserStore();
 
-// Stores partagés pour les annonces (s'alimentent depuis les formulaires)
-export const transportsStore: { list: TransportAnnonce[] } = { list: [...mockTransports] };
+// Stores partagés pour les annonces (s'alimentent depuis les formulaires).
+// transportsStore retiré P22 (hooks Supabase useTransportAnnonces / useMyTransportReservations).
 export const boxesStore: { list: BoxAnnonce[] } = { list: [...mockBoxes] };
 export const coachesStore: { list: CoachProfil[] } = { list: [...mockCoachs] };
 export const coachAnnoncesStore: { list: CoachAnnonce[] } = { list: [...mockCoachAnnonces] };
@@ -155,8 +155,7 @@ export const stageReservationsStore: { list: StageReservation[] } = { list: [] }
 // Store des demandes de cours
 export const courseDemandesStore: { list: CourseDemande[] } = { list: [] };
 
-// Store des réservations de transport
-export const transportReservationsStore: { list: TransportReservation[] } = { list: [] };
+// transportReservationsStore retiré P22 (hook useMyTransportReservations).
 
 // Store des réservations de box
 export const boxReservationsStore: { list: BoxReservation[] } = { list: [] };

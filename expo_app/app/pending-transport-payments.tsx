@@ -1,45 +1,29 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Alert, ActivityIndicator, Linking,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { transportReservationsStore, userStore } from '../data/store';
+import { userStore } from '../data/store';
+import { useAuth } from '../hooks/useAuth';
+import { useMyTransportReservations } from '../hooks/useTransports';
 import { createNotification } from '../hooks/useNotifications';
+import { TransportReservation } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
-interface TransportReservation {
-  id: string;
-  transportId: string;
-  sellerId: string;
-  buyerId: string;
-  titre: string;
-  villeDepart: string;
-  villeArrivee: string;
-  nbPlaces: number;
-  message: string;
-  prixTotalHT: number;
-  commissionPlateform: number;
-  prixTotalTTC: number;
-  statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
-}
-
 export default function PendingTransportPaymentsScreen() {
-  const [validatedReservations, setValidatedReservations] = useState<TransportReservation[]>([]);
+  const { profile } = useAuth();
+  const { reservations, updateStatut } = useMyTransportReservations();
   const [loading, setLoading] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    // Récupérer les réservations de transport acceptées du cavalier
-    const validated = transportReservationsStore.list.filter(
-      (r: TransportReservation) => r.buyerId === userStore.id && r.statut === 'accepted'
-    );
-    setValidatedReservations(validated);
-  }, []));
+  const validatedReservations = reservations.filter(
+    (r) => r.buyerId === profile?.id && r.statut === 'accepted',
+  );
 
   const handlePayNow = async (reservation: TransportReservation) => {
     try {
@@ -88,9 +72,7 @@ export default function PendingTransportPaymentsScreen() {
         return;
       }
 
-      // Marquer comme en attente de paiement
-      reservation.statut = 'awaiting_payment';
-      transportReservationsStore.list = [...transportReservationsStore.list];
+      await updateStatut(reservation.id, 'awaiting_payment');
 
       await createNotification({
         destinataireId: reservation.sellerId,

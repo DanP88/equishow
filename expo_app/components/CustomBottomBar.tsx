@@ -4,7 +4,8 @@ import { useRouter, usePathname, useFocusEffect } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { useUserRole } from '../hooks/useUserRole';
 import { useUnreadNotificationsCount } from '../hooks/useNotifications';
-import { userStore, stageReservationsStore, courseDemandesStore, transportReservationsStore, boxReservationsStore, totalUnreadForUser } from '../data/store';
+import { useMyTransportReservations } from '../hooks/useTransports';
+import { userStore, stageReservationsStore, courseDemandesStore, boxReservationsStore, totalUnreadForUser } from '../data/store';
 
 export interface TabConfig {
   name: string;
@@ -53,11 +54,12 @@ export function CustomBottomBar() {
   const router = useRouter();
   const pathname = usePathname();
   const notificationCount = useUnreadNotificationsCount();
+  const { reservations: transportReservations } = useMyTransportReservations();
   const [demandCount, setDemandCount] = useState(0);
   const [agendaCount, setAgendaCount] = useState(0);
   const [msgCount, setMsgCount] = useState(0);
 
-  // Demandes / agenda / messages restent sur les mock stores tant que P22-P24 ne sont pas migrés.
+  // Demandes / agenda / messages : transport via hook, le reste mock tant que P23/P24 pas migrés.
   const updateNotificationCount = useCallback(() => {
     if (role === 'coach') {
       const pendingCourses = courseDemandesStore.list.filter(
@@ -70,7 +72,7 @@ export function CustomBottomBar() {
     } else if (role === 'cavalier') {
       const uid = userStore.id;
       setDemandCount(0);
-      const pendingTransport = transportReservationsStore.list.filter(
+      const pendingTransport = transportReservations.filter(
         r => (r.buyerId === uid || r.sellerId === uid) && r.statut === 'pending'
       ).length;
       const pendingBox = boxReservationsStore.list.filter(
@@ -88,7 +90,7 @@ export function CustomBottomBar() {
       const uid = userStore.id;
       setMsgCount(totalUnreadForUser(uid));
     }
-  }, [role]);
+  }, [role, transportReservations]);
 
   // Refresh notifications count quand on revient
   useFocusEffect(useCallback(() => {

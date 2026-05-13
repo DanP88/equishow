@@ -6,9 +6,10 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { transportsStore, userStore, transportReservationsStore, supabase } from '../data/store';
+import { userStore, supabase } from '../data/store';
+import { useTransportAnnonces, useMyTransportReservations } from '../hooks/useTransports';
 import { createNotification } from '../hooks/useNotifications';
-import { prixTTC, getCommissionMontant, getCommission, TransportReservation } from '../types/service';
+import { prixTTC, getCommissionMontant, getCommission } from '../types/service';
 import { MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
 
@@ -29,7 +30,9 @@ interface RouteResult {
 
 export default function ReserverTransportScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const transport = transportsStore.list.find((t) => t.id === id);
+  const { transports } = useTransportAnnonces();
+  const { createReservation } = useMyTransportReservations();
+  const transport = transports.find((t) => t.id === id);
 
   const [nbPlaces, setNbPlaces] = useState(1);
   const [message, setMessage] = useState('');
@@ -157,23 +160,9 @@ export default function ReserverTransportScreen() {
     setRouteResult(null);
 
     try {
-      const pricePerKm = transport.pricePerKm ?? 0.8;
-      const payload: Record<string, unknown> = {
-        pickupSource,
-        ownerAddress: transport.adresseVan || transport.villeDepart,
-        destinationAddress: transport.adresseArrivee || transport.villeArrivee,
-        pricePerKm,
-      };
-
-      if (transport.startLat != null && transport.startLng != null) {
-        payload.ownerLat = transport.startLat;
-        payload.ownerLng = transport.startLng;
-      }
-      if (transport.destinationLat != null && transport.destinationLng != null) {
-        payload.destinationLat = transport.destinationLat;
-        payload.destinationLng = transport.destinationLng;
-      }
-
+      // Edge function durcie (P22) : on n'envoie plus pricePerKm/adresses depuis le
+      // client. Le serveur recharge tout depuis transport_annonces via transportId.
+      const payload: Record<string, unknown> = { transportId: transport.id, pickupSource };
       if (geoCoords.current) {
         payload.pickupLat = geoCoords.current.lat;
         payload.pickupLng = geoCoords.current.lng;
@@ -181,11 +170,17 @@ export default function ReserverTransportScreen() {
         payload.pickupAddress = pickupAddress.trim();
       }
 
+      const { data: { session } } = await supabase.auth.getSession();
+      const userToken = session?.access_token;
+      if (!userToken) {
+        setRouteError('Session expirée, veuillez vous reconnecter.');
+        return;
+      }
+
       const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL!;
-      const supabaseKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY!;
       const resp = await fetch(`${supabaseUrl}/functions/v1/calculate-route-price`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${supabaseKey}` },
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${userToken}` },
         body: JSON.stringify(payload),
       });
       const data = await resp.json();
@@ -216,8 +211,7 @@ export default function ReserverTransportScreen() {
       }
     }
 
-    // Snapshot route pricing si disponible
-    const routeSnapshot: Partial<TransportReservation> = routeResult
+    const routeSnapshot = routeResult
       ? {
           pickupAddress: routeResult.pickupAddress,
           pickupLat: routeResult.pickupLat,
@@ -232,16 +226,16 @@ export default function ReserverTransportScreen() {
           finalPrice: prixTotalTTC,
           routeProvider: 'openrouteservice',
           routeSnapshotJson: routeResult.routeSnapshotJson,
-          routePricingStatus: 'calculated',
+          routePricingStatus: 'calculated' as const,
         }
-      : { routePricingStatus: 'skipped' };
+      : { routePricingStatus: 'skipped' as const };
 
-    const nouvelleReservation: TransportReservation = {
-      id: `tr_${Date.now()}`,
+    const titre = `Transport ${transport.villeDepart} → ${transport.villeArrivee}`;
+
+    const { data: created, error: createErr } = await createReservation({
       transportId: transport.id,
       sellerId: transport.auteurId,
-      buyerId: userStore.id,
-      titre: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
+      titre,
       villeDepart: transport.villeDepart,
       villeArrivee: transport.villeArrivee,
       nbPlaces: isTrajet ? nbPlaces : 1,
@@ -249,13 +243,15 @@ export default function ReserverTransportScreen() {
       prixTotalHT: prixTotal,
       commissionPlateform: prixTotal * 0.05,
       prixTotalTTC,
-      statut: 'pending' as const,
-      dateCreation: new Date(),
       ...routeSnapshot,
-    };
+    });
 
-    const transportRef = `EQ-TRP-${nouvelleReservation.id.replace(/[^A-Z0-9]/gi, '').substring(0, 8).toUpperCase()}`;
-    transportReservationsStore.list = [nouvelleReservation, ...transportReservationsStore.list];
+    if (createErr || !created) {
+      Alert.alert('Erreur', createErr ?? 'Impossible de créer la réservation.');
+      return;
+    }
+
+    const transportRef = `EQ-TRP-${created.id.replace(/[^A-Z0-9]/gi, '').substring(0, 8).toUpperCase()}`;
 
     await createNotification({
       destinataireId: transport.auteurId,
@@ -266,13 +262,13 @@ export default function ReserverTransportScreen() {
       actionUrl: '/transport-pending-demands',
       donnees: {
         transportId: transport.id,
-        titre: `Transport ${transport.villeDepart} → ${transport.villeArrivee}`,
+        titre,
         prix: prixTotalTTC,
         message: message.trim(),
       },
     });
 
-    // Le montant final envoyé au paiement est toujours le prix calculé côté backend
+    // Montant final = backend price si calculé
     const montantPaiement = routeResult
       ? (routeResult.totalPrice * nbPlaces).toFixed(2)
       : prixTotalTTC.toFixed(2);
@@ -280,10 +276,10 @@ export default function ReserverTransportScreen() {
     router.push({
       pathname: '/paiement-transport',
       params: {
-        reservationId: nouvelleReservation.id,
-        titre: nouvelleReservation.titre,
+        reservationId: created.id,
+        titre,
         montant: montantPaiement,
-        nbPlaces: String(nouvelleReservation.nbPlaces),
+        nbPlaces: String(created.nbPlaces),
         villeDepart: transport.villeDepart,
         villeArrivee: transport.villeArrivee,
         reference: transportRef,
