@@ -2,6 +2,23 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'expo-router';
 import { Session, User as AuthUser } from '@supabase/supabase-js';
 import supabase, { User, signUp, signIn, signOut, getUserProfile } from '../lib/supabase';
+import { userStore } from '../data/store';
+
+// Synchronise userStore (utilisé par CustomBottomBar via useUserRole) avec le
+// profile Supabase. Sans ça, après un login admin/coach/organisateur la bottom
+// bar affiche les tabs cavalier (valeur initiale du store).
+function syncUserStore(profile: User | null) {
+  if (!profile?.id) return;
+  userStore.applyRemoteProfile({
+    id: profile.id,
+    prenom: (profile as any).prenom ?? '',
+    nom: (profile as any).nom ?? '',
+    email: profile.email ?? '',
+    role: ((profile as any).role ?? 'cavalier') as 'cavalier' | 'coach' | 'organisateur' | 'admin',
+    region: (profile as any).region ?? null,
+    disciplines: (profile as any).disciplines ?? null,
+  });
+}
 
 /**
  * Complete Authentication Hook
@@ -42,6 +59,7 @@ export const useAuth = () => {
             console.error('❌ Error fetching profile:', profileError);
           } else {
             setProfile(profileData);
+            syncUserStore(profileData);
           }
         }
       } catch (err: any) {
@@ -68,6 +86,7 @@ export const useAuth = () => {
           if (event === 'SIGNED_IN') {
             const { data: profileData } = await getUserProfile(newSession.user.id);
             setProfile(profileData);
+            syncUserStore(profileData);
             console.log('✅ User signed in:', newSession.user.email);
           }
         } else {
@@ -151,6 +170,7 @@ export const useAuth = () => {
       return null;
     }
     setProfile(data);
+    syncUserStore(data);
     return data;
   }, []);
 
