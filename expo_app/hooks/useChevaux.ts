@@ -204,8 +204,20 @@ export function useMyChevaux() {
   );
 
   const deleteCheval = useCallback(async (id: string): Promise<{ error: string | null }> => {
+    // Optimistic : on retire de la liste immédiatement pour une UX fluide.
+    // Le realtime channel synchronisera de toute façon, mais on n'attend pas.
+    let snapshot: Cheval[] = [];
+    setList((curr) => {
+      snapshot = curr;
+      return curr.filter((c) => c.id !== id);
+    });
     const { error: deleteErr } = await supabase.from('chevaux').delete().eq('id', id);
-    return { error: deleteErr?.message ?? null };
+    if (deleteErr) {
+      // Restore en cas d'échec (RLS, FK, etc.).
+      setList(snapshot);
+      return { error: deleteErr.message };
+    }
+    return { error: null };
   }, []);
 
   return {
