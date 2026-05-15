@@ -1,37 +1,36 @@
-import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Alert,
+  Alert, Platform, ActivityIndicator,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { coachStagesStore, userStore } from '../../data/store';
+import { useMyStages } from '../../hooks/useStages';
 import { CoachStage } from '../../types/service';
 
 export default function CoachStagesScreen() {
-  const [stages, setStages] = useState(coachStagesStore.list);
+  const { stages: myStages, isLoading, deleteStage } = useMyStages();
 
-  // Refresh quand on revient sur l'écran (après publication ou modification)
-  useFocusEffect(useCallback(() => {
-    setStages([...coachStagesStore.list]);
-  }, []));
-
-  function handleCancelStage(id: string) {
-    Alert.alert('Retirer le stage', 'Êtes-vous sûr(e) de vouloir retirer ce stage ?', [
-      { text: 'Annuler', style: 'cancel' },
-      {
-        text: 'Retirer', style: 'destructive',
-        onPress: () => {
-          const updated = stages.filter((s) => s.id !== id);
-          setStages(updated);
-          coachStagesStore.list = coachStagesStore.list.filter((s) => s.id !== id);
-        },
-      },
-    ]);
+  function showErr(msg: string) {
+    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
+    else Alert.alert('Erreur', msg);
   }
 
-  const myStages = stages.filter((s) => s.auteurId === userStore.id);
+  async function doDelete(id: string) {
+    const { error } = await deleteStage(id);
+    if (error) showErr(error);
+  }
+
+  function handleCancelStage(id: string) {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Retirer ce stage ?\nCette action est irréversible.')) doDelete(id);
+      return;
+    }
+    Alert.alert('Retirer le stage', 'Êtes-vous sûr(e) de vouloir retirer ce stage ?', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Retirer', style: 'destructive', onPress: () => doDelete(id) },
+    ]);
+  }
 
   return (
     <SafeAreaView style={s.root}>

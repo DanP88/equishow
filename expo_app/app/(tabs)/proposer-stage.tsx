@@ -7,13 +7,14 @@ import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../../components/DatePickerModal';
-import { coachStagesStore, userStore } from '../../data/store';
-import { CoachStage } from '../../types/service';
+import { useMyStages } from '../../hooks/useStages';
 
 const DISCIPLINES = ['Dressage', 'Saut d\'obstacles', 'Cross', 'Western', 'Attelage', 'Équitation de travail', 'Voltige'];
 const NIVEAUX = ['Débutant', 'Intermédiaire', 'Avancé', 'Expert'];
 
 export default function ProposerStageScreen() {
+  const { createStage } = useMyStages();
+  const [submitting, setSubmitting] = useState(false);
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
   const [dateDebut, setDateDebut] = useState<Date | undefined>(new Date());
@@ -80,14 +81,10 @@ export default function ProposerStageScreen() {
     setShowConfirmation(true);
   }
 
-  function handleConfirmation() {
-    const newStage: CoachStage = {
-      id: `stage_${Date.now()}`,
-      auteurId: userStore.id,
-      auteurNom: userStore.nom,
-      auteurPseudo: userStore.pseudo,
-      auteurInitiales: userStore.prenom.charAt(0) + userStore.nom.charAt(0),
-      auteurCouleur: userStore.avatarColor,
+  async function handleConfirmation() {
+    if (submitting) return;
+    setSubmitting(true);
+    const { error } = await createStage({
       titre,
       description,
       disciplines: selectedDisciplines,
@@ -97,12 +94,17 @@ export default function ProposerStageScreen() {
       nbJours,
       prixTTC: parseFloat(tarif),
       places: parseInt(places),
-      placesDisponibles: parseInt(places),
-    };
-
-    coachStagesStore.list.push(newStage);
+    });
+    setSubmitting(false);
+    if (error) {
+      const msg = `Impossible de publier le stage : ${error}`;
+      if (typeof window !== 'undefined') window.alert(msg);
+      else Alert.alert('Erreur', msg);
+      return;
+    }
     setShowConfirmation(false);
-    router.back();
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/coach-stages');
   }
 
   return (

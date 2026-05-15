@@ -6,13 +6,15 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { coachStagesStore, userStore } from '../data/store';
 import { supabase } from '../lib/supabase';
 import { getAuthToken } from '../utils/supabaseAuth';
+import { useStage } from '../hooks/useStages';
+import { useAuth } from '../hooks/useAuth';
 
 export default function ReserverStageScreen() {
   const { stageId } = useLocalSearchParams<{ stageId: string }>();
-  const stage = coachStagesStore.list.find((s) => s.id === stageId);
+  const { stage, isLoading: stageLoading } = useStage(stageId);
+  const { profile } = useAuth();
 
   const [showDetailsModal, setShowDetailsModal] = useState(true);
   const [nombreParticipants, setNombreParticipants] = useState('1');
@@ -20,6 +22,15 @@ export default function ReserverStageScreen() {
   const [loading, setLoading] = useState(false);
   const [reservationRef, setReservationRef] = useState<string | null>(null);
 
+  if (stageLoading && !stage) {
+    return (
+      <SafeAreaView style={s.root}>
+        <View style={s.errorContainer}>
+          <ActivityIndicator color={Colors.primary} />
+        </View>
+      </SafeAreaView>
+    );
+  }
   if (!stage) {
     return (
       <SafeAreaView style={s.root}>
@@ -60,7 +71,7 @@ export default function ReserverStageScreen() {
         .insert({
           stage_id: stage.id,
           coach_id: stage.auteurId,
-          cavalier_id: userStore.id,
+          cavalier_id: profile?.id,
           title: stage.titre,
           nb_participants: nbParticipants,
           price_total_ht: placeholderHt,
