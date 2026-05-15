@@ -782,11 +782,23 @@ export default function ChevalDetailScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* FAB Modifier */}
-      <TouchableOpacity style={styles.fab} onPress={() => openEdit('identite')} activeOpacity={0.85}>
-        <Text style={styles.fabIcon}>✏️</Text>
-        <Text style={styles.fabText}>Modifier</Text>
-      </TouchableOpacity>
+      {/* FAB Modifier / Valider */}
+      {isNew === 'true' ? (
+        <View style={styles.fabRow}>
+          <TouchableOpacity style={[styles.fab, styles.fabSecondary]} onPress={() => openEdit('identite')} activeOpacity={0.85}>
+            <Text style={styles.fabIcon}>✏️</Text>
+            <Text style={styles.fabSecondaryText}>Modifier</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[styles.fab, styles.fabValidate]} onPress={handleBack} activeOpacity={0.85}>
+            <Text style={styles.fabText}>✓ Valider</Text>
+          </TouchableOpacity>
+        </View>
+      ) : (
+        <TouchableOpacity style={styles.fab} onPress={() => openEdit('identite')} activeOpacity={0.85}>
+          <Text style={styles.fabIcon}>✏️</Text>
+          <Text style={styles.fabText}>Modifier</Text>
+        </TouchableOpacity>
+      )}
 
       <Modal visible={showEdit} transparent animationType="fade">
         <EditModal
@@ -949,6 +961,10 @@ const styles = StyleSheet.create({
   fab: { position: 'absolute', bottom: 100, right: Spacing.lg, backgroundColor: Colors.primary, borderRadius: 28, flexDirection: 'row', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, gap: Spacing.sm, ...Shadow.fab },
   fabIcon: { fontSize: 16 },
   fabText: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.base },
+  fabRow: { position: 'absolute', bottom: 100, right: Spacing.lg, flexDirection: 'row', gap: Spacing.sm },
+  fabSecondary: { position: 'relative', bottom: 0, right: 0, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryBorder },
+  fabSecondaryText: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.base },
+  fabValidate: { position: 'relative', bottom: 0, right: 0, backgroundColor: Colors.success },
 
   // Modal
   overlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', alignItems: 'center', justifyContent: 'center', padding: Spacing.lg },
