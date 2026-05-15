@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { AuthGuard } from '../../components/AuthGuard';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { router } from 'expo-router';
+import { Platform } from 'react-native';
 
 const SERVICE_LABELS: Record<ServiceType, string> = {
   trajet: 'Trajets',
@@ -43,7 +44,33 @@ export default function AdminSettingsScreen() {
 
 function AdminSettingsContent() {
   useScreenTracking('admin-settings');
-  const { profile, isLoading } = useAuth();
+  const { profile, isLoading, logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
+
+  async function doLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    const { error } = await logout();
+    if (error) {
+      setLoggingOut(false);
+      const msg = typeof error === 'string' ? error : 'Impossible de se déconnecter.';
+      if (typeof window !== 'undefined') window.alert(msg);
+      else Alert.alert('Erreur', msg);
+      return;
+    }
+    router.replace('/(auth)/login');
+  }
+
+  function handleLogout() {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Se déconnecter ?')) doLogout();
+      return;
+    }
+    Alert.alert('Se déconnecter ?', 'Vous reviendrez à l\'écran de connexion.', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Se déconnecter', style: 'destructive', onPress: doLogout },
+    ]);
+  }
   const commissions = useCommissions();
   const [commissionInputs, setCommissionInputs] = useState<CommissionInput>({
     trajet: (commissions.trajet * 100).toFixed(1),
@@ -214,6 +241,16 @@ function AdminSettingsContent() {
           <Text style={styles.infoValue}>Production</Text>
         </View>
       </View>
+
+      {/* Logout */}
+      <TouchableOpacity
+        style={[styles.logoutBtn, loggingOut && { opacity: 0.6 }]}
+        onPress={handleLogout}
+        disabled={loggingOut}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.logoutText}>{loggingOut ? 'Déconnexion…' : '🚪 Se déconnecter'}</Text>
+      </TouchableOpacity>
     </ScrollView>
   );
 }
@@ -254,6 +291,18 @@ const styles = StyleSheet.create({
   analyticsBtnTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.primary },
   analyticsBtnSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   analyticsBtnArrow: { fontSize: 24, color: Colors.primary, fontWeight: FontWeight.bold },
+  logoutBtn: {
+    backgroundColor: '#DC2626',
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    marginTop: Spacing.md,
+  },
+  logoutText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: '#FFFFFF',
+  },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,
