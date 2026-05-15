@@ -793,7 +793,7 @@ export default function ChevalDetailScreen() {
           <Text style={{ color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.base }}>Modifier</Text>
         </TouchableOpacity>
         <TouchableOpacity
-          style={[styles.fab, { position: 'relative', bottom: 0, right: 0, backgroundColor: '#16A34A' }]}
+          style={[styles.fab, { position: 'relative', bottom: 0, right: 0, backgroundColor: Colors.primary }]}
           onPress={handleBack}
           activeOpacity={0.85}
         >

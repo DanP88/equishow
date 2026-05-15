@@ -4,11 +4,11 @@ import {
   TouchableOpacity, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Colors } from '../../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../../constants/theme';
-import { AuthGuard } from '../../components/AuthGuard';
-import { supabase } from '../../lib/supabase';
-import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { Colors } from '../constants/colors';
+import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../constants/theme';
+import { AuthGuard } from '../components/AuthGuard';
+import { supabase } from '../lib/supabase';
+import { useScreenTracking } from '../hooks/useScreenTracking';
 
 interface Kpi7d {
   pageviews_7d: number | null;

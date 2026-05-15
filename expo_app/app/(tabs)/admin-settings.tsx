@@ -120,7 +120,7 @@ function AdminSettingsContent() {
       {/* Analytics shortcut */}
       <TouchableOpacity
         style={styles.analyticsBtn}
-        onPress={() => router.push('/(tabs)/admin-analytics')}
+        onPress={() => router.push('/admin-analytics')}
         activeOpacity={0.85}
       >
         <Text style={styles.analyticsBtnIcon}>📊</Text>
