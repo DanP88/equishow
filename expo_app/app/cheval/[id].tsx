@@ -782,23 +782,16 @@ export default function ChevalDetailScreen() {
         <View style={{ height: 120 }} />
       </ScrollView>
 
-      {/* FAB Modifier / Valider */}
-      {isNew === 'true' ? (
-        <View style={styles.fabRow}>
-          <TouchableOpacity style={[styles.fab, styles.fabSecondary]} onPress={() => openEdit('identite')} activeOpacity={0.85}>
-            <Text style={styles.fabIcon}>✏️</Text>
-            <Text style={styles.fabSecondaryText}>Modifier</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.fab, styles.fabValidate]} onPress={handleBack} activeOpacity={0.85}>
-            <Text style={styles.fabText}>✓ Valider</Text>
-          </TouchableOpacity>
-        </View>
-      ) : (
-        <TouchableOpacity style={styles.fab} onPress={() => openEdit('identite')} activeOpacity={0.85}>
+      {/* FAB Modifier + Valider */}
+      <View style={styles.fabRow}>
+        <TouchableOpacity style={[styles.fab, styles.fabSecondary]} onPress={() => openEdit('identite')} activeOpacity={0.85}>
           <Text style={styles.fabIcon}>✏️</Text>
-          <Text style={styles.fabText}>Modifier</Text>
+          <Text style={styles.fabSecondaryText}>Modifier</Text>
         </TouchableOpacity>
-      )}
+        <TouchableOpacity style={[styles.fab, styles.fabValidate]} onPress={handleBack} activeOpacity={0.85}>
+          <Text style={styles.fabText}>✓ Valider</Text>
+        </TouchableOpacity>
+      </View>
 
       <Modal visible={showEdit} transparent animationType="fade">
         <EditModal
