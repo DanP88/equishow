@@ -187,19 +187,40 @@ export const signUp = async (
 
 /**
  * Sign in with email and password
+ *
+ * Safety timeout : si le réseau hang (CORS / silent timeout), on rejette
+ * après 15s plutôt que de laisser le spinner tourner indéfiniment.
  */
+function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`Timeout ${label} après ${ms / 1000}s`)), ms);
+    promise.then(
+      (v) => { clearTimeout(t); resolve(v); },
+      (e) => { clearTimeout(t); reject(e); },
+    );
+  });
+}
+
 export const signIn = async (email: string, password: string): Promise<{ user: User | null; error: AppError | null }> => {
   try {
-    const { data: { user }, error } = await supabase.auth.signInWithPassword({
-      email,
-      password,
-    });
+    console.log('[signIn] start', email);
+    const { data: { user }, error } = await withTimeout(
+      supabase.auth.signInWithPassword({ email, password }),
+      15000,
+      'signInWithPassword',
+    );
 
     if (error) throw error;
     if (!user) throw new Error('No user returned from sign in');
+    console.log('[signIn] auth OK, fetching profile');
 
-    const { data: profileData, error: profileError } = await getUserProfile(user.id);
+    const { data: profileData, error: profileError } = await withTimeout(
+      getUserProfile(user.id),
+      10000,
+      'getUserProfile',
+    );
     if (profileError) throw profileError;
+    console.log('[signIn] profile OK');
 
     return { user: profileData, error: null };
   } catch (err: unknown) {
