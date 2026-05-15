@@ -120,10 +120,10 @@ export default function ProfilCoachScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Mon compte</Text>
           <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/compte-type')} activeOpacity={0.7}>
-            <Text style={styles.menuIcon}>🐴</Text>
+            <Text style={styles.menuIcon}>🎓</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.menuLabel}>Changer de type de compte</Text>
-              <Text style={styles.menuSub}>Actuellement : Coach</Text>
+              <Text style={styles.menuSublabel}>Coach</Text>
             </View>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
@@ -285,5 +285,6 @@ const styles = StyleSheet.create({
   menuIcon: { fontSize: 18, width: 24 },
   menuLabel: { flex: 1, fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   menuSub: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
+  menuSublabel: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
   menuArrow: { fontSize: FontSize.xl, color: Colors.textTertiary },
 });
