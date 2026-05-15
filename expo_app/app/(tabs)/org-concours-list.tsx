@@ -37,7 +37,7 @@ export default function OrgConcoursListScreen() {
     <SafeAreaView style={styles.root}>
       <ScrollView contentContainerStyle={styles.container}>
         {/* Header */}
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={styles.backBtn}>← Retour</Text>
         </TouchableOpacity>
 

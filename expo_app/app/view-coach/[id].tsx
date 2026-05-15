@@ -18,7 +18,7 @@ export default function ViewCoachScreen() {
       <SafeAreaView style={s.root}>
         <View style={s.center}>
           <Text style={{ color: Colors.textTertiary, marginBottom: 16 }}>Coach non trouvé</Text>
-          <TouchableOpacity onPress={() => router.back()}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
             <Text style={{ color: Colors.primary }}>← Retour</Text>
           </TouchableOpacity>
         </View>
@@ -33,7 +33,7 @@ export default function ViewCoachScreen() {
   return (
     <SafeAreaView style={s.root}>
       <ScrollView contentContainerStyle={s.container}>
-        <TouchableOpacity onPress={() => router.back()}>
+        <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={{ color: Colors.primary, fontSize: 16, fontWeight: '600', marginBottom: 16 }}>← Retour</Text>
         </TouchableOpacity>
 

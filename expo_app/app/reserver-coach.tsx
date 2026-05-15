@@ -36,7 +36,7 @@ export default function ReserverCoachScreen() {
       <SafeAreaView style={s.root}>
         <View style={s.errorContainer}>
           <Text style={s.errorText}>Annonce non trouvée</Text>
-          <TouchableOpacity style={s.backBtn2} onPress={() => router.back()}>
+          <TouchableOpacity style={s.backBtn2} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
             <Text style={s.backText}>Retour</Text>
           </TouchableOpacity>
         </View>
@@ -219,7 +219,7 @@ export default function ReserverCoachScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={s.backIcon}>‹</Text>
         </TouchableOpacity>
         <Text style={s.headerTitle}>Réserver une séance</Text>

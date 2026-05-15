@@ -38,7 +38,7 @@ export default function PreviewOrganisateurScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={s.backIcon}>‹</Text>
         </TouchableOpacity>
         <View>
@@ -147,7 +147,7 @@ export default function PreviewOrganisateurScreen() {
         </View>
 
         {/* CTA */}
-        <TouchableOpacity style={s.switchBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.switchBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={s.switchBtnText}>Passer en compte Organisateur</Text>
         </TouchableOpacity>
 

@@ -61,7 +61,7 @@ export default function PaiementTransportScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.stripeHeader}>
-        <TouchableOpacity style={s.backBtn} onPress={() => router.back()}>
+        <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={s.backIcon}>‹</Text>
         </TouchableOpacity>
         <View style={s.stripeBadge}>

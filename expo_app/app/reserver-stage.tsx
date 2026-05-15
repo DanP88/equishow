@@ -25,7 +25,7 @@ export default function ReserverStageScreen() {
       <SafeAreaView style={s.root}>
         <View style={s.errorContainer}>
           <Text style={s.errorText}>Stage non trouvé</Text>
-          <TouchableOpacity style={s.backBtn2} onPress={() => router.back()}>
+          <TouchableOpacity style={s.backBtn2} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
             <Text style={s.backText}>Retour</Text>
           </TouchableOpacity>
         </View>
@@ -124,7 +124,7 @@ export default function ReserverStageScreen() {
           <View style={s.modalContent}>
             {/* Header */}
             <View style={s.modalHeader}>
-              <TouchableOpacity onPress={() => router.back()}>
+              <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
                 <Text style={s.modalCloseBtn}>✕</Text>
               </TouchableOpacity>
               <Text style={s.modalTitle}>Détails du stage</Text>
