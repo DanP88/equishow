@@ -12,6 +12,8 @@ import { createNotification } from '../hooks/useNotifications';
 import { prixTTC, getCommissionMontant, getCommission } from '../types/service';
 import { MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { useScreenTracking } from '../hooks/useScreenTracking';
+import { trackFunnel } from '../lib/analytics';
 
 const ROUTE_PRICING_ENABLED = process.env.EXPO_PUBLIC_ENABLE_ROUTE_PRICING === 'true';
 
@@ -29,6 +31,7 @@ interface RouteResult {
 }
 
 export default function ReserverTransportScreen() {
+  useScreenTracking('reserver-transport');
   const { id } = useLocalSearchParams<{ id: string }>();
   const { transports } = useTransportAnnonces();
   const { createReservation } = useMyTransportReservations();
@@ -243,6 +246,8 @@ export default function ReserverTransportScreen() {
       : { routePricingStatus: 'skipped' as const };
 
     const titre = `Transport ${transport.villeDepart} → ${transport.villeArrivee}`;
+
+    trackFunnel('payment', 'submit_reserve', { type: 'transport', transport_id: transport.id });
 
     const { data: created, error: createErr } = await createReservation({
       transportId: transport.id,

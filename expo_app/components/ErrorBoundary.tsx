@@ -11,6 +11,7 @@ import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
 import * as Sentry from '@sentry/react-native';
+import { trackError } from '../lib/analytics';
 
 interface Props {
   children: React.ReactNode;
@@ -67,6 +68,9 @@ export class ErrorBoundary extends React.Component<Props, State> {
         errorType: 'AppError',
       },
     });
+
+    // Log dans analytics maison (dashboard admin)
+    trackError('error_boundary', error, errorId);
 
     console.error(`💥 App Error [${errorId}]:`, error.message);
   }

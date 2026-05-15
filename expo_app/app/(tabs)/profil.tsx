@@ -13,6 +13,7 @@ import { FollowListModal } from '../../components/FollowListModal';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
 import { TEST_ACCOUNTS } from '../../data/mockUsers';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
 
 const ROLE_LABELS: Record<string, string> = {
   cavalier: 'Cavalier',
@@ -27,6 +28,7 @@ const ROLE_ICONS: Record<string, string> = {
 };
 
 export default function ProfilScreen() {
+  useScreenTracking('profil');
   // Use a counter to force re-renders when account changes
   const [tick, setTick] = useState(0);
   const [user, setUser] = useState({ ...userStore });

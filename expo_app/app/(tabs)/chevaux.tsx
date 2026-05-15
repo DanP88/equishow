@@ -9,8 +9,11 @@ import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../../const
 import { Cheval, getChevalAge, TypeChevalEmoji } from '../../types/cheval';
 import { useMyChevaux } from '../../hooks/useChevaux';
 import { useAuth } from '../../hooks/useAuth';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { trackCta } from '../../lib/analytics';
 
 export default function ChevauxScreen() {
+  useScreenTracking('chevaux');
   const { profile } = useAuth();
   const { chevaux, isLoading, createCheval, deleteCheval } = useMyChevaux();
   const [creating, setCreating] = useState(false);
@@ -29,6 +32,7 @@ export default function ChevauxScreen() {
 
   async function handleAdd() {
     if (creating) return;
+    trackCta('chevaux', 'ajouter_cheval');
     if (!profile?.id) {
       showErr('Session non chargée. Reconnectez-vous.');
       return;
@@ -52,6 +56,7 @@ export default function ChevauxScreen() {
 
   async function handleDelete(id: string, nom: string) {
     if (deletingId) return;
+    trackCta('chevaux', 'supprimer_cheval');
     const doIt = () => doDelete(id);
     if (Platform.OS === 'web') {
       if (confirmMsg(`Supprimer ${nom} ?\nCette action est irréversible.`)) doIt();

@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../
 import { MON_PALMARES } from '../../data/mockConcours';
 import { Concours, StatutConcours, Epreuve } from '../../types/concours';
 import { concoursStore } from '../../data/store';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
 
 type MainTab = 'prochains' | 'live' | 'palmares';
 
@@ -28,6 +29,7 @@ const DISC_COLORS: Record<string, string> = {
 };
 
 export default function ConcoursScreen() {
+  useScreenTracking('concours');
   const [tab, setTab] = useState<MainTab>('prochains');
   const [prochains, setProchains] = useState<Concours[]>([]);
   const [liveConc, setLiveConc] = useState<Concours | undefined>();

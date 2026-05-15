@@ -12,6 +12,8 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
 import { getAuthToken } from '../utils/supabaseAuth';
+import { useScreenTracking } from '../hooks/useScreenTracking';
+import { trackFunnel } from '../lib/analytics';
 
 type ConfirmationStatus = 'confirming' | 'success' | 'error';
 
@@ -27,6 +29,7 @@ interface PaymentData {
 }
 
 export default function CheckoutSuccessScreen() {
+  useScreenTracking('checkout-success');
   const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
   const [status, setStatus] = useState<ConfirmationStatus>('confirming');
   const [payment, setPayment] = useState<PaymentData | null>(null);
@@ -81,14 +84,17 @@ export default function CheckoutSuccessScreen() {
       if (data.payment_status === 'succeeded') {
         setPayment(data);
         setStatus('success');
+        trackFunnel('payment', 'payment_success', { session_id: session, type: data.type, amount: data.amount_buyer_ttc });
       } else {
         setStatus('error');
         setError('Le paiement n\'a pas abouti');
+        trackFunnel('payment', 'payment_error', { session_id: session, reason: 'not_succeeded' });
       }
     } catch (err) {
       console.error('Payment confirmation error:', err);
       setStatus('error');
       setError('Impossible de confirmer le paiement');
+      trackFunnel('payment', 'payment_error', { reason: 'verify_failed' });
     }
   };
 

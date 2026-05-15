@@ -13,6 +13,7 @@ import { useAvisStats } from '../../hooks/useAvis';
 import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
 
 type Tab = 'transport' | 'box' | 'coach';
 type TransportSubTab = 'trajets' | 'van';
@@ -92,6 +93,7 @@ function applyCoachFilters(list: CoachProfil[], f: FiltersCoach) {
 /* ─── Screen ───────────────────────────────────────────────────────────────── */
 
 export default function ServicesScreen() {
+  useScreenTracking('services');
   const params = useLocalSearchParams<{ tab?: string; subTab?: string }>();
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur';
   const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'transport');

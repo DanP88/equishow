@@ -10,6 +10,7 @@ import { postsStore, userStore, concoursCsvStore, concoursStore, CommunautePost 
 import { createNotification } from '../../hooks/useNotifications';
 import { getUserById } from '../../data/mockUsers';
 import { ConcoursCSV } from '../../types/concours';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
 
 function timeAgo(date: Date): string {
   const diff = Date.now() - date.getTime();
@@ -27,6 +28,7 @@ type MainTab = 'communaute' | 'concours' | 'contact-concours';
 type SortMode = 'date_asc' | 'date_desc' | 'region_asc';
 
 export default function CommunauteScreen() {
+  useScreenTracking('communaute');
   const [mainTab, setMainTab] = useState<MainTab>('communaute');
   const [posts, setPosts] = useState<CommunautePost[]>([...postsStore.list]);
   const [showNew, setShowNew] = useState(false);

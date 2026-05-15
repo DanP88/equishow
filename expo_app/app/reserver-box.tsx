@@ -11,8 +11,11 @@ import { useBoxAnnonces, useMyBoxReservations } from '../hooks/useBoxes';
 import { createNotification } from '../hooks/useNotifications';
 import { useAuth } from '../hooks/useAuth';
 import { prixTTC, getCommission } from '../types/service';
+import { useScreenTracking } from '../hooks/useScreenTracking';
+import { trackFunnel } from '../lib/analytics';
 
 export default function ReserverBoxScreen() {
+  useScreenTracking('reserver-box');
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile } = useAuth();
   const { boxes } = useBoxAnnonces();
@@ -79,6 +82,7 @@ export default function ReserverBoxScreen() {
     const sellerId = box.auteurId;
 
     setLoading(true);
+    trackFunnel('payment', 'submit_reserve', { type: 'box', box_id: box.id });
     try {
       const titre = `Box ${box.lieu}`;
       const { data: created, error: createErr } = await createReservation({

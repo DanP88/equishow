@@ -9,6 +9,8 @@ import { useCommissions } from '../../hooks/useCommissions';
 import { savePlatformCommissions } from '../../hooks/usePlatformSettings';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthGuard } from '../../components/AuthGuard';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { router } from 'expo-router';
 
 const SERVICE_LABELS: Record<ServiceType, string> = {
   trajet: 'Trajets',
@@ -40,6 +42,7 @@ export default function AdminSettingsScreen() {
 }
 
 function AdminSettingsContent() {
+  useScreenTracking('admin-settings');
   const { profile, isLoading } = useAuth();
   const commissions = useCommissions();
   const [commissionInputs, setCommissionInputs] = useState<CommissionInput>({
@@ -113,6 +116,20 @@ function AdminSettingsContent() {
         <Text style={styles.title}>Paramètres Admin</Text>
         <Text style={styles.subtitle}>Gestion de la plateforme Equishow</Text>
       </View>
+
+      {/* Analytics shortcut */}
+      <TouchableOpacity
+        style={styles.analyticsBtn}
+        onPress={() => router.push('/(tabs)/admin-analytics')}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.analyticsBtnIcon}>📊</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.analyticsBtnTitle}>Analytics</Text>
+          <Text style={styles.analyticsBtnSub}>Comportement utilisateurs · KPIs · funnels · erreurs</Text>
+        </View>
+        <Text style={styles.analyticsBtnArrow}>›</Text>
+      </TouchableOpacity>
 
       {/* Admin Info */}
       <View style={styles.card}>
@@ -223,6 +240,20 @@ const styles = StyleSheet.create({
     fontSize: FontSize.base,
     color: Colors.textSecondary,
   },
+  analyticsBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.md,
+    backgroundColor: Colors.primaryLight,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+  },
+  analyticsBtnIcon: { fontSize: 28 },
+  analyticsBtnTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.primary },
+  analyticsBtnSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  analyticsBtnArrow: { fontSize: 24, color: Colors.primary, fontWeight: FontWeight.bold },
   card: {
     backgroundColor: Colors.surface,
     borderRadius: Radius.lg,

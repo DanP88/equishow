@@ -784,11 +784,19 @@ export default function ChevalDetailScreen() {
 
       {/* FAB Modifier + Valider */}
       <View style={styles.fabRow}>
-        <TouchableOpacity style={[styles.fab, styles.fabSecondary]} onPress={() => openEdit('identite')} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[styles.fab, { position: 'relative', bottom: 0, right: 0, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.primaryBorder }]}
+          onPress={() => openEdit('identite')}
+          activeOpacity={0.85}
+        >
           <Text style={styles.fabIcon}>✏️</Text>
-          <Text style={styles.fabSecondaryText}>Modifier</Text>
+          <Text style={{ color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.base }}>Modifier</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.fab, styles.fabValidate]} onPress={handleBack} activeOpacity={0.85}>
+        <TouchableOpacity
+          style={[styles.fab, { position: 'relative', bottom: 0, right: 0, backgroundColor: '#16A34A' }]}
+          onPress={handleBack}
+          activeOpacity={0.85}
+        >
           <Text style={styles.fabText}>✓ Valider</Text>
         </TouchableOpacity>
       </View>
