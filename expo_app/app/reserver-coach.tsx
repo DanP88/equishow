@@ -6,9 +6,10 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { coachAnnoncesStore, userStore } from '../data/store';
+import { userStore } from '../data/store';
 import { createNotification } from '../hooks/useNotifications';
 import { CoachAnnonce } from '../types/service';
+import { useCoachAnnonce } from '../hooks/useCoachAnnonces';
 import { useCommission } from '../hooks/useCommissions';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createClient } from '@supabase/supabase-js';
@@ -28,9 +29,12 @@ function generateDatesInRange(startDate: Date, endDate: Date): Date[] {
 
 export default function ReserverCoachScreen() {
   const { annonceId } = useLocalSearchParams<{ annonceId: string }>();
-  const annonce = coachAnnoncesStore.list.find((a) => a.id === annonceId);
+  const { annonce, isLoading: annonceLoading } = useCoachAnnonce(annonceId);
   const commissionCours = useCommission('cours');
 
+  if (annonceLoading && !annonce) {
+    return <SafeAreaView style={s.root}><View style={s.errorContainer}><Text style={s.errorText}>Chargement…</Text></View></SafeAreaView>;
+  }
   if (!annonce) {
     return (
       <SafeAreaView style={s.root}>

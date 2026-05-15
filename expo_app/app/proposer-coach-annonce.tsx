@@ -7,9 +7,11 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
-import { coachAnnoncesStore, userStore, concoursStore } from '../data/store';
-import { CoachAnnonce, Disponibilite, prixTTC as calculatePrixTTC, getTVAMontant } from '../types/service';
+import { userStore, concoursStore } from '../data/store';
+import { Disponibilite, prixTTC as calculatePrixTTC, getTVAMontant } from '../types/service';
 import { useCommission } from '../hooks/useCommissions';
+import { useCoachAnnonce, useMyCoachAnnonces } from '../hooks/useCoachAnnonces';
+import { supabase } from '../lib/supabase';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
@@ -72,8 +74,8 @@ export default function ProposerCoachAnnonceScreen() {
   const editAnnonceId = params.editAnnonceId;
   const commissionCours = useCommission('cours');
 
-  // Charger l'annonce si on est en mode édition
-  const annonceToEdit = editAnnonceId ? coachAnnoncesStore.list.find(a => a.id === editAnnonceId) : null;
+  const { createAnnonce } = useMyCoachAnnonces();
+  const { annonce: annonceToEdit } = useCoachAnnonce(editAnnonceId);
   const isEditing = !!annonceToEdit;
 
   // Charger le concours si fourni en paramètre
@@ -150,59 +152,44 @@ export default function ProposerCoachAnnonceScreen() {
     setShowConfirmation(true);
   }
 
-  function submit() {
-    // Pour les annonces régulières: le prix est en HT, on le stocke en HT (calcul TTC au paiement)
-    // Pour les annonces concours: le prix est un tarif forfaitaire en TTC
-    const tarifAStorrer = type === 'regulier' ? parseFloat(prixHeure) : parseFloat(prixHeure);
+  async function submit() {
+    const tarifAStocker = parseFloat(prixHeure);
+    const niveauFinal = niveau || (preSelectedConcours ? preSelectedConcours.typesCavaliers.join(', ') : '');
 
     if (isEditing && annonceToEdit) {
-      // Mode édition: mettre à jour l'annonce existante
-      const updatedAnnonce: CoachAnnonce = {
-        ...annonceToEdit,
-        titre: titre.trim(),
-        description: description.trim(),
-        type: type as 'concours' | 'regulier',
-        discipline,
-        niveau: niveau || (preSelectedConcours ? preSelectedConcours.typesCavaliers.join(', ') : ''),
-        dateDebut: dateDebut!,
-        dateFin: dateFin!,
-        prixHeure: tarifAStorrer,
-        places: 999,
-        placesDisponibles: 999,
-        concours: concours || undefined,
-        region: type === 'regulier' ? userStore.region : undefined,
-        disponibilites: type === 'regulier' ? disponibilites : undefined,
-      };
-
-      const index = coachAnnoncesStore.list.findIndex(a => a.id === annonceToEdit.id);
-      if (index !== -1) {
-        coachAnnoncesStore.list[index] = updatedAnnonce;
-      }
+      // Mode édition : UPDATE direct (pas de méthode dédiée dans le hook).
+      const { error } = await supabase
+        .from('coach_annonces')
+        .update({
+          titre: titre.trim(),
+          description: description.trim(),
+          type,
+          discipline,
+          niveau: niveauFinal,
+          date_debut: dateDebut!.toISOString().split('T')[0],
+          date_fin: dateFin!.toISOString().split('T')[0],
+          prix_heure_ht: type === 'regulier' ? tarifAStocker : Math.round(tarifAStocker / 1.20 * 100) / 100,
+          prix_heure_ttc: type === 'regulier' ? Math.round(tarifAStocker * 1.20 * 100) / 100 : tarifAStocker,
+          concours_nom: concours || null,
+          region: type === 'regulier' ? userStore.region : null,
+        })
+        .eq('id', annonceToEdit.id);
+      if (error) { Alert.alert('Erreur', error.message); return; }
     } else {
-      // Mode création: créer une nouvelle annonce
-      const nouvelleAnnonce: CoachAnnonce = {
-        id: `ca_${Date.now()}`,
-        auteurId: userStore.id,
-        auteurNom: `${userStore.prenom} ${userStore.nom}`,
-        auteurPseudo: userStore.pseudo,
-        auteurInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-        auteurCouleur: userStore.avatarColor,
+      const { error } = await createAnnonce({
         titre: titre.trim(),
         description: description.trim(),
         type: type as 'concours' | 'regulier',
         discipline,
-        niveau: niveau || (preSelectedConcours ? preSelectedConcours.typesCavaliers.join(', ') : ''),
+        niveau: niveauFinal,
         dateDebut: dateDebut!,
         dateFin: dateFin!,
-        prixHeure: tarifAStorrer,
+        prixHeureHT: type === 'regulier' ? tarifAStocker : Math.round(tarifAStocker / 1.20 * 100) / 100,
         places: 999,
-        placesDisponibles: 999,
         concours: concours || undefined,
         region: type === 'regulier' ? userStore.region : undefined,
-        disponibilites: type === 'regulier' ? disponibilites : undefined,
-      };
-
-      coachAnnoncesStore.list = [nouvelleAnnonce, ...coachAnnoncesStore.list];
+      });
+      if (error) { Alert.alert('Erreur', error); return; }
     }
 
     setShowConfirmation(false);

@@ -6,9 +6,11 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { coachesStore, coachAnnoncesStore, coachStagesStore, userStore, concoursStore } from '../../data/store';
+import { coachesStore, userStore, concoursStore } from '../../data/store';
 import { useTransportAnnonces, useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useBoxAnnonces, useMyBoxAnnonces } from '../../hooks/useBoxes';
+import { useCoachAnnonces, useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
+import { useStages } from '../../hooks/useStages';
 import { useAvisStats } from '../../hooks/useAvis';
 import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
@@ -103,8 +105,9 @@ export default function ServicesScreen() {
   const { deleteAnnonce: deleteTransportAnnonce } = useMyTransportAnnonces();
   const { boxes } = useBoxAnnonces();
   const { deleteAnnonce: deleteBoxAnnonce } = useMyBoxAnnonces();
-  const [coachAnnonces, setCoachAnnonces] = useState(coachAnnoncesStore.list);
-  const [stages, setStages] = useState(coachStagesStore.list);
+  const { annonces: coachAnnonces } = useCoachAnnonces();
+  const { deleteAnnonce: deleteCoachAnnonce } = useMyCoachAnnonces();
+  const { stages } = useStages();
 
   const [filtersT, setFiltersT] = useState<FiltersTransport>(DEFAULT_FT);
   const [filtersB, setFiltersB] = useState<FiltersBox>(DEFAULT_FB);
@@ -112,10 +115,9 @@ export default function ServicesScreen() {
   const [showFilters, setShowFilters] = useState(false);
   const [showConcoursDropdown, setShowConcoursDropdown] = useState(false);
 
-  // Refresh quand on revient (transports + box = realtime hook, coach/stages = mock).
+  // Tous les hooks marketplace ont leur propre realtime — pas besoin de refetch
+  // manuel ici. On lit juste les params URL.
   useFocusEffect(useCallback(() => {
-    setCoachAnnonces([...coachAnnoncesStore.list]);
-    setStages([...coachStagesStore.list]);
     if (params.tab) setTab(params.tab as Tab);
     if (params.subTab) setTransportSubTab(params.subTab as TransportSubTab);
   }, [params.tab, params.subTab]));
@@ -151,9 +153,9 @@ export default function ServicesScreen() {
   }
 
   function handleCancelCoachAnnonce(id: string) {
-    const doDelete = () => {
-      coachAnnoncesStore.list = coachAnnoncesStore.list.filter((ca) => ca.id !== id);
-      setCoachAnnonces([...coachAnnoncesStore.list]);
+    const doDelete = async () => {
+      const { error } = await deleteCoachAnnonce(id);
+      if (error) Alert.alert('Erreur', error);
     };
     if (Platform.OS === 'web') {
       if (window.confirm('Retirer cette annonce de coaching ?')) doDelete();

@@ -3,9 +3,10 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Ale
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { concoursStore, coachAnnoncesStore, userStore, courseDemandesStore } from '../../data/store';
+import { concoursStore } from '../../data/store';
 import { getUserById } from '../../data/mockUsers';
 import { Concours } from '../../types/concours';
+import { useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
 
 type Tab = 'disponibles' | 'mesAnnonces';
 
@@ -14,33 +15,21 @@ export default function CoachConcoursScreen() {
   const [concours, setConcours] = useState<Concours[]>(
     concoursStore.list.filter(c => c.statut !== 'brouillon')
   );
-  const [mesAnnonces, setMesAnnonces] = useState(
-    coachAnnoncesStore.list.filter(a => a.auteurId === userStore.id)
-  );
+  const { annonces: mesAnnonces, deleteAnnonce } = useMyCoachAnnonces();
 
   useFocusEffect(useCallback(() => {
     setConcours(concoursStore.list.filter(c => c.statut !== 'brouillon'));
-    setMesAnnonces(coachAnnoncesStore.list.filter(a => a.auteurId === userStore.id));
   }, []));
 
   const handleCreateAnnouncement = (concoursId: string) => {
     router.push(`/proposer-coach-annonce?concoursId=${concoursId}`);
   };
 
-  const handleDeleteAnnonce = (annonceId: string) => {
-    // Mettre à jour l'état d'abord
-    const updated = mesAnnonces.filter(a => a.id !== annonceId);
-    setMesAnnonces(updated);
-
-    // Supprimer du store
-    coachAnnoncesStore.list = coachAnnoncesStore.list.filter(a => a.id !== annonceId);
-
-    // Supprimer les demandes associées
-    courseDemandesStore.list = courseDemandesStore.list.filter(d => d.annonceId !== annonceId);
-
-    // TODO(P25-bis): cleanup notifications via Edge function service_role (RLS bloque
-    // la suppression cross-user côté client). Les notifs liées resteront affichées
-    // chez le cavalier jusqu'à dismiss manuel.
+  const handleDeleteAnnonce = async (annonceId: string) => {
+    const { error } = await deleteAnnonce(annonceId);
+    if (error) Alert.alert('Erreur', error);
+    // Note : les course_demands rattachées restent côté DB (statut 'pending').
+    // Cleanup à prévoir via Edge function service_role (P25-bis).
   };
 
   return (
