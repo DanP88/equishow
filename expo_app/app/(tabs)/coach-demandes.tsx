@@ -1,29 +1,25 @@
-import { useState, useCallback } from 'react';
+import { useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert } from 'react-native';
-import { useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { stageReservationsStore, userStore, coachStagesStore, courseDemandesStore, coachAgendaStore } from '../../data/store';
+import { userStore } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
+import { useMyCourseDemands } from '../../hooks/useCourseDemands';
+import { useMyStageReservations } from '../../hooks/useStages';
 
 export default function CoachDemandesScreen() {
-  const [courseDemandes, setCourseDemandes] = useState(courseDemandesStore.list);
-  const [stageReservations, setStageReservations] = useState(stageReservationsStore.list);
-
-  // Refresh quand on revient sur l'écran
-  useFocusEffect(useCallback(() => {
-    setCourseDemandes([...courseDemandesStore.list]);
-    setStageReservations([...stageReservationsStore.list]);
-  }, []));
+  const { demands: courseDemandes, updateStatus: updateCourseStatus } = useMyCourseDemands();
+  const { reservations: stageReservations, updateStatus: updateStageStatus } = useMyStageReservations();
 
   // Filtrer les demandes EN ATTENTE pour le coach actuel
   const myCourseDemandes = courseDemandes.filter(d => d.coachId === userStore.id && d.statut === 'pending');
   const myStageReservations = stageReservations.filter(r => r.coachId === userStore.id && r.statut === 'pending');
 
   const handleAcceptCourse = useCallback(async (demandeId: string) => {
-    const demande = courseDemandesStore.list.find(d => d.id === demandeId);
+    const demande = courseDemandes.find(d => d.id === demandeId);
     if (!demande) return;
-    demande.statut = 'accepted';
+    const { error } = await updateCourseStatus(demandeId, 'accepted');
+    if (error) { Alert.alert('Erreur', error); return; }
 
     await createNotification({
       destinataireId: demande.cavalierUserId,
@@ -38,38 +34,14 @@ export default function CoachDemandesScreen() {
         prix: demande.prix,
       },
     });
-
-    // Ajouter l'événement à l'agenda du coach (un par jour si plusieurs jours)
-    const agendaEvents = [];
-    const current = new Date(demande.dateDebut);
-    while (current <= demande.dateFin) {
-      agendaEvents.push({
-        id: `agenda_${Date.now()}_${current.getTime()}`,
-        coachId: userStore.id,
-        type: 'course' as const,
-        titre: demande.annonceTitre,
-        cavalierNom: demande.cavalierNom,
-        cavalierPseudo: demande.cavalierPseudo,
-        cavalierCouleur: demande.cavalierCouleur,
-        discipline: demande.discipline,
-        niveau: demande.niveau,
-        date: new Date(current),
-        concours: demande.concoursNom,
-        description: demande.message,
-        prix: demande.prix,
-      });
-      current.setDate(current.getDate() + 1);
-    }
-    coachAgendaStore.list = [...agendaEvents, ...coachAgendaStore.list];
-
-    setCourseDemandes([...courseDemandesStore.list]);
-    Alert.alert('✓ Demande acceptée', `Réservation de ${demande.cavalierNom} confirmée.\nL'événement a été ajouté à votre agenda.`);
-  }, []);
+    Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
+  }, [courseDemandes, updateCourseStatus]);
 
   const handleRejectCourse = useCallback(async (demandeId: string) => {
-    const demande = courseDemandesStore.list.find(d => d.id === demandeId);
+    const demande = courseDemandes.find(d => d.id === demandeId);
     if (!demande) return;
-    demande.statut = 'rejected';
+    const { error } = await updateCourseStatus(demandeId, 'rejected');
+    if (error) { Alert.alert('Erreur', error); return; }
 
     await createNotification({
       destinataireId: demande.cavalierUserId,
@@ -82,13 +54,13 @@ export default function CoachDemandesScreen() {
         annonceTitre: demande.annonceTitre,
       },
     });
-    setCourseDemandes([...courseDemandesStore.list]);
-  }, []);
+  }, [courseDemandes, updateCourseStatus]);
 
   const handleAcceptStage = useCallback(async (reservationId: string) => {
-    const reservation = stageReservationsStore.list.find(r => r.id === reservationId);
+    const reservation = stageReservations.find(r => r.id === reservationId);
     if (!reservation) return;
-    reservation.statut = 'accepted';
+    const { error } = await updateStageStatus(reservationId, 'accepted');
+    if (error) { Alert.alert('Erreur', error); return; }
 
     await createNotification({
       destinataireId: reservation.cavalierUserId,
@@ -104,20 +76,14 @@ export default function CoachDemandesScreen() {
         prixTotal: reservation.prixTotal,
       },
     });
-
-    const stage = coachStagesStore.list.find(s => s.id === reservation.stageId);
-    if (stage) {
-      stage.placesDisponibles -= reservation.nombreParticipants;
-    }
-
-    setStageReservations([...stageReservationsStore.list]);
-    Alert.alert('✓ Demande acceptée', `Réservation de ${reservation.cavalierNom} confirmée.`);
-  }, []);
+    Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
+  }, [stageReservations, updateStageStatus]);
 
   const handleRejectStage = useCallback(async (reservationId: string) => {
-    const reservation = stageReservationsStore.list.find(r => r.id === reservationId);
+    const reservation = stageReservations.find(r => r.id === reservationId);
     if (!reservation) return;
-    reservation.statut = 'rejected';
+    const { error } = await updateStageStatus(reservationId, 'rejected');
+    if (error) { Alert.alert('Erreur', error); return; }
 
     await createNotification({
       destinataireId: reservation.cavalierUserId,
@@ -130,14 +96,7 @@ export default function CoachDemandesScreen() {
         stageTitre: reservation.stageTitre,
       },
     });
-
-    const stage = coachStagesStore.list.find(s => s.id === reservation.stageId);
-    if (stage) {
-      stage.placesDisponibles += reservation.nombreParticipants;
-    }
-
-    setStageReservations([...stageReservationsStore.list]);
-  }, []);
+  }, [stageReservations, updateStageStatus]);
 
   const hasAnyDemands = myCourseDemandes.length > 0 || myStageReservations.length > 0;
 

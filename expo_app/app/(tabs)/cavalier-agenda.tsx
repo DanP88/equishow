@@ -3,14 +3,11 @@ import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Mod
 import { useFocusEffect, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import {
-  userStore,
-  stageReservationsStore,
-  courseDemandesStore,
-  coachStagesStore,
-} from '../../data/store';
+import { userStore } from '../../data/store';
 import { useTransportAnnonces, useMyTransportReservations } from '../../hooks/useTransports';
 import { useMyBoxReservations } from '../../hooks/useBoxes';
+import { useMyStageReservations, useStages } from '../../hooks/useStages';
+import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { getUserById } from '../../data/mockUsers';
 import { useAvis, useMyAvisRefs, AvisType } from '../../hooks/useAvis';
 
@@ -80,6 +77,9 @@ export default function CavalierAgendaScreen() {
   const { transports } = useTransportAnnonces();
   const { reservations: transportReservations } = useMyTransportReservations();
   const { reservations: boxReservations } = useMyBoxReservations();
+  const { reservations: stageReservations } = useMyStageReservations();
+  const { stages: allStages } = useStages();
+  const { demands: courseDemands } = useMyCourseDemands();
   const [tick, setTick] = useState(0);
   const [avisModal, setAvisModal] = useState<AvisModal>(null);
   const [avisNote, setAvisNote] = useState(5);
@@ -223,10 +223,10 @@ export default function CavalierAgendaScreen() {
       });
 
     // ── Stages ──
-    stageReservationsStore.list
+    stageReservations
       .filter(r => r.cavalierUserId === uid)
       .forEach(r => {
-        const stage = coachStagesStore.list.find(s => s.id === r.stageId);
+        const stage = allStages.find(s => s.id === r.stageId);
         const coach = getUserById(r.coachId);
         all.push({
           id: r.id,
@@ -246,7 +246,7 @@ export default function CavalierAgendaScreen() {
       });
 
     // ── Cours ──
-    courseDemandesStore.list
+    courseDemands
       .filter(r => r.cavalierUserId === uid)
       .forEach(r => {
         const coach = getUserById(r.coachId);
@@ -269,7 +269,7 @@ export default function CavalierAgendaScreen() {
 
     all.sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
     setItems(all);
-  }, [tick, transports, transportReservations, boxReservations]);
+  }, [tick, transports, transportReservations, boxReservations, stageReservations, allStages, courseDemands]);
 
   // Grouper par date
   const byDate = new Map<string, AgendaItem[]>();

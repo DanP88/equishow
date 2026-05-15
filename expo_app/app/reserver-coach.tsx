@@ -6,9 +6,9 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { coachAnnoncesStore, userStore, courseDemandesStore } from '../data/store';
+import { coachAnnoncesStore, userStore } from '../data/store';
 import { createNotification } from '../hooks/useNotifications';
-import { CoachAnnonce, CourseDemande } from '../types/service';
+import { CoachAnnonce } from '../types/service';
 import { useCommission } from '../hooks/useCommissions';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createClient } from '@supabase/supabase-js';
@@ -162,33 +162,7 @@ export default function ReserverCoachScreen() {
       // 2. La demande est créée, en attente de validation du coach
       console.log('✅ Demande créée, en attente de validation du coach');
 
-      // 4. Ajouter aussi au store local pour compatibilité
-      const nouvelleDemande: CourseDemande = {
-        id: demand.id,
-        annonceId: annonce.id,
-        annonceTitre: annonce.titre,
-        concoursNom: annonce.concours,
-        coachId: annonce.auteurId,
-        coachNom: annonce.auteurNom,
-        cavalierNom: userStore.nom,
-        cavalierPseudo: userStore.pseudo,
-        cavalierInitiales: `${userStore.prenom[0]}${userStore.nom[0]}`,
-        cavalierCouleur: userStore.avatarColor,
-        cavalierUserId: userStore.id,
-        discipline,
-        niveau,
-        dateDebut,
-        dateFin,
-        nbJours,
-        cheval: cheval.trim(),
-        message: message.trim(),
-        prixParJour: prixParJourTTC,
-        prix: prixTTCTotal,
-        statut: 'pending' as const,
-        dateCreation: new Date(),
-      };
-
-      courseDemandesStore.list = [nouvelleDemande, ...courseDemandesStore.list];
+      // Le hook useMyCourseDemands picke automatiquement via realtime.
 
       await createNotification({
         destinataireId: annonce.auteurId,
