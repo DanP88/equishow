@@ -8,6 +8,7 @@ import { useAvisStats } from '../../hooks/useAvis';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
 import { FollowListModal } from '../../components/FollowListModal';
+import { useAuth } from '../../hooks/useAuth';
 
 const ROLE_LABELS: Record<string, string> = {
   organisateur: 'Organisateur',
@@ -18,6 +19,11 @@ const ROLE_ICONS: Record<string, string> = {
 };
 
 export default function ProfilOrgScreen() {
+  const { logout } = useAuth();
+  async function handleLogout() {
+    await logout();
+    router.replace('/(auth)/login');
+  }
   const [user, setUser] = useState({ ...userStore });
   const [showEdit, setShowEdit] = useState(false);
   const [draft, setDraft] = useState({ ...userStore });
@@ -133,7 +139,7 @@ export default function ProfilOrgScreen() {
         {/* Logout Button */}
         <TouchableOpacity
           style={styles.logoutButton}
-          onPress={() => router.replace('/(auth)/login')}
+          onPress={handleLogout}
           activeOpacity={0.8}
         >
           <Text style={styles.logoutText}>🚪 Se déconnecter</Text>

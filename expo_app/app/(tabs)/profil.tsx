@@ -14,6 +14,7 @@ import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
 import { TEST_ACCOUNTS } from '../../data/mockUsers';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { useAuth } from '../../hooks/useAuth';
 
 const ROLE_LABELS: Record<string, string> = {
   cavalier: 'Cavalier',
@@ -29,6 +30,11 @@ const ROLE_ICONS: Record<string, string> = {
 
 export default function ProfilScreen() {
   useScreenTracking('profil');
+  const { logout } = useAuth();
+  async function handleLogout() {
+    await logout();
+    router.replace('/(auth)/login');
+  }
   // Use a counter to force re-renders when account changes
   const [tick, setTick] = useState(0);
   const [user, setUser] = useState({ ...userStore });
@@ -179,7 +185,7 @@ export default function ProfilScreen() {
           ))}
         </View>}
 
-        <TouchableOpacity style={styles.logoutBtn} onPress={() => router.replace('/(auth)/login')}>
+        <TouchableOpacity style={styles.logoutBtn} onPress={handleLogout}>
           <Text style={styles.logoutText}>Se déconnecter</Text>
         </TouchableOpacity>
       </ScrollView>

@@ -1,8 +1,10 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert, Platform } from 'react-native';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { userStore } from '../../data/store';
+import { useAuth } from '../../hooks/useAuth';
 
 const ACCOUNTS = [
   { role: 'cavalier', label: 'Cavalier', emoji: '🐴' },
@@ -13,6 +15,8 @@ const ACCOUNTS = [
 
 export default function AdminProfilScreen() {
   const [currentRole] = useState(userStore.role);
+  const { logout } = useAuth();
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const handleSwitchAccount = (newRole: 'cavalier' | 'coach' | 'organisateur' | 'admin') => {
     const success = userStore.switchAccount(newRole);
@@ -26,6 +30,35 @@ export default function AdminProfilScreen() {
       Alert.alert('❌ Erreur', 'Impossible de changer de compte');
     }
   };
+
+  function showErr(msg: string) {
+    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
+    else Alert.alert('Erreur', msg);
+  }
+
+  async function doLogout() {
+    if (loggingOut) return;
+    setLoggingOut(true);
+    const { error } = await logout();
+    if (error) {
+      console.error('[admin-profil] logout failed:', error);
+      showErr(typeof error === 'string' ? error : 'Impossible de se déconnecter.');
+      setLoggingOut(false);
+      return;
+    }
+    router.replace('/(auth)/login');
+  }
+
+  function handleLogout() {
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm('Se déconnecter ?')) doLogout();
+      return;
+    }
+    Alert.alert('Se déconnecter ?', 'Vous reviendrez à l\'écran de connexion.', [
+      { text: 'Annuler', style: 'cancel' },
+      { text: 'Se déconnecter', style: 'destructive', onPress: doLogout },
+    ]);
+  }
 
   return (
     <SafeAreaView style={s.root}>
@@ -86,6 +119,16 @@ export default function AdminProfilScreen() {
             Les données sont synchronisées en temps réel à travers tous les comptes.
           </Text>
         </View>
+
+        {/* Logout */}
+        <TouchableOpacity
+          style={[s.logoutBtn, loggingOut && { opacity: 0.6 }]}
+          onPress={handleLogout}
+          disabled={loggingOut}
+          activeOpacity={0.85}
+        >
+          <Text style={s.logoutText}>{loggingOut ? 'Déconnexion…' : '🚪 Se déconnecter'}</Text>
+        </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
   );
@@ -222,5 +265,19 @@ const s = StyleSheet.create({
     fontSize: FontSize.sm,
     color: '#1E40AF',
     lineHeight: 20,
+  },
+
+  // Logout
+  logoutBtn: {
+    backgroundColor: Colors.urgent,
+    borderRadius: Radius.lg,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+    marginTop: Spacing.md,
+  },
+  logoutText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: Colors.textInverse,
   },
 });
