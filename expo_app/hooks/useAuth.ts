@@ -144,6 +144,12 @@ export const useAuth = () => {
         if (signInError) throw signInError;
         if (!user) throw new Error('No user returned from login');
 
+        // Sync immédiat avant que login.tsx navigue. Sans ça, onAuthStateChange
+        // SIGNED_IN sync APRÈS la navigation et la première frame de la cible
+        // utilise encore l'ancien userStore.role.
+        setProfile(user);
+        syncUserStore(user);
+
         console.log('✅ Sign in successful:', email);
         return { user, error: null };
       } catch (err: any) {
