@@ -74,8 +74,9 @@ const ROLES: {
 const ERROR_LABELS: Record<string, string> = {
   forbidden_admin_promotion:
     "Le rôle administrateur ne peut pas être attribué depuis l'application.",
+  // Conservé pour compat ancien code DB (mig 023 a levé la restriction).
   forbidden_organisateur_promotion:
-    "Pour devenir organisateur, contactez le support Equishow.",
+    "Le rôle organisateur ne peut pas être attribué pour le moment.",
   unauthenticated: "Session expirée, veuillez vous reconnecter.",
   invalid_role: "Rôle invalide.",
   user_not_found: "Profil utilisateur introuvable.",
