@@ -1,49 +1,83 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, SafeAreaView, Alert, ActivityIndicator,
+  StyleSheet, SafeAreaView, Alert, ActivityIndicator, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../../constants/theme';
 import { Cheval, getChevalAge, TypeChevalEmoji } from '../../types/cheval';
 import { useMyChevaux } from '../../hooks/useChevaux';
+import { useAuth } from '../../hooks/useAuth';
 
 export default function ChevauxScreen() {
+  const { profile } = useAuth();
   const { chevaux, isLoading, createCheval, deleteCheval } = useMyChevaux();
-  const [deletingId, setDeletingId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+
+  // Sur web, Alert.alert est silencieux → window.alert / window.confirm.
+  function showErr(msg: string) {
+    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
+    else Alert.alert('Erreur', msg);
+  }
+
+  function confirmMsg(msg: string): boolean {
+    if (Platform.OS === 'web' && typeof window !== 'undefined') return window.confirm(msg);
+    return true;
+  }
 
   async function handleAdd() {
     if (creating) return;
+    if (!profile?.id) {
+      showErr('Session non chargée. Reconnectez-vous.');
+      return;
+    }
     setCreating(true);
     try {
       const { data, error } = await createCheval({ nom: 'Nouveau cheval', type: 'cheval' });
       if (error || !data) {
-        Alert.alert('Erreur', error ?? "Impossible d'ajouter le cheval.");
+        console.error('[chevaux] createCheval failed:', error);
+        showErr(error ?? "Impossible d'ajouter le cheval.");
         return;
       }
       router.push(`/cheval/${data.id}?new=true`);
+    } catch (e) {
+      console.error('[chevaux] handleAdd exception:', e);
+      showErr(e instanceof Error ? e.message : "Erreur inattendue.");
     } finally {
       setCreating(false);
     }
   }
 
-  function handleDelete(id: string) {
+  async function handleDelete(id: string, nom: string) {
+    if (deletingId) return;
+    const doIt = () => doDelete(id);
+    if (Platform.OS === 'web') {
+      if (confirmMsg(`Supprimer ${nom} ?\nCette action est irréversible.`)) doIt();
+      return;
+    }
     Alert.alert(
-      'Supprimer ce cheval ?',
+      `Supprimer ${nom} ?`,
       'Cette action est irréversible.',
       [
-        { text: 'Annuler', style: 'cancel', onPress: () => setDeletingId(null) },
-        {
-          text: 'Supprimer', style: 'destructive', onPress: async () => {
-            const { error } = await deleteCheval(id);
-            if (error) Alert.alert('Erreur', error);
-            setDeletingId(null);
-          },
-        },
+        { text: 'Annuler', style: 'cancel' },
+        { text: 'Supprimer', style: 'destructive', onPress: doIt },
       ],
     );
+  }
+
+  async function doDelete(id: string) {
+    setDeletingId(id);
+    try {
+      const { error } = await deleteCheval(id);
+      if (error) {
+        console.error('[chevaux] deleteCheval failed:', error);
+        showErr(error);
+      }
+    } finally {
+      setDeletingId(null);
+    }
   }
 
   return (
@@ -60,24 +94,13 @@ export default function ChevauxScreen() {
           <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.xl }} />
         ) : (
           chevaux.map((cheval) => (
-            <View key={cheval.id}>
-              <ChevalCard
-                cheval={cheval}
-                onPress={() => { setDeletingId(null); router.push(`/cheval/${cheval.id}`); }}
-                onLongPress={() => setDeletingId(deletingId === cheval.id ? null : cheval.id)}
-                dimmed={deletingId !== null && deletingId !== cheval.id}
-              />
-              {deletingId === cheval.id && (
-                <View style={styles.deleteRow}>
-                  <TouchableOpacity style={styles.deleteCancelBtn} onPress={() => setDeletingId(null)}>
-                    <Text style={styles.deleteCancelText}>Annuler</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity style={styles.deleteConfirmBtn} onPress={() => handleDelete(cheval.id)}>
-                    <Text style={styles.deleteConfirmText}>🗑 Supprimer ce cheval</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
+            <ChevalCard
+              key={cheval.id}
+              cheval={cheval}
+              onPress={() => router.push(`/cheval/${cheval.id}`)}
+              onDelete={() => handleDelete(cheval.id, cheval.nom)}
+              deleting={deletingId === cheval.id}
+            />
           ))
         )}
 
@@ -96,8 +119,8 @@ export default function ChevauxScreen() {
   );
 }
 
-function ChevalCard({ cheval, onPress, onLongPress, dimmed }: {
-  cheval: Cheval; onPress: () => void; onLongPress?: () => void; dimmed?: boolean;
+function ChevalCard({ cheval, onPress, onDelete, deleting }: {
+  cheval: Cheval; onPress: () => void; onDelete: () => void; deleting?: boolean;
 }) {
   const age = getChevalAge(cheval.anneeNaissance);
   const emoji = TypeChevalEmoji[cheval.type];
@@ -105,8 +128,8 @@ function ChevalCard({ cheval, onPress, onLongPress, dimmed }: {
   const nextConcours = cheval.concours[0];
 
   return (
-    <View>
-      <TouchableOpacity style={[styles.card, dimmed && { opacity: 0.4 }]} onPress={onPress} onLongPress={onLongPress} activeOpacity={0.85}>
+    <View style={styles.cardWrap}>
+      <TouchableOpacity style={[styles.card, deleting && { opacity: 0.4 }]} onPress={onPress} activeOpacity={0.85} disabled={deleting}>
         <View style={[styles.cardAvatar, { backgroundColor: cheval.photoColor ?? Colors.primaryLight, overflow: 'hidden' }]}>
           {cheval.photoUrl ? (
             <Image source={{ uri: cheval.photoUrl }} style={{ width: '100%', height: '100%' }} />
@@ -146,6 +169,15 @@ function ChevalCard({ cheval, onPress, onLongPress, dimmed }: {
         </View>
       </TouchableOpacity>
 
+      <TouchableOpacity
+        style={styles.closeBtn}
+        onPress={onDelete}
+        disabled={deleting}
+        hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+        accessibilityLabel={`Supprimer ${cheval.nom}`}
+      >
+        {deleting ? <ActivityIndicator color={Colors.textInverse} size="small" /> : <Text style={styles.closeBtnText}>×</Text>}
+      </TouchableOpacity>
     </View>
   );
 }
@@ -191,11 +223,25 @@ const styles = StyleSheet.create({
   chipText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
   nextConcours: { marginTop: Spacing.sm, backgroundColor: Colors.goldBg, borderRadius: Radius.sm, padding: Spacing.xs + 2 },
   nextConcoursText: { fontSize: FontSize.xs, color: Colors.gold, fontWeight: FontWeight.semibold },
-  deleteRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: -Spacing.sm, marginBottom: Spacing.xs, paddingHorizontal: 2 },
-  deleteCancelBtn: { flex: 1, borderWidth: 1, borderColor: Colors.borderMedium, borderRadius: Radius.md, paddingVertical: Spacing.sm, alignItems: 'center', backgroundColor: Colors.surface },
-  deleteCancelText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  deleteConfirmBtn: { flex: 2, backgroundColor: Colors.urgent, borderRadius: Radius.md, paddingVertical: Spacing.sm, alignItems: 'center' },
-  deleteConfirmText: { fontSize: FontSize.sm, color: Colors.textInverse, fontWeight: FontWeight.bold },
+  cardWrap: { position: 'relative' },
+  closeBtn: {
+    position: 'absolute',
+    top: -6,
+    right: -6,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: Colors.urgent,
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 10,
+    elevation: 4,
+    shadowColor: '#000',
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+  },
+  closeBtnText: { color: Colors.textInverse, fontSize: 18, fontWeight: FontWeight.bold, lineHeight: 20 },
   addCard: {
     borderWidth: 1.5,
     borderColor: Colors.primaryBorder,
