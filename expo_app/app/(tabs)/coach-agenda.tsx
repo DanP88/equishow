@@ -1,18 +1,69 @@
-import { useState, useCallback } from 'react';
 import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity } from 'react-native';
-import { useFocusEffect, router } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { coachAgendaStore, userStore } from '../../data/store';
+import { userStore } from '../../data/store';
 import { CoachAgendaEvent } from '../../types/service';
+import { useMyCourseDemands } from '../../hooks/useCourseDemands';
+import { useMyStageReservations, useStages } from '../../hooks/useStages';
 
 export default function CoachAgendaScreen() {
-  const [events, setEvents] = useState<CoachAgendaEvent[]>(coachAgendaStore.list);
+  const { demands: courseDemands } = useMyCourseDemands();
+  const { reservations: stageReservations } = useMyStageReservations();
+  const { stages } = useStages();
 
-  // Refresh quand on revient sur l'écran
-  useFocusEffect(useCallback(() => {
-    setEvents(coachAgendaStore.list.filter(e => e.coachId === userStore.id));
-  }, []));
+  // Dérive l'agenda coach depuis les demandes/réservations acceptées ou
+  // payées (statut accepted/paid). Un événement par jour pour les cours
+  // multi-jours.
+  const uid = userStore.id;
+  const events: CoachAgendaEvent[] = [];
+
+  courseDemands
+    .filter(d => d.coachId === uid && (d.statut === 'accepted' || d.statut === 'paid' || d.statut === 'awaiting_payment'))
+    .forEach(d => {
+      const current = new Date(d.dateDebut);
+      const end = new Date(d.dateFin);
+      let i = 0;
+      while (current <= end) {
+        events.push({
+          id: `${d.id}_${i++}`,
+          coachId: uid,
+          type: 'course',
+          titre: d.annonceTitre,
+          cavalierNom: d.cavalierNom,
+          cavalierPseudo: d.cavalierPseudo,
+          cavalierCouleur: d.cavalierCouleur,
+          discipline: d.discipline,
+          niveau: d.niveau,
+          date: new Date(current),
+          concours: d.concoursNom,
+          description: d.message,
+          prix: d.prix,
+        });
+        current.setDate(current.getDate() + 1);
+      }
+    });
+
+  stageReservations
+    .filter(r => r.coachId === uid && (r.statut === 'accepted' || r.statut === 'paid' || r.statut === 'awaiting_payment'))
+    .forEach(r => {
+      const stage = stages.find(s => s.id === r.stageId);
+      events.push({
+        id: r.id,
+        coachId: uid,
+        type: 'stage',
+        titre: r.stageTitre,
+        cavalierNom: r.cavalierNom,
+        cavalierPseudo: r.cavalierPseudo,
+        cavalierCouleur: r.cavalierCouleur,
+        discipline: stage?.disciplines.join(', ') ?? '',
+        niveau: stage?.niveaux.join(', ') ?? '',
+        date: stage?.dateDebut ?? r.dateReservation,
+        concours: undefined,
+        description: r.message,
+        prix: r.prixTotal,
+      });
+    });
 
   // Trier les événements par date
   const sortedEvents = [...events].sort((a, b) => a.date.getTime() - b.date.getTime());

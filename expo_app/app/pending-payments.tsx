@@ -1,30 +1,27 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Alert, ActivityIndicator, Linking,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { courseDemandesStore, userStore } from '../data/store';
+import { userStore } from '../data/store';
 import { createNotification } from '../hooks/useNotifications';
 import { CourseDemande } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
+import { useMyCourseDemands } from '../hooks/useCourseDemands';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 
 export default function PendingPaymentsScreen() {
-  const [validatedDemands, setValidatedDemands] = useState<CourseDemande[]>([]);
+  const { demands, updateStatus } = useMyCourseDemands();
   const [loading, setLoading] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    // Récupérer les demandes acceptées du cavalier
-    const validated = courseDemandesStore.list.filter(
-      d => d.cavalierUserId === userStore.id && d.statut === 'accepted'
-    );
-    setValidatedDemands(validated);
-  }, []));
+  const validatedDemands = demands.filter(
+    d => d.cavalierUserId === userStore.id && d.statut === 'accepted'
+  );
 
   const handlePayNow = async (demand: CourseDemande) => {
     try {
@@ -73,9 +70,8 @@ export default function PendingPaymentsScreen() {
         return;
       }
 
-      // Marquer comme en attente de paiement
-      demand.statut = 'awaiting_payment';
-      courseDemandesStore.list = [...courseDemandesStore.list];
+      // Marquer comme en attente de paiement (DB)
+      await updateStatus(demand.id, 'awaiting_payment');
 
       await createNotification({
         destinataireId: demand.coachId,

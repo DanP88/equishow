@@ -1,7 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
-import { CoachProfil, CoachAnnonce, CoachStage, StageReservation, CourseDemande, CoachAgendaEvent } from '../types/service';
+// Types CoachProfil/CoachAnnonce/etc. retirés de store.ts P24 phase 5
+// (plus de stores mock à typer — utilisés directement par les hooks Supabase).
 import { Concours, ConcoursCSV, ImportBatch, ImportError } from '../types/concours';
-import { mockCoachs, mockCoachAnnonces, mockCoachStages } from './mockServices';
+// mockCoachs/Annonces/Stages retirés P24 phase 5 — données live via Supabase.
 import { mockConcours } from './mockConcours';
 import { mockConcoursCsv } from './mockConcoursCsv';
 import { mockUsers } from './mockUsers';
@@ -122,10 +123,12 @@ const createUserStore = (): UserStore => {
 
 export const userStore = createUserStore();
 
-// Stores partagés pour les annonces. transportsStore retiré P22, boxesStore retiré P23.
-export const coachesStore: { list: CoachProfil[] } = { list: [...mockCoachs] };
-export const coachAnnoncesStore: { list: CoachAnnonce[] } = { list: [...mockCoachAnnonces] };
-export const coachStagesStore: { list: CoachStage[] } = { list: [...mockCoachStages] };
+// Stores partagés pour les annonces.
+// - transportsStore retiré P22 (hook useTransportAnnonces)
+// - boxesStore retiré P23 (hook useBoxAnnonces)
+// - coachesStore retiré P24 phase 5 (hook useCoachProfiles, mig 024)
+// - coachAnnoncesStore retiré P24 phase 5 (hook useCoachAnnonces)
+// - coachStagesStore retiré P24 phase 5 (hook useStages)
 export const concoursStore: { list: Concours[] } = { list: [...mockConcours] };
 
 // Store des concours importés via CSV
@@ -147,17 +150,11 @@ export const concoursCsvStore: {
   errors: [],
 };
 
-// Store des réservations de stages
-export const stageReservationsStore: { list: StageReservation[] } = { list: [] };
-
-// Store des demandes de cours
-export const courseDemandesStore: { list: CourseDemande[] } = { list: [] };
-
 // transportReservationsStore retiré P22 (hook useMyTransportReservations).
 // boxReservationsStore retiré P23 (hook useMyBoxReservations).
-
-// Store de l'agenda des coachs
-export const coachAgendaStore: { list: CoachAgendaEvent[] } = { list: [] };
+// stageReservationsStore retiré P24 phase 5 (hook useMyStageReservations).
+// courseDemandesStore retiré P24 phase 5 (hook useMyCourseDemands).
+// coachAgendaStore retiré P24 phase 5 (agenda dérivé des demandes/réservations).
 
 // Types pour la messagerie
 export interface Message {
@@ -385,8 +382,6 @@ export function getUserInfo(id: string): {
   const { getUserById } = require('./mockUsers');
   const u = getUserById(id);
   if (u) return { nom: `${u.prenom} ${u.nom}`.trim(), initiales: u.initiales, couleur: u.avatarColor, role: u.role, pseudo: u.pseudo };
-  const coach = coachesStore.list.find(c => c.auteurId === id || c.id === id);
-  if (coach) return { nom: `${coach.prenom} ${coach.nom}`.trim(), initiales: coach.initiales, couleur: coach.couleur, role: 'coach', pseudo: coach.pseudo };
   const community: Record<string, { nom: string; initiales: string; couleur: string; role: string; pseudo: string }> = {
     user_thomas: { nom: 'Thomas Renard', initiales: 'TR', couleur: '#0369A1', role: 'cavalier', pseudo: 'ThomasR_CCE' },
     user_marie: { nom: 'Marie Dupont', initiales: 'MD', couleur: '#7C3AED', role: 'cavalier', pseudo: 'MarieDup_KWPN' },

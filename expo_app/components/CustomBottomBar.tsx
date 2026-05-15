@@ -6,7 +6,9 @@ import { useUserRole } from '../hooks/useUserRole';
 import { useUnreadNotificationsCount } from '../hooks/useNotifications';
 import { useMyTransportReservations } from '../hooks/useTransports';
 import { useMyBoxReservations } from '../hooks/useBoxes';
-import { userStore, stageReservationsStore, courseDemandesStore, totalUnreadForUser } from '../data/store';
+import { userStore, totalUnreadForUser } from '../data/store';
+import { useMyCourseDemands } from '../hooks/useCourseDemands';
+import { useMyStageReservations } from '../hooks/useStages';
 
 export interface TabConfig {
   name: string;
@@ -57,22 +59,24 @@ export function CustomBottomBar() {
   const notificationCount = useUnreadNotificationsCount();
   const { reservations: transportReservations } = useMyTransportReservations();
   const { reservations: boxReservations } = useMyBoxReservations();
+  const { demands: courseDemands } = useMyCourseDemands();
+  const { reservations: stageReservations } = useMyStageReservations();
   const [demandCount, setDemandCount] = useState(0);
   const [agendaCount, setAgendaCount] = useState(0);
   const [msgCount, setMsgCount] = useState(0);
 
-  // Demandes / agenda / messages : transport via hook, le reste mock tant que P23/P24 pas migrés.
+  // Tous les flux migrés sur Supabase via hooks realtime — plus de store mock.
   const updateNotificationCount = useCallback(() => {
+    const uid = userStore.id;
     if (role === 'coach') {
-      const pendingCourses = courseDemandesStore.list.filter(
-        d => d.coachId === userStore.id && d.statut === 'pending'
+      const pendingCourses = courseDemands.filter(
+        d => d.coachId === uid && d.statut === 'pending'
       ).length;
-      const pendingStages = stageReservationsStore.list.filter(
-        r => r.coachId === userStore.id && r.statut === 'pending'
+      const pendingStages = stageReservations.filter(
+        r => r.coachId === uid && r.statut === 'pending'
       ).length;
       setDemandCount(pendingCourses + pendingStages);
     } else if (role === 'cavalier') {
-      const uid = userStore.id;
       setDemandCount(0);
       const pendingTransport = transportReservations.filter(
         r => (r.buyerId === uid || r.sellerId === uid) && r.statut === 'pending'
@@ -80,19 +84,18 @@ export function CustomBottomBar() {
       const pendingBox = boxReservations.filter(
         r => (r.buyerId === uid || r.sellerId === uid) && r.statut === 'pending'
       ).length;
-      const pendingStage = stageReservationsStore.list.filter(
+      const pendingStage = stageReservations.filter(
         r => r.cavalierUserId === uid && r.statut === 'pending'
       ).length;
-      const pendingCours = courseDemandesStore.list.filter(
+      const pendingCours = courseDemands.filter(
         r => r.cavalierUserId === uid && r.statut === 'pending'
       ).length;
       setAgendaCount(pendingTransport + pendingBox + pendingStage + pendingCours);
       setMsgCount(totalUnreadForUser(uid));
     } else if (role === 'organisateur') {
-      const uid = userStore.id;
       setMsgCount(totalUnreadForUser(uid));
     }
-  }, [role, transportReservations, boxReservations]);
+  }, [role, transportReservations, boxReservations, courseDemands, stageReservations]);
 
   // Refresh notifications count quand on revient
   useFocusEffect(useCallback(() => {

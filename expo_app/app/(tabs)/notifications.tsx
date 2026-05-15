@@ -10,7 +10,8 @@ import { useAuth } from '../../hooks/useAuth';
 import { useNotifications, createNotification } from '../../hooks/useNotifications';
 import { useMyTransportReservations } from '../../hooks/useTransports';
 import { useMyBoxReservations } from '../../hooks/useBoxes';
-import { courseDemandesStore, stageReservationsStore } from '../../data/store';
+import { useMyCourseDemands } from '../../hooks/useCourseDemands';
+import { useMyStageReservations } from '../../hooks/useStages';
 import { Notification } from '../../types/notification';
 
 export default function NotificationsScreen() {
@@ -18,6 +19,8 @@ export default function NotificationsScreen() {
   const { notifications, unreadCount: totalUnread, markAsRead, markAllAsRead, removeNotification } = useNotifications();
   const { reservations: transportReservations } = useMyTransportReservations();
   const { reservations: boxReservations } = useMyBoxReservations();
+  const { demands: courseDemands } = useMyCourseDemands();
+  const { reservations: stageReservations } = useMyStageReservations();
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
@@ -48,13 +51,12 @@ export default function NotificationsScreen() {
 
     if (notifToDelete && notifToDelete.status === 'accepted') {
       // Trouver le propriétaire/coach pour envoyer une notification d'annulation.
-      // Lookups encore sur mock stores (P22-P24 pas migrés) — sans effet quand vide.
       let ownerId: string | null = null;
       if (notifToDelete.type === 'course_request') {
-        const demand = courseDemandesStore.list.find(d => d.cavalierUserId === profile.id && d.statut === 'accepted');
+        const demand = courseDemands.find(d => d.cavalierUserId === profile.id && d.statut === 'accepted');
         if (demand) ownerId = demand.coachId;
       } else if (notifToDelete.type === 'stage_reservation') {
-        const stage = stageReservationsStore.list.find(s => s.cavalierUserId === profile.id && s.statut === 'accepted');
+        const stage = stageReservations.find(s => s.cavalierUserId === profile.id && s.statut === 'accepted');
         if (stage) ownerId = stage.coachId;
       } else if (notifToDelete.type === 'reservation_request') {
         const transport = transportReservations.find(t => t.buyerId === profile.id && t.statut === 'accepted');

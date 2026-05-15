@@ -1,32 +1,25 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Alert, Modal,
 } from 'react-native';
-import { router, useFocusEffect } from 'expo-router';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { courseDemandesStore, userStore } from '../../data/store';
+import { userStore } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
 import { CourseDemande } from '../../types/service';
+import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 
 export default function CoachPendingDemandsScreen() {
-  const [demands, setDemands] = useState<CourseDemande[]>([]);
+  const { demands: allDemands, updateStatus } = useMyCourseDemands();
+  const demands = allDemands.filter(d => d.coachId === userStore.id && d.statut === 'pending');
   const [selectedDemand, setSelectedDemand] = useState<CourseDemande | null>(null);
   const [showModal, setShowModal] = useState(false);
 
-  useFocusEffect(useCallback(() => {
-    // Récupérer les demandes en attente du coach
-    const pending = courseDemandesStore.list.filter(
-      d => d.coachId === userStore.id && d.statut === 'pending'
-    );
-    setDemands(pending);
-  }, []));
-
   const handleAccept = async (demand: CourseDemande) => {
-    demand.statut = 'accepted';
-    courseDemandesStore.list = [...courseDemandesStore.list];
-    setDemands(demands.filter(d => d.id !== demand.id));
+    const { error } = await updateStatus(demand.id, 'accepted');
+    if (error) { Alert.alert('Erreur', error); return; }
 
     await createNotification({
       destinataireId: demand.cavalierUserId,
@@ -47,9 +40,8 @@ export default function CoachPendingDemandsScreen() {
   };
 
   const handleReject = async (demand: CourseDemande) => {
-    demand.statut = 'rejected';
-    courseDemandesStore.list = [...courseDemandesStore.list];
-    setDemands(demands.filter(d => d.id !== demand.id));
+    const { error } = await updateStatus(demand.id, 'rejected');
+    if (error) { Alert.alert('Erreur', error); return; }
 
     await createNotification({
       destinataireId: demand.cavalierUserId,
