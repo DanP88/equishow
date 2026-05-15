@@ -3,15 +3,26 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } fr
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { coachesStore, userStore } from '../../data/store';
+import { userStore } from '../../data/store';
 import { AvisSection } from '../../components/AvisSection';
 import { useFollow } from '../../hooks/useFollow';
 import { useAvisStats } from '../../hooks/useAvis';
+import { useCoachProfile } from '../../hooks/useCoachProfiles';
 
 export default function ViewCoachScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
 
-  const coach = coachesStore.list.find(c => c.auteurId === id || c.id === id);
+  const { coach, isLoading } = useCoachProfile(id);
+
+  if (isLoading && !coach) {
+    return (
+      <SafeAreaView style={s.root}>
+        <View style={s.center}>
+          <Text style={{ color: Colors.textTertiary }}>Chargement…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   if (!coach) {
     return (

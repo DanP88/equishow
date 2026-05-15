@@ -6,8 +6,8 @@ import {
 import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { coachesStore, userStore } from '../data/store';
-import { CoachProfil } from '../types/service';
+import { useMyCoachProfile } from '../hooks/useCoachProfiles';
+import { useAuth } from '../hooks/useAuth';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
@@ -25,6 +25,9 @@ const SPECIALITES = [
 const COULEURS = ['#7C3AED', '#0369A1', '#EA580C', '#16A34A', '#DC2626', '#F97316', '#B45309', '#7C2D12'];
 
 export default function ProposerCoachScreen() {
+  const { profile } = useAuth();
+  const { upsert } = useMyCoachProfile();
+  const [submitting, setSubmitting] = useState(false);
   const [prenom, setPrenom] = useState('');
   const [nom, setNom] = useState('');
   const [pseudo, setPseudo] = useState('');
@@ -48,8 +51,12 @@ export default function ProposerCoachScreen() {
     setSpecialites((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   }
 
-  function valider() {
-    if (!prenom.trim() || !nom.trim() || !pseudo.trim() || !region.trim() || !tarifHeure.trim()) {
+  async function valider() {
+    if (!profile?.id) {
+      Alert.alert('Erreur', 'Vous devez être connecté.');
+      return;
+    }
+    if (!region.trim() || !tarifHeure.trim()) {
       Alert.alert('Champs manquants', 'Veuillez remplir tous les champs requis.');
       return;
     }
@@ -58,32 +65,28 @@ export default function ProposerCoachScreen() {
       return;
     }
 
-    const newCoach: CoachProfil = {
-      id: `coach_${Date.now()}`,
-      auteurId: userStore.id,
-      prenom,
-      nom,
-      pseudo,
-      initiales: (prenom[0] + nom[0]).toUpperCase(),
-      couleur,
+    setSubmitting(true);
+    const { error } = await upsert({
+      bio: bio.trim(),
       disciplines,
       niveaux,
-      region,
-      tarifHeure: Math.round(Number(tarifHeure)),
-      bio,
       specialites,
+      region: region.trim(),
+      tarifHeure: Math.round(Number(tarifHeure)),
       disponible: true,
-      nbAvis: 0,
-      note: 0,
-    };
+    });
+    setSubmitting(false);
 
-    coachesStore.list.unshift(newCoach);
+    if (error) {
+      Alert.alert('Erreur', error);
+      return;
+    }
 
     Alert.alert(
-      'Coach ajouté ! 🎓',
-      `${prenom} ${nom} a été ajouté en tant que coach.`,
+      'Profil coach créé ! 🎓',
+      `Votre profil coach a été enregistré.`,
       [
-        { text: 'Voir profil', onPress: () => router.replace(`/preview-coach?coachId=${newCoach.id}` as any) },
+        { text: 'Voir profil', onPress: () => router.replace(`/preview-coach?coachId=${profile.id}` as any) },
         { text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=coach' as any) },
       ],
     );

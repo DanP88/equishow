@@ -6,11 +6,12 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { coachesStore, userStore, concoursStore } from '../../data/store';
+import { userStore, concoursStore } from '../../data/store';
 import { useTransportAnnonces, useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useBoxAnnonces, useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useCoachAnnonces, useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
 import { useStages } from '../../hooks/useStages';
+import { useCoachProfiles } from '../../hooks/useCoachProfiles';
 import { useAvisStats } from '../../hooks/useAvis';
 import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
@@ -108,6 +109,7 @@ export default function ServicesScreen() {
   const { annonces: coachAnnonces } = useCoachAnnonces();
   const { deleteAnnonce: deleteCoachAnnonce } = useMyCoachAnnonces();
   const { stages } = useStages();
+  const { coaches } = useCoachProfiles();
 
   const [filtersT, setFiltersT] = useState<FiltersTransport>(DEFAULT_FT);
   const [filtersB, setFiltersB] = useState<FiltersBox>(DEFAULT_FB);
@@ -174,13 +176,13 @@ export default function ServicesScreen() {
 
   const filteredT = applyTransportFilters(transportsFiltered, filtersT);
   const filteredB = applyBoxFilters(boxes, filtersB);
-  const filteredC = applyCoachFilters(coachesStore.list, filtersC);
+  const filteredC = applyCoachFilters(coaches, filtersC);
 
   const concoursTransport = unique(transports.map((t) => t.concours ?? ''));
   const concoursBoxes = unique(boxes.map((b) => b.concours ?? ''));
   const concoursCoaches = unique(coachAnnonces.map((ca) => ca.concours ?? '').filter(Boolean));
-  const disciplinesCoachs = unique(coachesStore.list.flatMap((c) => c.disciplines));
-  const niveauxCoachs = unique(coachesStore.list.flatMap((c) => c.niveaux));
+  const disciplinesCoachs = unique(coaches.flatMap((c) => c.disciplines));
+  const niveauxCoachs = unique(coaches.flatMap((c) => c.niveaux));
 
   // Filtrer les annonces et coachs par concours
   const filteredCoachAnnonces = filtersC.concours

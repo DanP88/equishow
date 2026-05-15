@@ -6,7 +6,8 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
-import { coachesStore } from '../data/store';
+import { useCoachProfile, useMyCoachProfile } from '../hooks/useCoachProfiles';
+import { useAuth } from '../hooks/useAuth';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
@@ -24,8 +25,10 @@ const COULEURS = ['#7C3AED', '#0369A1', '#EA580C', '#16A34A', '#DC2626', '#F9731
 
 export default function EditerCoachScreen() {
   const { coachId } = useLocalSearchParams<{ coachId: string }>();
-  const idx = coachesStore.list.findIndex((c) => c.id === coachId);
-  const coach = idx !== -1 ? coachesStore.list[idx] : null;
+  const { profile } = useAuth();
+  const { coach } = useCoachProfile(coachId ?? profile?.id);
+  const { upsert, remove } = useMyCoachProfile();
+  const isOwner = !!profile?.id && (!coachId || coachId === profile.id);
 
   const [prenom, setPrenom] = useState(coach?.prenom ?? '');
   const [nom, setNom] = useState(coach?.nom ?? '');
@@ -68,8 +71,12 @@ export default function EditerCoachScreen() {
     setSpecialites((prev) => prev.includes(s) ? prev.filter((x) => x !== s) : [...prev, s]);
   }
 
-  function sauvegarder() {
-    if (!prenom.trim() || !nom.trim() || !pseudo.trim() || !region.trim() || !tarifHeure.trim()) {
+  async function sauvegarder() {
+    if (!isOwner) {
+      Alert.alert('Action refusée', 'Vous ne pouvez modifier que votre propre profil coach.');
+      return;
+    }
+    if (!region.trim() || !tarifHeure.trim()) {
       Alert.alert('Champs manquants', 'Veuillez remplir tous les champs requis.');
       return;
     }
@@ -78,45 +85,40 @@ export default function EditerCoachScreen() {
       return;
     }
 
-    if (idx !== -1) {
-      coachesStore.list[idx] = {
-        ...coachesStore.list[idx],
-        auteurId: coachesStore.list[idx].auteurId,
-        prenom,
-        nom,
-        pseudo,
-        initiales: (prenom[0] + nom[0]).toUpperCase(),
-        couleur,
-        disciplines,
-        niveaux,
-        region,
-        tarifHeure: Math.round(Number(tarifHeure)),
-        bio,
-        specialites,
-        disponible,
-      };
-    }
+    const { error } = await upsert({
+      bio,
+      disciplines,
+      niveaux,
+      specialites,
+      region: region.trim(),
+      tarifHeure: Math.round(Number(tarifHeure)),
+      disponible,
+    });
+    if (error) { Alert.alert('Erreur', error); return; }
 
     Alert.alert(
-      'Coach mis à jour ! ✅',
-      `Les modifications pour ${prenom} ${nom} ont été sauvegardées.`,
+      'Profil mis à jour ! ✅',
+      `Vos modifications ont été sauvegardées.`,
       [{ text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=coach' as any) }],
     );
   }
 
   function supprimer() {
+    if (!isOwner) {
+      Alert.alert('Action refusée', 'Vous ne pouvez supprimer que votre propre profil coach.');
+      return;
+    }
     Alert.alert(
-      'Supprimer ce coach ?',
-      `Êtes-vous sûr(e) de vouloir supprimer ${prenom} ${nom} de la liste des coachs ?`,
+      'Supprimer votre profil coach ?',
+      `Êtes-vous sûr(e) de vouloir supprimer votre profil coach ?`,
       [
         { text: 'Annuler', style: 'cancel' },
         {
-          text: 'Supprimer',
-          style: 'destructive',
-          onPress: () => {
-            // Mettre à jour le store
-            coachesStore.list = coachesStore.list.filter((c) => c.id !== coachId);
-            Alert.alert('Coach supprimé', `${prenom} ${nom} a été supprimé.`, [
+          text: 'Supprimer', style: 'destructive',
+          onPress: async () => {
+            const { error } = await remove();
+            if (error) { Alert.alert('Erreur', error); return; }
+            Alert.alert('Profil supprimé', 'Votre profil coach a été supprimé.', [
               { text: 'OK', onPress: () => router.back() },
             ]);
           },
