@@ -181,7 +181,13 @@ export function useMyChevaux() {
       if (insertErr || !data) {
         return { data: null, error: insertErr?.message ?? 'Erreur création' };
       }
-      return { data: rowToCheval(data as ChevalRow), error: null };
+      // Optimistic : ajoute le cheval à la liste immédiatement (avant que le
+      // realtime broadcast ne le fasse). Évite l'attente quand on revient sur
+      // la page après création/validation. Dédup par id si broadcast arrive
+      // en parallèle.
+      const created = rowToCheval(data as ChevalRow);
+      setList((curr) => (curr.some((c) => c.id === created.id) ? curr : [...curr, created]));
+      return { data: created, error: null };
     },
     [profile?.id],
   );
