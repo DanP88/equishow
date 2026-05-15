@@ -6,9 +6,30 @@
 //   le chaînage des events d'une session unique.
 // - Insert non bloquant (`void`) : un échec analytics ne casse jamais l'UX.
 // - `metadata` libre (jsonb côté DB) pour extensibilité sans migration.
+// - userId caché en mémoire et mis à jour via onAuthStateChange — AUCUN appel
+//   `supabase.auth.getSession()` dans trackEvent (sinon lock contention avec
+//   les opérations auth concurrentes type signInWithPassword).
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { supabase } from './supabase';
+
+let _cachedUserId: string | null = null;
+
+// Sync userId via onAuthStateChange (1 seul subscriber pour tout le module).
+// Lazy : ne s'enregistre qu'au premier trackEvent pour éviter d'init Supabase
+// trop tôt.
+let _authSubscribed = false;
+function ensureAuthSubscribed() {
+  if (_authSubscribed) return;
+  _authSubscribed = true;
+  // Pas d'await — on récupère la session courante en parallèle.
+  supabase.auth.getSession().then(({ data }) => {
+    _cachedUserId = data.session?.user?.id ?? null;
+  }).catch(() => { /* silent */ });
+  supabase.auth.onAuthStateChange((_event, session) => {
+    _cachedUserId = session?.user?.id ?? null;
+  });
+}
 
 type EventType = 'page_view' | 'page_leave' | 'cta_click' | 'funnel_step' | 'error' | 'custom';
 
@@ -73,12 +94,14 @@ export function resetSession(): void {
 }
 
 export function trackEvent(params: TrackParams): void {
-  // Fire-and-forget. Pas d'await pour ne jamais bloquer l'UI.
+  ensureAuthSubscribed();
+  // Fire-and-forget. Pas d'await pour ne jamais bloquer l'UI. Pas d'appel
+  // supabase.auth.* ici — l'userId vient du cache mis à jour via
+  // onAuthStateChange (évite la lock contention avec signInWithPassword).
   void (async () => {
     try {
-      const { data: { session } } = await supabase.auth.getSession();
       await supabase.from('user_events').insert({
-        user_id: session?.user?.id ?? null,
+        user_id: _cachedUserId,
         session_id: getSessionId(),
         event_type: params.event_type,
         screen: params.screen ?? null,
