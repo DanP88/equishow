@@ -167,14 +167,18 @@ export function useCommunautePosts(scope: PostScope) {
     setPosts((curr) => curr.map((p) => p.id === id
       ? { ...p, likedBy: newLikedBy, likes: newLikedBy.length }
       : p));
-    const { error } = await supabase.from(postsTable).update({ liked_by: newLikedBy }).eq('id', id);
+    // RPC bypasse RLS UPDATE (mig 026) — sinon update silencieusement bloqué sur posts d'autres users.
+    const { data, error } = await supabase.rpc('toggle_post_like', { p_scope: scope, p_post_id: id });
     if (error) {
-      // restore via reload
       load();
       return { error: error.message };
     }
+    const serverLikedBy = (data as string[] | null) ?? newLikedBy;
+    setPosts((curr) => curr.map((p) => p.id === id
+      ? { ...p, likedBy: serverLikedBy, likes: serverLikedBy.length }
+      : p));
     return { error: null };
-  }, [posts, profile?.id, postsTable, load]);
+  }, [posts, profile?.id, scope, load]);
 
   const addComment = useCallback(async (postId: string, texte: string): Promise<{ error: string | null }> => {
     if (!profile?.id) return { error: 'Non authentifié' };
@@ -200,6 +204,42 @@ export function useCommunautePosts(scope: PostScope) {
     return { error: error?.message ?? null };
   }, [commentsTable]);
 
+  const toggleCommentLike = useCallback(async (postId: string, commentId: string): Promise<{ error: string | null }> => {
+    if (!profile?.id) return { error: 'Non authentifié' };
+    const post = posts.find((p) => p.id === postId);
+    const comment = post?.commentaires.find((c) => c.id === commentId);
+    if (!comment) return { error: 'Commentaire introuvable' };
+    const hasLiked = comment.likedBy.includes(profile.id);
+    const newLikedBy = hasLiked
+      ? comment.likedBy.filter((u) => u !== profile.id)
+      : [...comment.likedBy, profile.id];
+    // Optimistic
+    setPosts((curr) => curr.map((p) => p.id !== postId ? p : {
+      ...p,
+      commentaires: p.commentaires.map((c) => c.id !== commentId ? c : {
+        ...c,
+        likedBy: newLikedBy,
+        likes: newLikedBy.length,
+      }),
+    }));
+    // RPC bypasse RLS UPDATE (mig 026).
+    const { data, error } = await supabase.rpc('toggle_comment_like', { p_scope: scope, p_comment_id: commentId });
+    if (error) {
+      load();
+      return { error: error.message };
+    }
+    const serverLikedBy = (data as string[] | null) ?? newLikedBy;
+    setPosts((curr) => curr.map((p) => p.id !== postId ? p : {
+      ...p,
+      commentaires: p.commentaires.map((c) => c.id !== commentId ? c : {
+        ...c,
+        likedBy: serverLikedBy,
+        likes: serverLikedBy.length,
+      }),
+    }));
+    return { error: null };
+  }, [posts, profile?.id, scope, load]);
+
   return {
     posts,
     isLoading,
@@ -208,6 +248,7 @@ export function useCommunautePosts(scope: PostScope) {
     toggleLike,
     addComment,
     deleteComment,
+    toggleCommentLike,
     reload: load,
   };
 }

@@ -30,7 +30,7 @@ type SortMode = 'date_asc' | 'date_desc' | 'region_asc';
 
 export default function CommunauteScreen() {
   useScreenTracking('communaute');
-  const { posts, createPost, toggleLike: hookToggleLike, addComment: hookAddComment } = useCommunautePosts('community');
+  const { posts, createPost, toggleLike: hookToggleLike, addComment: hookAddComment, toggleCommentLike: hookToggleCommentLike } = useCommunautePosts('community');
   const [mainTab, setMainTab] = useState<MainTab>('communaute');
   const [showNew, setShowNew] = useState(false);
   const [newText, setNewText] = useState('');
@@ -92,10 +92,8 @@ export default function CommunauteScreen() {
     }
   }
 
-  // Likes sur commentaires : non géré en P26 (nécessiterait UPDATE liked_by
-  // sur la table com_posts_community + permissions). No-op pour l'instant.
-  async function toggleCommentLike(_postId: string, _commentId: string) {
-    /* TODO P26-bis */
+  async function toggleCommentLike(postId: string, commentId: string) {
+    await hookToggleCommentLike(postId, commentId);
   }
 
   // Le hook met la liste à jour via realtime — `posts` reflète déjà les commentaires.
@@ -108,42 +106,46 @@ export default function CommunauteScreen() {
         <Text style={styles.headerSub}>Échangez avec la communauté équestre</Text>
       </View>
 
-      {/* Onglets principaux */}
+      {/* Onglets principaux — 2 lignes */}
       <View style={styles.mainTabBar}>
-        <TouchableOpacity
-          style={[styles.mainTabBtn, mainTab === 'communaute' && styles.mainTabBtnActive]}
-          onPress={() => setMainTab('communaute')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.mainTabLabel, mainTab === 'communaute' && styles.mainTabLabelActive]}>
-            💬 Communauté
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.mainTabBtn, mainTab === 'concours' && styles.mainTabBtnActive]}
-          onPress={() => setMainTab('concours')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.mainTabLabel, mainTab === 'concours' && styles.mainTabLabelActive]}>
-            Info concours
-          </Text>
-          {concoursList.length > 0 && (
-            <View style={[styles.mainTabBadge, mainTab === 'concours' && styles.mainTabBadgeActive]}>
-              <Text style={[styles.mainTabBadgeText, mainTab === 'concours' && styles.mainTabBadgeTextActive]}>
-                {concoursList.length}
-              </Text>
-            </View>
-          )}
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.mainTabBtn, mainTab === 'contact-concours' && styles.mainTabBtnActive]}
-          onPress={() => setMainTab('contact-concours')}
-          activeOpacity={0.8}
-        >
-          <Text style={[styles.mainTabLabel, mainTab === 'contact-concours' && styles.mainTabLabelActive]}>
-            📬 Contact concours
-          </Text>
-        </TouchableOpacity>
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.mainTabBtn, mainTab === 'communaute' && styles.mainTabBtnActive]}
+            onPress={() => setMainTab('communaute')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.mainTabLabel, mainTab === 'communaute' && styles.mainTabLabelActive]}>
+              💬 Communauté
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.mainTabBtn, mainTab === 'concours' && styles.mainTabBtnActive]}
+            onPress={() => setMainTab('concours')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.mainTabLabel, mainTab === 'concours' && styles.mainTabLabelActive]}>
+              Info concours
+            </Text>
+            {concoursList.length > 0 && (
+              <View style={[styles.mainTabBadge, mainTab === 'concours' && styles.mainTabBadgeActive]}>
+                <Text style={[styles.mainTabBadgeText, mainTab === 'concours' && styles.mainTabBadgeTextActive]}>
+                  {concoursList.length}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.mainTabBtn, mainTab === 'contact-concours' && styles.mainTabBtnActive]}
+            onPress={() => setMainTab('contact-concours')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.mainTabLabel, mainTab === 'contact-concours' && styles.mainTabLabelActive]}>
+              📬 Contact concours
+            </Text>
+          </TouchableOpacity>
+        </View>
       </View>
 
       {/* ── ONGLET CONTACT CONCOURS ──────────────────────────────── */}
@@ -707,7 +709,8 @@ const styles = StyleSheet.create({
   commentSendIcon: { color: Colors.textInverse, fontSize: 16 },
 
   // Onglets principaux
-  mainTabBar: { flexDirection: 'row', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: Spacing.lg, gap: Spacing.sm },
+  mainTabBar: { flexDirection: 'column', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: Spacing.lg },
+  tabRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
   contactList: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 120 },
   contactSectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.sm },
   contactCard: { ...CommonStyles.card, padding: Spacing.lg, gap: 4 },
