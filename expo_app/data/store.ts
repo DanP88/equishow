@@ -268,54 +268,8 @@ export interface CommunautePost {
   commentaires: CommunauteComment[];
 }
 
-export const postsStore: { list: CommunautePost[] } = {
-  list: [
-    {
-      id: 'p1',
-      auteurId: 'user_marie',
-      auteur: 'Marie Dupont',
-      initiales: 'MD',
-      couleur: '#7C3AED',
-      contenu: 'Super week-end au concours de Lyon ! Éclipse a été parfaite sur le parcours 🏆',
-      date: new Date(Date.now() - 2 * 3600000),
-      likes: 14,
-      likedBy: [],
-      commentaires: [
-        { id: 'c1', auteurId: 'user_thomas', auteur: 'Thomas Renard', initiales: 'TR', couleur: '#0369A1', texte: 'Bravo ! Quel beau résultat 👏', date: 'Il y a 1h', likes: 2, likedBy: [] },
-        { id: 'c2', auteurId: 'user_sophie', auteur: 'Sophie Martin', initiales: 'SM', couleur: '#16A34A', texte: 'Trop contente pour vous ! À bientôt au prochain concours', date: 'Il y a 45min', likes: 1, likedBy: [] },
-      ],
-    },
-    {
-      id: 'p2',
-      auteurId: 'user_thomas',
-      auteur: 'Thomas Renard',
-      initiales: 'TR',
-      couleur: '#0369A1',
-      contenu: "Quelqu'un a une recommandation pour un ostéopathe équin dans la région lyonnaise ?",
-      date: new Date(Date.now() - 5 * 3600000),
-      likes: 8,
-      likedBy: [],
-      commentaires: [
-        { id: 'c1', auteurId: 'user_marie', auteur: 'Marie Dupont', initiales: 'MD', couleur: '#7C3AED', texte: 'Dr. Lefèvre à Grenoble, très bon !', date: 'Il y a 4h', likes: 0, likedBy: [] },
-        { id: 'c2', auteurId: 'user_lucie', auteur: 'Lucie Bernard', initiales: 'LB', couleur: '#F97316', texte: 'Je te recommande Sophie Marchand, elle intervient sur tout le bassin lyonnais', date: 'Il y a 3h', likes: 0, likedBy: [] },
-      ],
-    },
-    {
-      id: 'p3',
-      auteurId: 'user_sophiemartin',
-      auteur: 'Sophie Martin',
-      initiales: 'SM',
-      couleur: '#16A34A',
-      contenu: 'Résultats du Championnat Régional de Dressage disponibles ! Bravo à tous les participants 🎉',
-      date: new Date(Date.now() - 24 * 3600000),
-      likes: 32,
-      likedBy: [],
-      commentaires: [
-        { id: 'c1', auteurId: 'user_emilie', auteur: 'Émilie Laurent', initiales: 'EL', couleur: '#7C3AED', texte: 'Quelle belle compétition, merci aux organisateurs !', date: 'hier', likes: 0, likedBy: [] },
-      ],
-    },
-  ],
-};
+// postsStore retiré P26 — community posts migrés sur Supabase (mig 025).
+// Hook : useCommunautePosts('community' | 'coach' | 'organisateur').
 
 // ── Followers system ─────────────────────────────────────────────────────────
 

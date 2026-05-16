@@ -6,11 +6,12 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
-import { postsStore, userStore, concoursCsvStore, concoursStore, CommunautePost } from '../../data/store';
+import { userStore, concoursCsvStore, concoursStore, CommunautePost } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
 import { getUserById } from '../../data/mockUsers';
 import { ConcoursCSV } from '../../types/concours';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { useCommunautePosts } from '../../hooks/useCommunautePosts';
 
 function timeAgo(date: Date): string {
   const diff = Date.now() - date.getTime();
@@ -29,8 +30,8 @@ type SortMode = 'date_asc' | 'date_desc' | 'region_asc';
 
 export default function CommunauteScreen() {
   useScreenTracking('communaute');
+  const { posts, createPost, toggleLike: hookToggleLike, addComment: hookAddComment } = useCommunautePosts('community');
   const [mainTab, setMainTab] = useState<MainTab>('communaute');
-  const [posts, setPosts] = useState<CommunautePost[]>([...postsStore.list]);
   const [showNew, setShowNew] = useState(false);
   const [newText, setNewText] = useState('');
   const [openComments, setOpenComments] = useState<string | null>(null);
@@ -46,84 +47,41 @@ export default function CommunauteScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setPosts([...postsStore.list]);
       setConcoursList([...concoursCsvStore.list]);
     }, [])
   );
 
-  function refresh() {
-    setPosts([...postsStore.list]);
-  }
-
   async function toggleLike(postId: string) {
-    const uid = userStore.id;
-    const post = postsStore.list.find(p => p.id === postId);
+    const post = posts.find(p => p.id === postId);
     if (!post) return;
-
-    const alreadyLiked = post.likedBy.includes(uid);
-    if (alreadyLiked) {
-      post.likedBy = post.likedBy.filter(id => id !== uid);
-      post.likes = Math.max(0, post.likes - 1);
-      refresh();
-    } else {
-      post.likedBy = [...post.likedBy, uid];
-      post.likes = post.likes + 1;
-      refresh();
-      if (post.auteurId !== uid) {
-        await createNotification({
-          destinataireId: post.auteurId,
-          type: 'like',
-          titre: `❤️ @${userStore.pseudo} a aimé votre post`,
-          message: post.contenu.length > 60 ? post.contenu.slice(0, 60) + '…' : post.contenu,
-          donnees: { postId },
-        });
-      }
+    const alreadyLiked = post.likedBy.includes(userStore.id);
+    await hookToggleLike(postId);
+    // Notif sur 1er like uniquement
+    if (!alreadyLiked && post.auteurId !== userStore.id) {
+      await createNotification({
+        destinataireId: post.auteurId,
+        type: 'like',
+        titre: `❤️ @${userStore.pseudo} a aimé votre post`,
+        message: post.contenu.length > 60 ? post.contenu.slice(0, 60) + '…' : post.contenu,
+        donnees: { postId },
+      });
     }
   }
 
-  function handlePost() {
+  async function handlePost() {
     if (!newText.trim()) return;
-    const post: CommunautePost = {
-      id: `post_${Date.now()}`,
-      auteurId: userStore.id,
-      auteur: `${userStore.prenom} ${userStore.nom}`,
-      initiales: getUserInitiales(),
-      couleur: userStore.avatarColor,
-      contenu: newText.trim(),
-      date: new Date(),
-      likes: 0,
-      likedBy: [],
-      commentaires: [],
-    };
-    postsStore.list = [post, ...postsStore.list];
+    await createPost(newText.trim());
     setNewText('');
     setShowNew(false);
-    refresh();
   }
 
   async function addComment(postId: string) {
     if (!commentText.trim()) return;
-    const uid = userStore.id;
-    const post = postsStore.list.find(p => p.id === postId);
-    if (!post) return;
-
     const trimmed = commentText.trim();
-    const comment = {
-      id: `cmt_${Date.now()}`,
-      auteurId: uid,
-      auteur: `${userStore.prenom} ${userStore.nom}`,
-      initiales: getUserInitiales(),
-      couleur: userStore.avatarColor,
-      texte: trimmed,
-      date: "À l'instant",
-      likes: 0,
-      likedBy: [] as string[],
-    };
-    post.commentaires = [...post.commentaires, comment];
+    const post = posts.find(p => p.id === postId);
+    await hookAddComment(postId, trimmed);
     setCommentText('');
-    refresh();
-
-    if (post.auteurId !== uid) {
+    if (post && post.auteurId !== userStore.id) {
       await createNotification({
         destinataireId: post.auteurId,
         type: 'comment',
@@ -134,36 +92,14 @@ export default function CommunauteScreen() {
     }
   }
 
-  async function toggleCommentLike(postId: string, commentId: string) {
-    const uid = userStore.id;
-    const post = postsStore.list.find(p => p.id === postId);
-    if (!post) return;
-    const comment = post.commentaires.find(c => c.id === commentId);
-    if (!comment) return;
-
-    const alreadyLiked = comment.likedBy.includes(uid);
-    if (alreadyLiked) {
-      comment.likedBy = comment.likedBy.filter(id => id !== uid);
-      comment.likes = Math.max(0, comment.likes - 1);
-      refresh();
-    } else {
-      comment.likedBy = [...comment.likedBy, uid];
-      comment.likes = comment.likes + 1;
-      refresh();
-      if (comment.auteurId !== uid) {
-        await createNotification({
-          destinataireId: comment.auteurId,
-          type: 'like',
-          titre: `❤️ @${userStore.pseudo} a aimé votre commentaire`,
-          message: comment.texte.length > 60 ? comment.texte.slice(0, 60) + '…' : comment.texte,
-          donnees: { postId },
-        });
-      }
-    }
+  // Likes sur commentaires : non géré en P26 (nécessiterait UPDATE liked_by
+  // sur la table com_posts_community + permissions). No-op pour l'instant.
+  async function toggleCommentLike(_postId: string, _commentId: string) {
+    /* TODO P26-bis */
   }
 
-  // Lire directement depuis le store pour avoir les données à jour dans le modal
-  const activePost = openComments ? postsStore.list.find((p) => p.id === openComments) ?? null : null;
+  // Le hook met la liste à jour via realtime — `posts` reflète déjà les commentaires.
+  const activePost = openComments ? posts.find((p) => p.id === openComments) ?? null : null;
 
   return (
     <SafeAreaView style={styles.root}>
