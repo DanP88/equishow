@@ -1,13 +1,16 @@
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
+import { useCoachProfile } from '../hooks/useCoachProfiles';
 
 const MOCK = {
   nom: 'Émilie Laurent',
   pseudo: 'EmilieLaurent_Pro',
+  initiales: 'EL',
+  couleur: '#7C3AED',
   disciplines: ['CSO', 'Hunter'],
   region: 'Auvergne-Rhône-Alpes',
   tarifHeure: 65,
@@ -28,6 +31,24 @@ const AGENDA = [
 ];
 
 export default function PreviewCoachScreen() {
+  const params = useLocalSearchParams<{ coachId?: string }>();
+  const coachId = typeof params.coachId === 'string' ? params.coachId : undefined;
+  const { coach } = useCoachProfile(coachId);
+  const isReal = !!(coachId && coach);
+
+  const data = isReal ? {
+    nom: `${coach!.prenom} ${coach!.nom}`.trim() || MOCK.nom,
+    pseudo: coach!.pseudo || MOCK.pseudo,
+    initiales: coach!.initiales || MOCK.initiales,
+    couleur: coach!.couleur || MOCK.couleur,
+    disciplines: coach!.disciplines.length ? coach!.disciplines : MOCK.disciplines,
+    region: coach!.region || MOCK.region,
+    tarifHeure: coach!.tarifHeure || MOCK.tarifHeure,
+    note: coach!.note || MOCK.note,
+    nbAvis: coach!.nbAvis,
+    disponible: coach!.disponible,
+  } : MOCK;
+
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
@@ -35,11 +56,11 @@ export default function PreviewCoachScreen() {
           <Text style={s.backIcon}>‹</Text>
         </TouchableOpacity>
         <View>
-          <Text style={s.headerTitle}>Interface Coach</Text>
-          <Text style={s.headerSub}>Aperçu de votre tableau de bord</Text>
+          <Text style={s.headerTitle}>{isReal ? 'Mon profil coach' : 'Interface Coach'}</Text>
+          <Text style={s.headerSub}>{isReal ? 'Aperçu en mode coach' : 'Aperçu de votre tableau de bord'}</Text>
         </View>
         <View style={[s.previewBadge]}>
-          <Text style={s.previewBadgeText}>APERÇU</Text>
+          <Text style={s.previewBadgeText}>{isReal ? 'PROFIL' : 'APERÇU'}</Text>
         </View>
       </View>
 
@@ -47,21 +68,23 @@ export default function PreviewCoachScreen() {
 
         {/* Profil Coach */}
         <View style={s.coachHero}>
-          <View style={[s.avatar, { backgroundColor: '#7C3AED' }]}>
-            <Text style={s.avatarText}>EL</Text>
+          <View style={[s.avatar, { backgroundColor: data.couleur }]}>
+            <Text style={s.avatarText}>{data.initiales}</Text>
           </View>
           <View style={{ flex: 1 }}>
-            <Text style={s.coachName}>{MOCK.nom}</Text>
-            <Text style={s.coachPseudo}>@{MOCK.pseudo}</Text>
+            <Text style={s.coachName}>{data.nom}</Text>
+            <Text style={s.coachPseudo}>@{data.pseudo}</Text>
             <View style={s.ratingRow}>
               <Text style={s.stars}>★★★★★</Text>
-              <Text style={s.rating}>{MOCK.note} ({MOCK.nbAvis} avis)</Text>
+              <Text style={s.rating}>{data.note} ({data.nbAvis} avis)</Text>
             </View>
           </View>
-          <View style={s.disponibleBadge}>
-            <Text style={s.disponibleDot}>●</Text>
-            <Text style={s.disponibleText}>Disponible</Text>
-          </View>
+          {data.disponible && (
+            <View style={s.disponibleBadge}>
+              <Text style={s.disponibleDot}>●</Text>
+              <Text style={s.disponibleText}>Disponible</Text>
+            </View>
+          )}
         </View>
 
         {/* Stats rapides */}
@@ -116,15 +139,15 @@ export default function PreviewCoachScreen() {
         <View style={s.serviceCard}>
           <View style={s.serviceRow}>
             <Text style={s.serviceLabel}>Tarif horaire</Text>
-            <Text style={s.serviceValue}>{MOCK.tarifHeure}€ HT / heure</Text>
+            <Text style={s.serviceValue}>{data.tarifHeure}€ HT / heure</Text>
           </View>
           <View style={s.serviceRow}>
             <Text style={s.serviceLabel}>Disciplines</Text>
-            <Text style={s.serviceValue}>{MOCK.disciplines.join(', ')}</Text>
+            <Text style={s.serviceValue}>{data.disciplines.join(', ')}</Text>
           </View>
           <View style={s.serviceRow}>
             <Text style={s.serviceLabel}>Région</Text>
-            <Text style={s.serviceValue}>{MOCK.region}</Text>
+            <Text style={s.serviceValue}>{data.region}</Text>
           </View>
           <View style={[s.serviceRow, { borderBottomWidth: 0 }]}>
             <Text style={s.serviceLabel}>Commission plateforme</Text>
@@ -133,9 +156,11 @@ export default function PreviewCoachScreen() {
         </View>
 
         {/* CTA */}
-        <TouchableOpacity style={s.switchBtn} onPress={() => { router.back(); }}>
-          <Text style={s.switchBtnText}>Passer en compte Coach</Text>
-        </TouchableOpacity>
+        {!isReal && (
+          <TouchableOpacity style={s.switchBtn} onPress={() => { router.back(); }}>
+            <Text style={s.switchBtnText}>Passer en compte Coach</Text>
+          </TouchableOpacity>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>
