@@ -102,6 +102,7 @@ interface PlanCardProps {
 }
 
 function PlanCard({ plan, isSelected, onSelect, onSubscribe }: PlanCardProps) {
+  const isFree = plan.prix === 0;
   return (
     <TouchableOpacity
       style={[styles.planCard, isSelected && styles.planCardSelected]}
@@ -118,15 +119,21 @@ function PlanCard({ plan, isSelected, onSelect, onSubscribe }: PlanCardProps) {
       <Text style={styles.planDescription}>{plan.description}</Text>
 
       <View style={styles.priceSection}>
-        <Text style={styles.price}>{plan.prix}€</Text>
-        <Text style={styles.period}>
-          {plan.periode === 'mensuel' && '/mois'}
-          {plan.periode === 'annuel' && '/an'}
-          {plan.periode === 'unique' && '/concours'}
-        </Text>
+        {isFree ? (
+          <Text style={styles.price}>Gratuit</Text>
+        ) : (
+          <>
+            <Text style={styles.price}>{plan.prix}€</Text>
+            <Text style={styles.period}>
+              {plan.periode === 'mensuel' && '/mois'}
+              {plan.periode === 'annuel' && '/an'}
+              {plan.periode === 'unique' && '/concours'}
+            </Text>
+          </>
+        )}
       </View>
 
-      {plan.periode === 'annuel' && (
+      {plan.periode === 'annuel' && plan.prix > 0 && (
         <Text style={styles.monthlyEquiv}>
           {(plan.prix / 12).toFixed(2)}€/mois
         </Text>
@@ -146,7 +153,7 @@ function PlanCard({ plan, isSelected, onSelect, onSubscribe }: PlanCardProps) {
         onPress={onSubscribe}
       >
         <Text style={[styles.subscribeBtnText, isSelected && styles.subscribeBtnTextActive]}>
-          S'abonner
+          {isFree ? 'Choisir Découverte' : 'S\'abonner'}
         </Text>
       </TouchableOpacity>
     </TouchableOpacity>
