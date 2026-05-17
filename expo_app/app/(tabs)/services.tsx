@@ -571,13 +571,14 @@ export default function ServicesScreen() {
         onConfirm={confirmCancel}
       />
 
-      <AlertModal
+      <ConfirmModal
         visible={!!upgradeAlert}
         title={upgradeAlert?.title ?? ''}
         message={upgradeAlert?.message}
-        variant="info"
-        okLabel="Voir les forfaits"
-        onClose={() => {
+        cancelLabel="Annuler"
+        confirmLabel="Voir les forfaits"
+        onCancel={() => setUpgradeAlert(null)}
+        onConfirm={() => {
           setUpgradeAlert(null);
           router.push('/tarification' as any);
         }}
