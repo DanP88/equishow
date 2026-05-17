@@ -62,6 +62,13 @@ export function prixTTC(prixHT: number, serviceType: ServiceType = 'trajet'): nu
   return Math.round(prixHT * (1 + commission + tva) * 100) / 100;
 }
 
+// Entre particuliers : ajoute uniquement la commission de la plateforme (pas de TVA).
+// Utilisé pour calculer le montant final que paye l'acheteur au checkout.
+export function prixAvecCommission(prix: number, serviceType: ServiceType = 'trajet'): number {
+  const commission = getCommission(serviceType);
+  return Math.round(prix * (1 + commission) * 100) / 100;
+}
+
 export function getCommissionMontant(prixHT: number, serviceType: ServiceType = 'trajet'): number {
   return Math.round(prixHT * getCommission(serviceType) * 100) / 100;
 }

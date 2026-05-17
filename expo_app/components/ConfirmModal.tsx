@@ -1,3 +1,4 @@
+import { ReactNode } from 'react';
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
@@ -6,6 +7,7 @@ interface ConfirmModalProps {
   visible: boolean;
   title: string;
   message?: string;
+  body?: ReactNode;
   cancelLabel?: string;
   confirmLabel?: string;
   destructive?: boolean;
@@ -17,6 +19,7 @@ export function ConfirmModal({
   visible,
   title,
   message,
+  body,
   cancelLabel = 'Annuler',
   confirmLabel = 'Confirmer',
   destructive = false,
@@ -28,7 +31,7 @@ export function ConfirmModal({
       <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={onCancel}>
         <TouchableOpacity activeOpacity={1} style={s.sheet}>
           <Text style={s.title}>{title}</Text>
-          {message ? <Text style={s.message}>{message}</Text> : null}
+          {body ? body : message ? <Text style={s.message}>{message}</Text> : null}
           <View style={s.actions}>
             <TouchableOpacity style={[s.btn, s.btnCancel]} onPress={onCancel} activeOpacity={0.8}>
               <Text style={s.btnCancelText}>{cancelLabel}</Text>

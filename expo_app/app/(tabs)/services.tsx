@@ -919,7 +919,6 @@ function BoxCard({ item, onCancel, onModify }: {
   const isOwner = item.auteurId === userStore.id;
   const debut = item.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
   const fin = item.dateFin.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
-  const ttc = prixTTC(item.prixNuitHT);
   const nbJ = Math.max(1, Math.round((item.dateFin.getTime() - item.dateDebut.getTime()) / (1000 * 60 * 60 * 24)));
   const left = item.nbBoxesDisponibles;
   const { average: rating } = useAvisStats(item.auteurId);
@@ -930,8 +929,7 @@ function BoxCard({ item, onCancel, onModify }: {
         <Text style={[s.routeDepart, { flex: 1 }]}>{item.lieu}</Text>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
           <View style={s.priceBadge}>
-            <Text style={s.priceHT}>{item.prixNuitHT}€/nuit HT</Text>
-            <Text style={s.priceTTC}>{ttc}€ TTC</Text>
+            <Text style={s.priceHT}>{item.prixNuitHT}€/nuit</Text>
           </View>
           {rating > 0 && <Text style={s.ratingMini}>⭐ {rating.toFixed(1)}</Text>}
         </View>

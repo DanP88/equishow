@@ -12,7 +12,6 @@ import { AlertModal } from '../components/AlertModal';
 import { mockConcours } from '../data/mockConcours';
 import { useMyBoxAnnonces } from '../hooks/useBoxes';
 import { BoxAnnonce } from '../types/service';
-import { prixTTC as calculatePrixTTC } from '../types/service';
 
 const CONCOURS_OPTIONS = mockConcours
   .filter(c => c.statut !== 'brouillon')
@@ -142,7 +141,6 @@ export default function ProposerBoxScreen() {
   }
 
   const prixRecu = parseFloat(prix);
-  const prixLocataireTTC = prixRecu ? calculatePrixTTC(prixRecu, 'box') : null;
 
   // Calculer les jours disponibles automatiquement
   const joursDisponibles = dateDebut && dateFin
@@ -218,7 +216,7 @@ export default function ProposerBoxScreen() {
         <View style={s.infoCard}>
           <Text style={s.infoIcon}>💡</Text>
           <Text style={s.infoText}>
-            Indiquez ce que vous voulez <Text style={s.infoHighlight}>recevoir</Text> par box et par nuit (ex. 45 à 80€). La commission Equishow (9%) et la TVA sont ajoutées par-dessus, payées par le locataire.
+            Indiquez le prix par box et par nuit. <Text style={s.infoHighlight}>Recommandé : 45 à 80€</Text>. Réservation possible à la journée ou sur plusieurs jours.
           </Text>
         </View>
 
@@ -272,10 +270,7 @@ export default function ProposerBoxScreen() {
           </View>
         )}
 
-        <Field
-          label="Ce que vous voulez recevoir par box / nuit *"
-          hint={prixLocataireTTC ? `→ Le locataire paiera ${prixLocataireTTC}€ TTC par box / nuit (commission 9% + TVA 20% en plus)` : 'Recommandé : 45–80€'}
-        >
+        <Field label="Prix par box / nuit *" hint="Recommandé : 45–80€">
           <View style={f.priceRow}>
             <TextInput
               style={[f.input, { flex: 1 }, !!prix && f.inputFilled]}
@@ -285,7 +280,7 @@ export default function ProposerBoxScreen() {
               placeholderTextColor={Colors.textTertiary}
               keyboardType="numeric"
             />
-            <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / nuit reçus</Text></View>
+            <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / nuit</Text></View>
           </View>
         </Field>
 
@@ -339,7 +334,7 @@ export default function ProposerBoxScreen() {
 
         <View style={s.stripeNote}>
           <Text style={s.stripeNoteIcon}>🔒</Text>
-          <Text style={s.stripeNoteText}>Paiements gérés par Stripe. Vous recevrez le montant après déduction de la commission 9% à chaque réservation confirmée.</Text>
+          <Text style={s.stripeNoteText}>Paiements gérés par Stripe. Vous recevrez le montant indiqué après chaque réservation confirmée.</Text>
         </View>
 
         <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>

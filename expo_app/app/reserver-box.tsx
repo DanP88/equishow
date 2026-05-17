@@ -10,9 +10,11 @@ import { DatePickerModal, DateButton, formatDate } from '../components/DatePicke
 import { useBoxAnnonces, useMyBoxReservations } from '../hooks/useBoxes';
 import { createNotification } from '../hooks/useNotifications';
 import { useAuth } from '../hooks/useAuth';
-import { prixTTC, getCommission } from '../types/service';
+import { getCommission } from '../types/service';
 import { useScreenTracking } from '../hooks/useScreenTracking';
 import { trackFunnel } from '../lib/analytics';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { AlertModal } from '../components/AlertModal';
 
 export default function ReserverBoxScreen() {
   useScreenTracking('reserver-box');
@@ -35,7 +37,6 @@ export default function ReserverBoxScreen() {
     );
   }
 
-  const ttc = prixTTC(box.prixNuitHT, 'box');
   const joursDisponibles = Math.max(1, Math.round((box.dateFin.getTime() - box.dateDebut.getTime()) / (1000 * 60 * 60 * 24)));
 
   // Réservation: le locataire choisit les dates
@@ -45,42 +46,39 @@ export default function ReserverBoxScreen() {
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [errorAlert, setErrorAlert] = useState<string | null>(null);
 
   // Calculer le nombre de nuits réservées
   const nuitesReservees = dateReservationDebut && dateReservationFin
     ? Math.max(1, Math.round((dateReservationFin.getTime() - dateReservationDebut.getTime()) / (1000 * 60 * 60 * 24)))
     : 1;
 
-  const prixTotal = box.prixNuitHT * nuitesReservees;
-  const prixTotalTTC = prixTTC(prixTotal, 'box');
+  const sousTotal = box.prixNuitHT * nuitesReservees;
+  const commissionRate = getCommission('box');
+  const commissionMontant = Math.round(sousTotal * commissionRate * 100) / 100;
+  const totalAPayer = Math.round((sousTotal + commissionMontant) * 100) / 100;
+  const commissionPct = Math.round(commissionRate * 100);
 
-  function showErr(msg: string) {
-    if (typeof window !== 'undefined') window.alert(msg);
-    else Alert.alert('Erreur', msg);
-  }
-
-  const submit = async () => {
-    if (!dateReservationDebut || !dateReservationFin) {
-      showErr('Sélectionnez les dates de votre réservation.');
-      return;
-    }
-    if (dateReservationFin.getTime() <= dateReservationDebut.getTime()) {
-      showErr('La date de fin doit être après la date de début.');
-      return;
-    }
-    // Valider que les dates sont dans la période disponible du box
+  const validate = (): string | null => {
+    if (!dateReservationDebut || !dateReservationFin) return 'Sélectionnez les dates de votre réservation.';
+    if (dateReservationFin.getTime() <= dateReservationDebut.getTime()) return 'La date de fin doit être après la date de début.';
     if (dateReservationDebut < box.dateDebut || dateReservationFin > box.dateFin) {
-      showErr(`Le box n'est disponible que du ${box.dateDebut.toLocaleDateString('fr-FR')} au ${box.dateFin.toLocaleDateString('fr-FR')}.`);
-      return;
+      return `Le box n'est disponible que du ${box.dateDebut.toLocaleDateString('fr-FR')} au ${box.dateFin.toLocaleDateString('fr-FR')}.`;
     }
+    return null;
+  };
 
-    const nuits = nuitesReservees;
-    const pt = box.prixNuitHT * nuits;
-    const ptTTC = prixTTC(pt, 'box');
-    const commissionRate = getCommission('box');
-    const commissionMontant = Math.round(pt * commissionRate * 100) / 100;
+  const onSubmitPress = () => {
+    const err = validate();
+    if (err) { setErrorAlert(err); return; }
+    setShowConfirm(true);
+  };
+
+  const doSubmit = async () => {
+    setShowConfirm(false);
+    if (!dateReservationDebut || !dateReservationFin) return;
     const sellerId = box.auteurId;
-
     setLoading(true);
     trackFunnel('payment', 'submit_reserve', { type: 'box', box_id: box.id });
     try {
@@ -90,17 +88,17 @@ export default function ReserverBoxScreen() {
         sellerId,
         titre,
         lieu: box.lieu,
-        nbNuits: nuits,
+        nbNuits: nuitesReservees,
         dateDebut: dateReservationDebut,
         dateFin: dateReservationFin,
         message: message.trim(),
-        prixTotalHT: pt,
+        prixTotalHT: sousTotal,
         commissionPlateform: commissionMontant,
-        prixTotalTTC: ptTTC,
+        prixTotalTTC: totalAPayer,
       });
 
       if (createErr || !created) {
-        showErr(createErr ?? 'Impossible de créer la réservation.');
+        setErrorAlert(createErr ?? 'Impossible de créer la réservation.');
         return;
       }
 
@@ -113,7 +111,7 @@ export default function ReserverBoxScreen() {
         message: `${profile?.prenom ?? ''} ${profile?.nom ?? ''} demande à réserver "${box.lieu}" du ${dateReservationDebut.toLocaleDateString('fr-FR')} au ${dateReservationFin.toLocaleDateString('fr-FR')}.`,
         status: 'pending',
         actionUrl: '/box-pending-demands',
-        donnees: { boxId: box.id, titre, prix: ptTTC, message: message.trim() },
+        donnees: { boxId: box.id, titre, prix: totalAPayer, message: message.trim() },
       });
 
       router.push({
@@ -121,8 +119,8 @@ export default function ReserverBoxScreen() {
         params: {
           reservationId: created.id,
           titre,
-          montant: ptTTC.toFixed(2),
-          nbNuits: String(nuits),
+          montant: totalAPayer.toFixed(2),
+          nbNuits: String(nuitesReservees),
           lieu: box.lieu,
           dateDebut: dateReservationDebut.toLocaleDateString('fr-FR'),
           dateFin: dateReservationFin.toLocaleDateString('fr-FR'),
@@ -130,11 +128,11 @@ export default function ReserverBoxScreen() {
         },
       } as any);
     } catch {
-      showErr('Erreur lors de la création de la réservation.');
+      setErrorAlert('Erreur lors de la création de la réservation.');
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
     <SafeAreaView style={s.root}>
@@ -152,8 +150,7 @@ export default function ReserverBoxScreen() {
           <View style={s.locationSection}>
             <Text style={s.locationText}>{box.lieu}</Text>
             <View style={s.priceBadge}>
-              <Text style={s.priceHT}>{box.prixNuitHT}€/nuit HT</Text>
-              <Text style={s.priceTTC}>{ttc}€ TTC</Text>
+              <Text style={s.priceHT}>{box.prixNuitHT}€/nuit</Text>
             </View>
           </View>
 
@@ -205,25 +202,25 @@ export default function ReserverBoxScreen() {
           />
         </View>
 
-        {/* Prix récap */}
+        {/* Prix récap (sans commission — affiché à la confirmation) */}
         <View style={s.prixCard}>
           <View style={s.prixRow}>
             <Text style={s.prixLabel}>Prix / nuit</Text>
-            <Text style={s.prixVal}>{box.prixNuitHT}€ HT</Text>
+            <Text style={s.prixVal}>{box.prixNuitHT}€</Text>
           </View>
           <View style={s.prixRow}>
             <Text style={s.prixLabel}>Nuits réservées</Text>
             <Text style={s.prixVal}>{nuitesReservees}</Text>
           </View>
           <View style={[s.prixRow, s.prixTotal]}>
-            <Text style={s.prixTotalLabel}>Total TTC</Text>
-            <Text style={s.prixTotalVal}>{prixTotalTTC}€</Text>
+            <Text style={s.prixTotalLabel}>Sous-total</Text>
+            <Text style={s.prixTotalVal}>{sousTotal}€</Text>
           </View>
         </View>
 
         <TouchableOpacity
           style={[s.submitBtn, loading && { opacity: 0.6 }]}
-          onPress={submit}
+          onPress={onSubmitPress}
           activeOpacity={0.85}
           disabled={loading}
         >
@@ -236,9 +233,53 @@ export default function ReserverBoxScreen() {
         <View style={{ height: 40 }} />
       </ScrollView>
 
+      <ConfirmModal
+        visible={showConfirm}
+        title="Confirmer la réservation"
+        body={
+          <View style={cs.body}>
+            <View style={cs.row}>
+              <Text style={cs.label}>{box.prixNuitHT}€ × {nuitesReservees} nuit{nuitesReservees > 1 ? 's' : ''}</Text>
+              <Text style={cs.value}>{sousTotal}€</Text>
+            </View>
+            <View style={cs.row}>
+              <Text style={cs.label}>Commission Equishow ({commissionPct}%)</Text>
+              <Text style={cs.value}>+ {commissionMontant}€</Text>
+            </View>
+            <View style={cs.divider} />
+            <View style={cs.row}>
+              <Text style={cs.totalLabel}>Total à payer</Text>
+              <Text style={cs.totalValue}>{totalAPayer}€</Text>
+            </View>
+          </View>
+        }
+        cancelLabel="Annuler"
+        confirmLabel="Confirmer et payer"
+        onCancel={() => setShowConfirm(false)}
+        onConfirm={doSubmit}
+      />
+
+      <AlertModal
+        visible={!!errorAlert}
+        title="Erreur"
+        message={errorAlert ?? ''}
+        variant="error"
+        onClose={() => setErrorAlert(null)}
+      />
+
     </SafeAreaView>
   );
 }
+
+const cs = StyleSheet.create({
+  body: { gap: Spacing.sm, marginTop: Spacing.xs },
+  row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  label: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  value: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  divider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.xs },
+  totalLabel: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  totalValue: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.primary },
+});
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
