@@ -11,7 +11,7 @@ import { DatePickerModal, DateButton, formatDate } from '../components/DatePicke
 import { mockConcours } from '../data/mockConcours';
 import { useMyBoxAnnonces } from '../hooks/useBoxes';
 import { BoxAnnonce } from '../types/service';
-import { prixTTC as calculatePrixTTC, prixHTFromTTC } from '../types/service';
+import { prixTTC as calculatePrixTTC } from '../types/service';
 
 // Alert.alert est silencieux sur RN Web → fallback window.alert + onOk inline.
 function notify(title: string, msg: string, onOk?: () => void) {
@@ -121,8 +121,9 @@ export default function ProposerBoxScreen() {
   const [dateDebut, setDateDebut] = useState<Date | undefined>(existing?.dateDebut);
   const [dateFin, setDateFin] = useState<Date | undefined>(existing?.dateFin);
   const [nbBoxes, setNbBoxes] = useState(existing ? String(existing.nbBoxes) : '');
-  // Saisie utilisateur en TTC ; conversion HT pour stockage (voir submit).
-  const [prix, setPrix] = useState(existing ? String(calculatePrixTTC(existing.prixNuitHT, 'box')) : '');
+  // Saisie = ce que le proposeur veut RECEVOIR par nuit (= prixNuitHT stocké).
+  // L'app ajoute commission + TVA pour calculer le TTC payé par le locataire.
+  const [prix, setPrix] = useState(existing ? String(existing.prixNuitHT) : '');
   const [concours, setConcours] = useState(existing?.concours ?? '');
   const [equipements, setEquipements] = useState<string[]>([]);
   const [description, setDescription] = useState(existing?.description ?? '');
@@ -143,8 +144,8 @@ export default function ProposerBoxScreen() {
     setEquipements((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]);
   }
 
-  const prixTTCNum = parseFloat(prix);
-  const prixHTNum = prixTTCNum ? prixHTFromTTC(prixTTCNum, 'box') : null;
+  const prixRecu = parseFloat(prix);
+  const prixLocataireTTC = prixRecu ? calculatePrixTTC(prixRecu, 'box') : null;
 
   // Calculer les jours disponibles automatiquement
   const joursDisponibles = dateDebut && dateFin
@@ -156,8 +157,8 @@ export default function ProposerBoxScreen() {
       notify('Champs manquants', 'Veuillez remplir : lieu, dates et prix.');
       return;
     }
-    if (!prixHTNum || prixHTNum <= 0) {
-      notify('Prix invalide', 'Le prix TTC doit être supérieur à 0.');
+    if (!prixRecu || prixRecu <= 0) {
+      notify('Prix invalide', 'Le prix doit être supérieur à 0.');
       return;
     }
     const nb = joursDisponibles;
@@ -172,7 +173,7 @@ export default function ProposerBoxScreen() {
       dateFin,
       nbBoxes: nb,
       nbBoxesDisponibles: nb,
-      prixNuitHT: prixHTNum,
+      prixNuitHT: prixRecu,
       concours: concours || undefined,
       description: descFull || undefined,
     };
@@ -208,7 +209,7 @@ export default function ProposerBoxScreen() {
         <View style={s.infoCard}>
           <Text style={s.infoIcon}>💡</Text>
           <Text style={s.infoText}>
-            Prix recommandé : <Text style={s.infoHighlight}>55 à 100€ / nuit TTC</Text>. Réservation possible à la journée ou sur plusieurs jours. Commission plateforme : 9% (incluse dans le TTC).
+            Indiquez ce que vous voulez <Text style={s.infoHighlight}>recevoir</Text> par box et par nuit (ex. 45 à 80€). La commission Equishow (9%) et la TVA sont ajoutées par-dessus, payées par le locataire.
           </Text>
         </View>
 
@@ -263,19 +264,19 @@ export default function ProposerBoxScreen() {
         )}
 
         <Field
-          label="Prix par box / nuit (€ TTC) *"
-          hint={prixHTNum ? `→ Vous recevrez ${prixHTNum}€ HT par nuit (commission 9% + TVA 20% incluses dans votre prix TTC)` : 'Recommandé : 55–100€ TTC'}
+          label="Ce que vous voulez recevoir par box / nuit *"
+          hint={prixLocataireTTC ? `→ Le locataire paiera ${prixLocataireTTC}€ TTC par box / nuit (commission 9% + TVA 20% en plus)` : 'Recommandé : 45–80€'}
         >
           <View style={f.priceRow}>
             <TextInput
               style={[f.input, { flex: 1 }, !!prix && f.inputFilled]}
               value={prix}
               onChangeText={setPrix}
-              placeholder="70"
+              placeholder="50"
               placeholderTextColor={Colors.textTertiary}
               keyboardType="numeric"
             />
-            <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / nuit TTC</Text></View>
+            <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / nuit reçus</Text></View>
           </View>
         </Field>
 
