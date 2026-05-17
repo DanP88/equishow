@@ -53,3 +53,16 @@ export function getPlanLimits(plan: string | undefined | null): PlanLimits {
   // Tout ce qui n'est pas gratuit / premium → palier intermédiaire (Cavalier+)
   return PLUS;
 }
+
+// Coach : on considère "mis en avant" tout coach abonné à un plan payant
+// non-mensuel (annuel ou supérieur). Le plan mensuel n'est PAS mis en avant.
+export function isFeaturedCoach(planId: string | undefined | null, plan: string | undefined | null): boolean {
+  const id = (planId ?? '').toLowerCase();
+  if (id === 'coach-annuel' || id === 'coach-premium') return true;
+  // Fallback sur le nom textuel (compat anciens enregistrements)
+  const name = (plan ?? '').toLowerCase();
+  if (name.includes('annuel') || name.includes('premium') || name.includes('vérifié') || name.includes('verifie')) {
+    return true;
+  }
+  return false;
+}

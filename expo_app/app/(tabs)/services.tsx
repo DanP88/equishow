@@ -93,6 +93,13 @@ function applyCoachFilters(list: CoachProfil[], f: FiltersCoach) {
   if (f.sort === 'note_desc') out.sort((a, b) => b.note - a.note);
   if (f.sort === 'prix_asc') out.sort((a, b) => a.tarifHeure - b.tarifHeure);
   if (f.sort === 'prix_desc') out.sort((a, b) => b.tarifHeure - a.tarifHeure);
+  // Coachs mis en avant (plan annuel) toujours en tête, sans perturber
+  // l'ordre relatif des autres (sort stable).
+  out.sort((a, b) => {
+    if (a.featured && !b.featured) return -1;
+    if (!a.featured && b.featured) return 1;
+    return 0;
+  });
   return out;
 }
 
@@ -1038,7 +1045,12 @@ function CoachCard({ item, onModify }: { item: CoachProfil; onModify?: () => voi
   };
 
   return (
-    <View style={s.card}>
+    <View style={[s.card, item.featured && s.cardFeatured]}>
+      {item.featured && (
+        <View style={s.featuredBadge}>
+          <Text style={s.featuredBadgeText}>⭐ Mis en avant</Text>
+        </View>
+      )}
       {/* Clickable Header Section */}
       <TouchableOpacity
         style={[s.coachHeader, { paddingVertical: 12, paddingHorizontal: 12, marginHorizontal: -12, marginTop: -12, marginBottom: 0 }]}
@@ -1331,6 +1343,9 @@ const s = StyleSheet.create({
   ctaText: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.xs },
   ownerBadge: { alignSelf: 'flex-start', backgroundColor: Colors.primaryLight, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: Colors.primaryBorder, marginBottom: Spacing.xs },
   ownerBadgeText: { fontSize: 10, color: Colors.primary, fontWeight: FontWeight.bold },
+  cardFeatured: { borderColor: Colors.gold, borderWidth: 2, backgroundColor: Colors.goldBg },
+  featuredBadge: { alignSelf: 'flex-start', backgroundColor: Colors.gold, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3, marginBottom: Spacing.sm },
+  featuredBadgeText: { fontSize: 11, color: Colors.textInverse, fontWeight: FontWeight.bold, letterSpacing: 0.3 },
   ownerModifyBtn: { borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 2, paddingVertical: Spacing.xs + 2, alignItems: 'center', justifyContent: 'center' },
   ownerModifyText: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold },
   ownerCancelBtn: { borderWidth: 1, borderColor: Colors.urgent, borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 2, paddingVertical: Spacing.xs + 2, alignItems: 'center', justifyContent: 'center' },

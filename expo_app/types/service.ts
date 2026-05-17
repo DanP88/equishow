@@ -150,6 +150,7 @@ export interface CoachProfil {
   note: number;
   disponible: boolean;
   specialites: string[];
+  featured: boolean;
 }
 
 export interface Disponibilite {

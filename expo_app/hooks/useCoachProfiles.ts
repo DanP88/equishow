@@ -14,6 +14,7 @@ import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { CoachProfil } from '../types/service';
+import { isFeaturedCoach } from '../lib/planLimits';
 
 interface CoachProfileRow {
   user_id: string;
@@ -35,6 +36,8 @@ interface UserRow {
   nom: string;
   pseudo: string | null;
   avatar_color: string | null;
+  plan: string | null;
+  plan_id: string | null;
 }
 
 function rowToProfile(coach: CoachProfileRow, user?: UserRow | null): CoachProfil {
@@ -58,6 +61,7 @@ function rowToProfile(coach: CoachProfileRow, user?: UserRow | null): CoachProfi
     note: 0,
     disponible: coach.disponible,
     specialites: coach.specialites ?? [],
+    featured: isFeaturedCoach(user?.plan_id ?? null, user?.plan ?? null),
   };
 }
 
@@ -102,7 +106,7 @@ export function useCoachProfiles() {
     setIsLoading(true);
     const { data, error } = await supabase
       .from('coach_profiles')
-      .select('*, user:users!coach_profiles_user_id_fkey(id,prenom,nom,pseudo,avatar_color)');
+      .select('*, user:users!coach_profiles_user_id_fkey(id,prenom,nom,pseudo,avatar_color,plan,plan_id)');
     if (!error && data) {
       const rows = data as (CoachProfileRow & { user: UserRow | null })[];
       setList(rows.map((r) => rowToProfile(r, r.user)));
@@ -136,7 +140,7 @@ export function useCoachProfile(userId?: string) {
     setIsLoading(true);
     const { data, error } = await supabase
       .from('coach_profiles')
-      .select('*, user:users!coach_profiles_user_id_fkey(id,prenom,nom,pseudo,avatar_color)')
+      .select('*, user:users!coach_profiles_user_id_fkey(id,prenom,nom,pseudo,avatar_color,plan,plan_id)')
       .eq('user_id', userId)
       .maybeSingle();
     if (!error && data) {
