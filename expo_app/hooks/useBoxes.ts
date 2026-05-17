@@ -157,7 +157,9 @@ export function useMyBoxAnnonces() {
         .select('*')
         .single();
       if (insErr || !data) return { data: null, error: insErr?.message ?? 'Erreur création' };
-      return { data: rowToAnnonce(data as BoxAnnonceRow), error: null };
+      const created = rowToAnnonce(data as BoxAnnonceRow);
+      setList((curr) => (curr.some((b) => b.id === created.id) ? curr : [created, ...curr]));
+      return { data: created, error: null };
     },
     [profile?.id],
   );
@@ -172,14 +174,19 @@ export function useMyBoxAnnonces() {
         .select('*')
         .single();
       if (upErr || !data) return { data: null, error: upErr?.message ?? 'Erreur mise à jour' };
-      return { data: rowToAnnonce(data as BoxAnnonceRow), error: null };
+      const updated = rowToAnnonce(data as BoxAnnonceRow);
+      setList((curr) => curr.map((b) => (b.id === updated.id ? updated : b)));
+      return { data: updated, error: null };
     },
     [],
   );
 
   const deleteAnnonce = useCallback(async (id: string): Promise<{ error: string | null }> => {
+    let snapshot: BoxAnnonce[] = [];
+    setList((curr) => { snapshot = curr; return curr.filter((b) => b.id !== id); });
     const { error: dErr } = await supabase.from('box_annonces').delete().eq('id', id);
-    return { error: dErr?.message ?? null };
+    if (dErr) { setList(snapshot); return { error: dErr.message }; }
+    return { error: null };
   }, []);
 
   return {

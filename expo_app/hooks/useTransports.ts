@@ -224,7 +224,9 @@ export function useMyTransportAnnonces() {
         .select('*')
         .single();
       if (insErr || !data) return { data: null, error: insErr?.message ?? 'Erreur création' };
-      return { data: rowToAnnonce(data as TransportAnnonceRow), error: null };
+      const created = rowToAnnonce(data as TransportAnnonceRow);
+      setList((curr) => (curr.some((t) => t.id === created.id) ? curr : [created, ...curr]));
+      return { data: created, error: null };
     },
     [profile?.id],
   );
@@ -239,14 +241,19 @@ export function useMyTransportAnnonces() {
         .select('*')
         .single();
       if (upErr || !data) return { data: null, error: upErr?.message ?? 'Erreur mise à jour' };
-      return { data: rowToAnnonce(data as TransportAnnonceRow), error: null };
+      const updated = rowToAnnonce(data as TransportAnnonceRow);
+      setList((curr) => curr.map((t) => (t.id === updated.id ? updated : t)));
+      return { data: updated, error: null };
     },
     [],
   );
 
   const deleteAnnonce = useCallback(async (id: string): Promise<{ error: string | null }> => {
+    let snapshot: TransportAnnonce[] = [];
+    setList((curr) => { snapshot = curr; return curr.filter((t) => t.id !== id); });
     const { error: dErr } = await supabase.from('transport_annonces').delete().eq('id', id);
-    return { error: dErr?.message ?? null };
+    if (dErr) { setList(snapshot); return { error: dErr.message }; }
+    return { error: null };
   }, []);
 
   return {

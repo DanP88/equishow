@@ -1,27 +1,18 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal,
+  TextInput, Modal,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { ADRESSES_POPULAIRES } from '../data/mockAdresses';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
+import { AlertModal } from '../components/AlertModal';
 import { mockConcours } from '../data/mockConcours';
 import { useMyBoxAnnonces } from '../hooks/useBoxes';
 import { BoxAnnonce } from '../types/service';
 import { prixTTC as calculatePrixTTC } from '../types/service';
-
-// Alert.alert est silencieux sur RN Web → fallback window.alert + onOk inline.
-function notify(title: string, msg: string, onOk?: () => void) {
-  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
-    window.alert(`${title}\n\n${msg}`);
-    onOk?.();
-  } else {
-    Alert.alert(title, msg, onOk ? [{ text: 'OK', onPress: onOk }] : undefined);
-  }
-}
 
 const CONCOURS_OPTIONS = mockConcours
   .filter(c => c.statut !== 'brouillon')
@@ -130,6 +121,12 @@ export default function ProposerBoxScreen() {
   const [litiere, setLitiere] = useState('');
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
+  const [alertState, setAlertState] = useState<{
+    title: string;
+    message?: string;
+    variant: 'info' | 'success' | 'error';
+    onClose: () => void;
+  } | null>(null);
 
   const lieuSuggestions = lieu
     ? ADRESSES_POPULAIRES.filter((v) => v.toLowerCase().includes(lieu.toLowerCase())).slice(0, 5)
@@ -152,13 +149,25 @@ export default function ProposerBoxScreen() {
     ? Math.max(1, Math.round((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
 
+  function showErr(title: string, message: string) {
+    setAlertState({ title, message, variant: 'error', onClose: () => setAlertState(null) });
+  }
+  function showSuccess(title: string, message: string, after?: () => void) {
+    setAlertState({
+      title,
+      message,
+      variant: 'success',
+      onClose: () => { setAlertState(null); after?.(); },
+    });
+  }
+
   async function submit() {
     if (!lieu || !dateDebut || !dateFin || !prix) {
-      notify('Champs manquants', 'Veuillez remplir : lieu, dates et prix.');
+      showErr('Champs manquants', 'Veuillez remplir : lieu, dates et prix.');
       return;
     }
     if (!prixRecu || prixRecu <= 0) {
-      notify('Prix invalide', 'Le prix doit être supérieur à 0.');
+      showErr('Prix invalide', 'Le prix doit être supérieur à 0.');
       return;
     }
     const nb = joursDisponibles;
@@ -182,12 +191,12 @@ export default function ProposerBoxScreen() {
 
     if (editId && existing) {
       const { error } = await updateAnnonce(editId, payload);
-      if (error) { notify('Erreur', error); return; }
-      notify('Annonce modifiée ✅', `Votre annonce de boxes à "${lieu}" a été mise à jour.`, goBack);
+      if (error) { showErr('Erreur', error); return; }
+      showSuccess('Annonce modifiée', `Votre annonce de boxes à "${lieu}" a été mise à jour.`, goBack);
     } else {
       const { error } = await createAnnonce(payload);
-      if (error) { notify('Erreur', error); return; }
-      notify(
+      if (error) { showErr('Erreur', error); return; }
+      showSuccess(
         'Annonce publiée 🏠',
         `Votre annonce de boxes à "${lieu}" (${joursDisponibles} jour${joursDisponibles > 1 ? 's' : ''}) est maintenant visible dans la liste.`,
         goBack,
@@ -342,6 +351,14 @@ export default function ProposerBoxScreen() {
 
       <DatePickerModal visible={showDateDebut} value={dateDebut} onConfirm={setDateDebut} onClose={() => setShowDateDebut(false)} title="Date de début" />
       <DatePickerModal visible={showDateFin} value={dateFin} onConfirm={setDateFin} onClose={() => setShowDateFin(false)} title="Date de fin" />
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={alertState?.onClose ?? (() => setAlertState(null))}
+      />
     </SafeAreaView>
   );
 }
