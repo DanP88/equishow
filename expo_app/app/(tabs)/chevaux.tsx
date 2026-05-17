@@ -41,7 +41,6 @@ export default function ChevauxScreen() {
     // Lit `profile.plan` (DB, source de vérité) avec fallback userStore.
     const planSource = (profile as any)?.plan ?? userStore.plan;
     const limits = getPlanLimits(planSource);
-    console.log('[chevaux] plan check:', { planSource, max: limits.maxChevaux, current: chevaux.length });
     if (chevaux.length >= limits.maxChevaux) {
       setUpgradeAlert({
         title: 'Limite atteinte',

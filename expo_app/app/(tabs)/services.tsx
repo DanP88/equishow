@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Modal, TextInput, Alert,
@@ -126,12 +126,18 @@ export default function ServicesScreen() {
   const [upgradeAlert, setUpgradeAlert] = useState<{ title: string; message: string } | null>(null);
 
   // Gating plan : Découverte (gratuit) bloque Transport et Box.
-  // Lit `profile.plan` (DB, source de vérité) avec fallback userStore.
-  const planSource = (userStore as any).plan;
-  const planLimits = getPlanLimits(planSource);
+  const planLimits = getPlanLimits((userStore as any).plan);
   const transportLocked = !planLimits.canAccessTransport;
   const boxLocked = !planLimits.canAccessBox;
-  console.log('[services] plan check:', { planSource, label: planLimits.label, transportLocked, boxLocked });
+
+  // Si l'onglet courant est verrouillé (cas du landing par défaut ou deep link
+  // ?tab=transport/box pour un cavalier Découverte) → forcer la bascule sur
+  // Coachs (la seule destination accessible).
+  useEffect(() => {
+    if ((tab === 'transport' && transportLocked) || (tab === 'box' && boxLocked)) {
+      setTab('coach');
+    }
+  }, [tab, transportLocked, boxLocked]);
 
   function handleTabPress(target: Tab) {
     if (target === 'transport' && transportLocked) {
