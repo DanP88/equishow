@@ -157,15 +157,48 @@ export default function ProposerBoxScreen() {
     });
   }
 
+  function validateForm(): { title: string; message: string } | null {
+    if (!lieu || !lieu.trim()) {
+      return { title: 'Lieu manquant', message: 'Indiquez le lieu où se trouvent les boxes.' };
+    }
+    if (!dateDebut) {
+      return { title: 'Date de début manquante', message: 'Sélectionnez la date à partir de laquelle les boxes sont disponibles.' };
+    }
+    if (!dateFin) {
+      return { title: 'Date de fin manquante', message: 'Sélectionnez la date jusqu\'à laquelle les boxes sont disponibles.' };
+    }
+    if (dateFin.getTime() <= dateDebut.getTime()) {
+      return {
+        title: 'Dates incohérentes',
+        message: `La date de fin (${dateFin.toLocaleDateString('fr-FR')}) doit être postérieure à la date de début (${dateDebut.toLocaleDateString('fr-FR')}).`,
+      };
+    }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (dateDebut.getTime() < today.getTime()) {
+      return {
+        title: 'Date de début dans le passé',
+        message: `La date de début (${dateDebut.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`,
+      };
+    }
+    if (!prix || !prix.trim()) {
+      return { title: 'Prix manquant', message: 'Indiquez le prix par box et par nuit.' };
+    }
+    if (Number.isNaN(prixRecu)) {
+      return { title: 'Prix invalide', message: 'Le prix saisi n\'est pas un nombre valide.' };
+    }
+    if (prixRecu <= 0) {
+      return { title: 'Prix invalide', message: 'Le prix doit être supérieur à 0€.' };
+    }
+    return null;
+  }
+
   async function submit() {
-    if (!lieu || !dateDebut || !dateFin || !prix) {
-      showErr('Champs manquants', 'Veuillez remplir : lieu, dates et prix.');
+    const err = validateForm();
+    if (err) {
+      showErr(err.title, err.message);
       return;
     }
-    if (!prixRecu || prixRecu <= 0) {
-      showErr('Prix invalide', 'Le prix doit être supérieur à 0.');
-      return;
-    }
+    if (!dateDebut || !dateFin) return;
     const nb = joursDisponibles;
     const descFull = [
       equipements.length > 0 ? `Équipements : ${equipements.join(', ')}` : '',
