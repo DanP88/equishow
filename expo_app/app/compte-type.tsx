@@ -167,6 +167,7 @@ export default function CompteTypeScreen() {
           role: remoteProfile.role,
           region: (remoteProfile as any).region ?? null,
           disciplines: (remoteProfile as any).disciplines ?? [],
+          plan: (remoteProfile as any).plan ?? null,
         });
       } else {
         userStore.role = selected;

@@ -17,6 +17,7 @@ function syncUserStore(profile: User | null) {
     role: ((profile as any).role ?? 'cavalier') as 'cavalier' | 'coach' | 'organisateur' | 'admin',
     region: (profile as any).region ?? null,
     disciplines: (profile as any).disciplines ?? null,
+    plan: (profile as any).plan ?? null,
   });
 }
 

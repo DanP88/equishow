@@ -9,6 +9,7 @@ import { getPlanById } from '../data/tarification';
 import { useAuth } from '../hooks/useAuth';
 import { AlertModal } from '../components/AlertModal';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { supabase } from '../lib/supabase';
 
 const ROLE_LABELS: Record<string, string> = {
   cavalier: 'Cavalier',
@@ -23,7 +24,7 @@ const PERIODE_LABEL: Record<string, string> = {
 };
 
 export default function CheckoutScreen() {
-  const { profile } = useAuth();
+  const { profile, refetchProfile } = useAuth();
   const { planId, role } = useLocalSearchParams<{ planId: string; role: string }>();
   const plan = getPlanById(planId ?? '');
   const [submitting, setSubmitting] = useState(false);
@@ -34,6 +35,21 @@ export default function CheckoutScreen() {
     variant: 'info' | 'error';
     onClose?: () => void;
   } | null>(null);
+
+  // Applique le plan en DB + resync userStore via refetchProfile.
+  // En l'absence d'intégration Stripe Subscription, on update directement la
+  // ligne users.plan / users.plan_id pour que le gating UI bascule immédiatement.
+  async function applyPlanInDb(planNom: string, planIdValue: string): Promise<string | null> {
+    if (!profile?.id) return 'Session expirée, reconnectez-vous.';
+    const { error } = await supabase
+      .from('users')
+      .update({ plan: planNom, plan_id: planIdValue })
+      .eq('id', profile.id);
+    if (error) return error.message;
+    // Resync local pour que le gating UI prenne le nouveau plan.
+    await refetchProfile();
+    return null;
+  }
 
   if (!plan) {
     return (
@@ -74,10 +90,18 @@ export default function CheckoutScreen() {
   }
 
   async function activateFree() {
+    if (!plan) return;
     setSubmitting(true);
-    // Plan gratuit : activation immédiate (à terme : update users.plan_id en DB).
-    await new Promise((r) => setTimeout(r, 250));
+    const err = await applyPlanInDb(plan.nom, plan.id);
     setSubmitting(false);
+    if (err) {
+      setAlertState({
+        title: 'Activation impossible',
+        message: err,
+        variant: 'error',
+      });
+      return;
+    }
     setAlertState({
       title: 'Bienvenue dans Découverte 🎉',
       message: 'Votre plan gratuit est activé. Vous pouvez commencer à utiliser Equishow dès maintenant.',
@@ -90,15 +114,24 @@ export default function CheckoutScreen() {
   }
 
   async function confirmPaidCheckout() {
+    if (!plan) return;
     setShowConfirm(false);
     setSubmitting(true);
-    // TODO : créer une Stripe Subscription Checkout Session via Edge function.
-    // En attendant, on prévient l'utilisateur de l'état beta.
-    await new Promise((r) => setTimeout(r, 400));
+    // TODO Stripe Subscription Checkout Session via Edge function (en attente).
+    // Pour le moment (test/dev) : application directe du plan en DB.
+    const err = await applyPlanInDb(plan.nom, plan.id);
     setSubmitting(false);
+    if (err) {
+      setAlertState({
+        title: 'Activation impossible',
+        message: err,
+        variant: 'error',
+      });
+      return;
+    }
     setAlertState({
-      title: 'Bientôt disponible',
-      message: 'Le paiement Stripe pour les abonnements sera activé au lancement officiel. Tu as été marqué dans la liste d\'attente prioritaire.',
+      title: `Abonnement ${plan.nom} activé 🎉`,
+      message: `Votre plan ${plan.nom} est actif. Le paiement Stripe réel sera branché au lancement officiel — en attendant, vous accédez à toutes les fonctionnalités du plan.`,
       variant: 'info',
       onClose: () => {
         setAlertState(null);

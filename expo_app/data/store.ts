@@ -40,6 +40,7 @@ export interface UserStore {
     role: 'cavalier' | 'coach' | 'organisateur' | 'admin';
     region?: string | null;
     disciplines?: string[] | null;
+    plan?: string | null;
   }): void;
 }
 
@@ -109,11 +110,13 @@ const createUserStore = (): UserStore => {
       this.id = remote.id;
       this.prenom = remote.prenom;
       this.nom = remote.nom;
-      this.pseudo = `${remote.prenom}${remote.nom.charAt(0)}`;
+      this.pseudo = `${remote.prenom}${(remote.nom ?? '').charAt(0)}`;
       this.email = remote.email;
       this.role = remote.role;
       this.region = remote.region || 'Non défini';
       this.disciplines = remote.disciplines || [];
+      // plan : source de vérité = DB ; fallback 'Gratuit' si absent (sécurité).
+      this.plan = remote.plan || 'Gratuit';
       this.avatarColor = getAvatarColorForRole(remote.role);
       roleChangeListeners.forEach(callback => callback());
     }
