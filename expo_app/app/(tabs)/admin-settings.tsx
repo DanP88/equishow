@@ -10,8 +10,9 @@ import { savePlatformCommissions } from '../../hooks/usePlatformSettings';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthGuard } from '../../components/AuthGuard';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal } from '../../components/AlertModal';
 import { router } from 'expo-router';
-import { Platform } from 'react-native';
 
 const SERVICE_LABELS: Record<ServiceType, string> = {
   trajet: 'Trajets',
@@ -47,29 +48,24 @@ function AdminSettingsContent() {
   const { profile, isLoading, logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
 
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
+
   async function doLogout() {
     if (loggingOut) return;
+    setShowLogoutConfirm(false);
     setLoggingOut(true);
     const { error } = await logout();
     if (error) {
       setLoggingOut(false);
-      const msg = typeof error === 'string' ? error : 'Impossible de se déconnecter.';
-      if (typeof window !== 'undefined') window.alert(msg);
-      else Alert.alert('Erreur', msg);
+      setLogoutError(typeof error === 'string' ? error : 'Impossible de se déconnecter.');
       return;
     }
     router.replace('/(auth)/login');
   }
 
   function handleLogout() {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm('Se déconnecter ?')) doLogout();
-      return;
-    }
-    Alert.alert('Se déconnecter ?', 'Vous reviendrez à l\'écran de connexion.', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Se déconnecter', style: 'destructive', onPress: doLogout },
-    ]);
+    setShowLogoutConfirm(true);
   }
   const commissions = useCommissions();
   const [commissionInputs, setCommissionInputs] = useState<CommissionInput>({
@@ -251,6 +247,25 @@ function AdminSettingsContent() {
       >
         <Text style={styles.logoutText}>{loggingOut ? 'Déconnexion…' : '🚪 Se déconnecter'}</Text>
       </TouchableOpacity>
+
+      <ConfirmModal
+        visible={showLogoutConfirm}
+        title="Se déconnecter ?"
+        message="Vous reviendrez à l'écran de connexion."
+        cancelLabel="Annuler"
+        confirmLabel="Se déconnecter"
+        destructive
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={doLogout}
+      />
+
+      <AlertModal
+        visible={!!logoutError}
+        title="Erreur"
+        message={logoutError ?? ''}
+        variant="error"
+        onClose={() => setLogoutError(null)}
+      />
     </ScrollView>
   );
 }

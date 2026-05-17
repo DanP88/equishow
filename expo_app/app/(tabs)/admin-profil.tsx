@@ -1,10 +1,12 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { userStore } from '../../data/store';
 import { useAuth } from '../../hooks/useAuth';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal } from '../../components/AlertModal';
 
 const ACCOUNTS = [
   { role: 'cavalier', label: 'Cavalier', emoji: '🐴' },
@@ -31,18 +33,17 @@ export default function AdminProfilScreen() {
     }
   };
 
-  function showErr(msg: string) {
-    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
-    else Alert.alert('Erreur', msg);
-  }
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [logoutError, setLogoutError] = useState<string | null>(null);
 
   async function doLogout() {
     if (loggingOut) return;
+    setShowLogoutConfirm(false);
     setLoggingOut(true);
     const { error } = await logout();
     if (error) {
       console.error('[admin-profil] logout failed:', error);
-      showErr(typeof error === 'string' ? error : 'Impossible de se déconnecter.');
+      setLogoutError(typeof error === 'string' ? error : 'Impossible de se déconnecter.');
       setLoggingOut(false);
       return;
     }
@@ -50,14 +51,7 @@ export default function AdminProfilScreen() {
   }
 
   function handleLogout() {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm('Se déconnecter ?')) doLogout();
-      return;
-    }
-    Alert.alert('Se déconnecter ?', 'Vous reviendrez à l\'écran de connexion.', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Se déconnecter', style: 'destructive', onPress: doLogout },
-    ]);
+    setShowLogoutConfirm(true);
   }
 
   return (
@@ -130,6 +124,25 @@ export default function AdminProfilScreen() {
           <Text style={s.logoutText}>{loggingOut ? 'Déconnexion…' : '🚪 Se déconnecter'}</Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <ConfirmModal
+        visible={showLogoutConfirm}
+        title="Se déconnecter ?"
+        message="Vous reviendrez à l'écran de connexion."
+        cancelLabel="Annuler"
+        confirmLabel="Se déconnecter"
+        destructive
+        onCancel={() => setShowLogoutConfirm(false)}
+        onConfirm={doLogout}
+      />
+
+      <AlertModal
+        visible={!!logoutError}
+        title="Erreur"
+        message={logoutError ?? ''}
+        variant="error"
+        onClose={() => setLogoutError(null)}
+      />
     </SafeAreaView>
   );
 }

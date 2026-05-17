@@ -1,35 +1,31 @@
+import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Alert, Platform, ActivityIndicator,
+  ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { useMyStages } from '../../hooks/useStages';
 import { CoachStage } from '../../types/service';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal } from '../../components/AlertModal';
 
 export default function CoachStagesScreen() {
   const { stages: myStages, isLoading, deleteStage } = useMyStages();
+  const [pendingDelete, setPendingDelete] = useState<string | null>(null);
+  const [errorAlert, setErrorAlert] = useState<string | null>(null);
 
-  function showErr(msg: string) {
-    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
-    else Alert.alert('Erreur', msg);
-  }
-
-  async function doDelete(id: string) {
+  async function confirmDelete() {
+    if (!pendingDelete) return;
+    const id = pendingDelete;
+    setPendingDelete(null);
     const { error } = await deleteStage(id);
-    if (error) showErr(error);
+    if (error) setErrorAlert(error);
   }
 
   function handleCancelStage(id: string) {
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm('Retirer ce stage ?\nCette action est irréversible.')) doDelete(id);
-      return;
-    }
-    Alert.alert('Retirer le stage', 'Êtes-vous sûr(e) de vouloir retirer ce stage ?', [
-      { text: 'Annuler', style: 'cancel' },
-      { text: 'Retirer', style: 'destructive', onPress: () => doDelete(id) },
-    ]);
+    setPendingDelete(id);
   }
 
   return (
@@ -71,6 +67,25 @@ export default function CoachStagesScreen() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <ConfirmModal
+        visible={!!pendingDelete}
+        title="Retirer ce stage ?"
+        message="Cette action est irréversible. Le stage ne sera plus visible et toutes les réservations associées seront affectées."
+        cancelLabel="Annuler"
+        confirmLabel="Retirer"
+        destructive
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDelete}
+      />
+
+      <AlertModal
+        visible={!!errorAlert}
+        title="Erreur"
+        message={errorAlert ?? ''}
+        variant="error"
+        onClose={() => setErrorAlert(null)}
+      />
     </SafeAreaView>
   );
 }

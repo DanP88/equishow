@@ -13,6 +13,8 @@ import { pickImageFromLibrary, uploadChevalPhoto, deleteChevalPhoto } from '../.
 import { Cheval, TypeChevalLabel, getChevalAge } from '../../types/cheval';
 import { DatePickerModal, DateButton, formatDate } from '../../components/DatePickerModal';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal } from '../../components/AlertModal';
 
 // List of available coachs
 const AVAILABLE_COACHS = [
@@ -544,6 +546,8 @@ export default function ChevalDetailScreen() {
   const { cheval, isLoading, update, remove } = useCheval(id);
   const [showEdit, setShowEdit] = useState(isNew === 'true');
   const [editSection, setEditSection] = useState<EditSection>('identite');
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [errorAlert, setErrorAlert] = useState<string | null>(null);
 
   function handleBack() {
     if (router.canGoBack()) router.back();
@@ -590,11 +594,11 @@ export default function ChevalDetailScreen() {
   }
 
   function showErr(msg: string) {
-    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
-    else Alert.alert('Erreur', msg);
+    setErrorAlert(msg);
   }
 
   async function doRemove() {
+    setShowDeleteConfirm(false);
     const { error } = await remove();
     if (error) {
       console.error('[cheval] remove failed:', error);
@@ -606,21 +610,7 @@ export default function ChevalDetailScreen() {
 
   function handleDelete() {
     if (!cheval) return;
-    // Alert.alert avec choix silencieux sur RN Web → window.confirm.
-    if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm(`Supprimer ${cheval.nom} ?\nCette action est irréversible. Toutes les données de ce cheval seront perdues.`)) {
-        doRemove();
-      }
-      return;
-    }
-    Alert.alert(
-      `Supprimer ${cheval.nom} ?`,
-      'Cette action est irréversible. Toutes les données de ce cheval seront perdues.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: doRemove },
-      ],
-    );
+    setShowDeleteConfirm(true);
   }
 
   const hasPhoto = !!cheval.photoColor;
@@ -811,6 +801,25 @@ export default function ChevalDetailScreen() {
           onRemovePhoto={handleRemovePhoto}
         />
       </Modal>
+
+      <ConfirmModal
+        visible={showDeleteConfirm}
+        title={cheval ? `Supprimer ${cheval.nom} ?` : ''}
+        message="Cette action est irréversible. Toutes les données de ce cheval seront perdues."
+        cancelLabel="Annuler"
+        confirmLabel="Supprimer"
+        destructive
+        onCancel={() => setShowDeleteConfirm(false)}
+        onConfirm={doRemove}
+      />
+
+      <AlertModal
+        visible={!!errorAlert}
+        title="Erreur"
+        message={errorAlert ?? ''}
+        variant="error"
+        onClose={() => setErrorAlert(null)}
+      />
     </SafeAreaView>
   );
 }

@@ -128,6 +128,15 @@ interface StageResult {
   error: string | null;
 }
 
+// ── Pubsub local : propage mutations entre hooks siblings (sans realtime) ─
+type StageMutation =
+  | { kind: 'delete'; id: string }
+  | { kind: 'upsert'; stage: CoachStage };
+const stageMutationListeners = new Set<(m: StageMutation) => void>();
+function emitStageMutation(m: StageMutation) {
+  for (const l of stageMutationListeners) l(m);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // useStages — tous les stages dispo (marketplace cavalier)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -155,6 +164,21 @@ export function useStages() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [load, channelId]);
+
+  useEffect(() => {
+    const handler = (m: StageMutation) => {
+      if (m.kind === 'delete') setList((curr) => curr.filter((s) => s.id !== m.id));
+      else if (m.kind === 'upsert') setList((curr) => {
+        const idx = curr.findIndex((s) => s.id === m.stage.id);
+        if (idx === -1) return [m.stage, ...curr];
+        const next = curr.slice();
+        next[idx] = m.stage;
+        return next;
+      });
+    };
+    stageMutationListeners.add(handler);
+    return () => { stageMutationListeners.delete(handler); };
+  }, []);
 
   return { stages: list, isLoading, reload: load };
 }
@@ -250,6 +274,7 @@ export function useMyStages() {
     if (error || !data) return { data: null, error: error?.message ?? 'Erreur création' };
     const created = rowToStage(data as StageRow);
     setList((curr) => (curr.some((s) => s.id === created.id) ? curr : [created, ...curr]));
+    emitStageMutation({ kind: 'upsert', stage: created });
     return { data: created, error: null };
   }, [profile?.id, (profile as any)?.prenom, (profile as any)?.nom]);
 
@@ -258,6 +283,7 @@ export function useMyStages() {
     setList((curr) => { snapshot = curr; return curr.filter((s) => s.id !== id); });
     const { error } = await supabase.from('stages').delete().eq('id', id);
     if (error) { setList(snapshot); return { error: error.message }; }
+    emitStageMutation({ kind: 'delete', id });
     return { error: null };
   }, []);
 

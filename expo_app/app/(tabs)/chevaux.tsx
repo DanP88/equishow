@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, Image,
-  StyleSheet, SafeAreaView, Alert, ActivityIndicator, Platform,
+  StyleSheet, SafeAreaView, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -11,6 +11,8 @@ import { useMyChevaux } from '../../hooks/useChevaux';
 import { useAuth } from '../../hooks/useAuth';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { trackCta } from '../../lib/analytics';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal } from '../../components/AlertModal';
 
 export default function ChevauxScreen() {
   useScreenTracking('chevaux');
@@ -18,16 +20,11 @@ export default function ChevauxScreen() {
   const { chevaux, isLoading, createCheval, deleteCheval } = useMyChevaux();
   const [creating, setCreating] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<{ id: string; nom: string } | null>(null);
+  const [errorAlert, setErrorAlert] = useState<string | null>(null);
 
-  // Sur web, Alert.alert est silencieux → window.alert / window.confirm.
   function showErr(msg: string) {
-    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
-    else Alert.alert('Erreur', msg);
-  }
-
-  function confirmMsg(msg: string): boolean {
-    if (Platform.OS === 'web' && typeof window !== 'undefined') return window.confirm(msg);
-    return true;
+    setErrorAlert(msg);
   }
 
   async function handleAdd() {
@@ -54,22 +51,17 @@ export default function ChevauxScreen() {
     }
   }
 
-  async function handleDelete(id: string, nom: string) {
+  function handleDelete(id: string, nom: string) {
     if (deletingId) return;
     trackCta('chevaux', 'supprimer_cheval');
-    const doIt = () => doDelete(id);
-    if (Platform.OS === 'web') {
-      if (confirmMsg(`Supprimer ${nom} ?\nCette action est irréversible.`)) doIt();
-      return;
-    }
-    Alert.alert(
-      `Supprimer ${nom} ?`,
-      'Cette action est irréversible.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Supprimer', style: 'destructive', onPress: doIt },
-      ],
-    );
+    setPendingDelete({ id, nom });
+  }
+
+  function confirmDeletion() {
+    if (!pendingDelete) return;
+    const id = pendingDelete.id;
+    setPendingDelete(null);
+    doDelete(id);
   }
 
   async function doDelete(id: string) {
@@ -120,6 +112,25 @@ export default function ChevauxScreen() {
         </TouchableOpacity>
       </ScrollView>
 
+
+      <ConfirmModal
+        visible={!!pendingDelete}
+        title={pendingDelete ? `Supprimer ${pendingDelete.nom} ?` : ''}
+        message="Cette action est irréversible. Toutes les données de ce cheval seront perdues."
+        cancelLabel="Annuler"
+        confirmLabel="Supprimer"
+        destructive
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={confirmDeletion}
+      />
+
+      <AlertModal
+        visible={!!errorAlert}
+        title="Erreur"
+        message={errorAlert ?? ''}
+        variant="error"
+        onClose={() => setErrorAlert(null)}
+      />
     </SafeAreaView>
   );
 }
