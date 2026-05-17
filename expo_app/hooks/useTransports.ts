@@ -110,6 +110,15 @@ interface AnnonceResult {
   error: string | null;
 }
 
+// ── Pubsub local : propage mutations entre hooks siblings (sans realtime) ─
+type TransportMutation =
+  | { kind: 'delete'; id: string }
+  | { kind: 'upsert'; annonce: TransportAnnonce };
+const transportMutationListeners = new Set<(m: TransportMutation) => void>();
+function emitTransportMutation(m: TransportMutation) {
+  for (const l of transportMutationListeners) l(m);
+}
+
 // ── Hook : toutes les annonces transport (marketplace) ─────────────────────
 export function useTransportAnnonces() {
   const channelId = useId();
@@ -150,6 +159,21 @@ export function useTransportAnnonces() {
       supabase.removeChannel(channel);
     };
   }, [load]);
+
+  useEffect(() => {
+    const handler = (m: TransportMutation) => {
+      if (m.kind === 'delete') setList((curr) => curr.filter((t) => t.id !== m.id));
+      else if (m.kind === 'upsert') setList((curr) => {
+        const idx = curr.findIndex((t) => t.id === m.annonce.id);
+        if (idx === -1) return [m.annonce, ...curr];
+        const next = curr.slice();
+        next[idx] = m.annonce;
+        return next;
+      });
+    };
+    transportMutationListeners.add(handler);
+    return () => { transportMutationListeners.delete(handler); };
+  }, []);
 
   return { transports: list, isLoading, error, reload: load };
 }
@@ -226,6 +250,7 @@ export function useMyTransportAnnonces() {
       if (insErr || !data) return { data: null, error: insErr?.message ?? 'Erreur création' };
       const created = rowToAnnonce(data as TransportAnnonceRow);
       setList((curr) => (curr.some((t) => t.id === created.id) ? curr : [created, ...curr]));
+      emitTransportMutation({ kind: 'upsert', annonce: created });
       return { data: created, error: null };
     },
     [profile?.id],
@@ -243,6 +268,7 @@ export function useMyTransportAnnonces() {
       if (upErr || !data) return { data: null, error: upErr?.message ?? 'Erreur mise à jour' };
       const updated = rowToAnnonce(data as TransportAnnonceRow);
       setList((curr) => curr.map((t) => (t.id === updated.id ? updated : t)));
+      emitTransportMutation({ kind: 'upsert', annonce: updated });
       return { data: updated, error: null };
     },
     [],
@@ -253,6 +279,7 @@ export function useMyTransportAnnonces() {
     setList((curr) => { snapshot = curr; return curr.filter((t) => t.id !== id); });
     const { error: dErr } = await supabase.from('transport_annonces').delete().eq('id', id);
     if (dErr) { setList(snapshot); return { error: dErr.message }; }
+    emitTransportMutation({ kind: 'delete', id });
     return { error: null };
   }, []);
 

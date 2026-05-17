@@ -63,6 +63,17 @@ interface AnnonceResult {
   error: string | null;
 }
 
+// ── Pubsub local : propage les mutations entre hooks sibling sans realtime ─
+// (filet de sécurité : si la table n'est pas dans la publication supabase_realtime,
+//  les listes restent sync instantanément côté client après une mutation locale)
+type BoxMutation =
+  | { kind: 'delete'; id: string }
+  | { kind: 'upsert'; annonce: BoxAnnonce };
+const boxMutationListeners = new Set<(m: BoxMutation) => void>();
+function emitBoxMutation(m: BoxMutation) {
+  for (const l of boxMutationListeners) l(m);
+}
+
 // ── Hook : toutes les annonces box (marketplace) ───────────────────────────
 export function useBoxAnnonces() {
   const channelId = useId();
@@ -95,6 +106,21 @@ export function useBoxAnnonces() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [load]);
+
+  useEffect(() => {
+    const handler = (m: BoxMutation) => {
+      if (m.kind === 'delete') setList((curr) => curr.filter((b) => b.id !== m.id));
+      else if (m.kind === 'upsert') setList((curr) => {
+        const idx = curr.findIndex((b) => b.id === m.annonce.id);
+        if (idx === -1) return [m.annonce, ...curr];
+        const next = curr.slice();
+        next[idx] = m.annonce;
+        return next;
+      });
+    };
+    boxMutationListeners.add(handler);
+    return () => { boxMutationListeners.delete(handler); };
+  }, []);
 
   return { boxes: list, isLoading, error, reload: load };
 }
@@ -159,6 +185,7 @@ export function useMyBoxAnnonces() {
       if (insErr || !data) return { data: null, error: insErr?.message ?? 'Erreur création' };
       const created = rowToAnnonce(data as BoxAnnonceRow);
       setList((curr) => (curr.some((b) => b.id === created.id) ? curr : [created, ...curr]));
+      emitBoxMutation({ kind: 'upsert', annonce: created });
       return { data: created, error: null };
     },
     [profile?.id],
@@ -176,6 +203,7 @@ export function useMyBoxAnnonces() {
       if (upErr || !data) return { data: null, error: upErr?.message ?? 'Erreur mise à jour' };
       const updated = rowToAnnonce(data as BoxAnnonceRow);
       setList((curr) => curr.map((b) => (b.id === updated.id ? updated : b)));
+      emitBoxMutation({ kind: 'upsert', annonce: updated });
       return { data: updated, error: null };
     },
     [],
@@ -186,6 +214,7 @@ export function useMyBoxAnnonces() {
     setList((curr) => { snapshot = curr; return curr.filter((b) => b.id !== id); });
     const { error: dErr } = await supabase.from('box_annonces').delete().eq('id', id);
     if (dErr) { setList(snapshot); return { error: dErr.message }; }
+    emitBoxMutation({ kind: 'delete', id });
     return { error: null };
   }, []);
 

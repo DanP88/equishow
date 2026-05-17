@@ -78,6 +78,15 @@ interface AnnonceResult {
   error: string | null;
 }
 
+// ── Pubsub local : propage mutations entre hooks siblings (sans realtime) ─
+type CoachMutation =
+  | { kind: 'delete'; id: string }
+  | { kind: 'upsert'; annonce: CoachAnnonce };
+const coachMutationListeners = new Set<(m: CoachMutation) => void>();
+function emitCoachMutation(m: CoachMutation) {
+  for (const l of coachMutationListeners) l(m);
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 // useCoachAnnonces — marketplace (toutes les annonces)
 // ─────────────────────────────────────────────────────────────────────────────
@@ -105,6 +114,21 @@ export function useCoachAnnonces() {
       .subscribe();
     return () => { supabase.removeChannel(channel); };
   }, [load, channelId]);
+
+  useEffect(() => {
+    const handler = (m: CoachMutation) => {
+      if (m.kind === 'delete') setList((curr) => curr.filter((a) => a.id !== m.id));
+      else if (m.kind === 'upsert') setList((curr) => {
+        const idx = curr.findIndex((a) => a.id === m.annonce.id);
+        if (idx === -1) return [m.annonce, ...curr];
+        const next = curr.slice();
+        next[idx] = m.annonce;
+        return next;
+      });
+    };
+    coachMutationListeners.add(handler);
+    return () => { coachMutationListeners.delete(handler); };
+  }, []);
 
   return { annonces: list, isLoading, reload: load };
 }
@@ -202,6 +226,7 @@ export function useMyCoachAnnonces() {
     if (error || !data) return { data: null, error: error?.message ?? 'Erreur création' };
     const created = rowToAnnonce(data as CoachAnnonceRow);
     setList((curr) => (curr.some((a) => a.id === created.id) ? curr : [created, ...curr]));
+    emitCoachMutation({ kind: 'upsert', annonce: created });
     return { data: created, error: null };
   }, [profile?.id, (profile as any)?.prenom, (profile as any)?.nom]);
 
@@ -210,6 +235,7 @@ export function useMyCoachAnnonces() {
     setList((curr) => { snapshot = curr; return curr.filter((a) => a.id !== id); });
     const { error } = await supabase.from('coach_annonces').delete().eq('id', id);
     if (error) { setList(snapshot); return { error: error.message }; }
+    emitCoachMutation({ kind: 'delete', id });
     return { error: null };
   }, []);
 
