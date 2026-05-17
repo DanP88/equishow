@@ -1,8 +1,9 @@
 import { useState } from 'react';
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert, ActivityIndicator,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
+import { AlertModal } from '../components/AlertModal';
 
 const PREVIEW_ROUTES: Partial<Record<string, string>> = {
   coach: '/preview-coach',
@@ -97,6 +98,26 @@ export default function CompteTypeScreen() {
     (initialRole === 'admin' ? 'cavalier' : initialRole) as SelectableRole
   );
   const [submitting, setSubmitting] = useState(false);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
+
+  // Le compte Organisateur est réservé aux structures vérifiées (clubs, etc.).
+  // Un cavalier ou un coach ne peut pas se promouvoir tout seul.
+  const canSelectOrganisateur =
+    userStore.role === 'admin' || userStore.role === 'organisateur';
+
+  function handleSelectRole(role: SelectableRole) {
+    if (role === 'organisateur' && !canSelectOrganisateur) {
+      setAlertState({
+        title: 'Compte Organisateur réservé',
+        message:
+          'Le compte Organisateur est réservé aux structures vérifiées (clubs, haras, organisateurs de concours). '
+          + 'Pour devenir organisateur, contactez le support Equishow : support@equishow.com.',
+        variant: 'info',
+      });
+      return;
+    }
+    setSelected(role);
+  }
 
   async function confirm() {
     if (submitting || selected === userStore.role) return;
@@ -130,7 +151,11 @@ export default function CompteTypeScreen() {
       router.back();
       return;
     } catch (err: any) {
-      Alert.alert('Changement de rôle refusé', mapErrorMessage(err));
+      setAlertState({
+        title: 'Changement de rôle refusé',
+        message: mapErrorMessage(err),
+        variant: 'error',
+      });
       setSubmitting(false);
     }
   }
@@ -153,11 +178,12 @@ export default function CompteTypeScreen() {
 
         {ROLES.map((role) => {
           const isActive = selected === role.id;
+          const isLocked = role.id === 'organisateur' && !canSelectOrganisateur;
           return (
             <TouchableOpacity
               key={role.id}
-              style={[s.card, isActive && { borderColor: role.color, borderWidth: 2 }]}
-              onPress={() => setSelected(role.id)}
+              style={[s.card, isActive && { borderColor: role.color, borderWidth: 2 }, isLocked && s.cardLocked]}
+              onPress={() => handleSelectRole(role.id)}
               activeOpacity={0.85}
             >
               {/* Card header */}
@@ -166,8 +192,13 @@ export default function CompteTypeScreen() {
                   <Text style={s.cardIcon}>{role.icon}</Text>
                 </View>
                 <View style={{ flex: 1 }}>
-                  <Text style={[s.cardTitle, isActive && { color: role.color }]}>{role.title}</Text>
-                  <Text style={s.cardSubtitle}>{role.subtitle}</Text>
+                  <View style={s.titleRow}>
+                    <Text style={[s.cardTitle, isActive && { color: role.color }]}>{role.title}</Text>
+                    {isLocked && <Text style={s.lockIcon}>🔒</Text>}
+                  </View>
+                  <Text style={s.cardSubtitle}>
+                    {isLocked ? 'Réservé aux structures vérifiées — contactez le support' : role.subtitle}
+                  </Text>
                 </View>
                 <View style={[s.radio, isActive && { borderColor: role.color }]}>
                   {isActive && <View style={[s.radioDot, { backgroundColor: role.color }]} />}
@@ -228,6 +259,14 @@ export default function CompteTypeScreen() {
           )}
         </TouchableOpacity>
       </View>
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={() => setAlertState(null)}
+      />
     </SafeAreaView>
   );
 }
@@ -244,6 +283,9 @@ const s = StyleSheet.create({
   intro: { fontSize: FontSize.base, color: Colors.textSecondary, lineHeight: 22, marginBottom: Spacing.sm },
 
   card: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.card },
+  cardLocked: { opacity: 0.6 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs },
+  lockIcon: { fontSize: FontSize.base },
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginBottom: Spacing.md },
   iconWrap: { width: 52, height: 52, borderRadius: Radius.lg, alignItems: 'center', justifyContent: 'center' },
   cardIcon: { fontSize: 26 },
