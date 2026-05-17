@@ -107,24 +107,35 @@ export default function ProfilCoachScreen() {
           <InfoRow label="Tarif horaire" value="65€ HT" />
         </View>
 
-        {/* Edit Button */}
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={openEdit}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.editText}>✏️ Modifier mon profil</Text>
-        </TouchableOpacity>
-
         {/* Mon compte */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Mon compte</Text>
+          <TouchableOpacity style={styles.menuBtn} onPress={openEdit} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>✏️</Text>
+            <Text style={styles.menuLabel}>Modifier mon profil</Text>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/compte-type')} activeOpacity={0.7}>
             <Text style={styles.menuIcon}>🎓</Text>
             <View style={{ flex: 1 }}>
               <Text style={styles.menuLabel}>Changer de type de compte</Text>
               <Text style={styles.menuSublabel}>Coach</Text>
             </View>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/(tabs)/coach-notifications' as any)} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>🔔</Text>
+            <Text style={styles.menuLabel}>Notifications</Text>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/securite')} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>🔒</Text>
+            <Text style={styles.menuLabel}>Sécurité</Text>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/tarification?role=coach' as any)} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>💳</Text>
+            <Text style={[styles.menuLabel, { color: Colors.gold }]}>Abonnement</Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
         </View>
