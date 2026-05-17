@@ -13,6 +13,8 @@ import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { trackCta } from '../../lib/analytics';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
+import { userStore } from '../../data/store';
+import { getPlanLimits } from '../../lib/planLimits';
 
 export default function ChevauxScreen() {
   useScreenTracking('chevaux');
@@ -22,6 +24,7 @@ export default function ChevauxScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; nom: string } | null>(null);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
+  const [upgradeAlert, setUpgradeAlert] = useState<{ title: string; message: string } | null>(null);
 
   function showErr(msg: string) {
     setErrorAlert(msg);
@@ -32,6 +35,15 @@ export default function ChevauxScreen() {
     trackCta('chevaux', 'ajouter_cheval');
     if (!profile?.id) {
       showErr('Session non chargée. Reconnectez-vous.');
+      return;
+    }
+    // Gating plan Découverte : 1 cheval maximum
+    const limits = getPlanLimits(userStore.plan);
+    if (chevaux.length >= limits.maxChevaux) {
+      setUpgradeAlert({
+        title: 'Limite atteinte',
+        message: `Le plan ${limits.label} permet ${limits.maxChevaux === 1 ? '1 seul cheval' : `jusqu'à ${limits.maxChevaux} chevaux`}. Passez à un forfait supérieur pour ajouter des chevaux supplémentaires.`,
+      });
       return;
     }
     setCreating(true);
@@ -130,6 +142,18 @@ export default function ChevauxScreen() {
         message={errorAlert ?? ''}
         variant="error"
         onClose={() => setErrorAlert(null)}
+      />
+
+      <AlertModal
+        visible={!!upgradeAlert}
+        title={upgradeAlert?.title ?? ''}
+        message={upgradeAlert?.message}
+        variant="info"
+        okLabel="Voir les forfaits"
+        onClose={() => {
+          setUpgradeAlert(null);
+          router.push('/tarification' as any);
+        }}
       />
     </SafeAreaView>
   );

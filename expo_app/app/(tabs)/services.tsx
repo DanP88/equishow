@@ -18,6 +18,8 @@ import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal } from '../../components/AlertModal';
+import { getPlanLimits } from '../../lib/planLimits';
 
 type Tab = 'transport' | 'box' | 'coach';
 type TransportSubTab = 'trajets' | 'van';
@@ -121,6 +123,30 @@ export default function ServicesScreen() {
     kind: 'transport' | 'box' | 'coach';
     id: string;
   } | null>(null);
+  const [upgradeAlert, setUpgradeAlert] = useState<{ title: string; message: string } | null>(null);
+
+  // Gating plan : Découverte (gratuit) bloque Transport et Box.
+  const planLimits = getPlanLimits(userStore.plan);
+  const transportLocked = !planLimits.canAccessTransport;
+  const boxLocked = !planLimits.canAccessBox;
+
+  function handleTabPress(target: Tab) {
+    if (target === 'transport' && transportLocked) {
+      setUpgradeAlert({
+        title: 'Transport — réservé à Cavalier+',
+        message: `Les annonces de transport sont disponibles à partir du forfait Cavalier+ (6,99€/mois). Votre plan actuel : ${planLimits.label}.`,
+      });
+      return;
+    }
+    if (target === 'box' && boxLocked) {
+      setUpgradeAlert({
+        title: 'Box — réservé à Cavalier+',
+        message: `Les annonces de box sont disponibles à partir du forfait Cavalier+ (6,99€/mois). Votre plan actuel : ${planLimits.label}.`,
+      });
+      return;
+    }
+    setTab(target);
+  }
 
   // Tous les hooks marketplace ont leur propre realtime — pas besoin de refetch
   // manuel ici. On lit juste les params URL.
@@ -220,9 +246,9 @@ export default function ServicesScreen() {
 
       {/* Tabs */}
       <View style={s.tabBar}>
-        <TabBtn label="Transport" count={filteredT.length} active={tab === 'transport'} onPress={() => setTab('transport')} />
-        <TabBtn label="Box" count={filteredB.length} active={tab === 'box'} onPress={() => setTab('box')} />
-        <TabBtn label="Coachs" count={filteredC.length} active={tab === 'coach'} onPress={() => setTab('coach')} />
+        <TabBtn label="Transport" count={filteredT.length} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
+        <TabBtn label="Box" count={filteredB.length} active={tab === 'box'} locked={boxLocked} onPress={() => handleTabPress('box')} />
+        <TabBtn label="Coachs" count={filteredC.length} active={tab === 'coach'} onPress={() => handleTabPress('coach')} />
       </View>
 
       {/* Transport Sub-Tabs */}
@@ -536,6 +562,18 @@ export default function ServicesScreen() {
         onConfirm={confirmCancel}
       />
 
+      <AlertModal
+        visible={!!upgradeAlert}
+        title={upgradeAlert?.title ?? ''}
+        message={upgradeAlert?.message}
+        variant="info"
+        okLabel="Voir les forfaits"
+        onClose={() => {
+          setUpgradeAlert(null);
+          router.push('/tarification' as any);
+        }}
+      />
+
     </SafeAreaView>
   );
 }
@@ -740,15 +778,23 @@ function ChipGroup({ options, value, onSelect }: {
 
 /* ─── Card components ──────────────────────────────────────────────────────── */
 
-function TabBtn({ label, count, active, onPress }: {
-  label: string; count: number; active: boolean; onPress: () => void;
+function TabBtn({ label, count, active, locked, onPress }: {
+  label: string; count: number; active: boolean; locked?: boolean; onPress: () => void;
 }) {
   return (
-    <TouchableOpacity style={[s.tabBtn, active && s.tabBtnActive]} onPress={onPress} activeOpacity={0.8}>
-      <Text style={[s.tabLabel, active && s.tabLabelActive]}>{label}</Text>
-      <View style={[s.tabCount, active && s.tabCountActive]}>
-        <Text style={[s.tabCountText, active && s.tabCountTextActive]}>{count}</Text>
-      </View>
+    <TouchableOpacity
+      style={[s.tabBtn, active && s.tabBtnActive, locked && s.tabBtnLocked]}
+      onPress={onPress}
+      activeOpacity={0.8}
+    >
+      <Text style={[s.tabLabel, active && s.tabLabelActive, locked && s.tabLabelLocked]}>
+        {locked ? `🔒 ${label}` : label}
+      </Text>
+      {!locked && (
+        <View style={[s.tabCount, active && s.tabCountActive]}>
+          <Text style={[s.tabCountText, active && s.tabCountTextActive]}>{count}</Text>
+        </View>
+      )}
     </TouchableOpacity>
   );
 }
@@ -1229,6 +1275,8 @@ const s = StyleSheet.create({
   tabBar: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.lg, paddingBottom: Spacing.sm },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: Spacing.sm, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  tabBtnLocked: { backgroundColor: Colors.surfaceVariant, borderColor: Colors.border, opacity: 0.7 },
+  tabLabelLocked: { color: Colors.textTertiary },
   tabLabel: { fontSize: 10, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
   tabLabelActive: { color: Colors.textInverse },
   tabCount: { backgroundColor: Colors.border, borderRadius: 10, minWidth: 22, paddingHorizontal: 6, paddingVertical: 2, alignItems: 'center' },
