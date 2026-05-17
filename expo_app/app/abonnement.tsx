@@ -1,5 +1,5 @@
 import {
-  View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert,
+  View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
@@ -70,17 +70,20 @@ const PLANS = [
   },
 ];
 
+// Mapping legacy ids (abonnement.tsx) → ids tarification.ts
+const LEGACY_TO_PLAN_ID: Record<string, string> = {
+  gratuit: 'cavalier-decouverte',
+  pro: 'cavalier-plus',
+  elite: 'cavalier-premium',
+};
+
 export default function AbonnementScreen() {
   function subscribe(planId: string) {
-    if (planId === 'gratuit') return;
-    Alert.alert(
-      'Paiement sécurisé',
-      'Vous allez être redirigé vers Stripe pour finaliser votre abonnement.',
-      [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Continuer', onPress: () => Alert.alert('Bientôt disponible', 'L\'intégration Stripe sera disponible au lancement de la plateforme.') },
-      ],
-    );
+    const targetId = LEGACY_TO_PLAN_ID[planId] ?? planId;
+    router.push({
+      pathname: '/checkout',
+      params: { planId: targetId, role: 'cavalier' },
+    } as any);
   }
 
   return (
@@ -146,17 +149,19 @@ export default function AbonnementScreen() {
               )}
             </View>
 
-            {!plan.current && (
-              <TouchableOpacity
-                style={[s.subscribeBtn, { backgroundColor: plan.couleur }]}
-                onPress={() => subscribe(plan.id)}
-                activeOpacity={0.85}
-              >
-                <Text style={s.subscribeBtnText}>
-                  {plan.id === 'gratuit' ? 'Plan actuel' : `Passer au plan ${plan.nom}`}
-                </Text>
-              </TouchableOpacity>
-            )}
+            <TouchableOpacity
+              style={[s.subscribeBtn, { backgroundColor: plan.couleur }]}
+              onPress={() => subscribe(plan.id)}
+              activeOpacity={0.85}
+            >
+              <Text style={s.subscribeBtnText}>
+                {plan.current
+                  ? 'Voir le détail'
+                  : plan.id === 'gratuit'
+                    ? 'Activer Découverte'
+                    : `Passer au plan ${plan.nom}`}
+              </Text>
+            </TouchableOpacity>
           </View>
         ))}
 
