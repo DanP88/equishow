@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Modal, TextInput, Alert, Platform,
+  Modal, TextInput, Alert,
 } from 'react-native';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -17,6 +17,7 @@ import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { ConfirmModal } from '../../components/ConfirmModal';
 
 type Tab = 'transport' | 'box' | 'coach';
 type TransportSubTab = 'trajets' | 'van';
@@ -116,6 +117,10 @@ export default function ServicesScreen() {
   const [filtersC, setFiltersC] = useState<FiltersCoach>(DEFAULT_FC);
   const [showFilters, setShowFilters] = useState(false);
   const [showConcoursDropdown, setShowConcoursDropdown] = useState(false);
+  const [pendingCancel, setPendingCancel] = useState<{
+    kind: 'transport' | 'box' | 'coach';
+    id: string;
+  } | null>(null);
 
   // Tous les hooks marketplace ont leur propre realtime — pas besoin de refetch
   // manuel ici. On lit juste les params URL.
@@ -124,50 +129,30 @@ export default function ServicesScreen() {
     if (params.subTab) setTransportSubTab(params.subTab as TransportSubTab);
   }, [params.tab, params.subTab]));
 
-  function handleCancelTransport(id: string) {
-    const doDelete = async () => {
-      const { error } = await deleteTransportAnnonce(id);
-      if (error) Alert.alert('Erreur', error);
-    };
-    if (Platform.OS === 'web') {
-      if (window.confirm('Retirer ce trajet ?')) doDelete();
-    } else {
-      Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer ce trajet ?', [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Retirer', style: 'destructive', onPress: doDelete },
-      ]);
+  function handleCancelTransport(id: string) { setPendingCancel({ kind: 'transport', id }); }
+  function handleCancelBox(id: string)       { setPendingCancel({ kind: 'box', id }); }
+  function handleCancelCoachAnnonce(id: string) { setPendingCancel({ kind: 'coach', id }); }
+
+  async function confirmCancel() {
+    if (!pendingCancel) return;
+    const { kind, id } = pendingCancel;
+    setPendingCancel(null);
+    const action =
+      kind === 'transport' ? deleteTransportAnnonce :
+      kind === 'box'       ? deleteBoxAnnonce :
+                             deleteCoachAnnonce;
+    const { error } = await action(id);
+    if (error) {
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(`Erreur\n\n${error}`);
+      else Alert.alert('Erreur', error);
     }
   }
 
-  function handleCancelBox(id: string) {
-    const doDelete = async () => {
-      const { error } = await deleteBoxAnnonce(id);
-      if (error) Alert.alert('Erreur', error);
-    };
-    if (Platform.OS === 'web') {
-      if (window.confirm('Retirer cette annonce de boxes ?')) doDelete();
-    } else {
-      Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer cette annonce de boxes ?', [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Retirer', style: 'destructive', onPress: doDelete },
-      ]);
-    }
-  }
-
-  function handleCancelCoachAnnonce(id: string) {
-    const doDelete = async () => {
-      const { error } = await deleteCoachAnnonce(id);
-      if (error) Alert.alert('Erreur', error);
-    };
-    if (Platform.OS === 'web') {
-      if (window.confirm('Retirer cette annonce de coaching ?')) doDelete();
-    } else {
-      Alert.alert('Retirer l\'annonce', 'Êtes-vous sûr(e) de vouloir retirer cette annonce ?', [
-        { text: 'Annuler', style: 'cancel' },
-        { text: 'Retirer', style: 'destructive', onPress: doDelete },
-      ]);
-    }
-  }
+  const cancelLabels: Record<'transport' | 'box' | 'coach', { title: string; msg: string }> = {
+    transport: { title: 'Retirer ce trajet ?',           msg: 'Cette annonce ne sera plus visible par les autres utilisateurs.' },
+    box:       { title: 'Retirer cette annonce de boxes ?', msg: 'Cette annonce ne sera plus visible par les autres utilisateurs.' },
+    coach:     { title: 'Retirer cette annonce de coaching ?', msg: 'Cette annonce ne sera plus visible par les autres utilisateurs.' },
+  };
 
   // Filtrer les transports par type
   const transportsFiltered = transports.filter(t =>
@@ -539,6 +524,17 @@ export default function ServicesScreen() {
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
+
+      <ConfirmModal
+        visible={!!pendingCancel}
+        title={pendingCancel ? cancelLabels[pendingCancel.kind].title : ''}
+        message={pendingCancel ? cancelLabels[pendingCancel.kind].msg : undefined}
+        cancelLabel="Annuler"
+        confirmLabel="Retirer"
+        destructive
+        onCancel={() => setPendingCancel(null)}
+        onConfirm={confirmCancel}
+      />
 
     </SafeAreaView>
   );
