@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal,
+  TextInput, Modal,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
+import { AlertModal } from '../components/AlertModal';
 import { userStore, concoursStore } from '../data/store';
 import { Disponibilite, prixTTC as calculatePrixTTC, getTVAMontant } from '../types/service';
 import { useCommission } from '../hooks/useCommissions';
@@ -106,6 +107,7 @@ export default function ProposerCoachAnnonceScreen() {
   const [openConcours, setOpenConcours] = useState(false);
   const [disponibilites, setDisponibilites] = useState<Disponibilite[]>(annonceToEdit?.disponibilites || []);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
 
   const prixNum = parseFloat(prixHeure);
 
@@ -133,21 +135,30 @@ export default function ProposerCoachAnnonceScreen() {
     tvaMontant = getTVAMontant(prixHT);
   }
 
+  function showErr(title: string, msg: string) {
+    setAlertState({ title, message: msg, variant: 'error' });
+  }
+
   function validateAndShowConfirmation() {
-    if (!type || !titre.trim() || !description.trim() || !discipline || !dateDebut || !dateFin || !prixHeure) {
-      Alert.alert('Champs manquants', 'Veuillez remplir tous les champs requis.');
-      return;
-    }
-
-    if (type === 'regulier' && !niveau) {
-      Alert.alert('Champs manquants', 'Veuillez sélectionner un niveau.');
-      return;
-    }
-
+    if (!type) { showErr('Type manquant', 'Sélectionnez si l\'annonce concerne un concours ou des cours réguliers.'); return; }
+    if (!titre.trim()) { showErr('Titre manquant', 'Indiquez un titre pour votre annonce.'); return; }
+    if (!description.trim()) { showErr('Description manquante', 'Décrivez ce que vous proposez (programme, objectifs…).'); return; }
+    if (!discipline) { showErr('Discipline manquante', 'Sélectionnez la discipline enseignée.'); return; }
+    if (type === 'regulier' && !niveau) { showErr('Niveau manquant', 'Sélectionnez le niveau ciblé pour des cours réguliers.'); return; }
+    if (!dateDebut) { showErr('Date de début manquante', 'Sélectionnez la date à partir de laquelle vous êtes disponible.'); return; }
+    if (!dateFin) { showErr('Date de fin manquante', 'Sélectionnez la date jusqu\'à laquelle vous êtes disponible.'); return; }
     if (dateFin.getTime() < dateDebut.getTime()) {
-      Alert.alert('Date invalide', 'La date de fin doit être égale ou après la date de début.');
+      showErr('Dates incohérentes', `La date de fin (${dateFin.toLocaleDateString('fr-FR')}) doit être égale ou postérieure à la date de début (${dateDebut.toLocaleDateString('fr-FR')}).`);
       return;
     }
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (dateDebut.getTime() < today.getTime()) {
+      showErr('Date dans le passé', `La date de début (${dateDebut.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`);
+      return;
+    }
+    if (!prixHeure) { showErr('Prix manquant', 'Indiquez votre tarif horaire.'); return; }
+    const prixNum2 = parseFloat(prixHeure);
+    if (Number.isNaN(prixNum2) || prixNum2 <= 0) { showErr('Prix invalide', 'Le tarif horaire doit être un nombre supérieur à 0€.'); return; }
 
     setShowConfirmation(true);
   }
@@ -174,7 +185,7 @@ export default function ProposerCoachAnnonceScreen() {
           region: type === 'regulier' ? userStore.region : null,
         })
         .eq('id', annonceToEdit.id);
-      if (error) { Alert.alert('Erreur', error.message); return; }
+      if (error) { showErr('Erreur', error.message); return; }
     } else {
       const { error } = await createAnnonce({
         titre: titre.trim(),
@@ -189,7 +200,7 @@ export default function ProposerCoachAnnonceScreen() {
         concours: concours || undefined,
         region: type === 'regulier' ? userStore.region : undefined,
       });
-      if (error) { Alert.alert('Erreur', error); return; }
+      if (error) { showErr('Erreur', error); return; }
     }
 
     setShowConfirmation(false);
@@ -563,6 +574,14 @@ export default function ProposerCoachAnnonceScreen() {
           </View>
         </View>
       </Modal>
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={() => setAlertState(null)}
+      />
     </SafeAreaView>
   );
 }

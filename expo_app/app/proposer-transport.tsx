@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal,
+  TextInput, Modal,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate, MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { AlertModal } from '../components/AlertModal';
 import { mockConcours } from '../data/mockConcours';
 import { useMyTransportAnnonces } from '../hooks/useTransports';
 import { VILLES_POPULAIRES } from '../data/mockVilles';
@@ -254,55 +255,57 @@ export default function ProposerTransportScreen() {
   const [showDateRetour, setShowDateRetour] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [confirmationMessage, setConfirmationMessage] = useState('');
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
 
   // Les prix sont directement en TTC
   const prixNum = parseFloat(prix);
 
-  function showError(msg: string) {
-    if (typeof window !== 'undefined') {
-      window.alert(msg);
-    } else {
-      Alert.alert('Erreur', msg);
-    }
+  function showErr(title: string, msg: string) {
+    setAlertState({ title, message: msg, variant: 'error' });
   }
 
   async function submit() {
     try {
-    console.log('Submit called', { typeTransport, villeDepart, villeArrivee, dateTrajet, nbPlaces, prix, heureDepart });
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+
     if (typeTransport === 'trajet') {
-      if (!villeDepart || !villeArrivee || !dateTrajet || !nbPlaces || !prix) {
-        showError('Veuillez remplir : ville de départ, ville d\'arrivée, date, nombre de places et prix.');
+      if (!villeDepart) { showErr('Ville de départ manquante', 'Indiquez la ville d\'où vous partez.'); return; }
+      if (!villeArrivee) { showErr('Ville d\'arrivée manquante', 'Indiquez la ville où vous allez.'); return; }
+      if (!dateTrajet) { showErr('Date manquante', 'Sélectionnez la date du trajet.'); return; }
+      if (dateTrajet.getTime() < today.getTime()) {
+        showErr('Date dans le passé', `La date du trajet (${dateTrajet.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`);
         return;
       }
-      if (!adresseArrivee.trim()) {
-        showError('Veuillez saisir l\'adresse précise d\'arrivée.');
-        return;
-      }
-      if (!heureDepart) {
-        showError('Veuillez saisir l\'heure de départ.');
-        return;
-      }
+      if (!adresseArrivee.trim()) { showErr('Adresse manquante', 'Indiquez l\'adresse précise d\'arrivée.'); return; }
+      if (!heureDepart) { showErr('Heure manquante', 'Indiquez l\'heure de départ.'); return; }
+      if (!nbPlaces) { showErr('Places manquantes', 'Indiquez le nombre de places disponibles.'); return; }
+      if (parseInt(nbPlaces, 10) <= 0) { showErr('Places invalides', 'Le nombre de places doit être supérieur à 0.'); return; }
+      if (!prix) { showErr('Prix manquant', 'Indiquez votre prix par place ou par km.'); return; }
+      if (Number.isNaN(prixNum) || prixNum <= 0) { showErr('Prix invalide', 'Le prix doit être un nombre supérieur à 0€.'); return; }
     } else {
-      if (!villeDepart || !nbPlaces || !prix || !adresseVan) {
-        showError('Veuillez remplir : ville de départ, nombre de places, prix et adresse du van.');
+      if (!villeDepart) { showErr('Ville manquante', 'Indiquez la ville où se trouve le van.'); return; }
+      if (!adresseVan) { showErr('Adresse manquante', 'Indiquez l\'adresse précise du van.'); return; }
+      if (!nbPlaces) { showErr('Places manquantes', 'Indiquez le nombre de places du van.'); return; }
+      if (parseInt(nbPlaces, 10) <= 0) { showErr('Places invalides', 'Le nombre de places doit être supérieur à 0.'); return; }
+      if (datesDisponibles.length === 0) { showErr('Dates manquantes', 'Sélectionnez au moins une date de disponibilité.'); return; }
+      if (datesDisponibles.some((d) => d.getTime() < today.getTime())) {
+        showErr('Date dans le passé', 'Toutes les dates de disponibilité doivent être dans le futur.');
         return;
       }
-      if (datesDisponibles.length === 0) {
-        showError('Veuillez sélectionner au moins une date de disponibilité.');
-        return;
-      }
-      if (!kmInclus || !tarifKmSupplémentaire || !cautionRéparation || !cautionNettoyage) {
-        showError('Veuillez remplir : kilomètres inclus, tarif par km, caution réparation et caution nettoyage.');
-        return;
-      }
+      if (!prix) { showErr('Prix manquant', 'Indiquez votre tarif par jour.'); return; }
+      if (Number.isNaN(prixNum) || prixNum <= 0) { showErr('Prix invalide', 'Le prix doit être un nombre supérieur à 0€.'); return; }
+      if (!kmInclus) { showErr('Kilomètres manquants', 'Indiquez les kilomètres inclus.'); return; }
+      if (!tarifKmSupplémentaire) { showErr('Tarif km manquant', 'Indiquez le tarif par km supplémentaire.'); return; }
+      if (!cautionRéparation) { showErr('Caution manquante', 'Indiquez la caution réparation.'); return; }
+      if (!cautionNettoyage) { showErr('Caution manquante', 'Indiquez la caution nettoyage.'); return; }
     }
     if (proposerRetour) {
-      if (!villedepartRetour || !villearriveeRetour || !dateRetour || !nbPlacesRetour) {
-        showError('Veuillez remplir tous les champs du retour.');
-        return;
-      }
+      if (!villedepartRetour) { showErr('Retour : ville manquante', 'Indiquez la ville de départ du retour.'); return; }
+      if (!villearriveeRetour) { showErr('Retour : ville manquante', 'Indiquez la ville d\'arrivée du retour.'); return; }
+      if (!dateRetour) { showErr('Retour : date manquante', 'Sélectionnez la date du trajet retour.'); return; }
+      if (!nbPlacesRetour) { showErr('Retour : places manquantes', 'Indiquez le nombre de places du retour.'); return; }
       if (dateRetour && dateTrajet && dateRetour.getTime() < dateTrajet.getTime()) {
-        showError('La date du retour doit être après la date du trajet aller.');
+        showErr('Dates incohérentes', `La date du retour (${dateRetour.toLocaleDateString('fr-FR')}) doit être après la date du trajet aller (${dateTrajet.toLocaleDateString('fr-FR')}).`);
         return;
       }
     }
@@ -341,15 +344,15 @@ export default function ProposerTransportScreen() {
 
     if (editId && existing) {
       const { error } = await updateAnnonce(editId, payload);
-      if (error) { showError(error); return; }
+      if (error) { showErr('Erreur', error); return; }
     } else {
       const { error } = await createAnnonce(payload);
-      if (error) { showError(error); return; }
+      if (error) { showErr('Erreur', error); return; }
     }
     router.replace('/(tabs)/services?tab=transport' as any);
     } catch (e: any) {
       console.error('Submit error:', e?.message, e);
-      Alert.alert('Erreur', e?.message || 'Une erreur est survenue');
+      showErr('Erreur', e?.message || 'Une erreur est survenue');
     }
   }
 
@@ -702,6 +705,14 @@ export default function ProposerTransportScreen() {
           </View>
         </View>
       </Modal>
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={() => setAlertState(null)}
+      />
     </SafeAreaView>
   );
 }

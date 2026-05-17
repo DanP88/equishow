@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal, ActivityIndicator, Platform, Linking,
+  TextInput, Modal, ActivityIndicator, Platform, Linking,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
@@ -10,6 +10,7 @@ import { supabase } from '../lib/supabase';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { useStage } from '../hooks/useStages';
 import { useAuth } from '../hooks/useAuth';
+import { AlertModal } from '../components/AlertModal';
 
 export default function ReserverStageScreen() {
   const { stageId } = useLocalSearchParams<{ stageId: string }>();
@@ -21,6 +22,9 @@ export default function ReserverStageScreen() {
   const [message, setMessage] = useState('');
   const [loading, setLoading] = useState(false);
   const [reservationRef, setReservationRef] = useState<string | null>(null);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
+
+  const showErr = (title: string, msg: string) => setAlertState({ title, message: msg, variant: 'error' });
 
   if (stageLoading && !stage) {
     return (
@@ -48,13 +52,27 @@ export default function ReserverStageScreen() {
   const prixTotal = stage.prixTTC * nbParticipants;
 
   const handleInscription = async () => {
-    if (nbParticipants > stage.placesDisponibles) {
-      Alert.alert('Erreur', `Seulement ${stage.placesDisponibles} place(s) disponible(s)`);
+    if (nbParticipants < 1) {
+      showErr('Participants invalides', 'Sélectionnez au moins 1 participant.');
       return;
     }
-    if (nbParticipants < 1) {
-      Alert.alert('Erreur', 'Veuillez sélectionner au moins 1 participant');
+    if (nbParticipants > stage.placesDisponibles) {
+      showErr(
+        'Places insuffisantes',
+        stage.placesDisponibles === 0
+          ? 'Ce stage est complet. Aucune place restante.'
+          : `Il reste ${stage.placesDisponibles} place(s) disponible(s). Réduisez le nombre de participants.`,
+      );
       return;
+    }
+    // Bloquer les stages dont la date est passée
+    if (stage.dateDebut) {
+      const start = new Date(stage.dateDebut);
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (start.getTime() < today.getTime()) {
+        showErr('Stage passé', `Ce stage a commencé le ${start.toLocaleDateString('fr-FR')} et n'est plus disponible à la réservation.`);
+        return;
+      }
     }
 
     setLoading(true);
@@ -84,7 +102,7 @@ export default function ReserverStageScreen() {
         .single();
 
       if (dbError || !reservation) {
-        Alert.alert('Erreur', 'Impossible de créer la réservation.');
+        showErr('Erreur', 'Impossible de créer la réservation.');
         return;
       }
 
@@ -121,7 +139,7 @@ export default function ReserverStageScreen() {
         await Linking.openURL(data.checkoutUrl);
       }
     } catch (err: any) {
-      Alert.alert('Erreur', err.message || 'Impossible de démarrer le paiement.');
+      showErr('Erreur', err.message || 'Impossible de démarrer le paiement.');
     } finally {
       setLoading(false);
     }
@@ -302,6 +320,13 @@ export default function ReserverStageScreen() {
         </View>
       </Modal>
 
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={() => setAlertState(null)}
+      />
     </SafeAreaView>
   );
 }

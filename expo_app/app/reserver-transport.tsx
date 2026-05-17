@@ -12,6 +12,7 @@ import { createNotification } from '../hooks/useNotifications';
 import { prixTTC, getCommissionMontant, getCommission } from '../types/service';
 import { MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { AlertModal } from '../components/AlertModal';
 import { useScreenTracking } from '../hooks/useScreenTracking';
 import { trackFunnel } from '../lib/analytics';
 
@@ -48,6 +49,7 @@ export default function ReserverTransportScreen() {
   const [pickupSource, setPickupSource] = useState<'manual' | 'geolocation'>('manual');
   const [geoLoading, setGeoLoading] = useState(false);
   const [calcLoading, setCalcLoading] = useState(false);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
   const [routeResult, setRouteResult] = useState<RouteResult | null>(null);
   const [routeError, setRouteError] = useState<string | null>(null);
   const [geoLabel, setGeoLabel] = useState<string | null>(null);
@@ -202,26 +204,33 @@ export default function ReserverTransportScreen() {
     }
   }
 
-  // Sur web, Alert.alert est silencieux → on bascule sur window.alert.
-  function showErr(msg: string) {
-    if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
-    else Alert.alert('Erreur', msg);
+  function showErr(title: string, msg: string) {
+    setAlertState({ title, message: msg, variant: 'error' });
   }
 
   // ─── Soumission ──────────────────────────────────────────────────────────────
   async function submit() {
     if (!isTrajet) {
       if (selectedDates.length === 0) {
-        showErr('Veuillez sélectionner au moins 1 jour.');
+        showErr('Aucune date sélectionnée', 'Choisissez au moins un jour de location.');
+        return;
+      }
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (selectedDates.some((d) => d.getTime() < today.getTime())) {
+        showErr('Date dans le passé', 'Toutes les dates de location doivent être dans le futur.');
         return;
       }
     } else {
-      if (nbPlaces < 1 || nbPlaces > transport.nbPlacesDisponibles) {
-        showErr(`Sélectionnez entre 1 et ${transport.nbPlacesDisponibles} place(s).`);
+      if (nbPlaces < 1) {
+        showErr('Places invalides', 'Sélectionnez au moins 1 place.');
+        return;
+      }
+      if (nbPlaces > transport.nbPlacesDisponibles) {
+        showErr('Places insuffisantes', `Il reste ${transport.nbPlacesDisponibles} place(s) disponible(s). Sélectionnez moins de places.`);
         return;
       }
       if (showRoutePricing && !routeResult) {
-        showErr('Veuillez d\'abord calculer le prix de votre trajet (bouton "Calculer mon prix").');
+        showErr('Prix non calculé', 'Cliquez sur "Calculer mon prix" pour estimer le trajet avant de valider la réservation.');
         return;
       }
     }
@@ -264,7 +273,7 @@ export default function ReserverTransportScreen() {
     });
 
     if (createErr || !created) {
-      showErr(createErr ?? 'Impossible de créer la réservation.');
+      showErr('Erreur', createErr ?? 'Impossible de créer la réservation.');
       return;
     }
 
@@ -742,6 +751,14 @@ export default function ReserverTransportScreen() {
           title="Sélectionner les dates de location"
         />
       )}
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={() => setAlertState(null)}
+      />
     </SafeAreaView>
   );
 }
