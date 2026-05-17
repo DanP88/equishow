@@ -152,7 +152,7 @@ export default function ProposerBoxScreen() {
     setAlertState({
       title,
       message,
-      variant: 'success',
+      variant: 'info',
       onClose: () => { setAlertState(null); after?.(); },
     });
   }
