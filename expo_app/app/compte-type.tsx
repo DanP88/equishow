@@ -17,6 +17,15 @@ import { useAuth } from '../hooks/useAuth';
 type Role = 'cavalier' | 'coach' | 'organisateur' | 'admin';
 type SelectableRole = 'cavalier' | 'coach' | 'organisateur';
 
+// Premier onglet (route home) par rôle — doit rester aligné avec
+// TABS_BY_ROLE dans components/CustomBottomBar.tsx.
+const HOME_ROUTE_BY_ROLE: Record<Role, string> = {
+  cavalier:     '/(tabs)/chevaux',
+  coach:        '/(tabs)/coach-agenda',
+  organisateur: '/(tabs)/org-concours',
+  admin:        '/(tabs)/admin-settings',
+};
+
 const ROLES: {
   id: SelectableRole;
   icon: string;
@@ -148,7 +157,10 @@ export default function CompteTypeScreen() {
 
       // 3. Reset state AVANT navigation pour éviter setState sur composant démonté
       setSubmitting(false);
-      router.back();
+      // Rediriger vers le premier onglet du nouveau rôle (pas un router.back qui
+      // pourrait ramener sur un écran propre à l'ancien rôle).
+      const targetRoute = HOME_ROUTE_BY_ROLE[selected] ?? '/';
+      router.replace(targetRoute as any);
       return;
     } catch (err: any) {
       setAlertState({
