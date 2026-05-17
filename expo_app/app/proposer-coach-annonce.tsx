@@ -466,7 +466,7 @@ export default function ProposerCoachAnnonceScreen() {
         <View style={type === 'concours' ? { flex: 1 } : s.priceRow}>
           <View style={{ flex: 1 }}>
             <View style={s.field}>
-              <Text style={s.fieldLabel}>Tarif (€ TTC) *</Text>
+              <Text style={s.fieldLabel}>Tarif par heure *</Text>
               <View style={f.priceRowInput}>
                 <TextInput
                   style={[f.input, { flex: 1 }, !!prixHeure && f.inputFilled]}
@@ -476,16 +476,15 @@ export default function ProposerCoachAnnonceScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   keyboardType="numeric"
                 />
-                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ TTC</Text></View>
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / h</Text></View>
               </View>
-              {prixTTC && type === 'regulier' && <Text style={s.fieldHint}>→ {prixTTC}€ TTC avec commission {(commissionCours * 100).toFixed(1)}%</Text>}
             </View>
           </View>
         </View>
 
         <View style={s.stripeNote}>
           <Text style={s.stripeIcon}>🔒</Text>
-          <Text style={s.stripeText}>Les paiements sont gérés par Stripe. Vous recevrez le montant HT après déduction de la commission de {(commissionCours * 100).toFixed(1)}%.</Text>
+          <Text style={s.stripeText}>Paiements gérés par Stripe. La commission Equishow ({(commissionCours * 100).toFixed(1)}%) est ajoutée au prix payé par le cavalier — vous recevez le montant indiqué.</Text>
         </View>
 
         <TouchableOpacity style={s.submitBtn} onPress={() => setShowConfirmation(true)} activeOpacity={0.85}>
@@ -537,20 +536,16 @@ export default function ProposerCoachAnnonceScreen() {
 
               <View style={s.priceSection}>
                 <View style={s.priceRow}>
-                  <Text style={s.priceLabel}>Prix HT{type === 'regulier' ? ' / heure' : ''}:</Text>
+                  <Text style={s.priceLabel}>Tarif{type === 'regulier' ? ' / heure' : ''} (ce que vous recevez) :</Text>
                   <Text style={s.priceValue}>{prixHT.toFixed(2)}€</Text>
                 </View>
                 <View style={s.priceRow}>
-                  <Text style={s.priceLabel}>Commission app ({(commissionCours * 100).toFixed(1)}%):</Text>
+                  <Text style={s.priceLabel}>Commission Equishow ({(commissionCours * 100).toFixed(1)}%) :</Text>
                   <Text style={s.priceValue}>+ {commissionMontant.toFixed(2)}€</Text>
                 </View>
-                <View style={s.priceRow}>
-                  <Text style={s.priceLabel}>TVA (20%):</Text>
-                  <Text style={s.priceValue}>+ {tvaMontant.toFixed(2)}€</Text>
-                </View>
                 <View style={[s.priceRow, s.priceTotalRow]}>
-                  <Text style={s.priceTotalLabel}>Prix TTC{type === 'regulier' ? ' / heure' : ''}:</Text>
-                  <Text style={s.priceTotalValue}>{prixTTC ? prixTTC.toFixed(2) : '0.00'}€</Text>
+                  <Text style={s.priceTotalLabel}>Le cavalier paiera{type === 'regulier' ? ' / heure' : ''} :</Text>
+                  <Text style={s.priceTotalValue}>{(prixHT + commissionMontant).toFixed(2)}€</Text>
                 </View>
               </View>
             </ScrollView>

@@ -174,7 +174,7 @@ export default function ProposerCoachScreen() {
         </View>
 
         <View style={s.field}>
-          <Text style={s.fieldLabel}>Tarif horaire (€ HT) *</Text>
+          <Text style={s.fieldLabel}>Tarif horaire (ce que vous recevez) *</Text>
           <TextInput
             style={[s.input, !!tarifHeure && s.inputFilled]}
             value={tarifHeure}

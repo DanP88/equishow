@@ -546,7 +546,7 @@ export default function ProposerTransportScreen() {
           </Field>
         ) : (
           <>
-            <Field label="Prix à la journée (€ TTC) *" required>
+            <Field label="Prix à la journée *" required>
               <View style={f.priceRow}>
                 <TextInput
                   style={[f.input, { flex: 1 }, !!prix && f.inputFilled]}
@@ -556,7 +556,7 @@ export default function ProposerTransportScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   keyboardType="decimal-pad"
                 />
-                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ TTC</Text></View>
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / jour</Text></View>
               </View>
             </Field>
 
@@ -574,7 +574,7 @@ export default function ProposerTransportScreen() {
               </View>
             </Field>
 
-            <Field label="Tarif par km supplémentaire (€ TTC) *" required>
+            <Field label="Tarif par km supplémentaire *" required>
               <View style={f.priceRow}>
                 <TextInput
                   style={[f.input, { flex: 1 }, !!tarifKmSupplémentaire && f.inputFilled]}
@@ -584,11 +584,11 @@ export default function ProposerTransportScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   keyboardType="decimal-pad"
                 />
-                <View style={f.priceUnit}><Text style={f.priceUnitText}>€/km TTC</Text></View>
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / km</Text></View>
               </View>
             </Field>
 
-            <Field label="Caution réparation (€ TTC) *" required hint="Recommandé : 300€ à 500€">
+            <Field label="Caution réparation *" required hint="Recommandé : 300€ à 500€">
               <View style={f.priceRow}>
                 <TextInput
                   style={[f.input, { flex: 1 }, !!cautionRéparation && f.inputFilled]}
@@ -602,7 +602,7 @@ export default function ProposerTransportScreen() {
               </View>
             </Field>
 
-            <Field label="Caution nettoyage (€ TTC) *" required hint="Recommandé : 100€ à 200€">
+            <Field label="Caution nettoyage *" required hint="Recommandé : 100€ à 200€">
               <View style={f.priceRow}>
                 <TextInput
                   style={[f.input, { flex: 1 }, !!cautionNettoyage && f.inputFilled]}

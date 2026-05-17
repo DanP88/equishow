@@ -840,7 +840,7 @@ function TransportCard({ item, onCancel, onModify }: {
           <View style={s.priceBadge}>
             {item.typeTransport === 'location' ? (
               <>
-                <Text style={s.priceHT}>{item.prixHT}€ TTC</Text>
+                <Text style={s.priceHT}>{item.prixHT}€</Text>
                 <Text style={s.priceTTC}>par jour</Text>
               </>
             ) : (
@@ -976,8 +976,6 @@ function BoxCard({ item, onCancel, onModify }: {
 }
 
 function CoachCard({ item, onModify }: { item: CoachProfil; onModify?: () => void }) {
-  const ttc = prixTTC(item.tarifHeure);
-
   const handleProfilePress = () => {
     console.log('🖱️ Coach tapped - ID:', item.id);
     router.push(`/view-coach/${item.id}` as any);
@@ -1011,8 +1009,7 @@ function CoachCard({ item, onModify }: { item: CoachProfil; onModify?: () => voi
           </View>
         </View>
         <View style={s.priceBadge}>
-          <Text style={s.priceHT}>{item.tarifHeure}€/h HT</Text>
-          <Text style={s.priceTTC}>{ttc}€ TTC</Text>
+          <Text style={s.priceHT}>{item.tarifHeure}€ / h</Text>
         </View>
       </TouchableOpacity>
       <View style={s.tagRow}>
@@ -1184,7 +1181,6 @@ function StageCard({ item }: { item: CoachStage }) {
         <View style={s.detailItem}>
           <Text style={s.detailLabel}>Prix</Text>
           <Text style={s.detailValue}>{item.prixTTC}€</Text>
-          <Text style={s.detailSmall}>TTC</Text>
         </View>
         <View style={s.detailDivider} />
         <View style={s.detailItem}>

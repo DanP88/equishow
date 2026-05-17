@@ -365,7 +365,7 @@ export default function ReserverCoachScreen() {
               </View>
               <View style={s.detailRow}>
                 <Text style={s.detailIcon}>💳</Text>
-                <Text style={s.detailText}>{prixTTCTotal}€ TTC</Text>
+                <Text style={s.detailText}>{prixTTCTotal}€</Text>
               </View>
               {reservationRef ? (
                 <View style={s.detailRow}>

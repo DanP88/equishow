@@ -139,7 +139,7 @@ export default function PreviewCoachScreen() {
         <View style={s.serviceCard}>
           <View style={s.serviceRow}>
             <Text style={s.serviceLabel}>Tarif horaire</Text>
-            <Text style={s.serviceValue}>{data.tarifHeure}€ HT / heure</Text>
+            <Text style={s.serviceValue}>{data.tarifHeure}€ / heure</Text>
           </View>
           <View style={s.serviceRow}>
             <Text style={s.serviceLabel}>Disciplines</Text>
