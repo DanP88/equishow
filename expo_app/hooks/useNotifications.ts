@@ -166,6 +166,10 @@ export function useNotifications() {
   const removeNotification = useCallback(async (id: string): Promise<{ error: string | null }> => {
     // RLS bloque déjà l'IDOR (delete only own).
     const { error } = await supabase.from('notifications').delete().eq('id', id);
+    if (!error) {
+      // Optimistic : ne dépend pas du round-trip realtime (cf. mig 028).
+      setNotifications((prev) => prev.filter((n) => n.id !== id));
+    }
     return { error: error?.message ?? null };
   }, []);
 

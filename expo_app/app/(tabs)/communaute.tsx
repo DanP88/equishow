@@ -70,7 +70,13 @@ export default function CommunauteScreen() {
 
   async function handlePost() {
     if (!newText.trim()) return;
-    await createPost(newText.trim());
+    const { error } = await createPost(newText.trim());
+    if (error) {
+      const msg = `Erreur publication : ${error}`;
+      if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
+      else Alert.alert('Erreur publication', error);
+      return;
+    }
     setNewText('');
     setShowNew(false);
   }

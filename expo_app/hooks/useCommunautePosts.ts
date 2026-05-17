@@ -101,6 +101,12 @@ export function useCommunautePosts(scope: PostScope) {
       supabase.from(postsTable).select('*').order('created_at', { ascending: false }),
       supabase.from(commentsTable).select('*').order('created_at', { ascending: true }),
     ]);
+    if (postsRes.error) {
+      console.error(`[useCommunautePosts] SELECT ${postsTable} error:`, postsRes.error);
+    }
+    if (commentsRes.error) {
+      console.error(`[useCommunautePosts] SELECT ${commentsTable} error:`, commentsRes.error);
+    }
     if (!postsRes.error && postsRes.data) {
       const commentsByPost = new Map<string, CommunauteComment[]>();
       ((commentsRes.data ?? []) as CommentRow[]).forEach((c) => {
@@ -141,7 +147,10 @@ export function useCommunautePosts(scope: PostScope) {
       })
       .select('*')
       .single();
-    if (error || !data) return { data: null, error: error?.message ?? 'Erreur création' };
+    if (error || !data) {
+      console.error(`[useCommunautePosts] INSERT ${postsTable} error:`, error);
+      return { data: null, error: error?.message ?? 'Erreur création' };
+    }
     const created = rowToPost(data as PostRow);
     setPosts((curr) => (curr.some((p) => p.id === created.id) ? curr : [created, ...curr]));
     return { data: created, error: null };

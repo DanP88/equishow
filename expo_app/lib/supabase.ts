@@ -262,8 +262,8 @@ export const getUserProfile = async (userId: string) => {
 
     if (error) throw error;
     return { data, error: null };
-  } catch (error) {
-    console.error('❌ Error fetching user profile:', error);
+  } catch (error: any) {
+    console.error('❌ Error fetching user profile:', JSON.stringify(error, null, 2), 'for userId=', userId);
     return { data: null, error };
   }
 };
