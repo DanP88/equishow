@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from 'react';
+import { useEffect, useCallback, useId } from 'react';
 import { supabase } from '../data/store';
 
 type MessageRow = {
@@ -33,11 +33,12 @@ export function useRealtimeMessages(
   onNewMessage: (msg: MessageRow) => void,
   onConvUpdated: (conv: ConversationRow) => void,
 ) {
+  const instanceId = useId();
   useEffect(() => {
     if (!userId) return;
 
     const channel = supabase
-      .channel(`messages:user:${userId}`)
+      .channel(`messages:user:${userId}:${instanceId}`)
       // Nouveaux messages dans les conversations de l'utilisateur
       .on<MessageRow>(
         'postgres_changes',
@@ -81,7 +82,7 @@ export function useRealtimeMessages(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, instanceId]);
 }
 
 /**
@@ -92,11 +93,12 @@ export function useRealtimeNotifications(
   userId: string | null,
   onNewNotification: (notif: any) => void,
 ) {
+  const instanceId = useId();
   useEffect(() => {
     if (!userId) return;
 
     const channel = supabase
-      .channel(`notifications:user:${userId}`)
+      .channel(`notifications:user:${userId}:${instanceId}`)
       .on(
         'postgres_changes',
         {
@@ -114,5 +116,5 @@ export function useRealtimeNotifications(
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, instanceId]);
 }
