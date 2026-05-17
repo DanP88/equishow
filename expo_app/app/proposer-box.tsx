@@ -111,8 +111,6 @@ export default function ProposerBoxScreen() {
   const [dateDebut, setDateDebut] = useState<Date | undefined>(existing?.dateDebut);
   const [dateFin, setDateFin] = useState<Date | undefined>(existing?.dateFin);
   const [nbBoxes, setNbBoxes] = useState(existing ? String(existing.nbBoxes) : '');
-  // Saisie = ce que le proposeur veut RECEVOIR par nuit (= prixNuitHT stocké).
-  // L'app ajoute commission + TVA pour calculer le TTC payé par le locataire.
   const [prix, setPrix] = useState(existing ? String(existing.prixNuitHT) : '');
   const [concours, setConcours] = useState(existing?.concours ?? '');
   const [equipements, setEquipements] = useState<string[]>([]);
