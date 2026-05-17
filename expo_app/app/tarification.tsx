@@ -104,59 +104,58 @@ interface PlanCardProps {
 function PlanCard({ plan, isSelected, onSelect, onSubscribe }: PlanCardProps) {
   const isFree = plan.prix === 0;
   return (
-    <TouchableOpacity
-      style={[styles.planCard, isSelected && styles.planCardSelected]}
-      onPress={onSelect}
-      activeOpacity={0.7}
-    >
+    <View style={[styles.planCard, isSelected && styles.planCardSelected]}>
       {plan.badge && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{plan.badge}</Text>
         </View>
       )}
 
-      <Text style={styles.planName}>{plan.nom}</Text>
-      <Text style={styles.planDescription}>{plan.description}</Text>
+      <TouchableOpacity onPress={onSelect} activeOpacity={0.85}>
+        <Text style={styles.planName}>{plan.nom}</Text>
+        <Text style={styles.planDescription}>{plan.description}</Text>
 
-      <View style={styles.priceSection}>
-        {isFree ? (
-          <Text style={styles.price}>Gratuit</Text>
-        ) : (
-          <>
-            <Text style={styles.price}>{plan.prix}€</Text>
-            <Text style={styles.period}>
-              {plan.periode === 'mensuel' && '/mois'}
-              {plan.periode === 'annuel' && '/an'}
-              {plan.periode === 'unique' && '/concours'}
-            </Text>
-          </>
+        <View style={styles.priceSection}>
+          {isFree ? (
+            <Text style={styles.price}>Gratuit</Text>
+          ) : (
+            <>
+              <Text style={styles.price}>{plan.prix}€</Text>
+              <Text style={styles.period}>
+                {plan.periode === 'mensuel' && '/mois'}
+                {plan.periode === 'annuel' && '/an'}
+                {plan.periode === 'unique' && '/concours'}
+              </Text>
+            </>
+          )}
+        </View>
+
+        {plan.periode === 'annuel' && plan.prix > 0 && (
+          <Text style={styles.monthlyEquiv}>
+            {(plan.prix / 12).toFixed(2)}€/mois
+          </Text>
         )}
-      </View>
 
-      {plan.periode === 'annuel' && plan.prix > 0 && (
-        <Text style={styles.monthlyEquiv}>
-          {(plan.prix / 12).toFixed(2)}€/mois
-        </Text>
-      )}
-
-      <View style={styles.featuresSection}>
-        {plan.features.map((feature, idx) => (
-          <View key={idx} style={styles.featureRow}>
-            <Text style={styles.featureIcon}>✓</Text>
-            <Text style={styles.featureText}>{feature}</Text>
-          </View>
-        ))}
-      </View>
+        <View style={styles.featuresSection}>
+          {plan.features.map((feature, idx) => (
+            <View key={idx} style={styles.featureRow}>
+              <Text style={styles.featureIcon}>✓</Text>
+              <Text style={styles.featureText}>{feature}</Text>
+            </View>
+          ))}
+        </View>
+      </TouchableOpacity>
 
       <TouchableOpacity
         style={[styles.subscribeBtn, isSelected && styles.subscribeBtnActive]}
         onPress={onSubscribe}
+        activeOpacity={0.85}
       >
         <Text style={[styles.subscribeBtnText, isSelected && styles.subscribeBtnTextActive]}>
           {isFree ? 'Choisir Découverte' : 'S\'abonner'}
         </Text>
       </TouchableOpacity>
-    </TouchableOpacity>
+    </View>
   );
 }
 
