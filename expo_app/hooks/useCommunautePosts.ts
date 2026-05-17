@@ -185,7 +185,7 @@ export function useCommunautePosts(scope: PostScope) {
     const auteur_nom = `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim();
     const auteur_initiales = `${((profile as any).prenom?.[0] ?? '').toUpperCase()}${((profile as any).nom?.[0] ?? '').toUpperCase()}`;
     const auteur_couleur = (profile as any).avatar_color ?? '#7C3AED';
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from(commentsTable)
       .insert({
         post_id: postId,
@@ -195,8 +195,20 @@ export function useCommunautePosts(scope: PostScope) {
         auteur_couleur,
         texte,
         liked_by: [],
-      });
-    return { error: error?.message ?? null };
+      })
+      .select('*')
+      .single();
+    if (error || !data) return { error: error?.message ?? 'Insert KO' };
+    // Optimistic : ajoute le commentaire à l'état local sans attendre realtime
+    // (réseau realtime peut être indisponible — cf. mig 027 publication).
+    const created = rowToComment(data as CommentRow);
+    setPosts((curr) => curr.map((p) => p.id !== postId ? p : {
+      ...p,
+      commentaires: p.commentaires.some((c) => c.id === created.id)
+        ? p.commentaires
+        : [...p.commentaires, created],
+    }));
+    return { error: null };
   }, [profile?.id, (profile as any)?.prenom, (profile as any)?.nom, (profile as any)?.avatar_color, commentsTable]);
 
   const deleteComment = useCallback(async (commentId: string): Promise<{ error: string | null }> => {
