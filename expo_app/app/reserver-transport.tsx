@@ -537,7 +537,9 @@ export default function ReserverTransportScreen() {
                   <Text style={s.routeResultVal}>{routeResult.distancePickupToDestinationKm} km</Text>
                 </View>
                 <View style={[s.routeResultRow, s.routeResultDivider]}>
-                  <Text style={s.routeResultLabelBold}>Distance totale</Text>
+                  <Text style={s.routeResultLabelBold}>
+                    Distance totale ({transport.allerRetour ? 'Aller-Retour' : 'Aller simple'})
+                  </Text>
                   <Text style={s.routeResultValBold}>{routeResult.totalDistanceKm} km</Text>
                 </View>
                 <View style={s.routeResultRow}>
@@ -615,7 +617,9 @@ export default function ReserverTransportScreen() {
             routeResult ? (
               <>
                 <View style={s.prixRow}>
-                  <Text style={s.prixLabel}>Distance totale</Text>
+                  <Text style={s.prixLabel}>
+                    Distance totale ({transport.allerRetour ? 'Aller-Retour' : 'Aller simple'})
+                  </Text>
                   <Text style={s.prixVal}>{routeResult.totalDistanceKm} km</Text>
                 </View>
                 <View style={s.prixRow}>
