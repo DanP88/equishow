@@ -126,9 +126,12 @@ export default function ServicesScreen() {
   const [upgradeAlert, setUpgradeAlert] = useState<{ title: string; message: string } | null>(null);
 
   // Gating plan : Découverte (gratuit) bloque Transport et Box.
-  const planLimits = getPlanLimits(userStore.plan);
+  // Lit `profile.plan` (DB, source de vérité) avec fallback userStore.
+  const planSource = (userStore as any).plan;
+  const planLimits = getPlanLimits(planSource);
   const transportLocked = !planLimits.canAccessTransport;
   const boxLocked = !planLimits.canAccessBox;
+  console.log('[services] plan check:', { planSource, label: planLimits.label, transportLocked, boxLocked });
 
   function handleTabPress(target: Tab) {
     if (target === 'transport' && transportLocked) {
