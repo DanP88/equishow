@@ -97,7 +97,12 @@ function mapErrorMessage(err: any): string {
   for (const key of Object.keys(ERROR_LABELS)) {
     if (raw.includes(key)) return ERROR_LABELS[key];
   }
-  return "Impossible de changer de rôle pour le moment.";
+  // Fallback : remonter le vrai message pour aider l'utilisateur (au lieu du
+  // générique opaque "Impossible..." qui masque toute info utile).
+  const realMsg = err?.message || err?.error_description || err?.code || '';
+  return realMsg
+    ? `Impossible de changer de rôle : ${realMsg}`
+    : "Impossible de changer de rôle pour le moment.";
 }
 
 export default function CompteTypeScreen() {
@@ -131,14 +136,27 @@ export default function CompteTypeScreen() {
   async function confirm() {
     if (submitting || selected === userStore.role) return;
     setSubmitting(true);
-    try {
-      // 1. RPC sécurisée : la DB applique les règles métier (admin/organisateur reservés)
-      const { error: rpcError } = await supabase.rpc('change_user_role', {
-        p_new_role: selected,
-      });
-      if (rpcError) throw rpcError;
 
-      // 2. Recharger le profil canonique : useAuth state + store local en parallèle
+    // 1. RPC sécurisée : la DB applique les règles métier (admin protégé).
+    // Si le RPC échoue, on remonte l'erreur exacte à l'utilisateur.
+    const { error: rpcError } = await supabase.rpc('change_user_role', {
+      p_new_role: selected,
+    });
+    if (rpcError) {
+      console.error('[compte-type] RPC change_user_role failed:', rpcError);
+      setAlertState({
+        title: 'Changement de rôle refusé',
+        message: mapErrorMessage(rpcError),
+        variant: 'error',
+      });
+      setSubmitting(false);
+      return;
+    }
+
+    // 2. RPC réussie. À partir d'ici, le rôle EST changé en DB. On essaie
+    // de synchroniser le profil local, mais une erreur de sync ne doit JAMAIS
+    // afficher "rôle refusé" — le changement est déjà appliqué côté serveur.
+    try {
       const remoteProfile = await refetchProfile();
       if (remoteProfile) {
         userStore.applyRemoteProfile({
@@ -151,25 +169,18 @@ export default function CompteTypeScreen() {
           disciplines: (remoteProfile as any).disciplines ?? [],
         });
       } else {
-        // Fallback : RPC OK mais refetch fail → au moins refléter localement
         userStore.role = selected;
       }
-
-      // 3. Reset state AVANT navigation pour éviter setState sur composant démonté
-      setSubmitting(false);
-      // Rediriger vers le premier onglet du nouveau rôle (pas un router.back qui
-      // pourrait ramener sur un écran propre à l'ancien rôle).
-      const targetRoute = HOME_ROUTE_BY_ROLE[selected] ?? '/';
-      router.replace(targetRoute as any);
-      return;
-    } catch (err: any) {
-      setAlertState({
-        title: 'Changement de rôle refusé',
-        message: mapErrorMessage(err),
-        variant: 'error',
-      });
-      setSubmitting(false);
+    } catch (syncErr) {
+      console.error('[compte-type] profile sync after RPC failed (role still changed):', syncErr);
+      // Fallback : appliquer juste le rôle local pour que la barre du bas se mette à jour.
+      userStore.role = selected;
     }
+
+    // 3. Reset state AVANT navigation pour éviter setState sur composant démonté.
+    setSubmitting(false);
+    const targetRoute = HOME_ROUTE_BY_ROLE[selected] ?? '/';
+    router.replace(targetRoute as any);
   }
 
   return (
