@@ -14,14 +14,18 @@ const PLANS = [
     couleur: Colors.textSecondary,
     bg: Colors.surfaceVariant,
     features: [
-      '2 chevaux maximum',
-      'Accès aux concours publics',
-      'Co-transport (consultation)',
-      'Communauté',
+      'Fiche complète pour chaque cheval',
+      'Réservation de coach à la séance',
+      'Messagerie avec votre coach',
+      'Agenda personnel',
+      'Communauté & actualités',
+      'Notifications',
     ],
     limits: [
-      'Pas de coaching en ligne',
-      'Pas de réservation de box',
+      'Co-transport (réservation)',
+      'Réservation de box sur site',
+      'Inscription aux concours en ligne',
+      'Résultats en temps réel & palmarès',
     ],
     current: true,
   },
@@ -33,9 +37,10 @@ const PLANS = [
     couleur: Colors.primary,
     bg: Colors.primaryLight,
     features: [
-      'Chevaux illimités',
-      'Réservation co-transport & box',
-      'Réservation coaching à la séance',
+      'Tout le plan Gratuit',
+      'Inscription aux concours en ligne',
+      'Co-transport (réservation)',
+      'Réservation de box sur site',
       'Résultats en temps réel',
       'Palmarès complet',
       'Messagerie sans limite',
@@ -128,12 +133,17 @@ export default function AbonnementScreen() {
                   <Text style={s.featureText}>{f}</Text>
                 </View>
               ))}
-              {plan.limits.map((l) => (
-                <View key={l} style={s.featureRow}>
-                  <Text style={s.featureCross}>✕</Text>
-                  <Text style={s.featureLimitText}>{l}</Text>
+              {plan.limits.length > 0 && (
+                <View style={s.limitsBlock}>
+                  <Text style={s.limitsHeader}>Non inclus — passez à la version supérieure :</Text>
+                  {plan.limits.map((l) => (
+                    <View key={l} style={s.featureRow}>
+                      <Text style={s.featureCross}>✕</Text>
+                      <Text style={s.featureLimitText}>{l}</Text>
+                    </View>
+                  ))}
                 </View>
-              ))}
+              )}
             </View>
 
             {!plan.current && (
@@ -190,6 +200,8 @@ const s = StyleSheet.create({
   featureCross: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, width: 16, marginTop: 2, color: Colors.borderMedium },
   featureText: { fontSize: FontSize.sm, color: Colors.textSecondary, flex: 1, lineHeight: 20 },
   featureLimitText: { fontSize: FontSize.sm, color: Colors.textTertiary, flex: 1, lineHeight: 20 },
+  limitsBlock: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, gap: Spacing.xs },
+  limitsHeader: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic', marginBottom: Spacing.xs },
   subscribeBtn: { borderRadius: Radius.lg, paddingVertical: Spacing.md + 2, alignItems: 'center', marginTop: Spacing.xs },
   subscribeBtnText: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.base },
   stripeNotice: { flexDirection: 'row', gap: Spacing.sm, backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, alignItems: 'flex-start' },
