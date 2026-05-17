@@ -11,7 +11,17 @@ import { DatePickerModal, DateButton, formatDate } from '../components/DatePicke
 import { mockConcours } from '../data/mockConcours';
 import { useMyBoxAnnonces } from '../hooks/useBoxes';
 import { BoxAnnonce } from '../types/service';
-import { prixTTC as calculatePrixTTC } from '../types/service';
+import { prixTTC as calculatePrixTTC, prixHTFromTTC } from '../types/service';
+
+// Alert.alert est silencieux sur RN Web → fallback window.alert + onOk inline.
+function notify(title: string, msg: string, onOk?: () => void) {
+  if (typeof window !== 'undefined' && typeof window.alert === 'function') {
+    window.alert(`${title}\n\n${msg}`);
+    onOk?.();
+  } else {
+    Alert.alert(title, msg, onOk ? [{ text: 'OK', onPress: onOk }] : undefined);
+  }
+}
 
 const CONCOURS_OPTIONS = mockConcours
   .filter(c => c.statut !== 'brouillon')
@@ -111,7 +121,8 @@ export default function ProposerBoxScreen() {
   const [dateDebut, setDateDebut] = useState<Date | undefined>(existing?.dateDebut);
   const [dateFin, setDateFin] = useState<Date | undefined>(existing?.dateFin);
   const [nbBoxes, setNbBoxes] = useState(existing ? String(existing.nbBoxes) : '');
-  const [prix, setPrix] = useState(existing ? String(existing.prixNuitHT) : '');
+  // Saisie utilisateur en TTC ; conversion HT pour stockage (voir submit).
+  const [prix, setPrix] = useState(existing ? String(calculatePrixTTC(existing.prixNuitHT, 'box')) : '');
   const [concours, setConcours] = useState(existing?.concours ?? '');
   const [equipements, setEquipements] = useState<string[]>([]);
   const [description, setDescription] = useState(existing?.description ?? '');
@@ -132,8 +143,8 @@ export default function ProposerBoxScreen() {
     setEquipements((prev) => prev.includes(e) ? prev.filter((x) => x !== e) : [...prev, e]);
   }
 
-  const prixNum = parseFloat(prix);
-  const prixTTC = prixNum ? calculatePrixTTC(prixNum, 'box') : null;
+  const prixTTCNum = parseFloat(prix);
+  const prixHTNum = prixTTCNum ? prixHTFromTTC(prixTTCNum, 'box') : null;
 
   // Calculer les jours disponibles automatiquement
   const joursDisponibles = dateDebut && dateFin
@@ -142,7 +153,11 @@ export default function ProposerBoxScreen() {
 
   async function submit() {
     if (!lieu || !dateDebut || !dateFin || !prix) {
-      Alert.alert('Champs manquants', 'Veuillez remplir : lieu, dates et prix.');
+      notify('Champs manquants', 'Veuillez remplir : lieu, dates et prix.');
+      return;
+    }
+    if (!prixHTNum || prixHTNum <= 0) {
+      notify('Prix invalide', 'Le prix TTC doit être supérieur à 0.');
       return;
     }
     const nb = joursDisponibles;
@@ -157,26 +172,24 @@ export default function ProposerBoxScreen() {
       dateFin,
       nbBoxes: nb,
       nbBoxesDisponibles: nb,
-      prixNuitHT: parseFloat(prix),
+      prixNuitHT: prixHTNum,
       concours: concours || undefined,
       description: descFull || undefined,
     };
 
+    const goBack = () => router.replace('/(tabs)/services?tab=box' as any);
+
     if (editId && existing) {
       const { error } = await updateAnnonce(editId, payload);
-      if (error) { Alert.alert('Erreur', error); return; }
-      Alert.alert(
-        'Annonce modifiée ! ✅',
-        `Votre annonce de boxes à "${lieu}" a été mise à jour.`,
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=box' as any) }],
-      );
+      if (error) { notify('Erreur', error); return; }
+      notify('Annonce modifiée ✅', `Votre annonce de boxes à "${lieu}" a été mise à jour.`, goBack);
     } else {
       const { error } = await createAnnonce(payload);
-      if (error) { Alert.alert('Erreur', error); return; }
-      Alert.alert(
-        'Annonce publiée ! 🏠',
+      if (error) { notify('Erreur', error); return; }
+      notify(
+        'Annonce publiée 🏠',
         `Votre annonce de boxes à "${lieu}" (${joursDisponibles} jour${joursDisponibles > 1 ? 's' : ''}) est maintenant visible dans la liste.`,
-        [{ text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=box' as any) }],
+        goBack,
       );
     }
   }
@@ -195,7 +208,7 @@ export default function ProposerBoxScreen() {
         <View style={s.infoCard}>
           <Text style={s.infoIcon}>💡</Text>
           <Text style={s.infoText}>
-            Prix recommandé : <Text style={s.infoHighlight}>45 à 80€ / nuit HT</Text>. Réservation possible à la journée ou sur plusieurs jours. Commission plateforme : 9%.
+            Prix recommandé : <Text style={s.infoHighlight}>55 à 100€ / nuit TTC</Text>. Réservation possible à la journée ou sur plusieurs jours. Commission plateforme : 9% (incluse dans le TTC).
           </Text>
         </View>
 
@@ -249,17 +262,20 @@ export default function ProposerBoxScreen() {
           </View>
         )}
 
-        <Field label="Prix par box / nuit (€ HT) *" hint={prixTTC ? `→ ${prixTTC}€ TTC par box par nuit` : 'Recommandé : 45–80€'}>
+        <Field
+          label="Prix par box / nuit (€ TTC) *"
+          hint={prixHTNum ? `→ Vous recevrez ${prixHTNum}€ HT par nuit (commission 9% + TVA 20% incluses dans votre prix TTC)` : 'Recommandé : 55–100€ TTC'}
+        >
           <View style={f.priceRow}>
             <TextInput
               style={[f.input, { flex: 1 }, !!prix && f.inputFilled]}
               value={prix}
               onChangeText={setPrix}
-              placeholder="55"
+              placeholder="70"
               placeholderTextColor={Colors.textTertiary}
               keyboardType="numeric"
             />
-            <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / nuit HT</Text></View>
+            <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / nuit TTC</Text></View>
           </View>
         </Field>
 
