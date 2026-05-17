@@ -1,12 +1,13 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal, Switch,
+  TextInput, Modal, Switch,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton } from '../components/DatePickerModal';
+import { AlertModal } from '../components/AlertModal';
 import { userStore, concoursStore } from '../data/store';
 import { Concours } from '../types/concours';
 
@@ -89,16 +90,39 @@ export default function CreerConcoursScreen() {
   const [autre, setAutre] = useState('');
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error'; onClose?: () => void } | null>(null);
+
+  function showErr(title: string, message: string) {
+    setAlertState({ title, message, variant: 'error' });
+  }
 
   function submit() {
-    if (!nom.trim() || !dateDebut || !dateFin || !lieu || !discipline || !nbPlaces) {
-      Alert.alert('Champs manquants', 'Veuillez remplir au minimum: nom, dates, lieu, discipline et nombre de places.');
+    if (!nom.trim()) { showErr('Nom manquant', 'Indiquez le nom du concours.'); return; }
+    if (!dateDebut) { showErr('Date de début manquante', 'Sélectionnez la date de début du concours.'); return; }
+    if (!dateFin) { showErr('Date de fin manquante', 'Sélectionnez la date de fin du concours.'); return; }
+    if (dateFin.getTime() < dateDebut.getTime()) {
+      showErr('Dates incohérentes', `La date de fin (${dateFin.toLocaleDateString('fr-FR')}) doit être égale ou postérieure à la date de début (${dateDebut.toLocaleDateString('fr-FR')}).`);
       return;
     }
-
-    if (dateFin.getTime() < dateDebut.getTime()) {
-      Alert.alert('Date invalide', 'La date de fin doit être égale ou après la date de début.');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (dateDebut.getTime() < today.getTime()) {
+      showErr('Date dans le passé', `La date de début (${dateDebut.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`);
       return;
+    }
+    if (!lieu.trim()) { showErr('Lieu manquant', 'Indiquez le lieu où se déroule le concours.'); return; }
+    if (!discipline) { showErr('Discipline manquante', 'Sélectionnez la discipline du concours.'); return; }
+    if (!nbPlaces) { showErr('Places manquantes', 'Indiquez le nombre de places disponibles.'); return; }
+    const placesNum = parseInt(nbPlaces, 10);
+    if (Number.isNaN(placesNum) || placesNum <= 0) {
+      showErr('Places invalides', 'Le nombre de places doit être un nombre supérieur à 0.');
+      return;
+    }
+    if (prix) {
+      const prixNum = parseInt(prix, 10);
+      if (Number.isNaN(prixNum) || prixNum < 0) {
+        showErr('Prix invalide', 'Le prix d\'inscription doit être un nombre positif.');
+        return;
+      }
     }
 
     const newConcours: Concours = {
@@ -117,7 +141,7 @@ export default function CreerConcoursScreen() {
       organisateurId: userStore.id,
       organisateurNom: `${userStore.prenom} ${userStore.nom}`,
       statut: 'brouillon',
-      nbPlaces: parseInt(nbPlaces, 10),
+      nbPlaces: placesNum,
       nbInscrits: 0,
       description: description.trim() || undefined,
       prix: prix ? parseInt(prix, 10) : undefined,
@@ -140,11 +164,15 @@ export default function CreerConcoursScreen() {
 
     concoursStore.list = [newConcours, ...concoursStore.list];
 
-    Alert.alert(
-      'Concours créé ! 🏆',
-      `"${nom}" a été créé avec succès en brouillon.`,
-      [{ text: 'OK', onPress: () => router.replace('/(tabs)/org-concours' as any) }],
-    );
+    setAlertState({
+      title: 'Concours créé 🏆',
+      message: `"${nom}" a été créé avec succès en brouillon.`,
+      variant: 'info',
+      onClose: () => {
+        setAlertState(null);
+        router.replace('/(tabs)/org-concours' as any);
+      },
+    });
   }
 
   return (
@@ -402,6 +430,14 @@ export default function CreerConcoursScreen() {
 
       <DatePickerModal visible={showDateDebut} value={dateDebut} onConfirm={setDateDebut} onClose={() => setShowDateDebut(false)} title="Date de début" />
       <DatePickerModal visible={showDateFin} value={dateFin} onConfirm={setDateFin} onClose={() => setShowDateFin(false)} title="Date de fin" />
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={alertState?.onClose ?? (() => setAlertState(null))}
+      />
     </SafeAreaView>
   );
 }

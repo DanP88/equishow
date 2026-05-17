@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal,
+  TextInput, Modal,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../../components/DatePickerModal';
 import { useMyStages } from '../../hooks/useStages';
+import { AlertModal } from '../../components/AlertModal';
 
 const DISCIPLINES = ['Dressage', 'Saut d\'obstacles', 'Cross', 'Western', 'Attelage', 'Équitation de travail', 'Voltige'];
 const NIVEAUX = ['Débutant', 'Intermédiaire', 'Avancé', 'Expert'];
@@ -26,6 +27,9 @@ export default function ProposerStageScreen() {
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
+
+  const showErr = (title: string, message: string) => setAlertState({ title, message, variant: 'error' });
 
   // Calculer le nombre de jours
   const nbJours = dateDebut && dateFin
@@ -49,32 +53,30 @@ export default function ProposerStageScreen() {
   }
 
   function submit() {
-    if (!titre.trim()) {
-      Alert.alert('Erreur', 'Veuillez entrer un titre');
-      return;
-    }
-    if (!dateDebut || !dateFin) {
-      Alert.alert('Erreur', 'Sélectionnez les dates du stage');
-      return;
-    }
+    if (!titre.trim()) { showErr('Titre manquant', 'Indiquez un titre pour votre stage.'); return; }
+    if (!dateDebut) { showErr('Date de début manquante', 'Sélectionnez la date de début du stage.'); return; }
+    if (!dateFin) { showErr('Date de fin manquante', 'Sélectionnez la date de fin du stage.'); return; }
     if (dateFin.getTime() <= dateDebut.getTime()) {
-      Alert.alert('Erreur', 'La date de fin doit être après la date de début');
+      showErr('Dates incohérentes', `La date de fin (${dateFin.toLocaleDateString('fr-FR')}) doit être postérieure à la date de début (${dateDebut.toLocaleDateString('fr-FR')}).`);
       return;
     }
-    if (selectedDisciplines.length === 0) {
-      Alert.alert('Erreur', 'Sélectionnez au moins une discipline');
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    if (dateDebut.getTime() < today.getTime()) {
+      showErr('Date dans le passé', `La date de début (${dateDebut.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`);
       return;
     }
-    if (selectedNiveaux.length === 0) {
-      Alert.alert('Erreur', 'Sélectionnez au moins un niveau');
+    if (selectedDisciplines.length === 0) { showErr('Discipline manquante', 'Sélectionnez au moins une discipline.'); return; }
+    if (selectedNiveaux.length === 0) { showErr('Niveau manquant', 'Sélectionnez au moins un niveau.'); return; }
+    if (!tarif.trim()) { showErr('Tarif manquant', 'Indiquez le tarif du stage.'); return; }
+    const tarifNum = parseFloat(tarif);
+    if (Number.isNaN(tarifNum) || tarifNum <= 0) {
+      showErr('Tarif invalide', 'Le tarif doit être un nombre supérieur à 0€.');
       return;
     }
-    if (!tarif.trim() || isNaN(parseFloat(tarif))) {
-      Alert.alert('Erreur', 'Entrez un tarif valide');
-      return;
-    }
-    if (!places.trim() || isNaN(parseInt(places))) {
-      Alert.alert('Erreur', 'Entrez un nombre de places valide');
+    if (!places.trim()) { showErr('Places manquantes', 'Indiquez le nombre de places.'); return; }
+    const placesNum = parseInt(places, 10);
+    if (Number.isNaN(placesNum) || placesNum <= 0) {
+      showErr('Places invalides', 'Le nombre de places doit être un entier supérieur à 0.');
       return;
     }
 
@@ -93,13 +95,12 @@ export default function ProposerStageScreen() {
       dateFin: dateFin!,
       nbJours,
       prixTTC: parseFloat(tarif),
-      places: parseInt(places),
+      places: parseInt(places, 10),
     });
     setSubmitting(false);
     if (error) {
-      const msg = `Impossible de publier le stage : ${error}`;
-      if (typeof window !== 'undefined') window.alert(msg);
-      else Alert.alert('Erreur', msg);
+      setShowConfirmation(false);
+      showErr('Erreur', `Impossible de publier le stage : ${error}`);
       return;
     }
     setShowConfirmation(false);
@@ -295,6 +296,14 @@ export default function ProposerStageScreen() {
           onClose={() => setShowDateFin(false)}
         />
       )}
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={() => setAlertState(null)}
+      />
     </SafeAreaView>
   );
 }

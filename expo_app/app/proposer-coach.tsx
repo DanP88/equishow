@@ -1,13 +1,14 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert,
+  TextInput,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { useMyCoachProfile } from '../hooks/useCoachProfiles';
 import { useAuth } from '../hooks/useAuth';
+import { AlertModal } from '../components/AlertModal';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
@@ -38,6 +39,11 @@ export default function ProposerCoachScreen() {
   const [tarifHeure, setTarifHeure] = useState('');
   const [bio, setBio] = useState('');
   const [couleur, setCouleur] = useState(COULEURS[0]);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error'; onClose?: () => void } | null>(null);
+
+  function showErr(title: string, message: string) {
+    setAlertState({ title, message, variant: 'error' });
+  }
 
   function toggleDiscipline(d: string) {
     setDisciplines((prev) => prev.includes(d) ? prev.filter((x) => x !== d) : [...prev, d]);
@@ -53,17 +59,21 @@ export default function ProposerCoachScreen() {
 
   async function valider() {
     if (!profile?.id) {
-      Alert.alert('Erreur', 'Vous devez être connecté.');
+      showErr('Non connecté', 'Vous devez être connecté pour créer un profil coach.');
       return;
     }
-    if (!region.trim() || !tarifHeure.trim()) {
-      Alert.alert('Champs manquants', 'Veuillez remplir tous les champs requis.');
+    if (!prenom.trim()) { showErr('Prénom manquant', 'Indiquez votre prénom.'); return; }
+    if (!nom.trim()) { showErr('Nom manquant', 'Indiquez votre nom.'); return; }
+    if (!pseudo.trim()) { showErr('Pseudo manquant', 'Choisissez un pseudo unique.'); return; }
+    if (!region.trim()) { showErr('Région manquante', 'Indiquez votre région d\'activité.'); return; }
+    if (!tarifHeure.trim()) { showErr('Tarif manquant', 'Indiquez votre tarif horaire.'); return; }
+    const tarifNum = Number(tarifHeure);
+    if (Number.isNaN(tarifNum) || tarifNum <= 0) {
+      showErr('Tarif invalide', 'Le tarif horaire doit être un nombre supérieur à 0€.');
       return;
     }
-    if (disciplines.length === 0 || niveaux.length === 0) {
-      Alert.alert('Sélections manquantes', 'Veuillez sélectionner au moins une discipline et un niveau.');
-      return;
-    }
+    if (disciplines.length === 0) { showErr('Disciplines manquantes', 'Sélectionnez au moins une discipline.'); return; }
+    if (niveaux.length === 0) { showErr('Niveaux manquants', 'Sélectionnez au moins un niveau enseigné.'); return; }
 
     setSubmitting(true);
     const { error } = await upsert({
@@ -72,24 +82,25 @@ export default function ProposerCoachScreen() {
       niveaux,
       specialites,
       region: region.trim(),
-      tarifHeure: Math.round(Number(tarifHeure)),
+      tarifHeure: Math.round(tarifNum),
       disponible: true,
     });
     setSubmitting(false);
 
     if (error) {
-      Alert.alert('Erreur', error);
+      showErr('Erreur', error);
       return;
     }
 
-    Alert.alert(
-      'Profil coach créé ! 🎓',
-      `Votre profil coach a été enregistré.`,
-      [
-        { text: 'Voir profil', onPress: () => router.replace(`/preview-coach?coachId=${profile.id}` as any) },
-        { text: 'OK', onPress: () => router.replace('/(tabs)/services?tab=coach' as any) },
-      ],
-    );
+    setAlertState({
+      title: 'Profil coach créé 🎓',
+      message: 'Votre profil coach a été enregistré.',
+      variant: 'info',
+      onClose: () => {
+        setAlertState(null);
+        router.replace(`/preview-coach?coachId=${profile.id}` as any);
+      },
+    });
   }
 
   return (
@@ -236,12 +247,20 @@ export default function ProposerCoachScreen() {
           />
         </View>
 
-        <TouchableOpacity style={s.submitBtn} onPress={valider} activeOpacity={0.85}>
-          <Text style={s.submitText}>Ajouter le coach</Text>
+        <TouchableOpacity style={s.submitBtn} onPress={valider} activeOpacity={0.85} disabled={submitting}>
+          <Text style={s.submitText}>{submitting ? 'Création…' : 'Ajouter le coach'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={alertState?.onClose ?? (() => setAlertState(null))}
+      />
     </SafeAreaView>
   );
 }

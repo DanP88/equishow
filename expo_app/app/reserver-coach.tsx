@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Alert, Modal, Linking,
+  TextInput, Modal, Linking,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
@@ -13,6 +13,7 @@ import { useCoachAnnonce } from '../hooks/useCoachAnnonces';
 import { useCommission } from '../hooks/useCommissions';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createClient } from '@supabase/supabase-js';
+import { AlertModal } from '../components/AlertModal';
 
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
 
@@ -62,6 +63,9 @@ export default function ReserverCoachScreen() {
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [reservationRef, setReservationRef] = useState<string>('');
   const [loading, setLoading] = useState(false);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
+
+  const showErr = (title: string, message: string) => setAlertState({ title, message, variant: 'error' });
 
   // Nombre de jours sélectionnés
   const nbJours = selectedDates.length;
@@ -85,24 +89,15 @@ export default function ReserverCoachScreen() {
 
   const submit = async () => {
     try {
-      console.log('🟢 Submit called');
-
-      // Validation des champs obligatoires
-      console.log('📋 Validating fields:', { discipline, niveau, selectedDates: selectedDates.length, cheval });
-      const champsManquants = [];
-      if (!discipline) champsManquants.push('• Discipline');
-      if (!niveau) champsManquants.push('• Votre niveau');
-      if (selectedDates.length === 0) champsManquants.push('• Au moins une date');
-      if (!cheval.trim()) champsManquants.push('• Cheval / Poney');
-
-      if (champsManquants.length > 0) {
-        console.log('❌ Missing fields:', champsManquants);
-        Alert.alert(
-          'Champs manquants',
-          'Veuillez remplir les champs obligatoires:\n\n' + champsManquants.join('\n')
-        );
+      if (!discipline) { showErr('Discipline manquante', 'Sélectionnez la discipline du cours.'); return; }
+      if (!niveau) { showErr('Niveau manquant', 'Sélectionnez votre niveau.'); return; }
+      if (selectedDates.length === 0) { showErr('Aucune date sélectionnée', 'Choisissez au moins une date pour votre séance.'); return; }
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      if (selectedDates.some((d) => d.getTime() < today.getTime())) {
+        showErr('Date dans le passé', 'Toutes les dates sélectionnées doivent être dans le futur.');
         return;
       }
+      if (!cheval.trim()) { showErr('Cheval manquant', 'Indiquez le nom de votre cheval ou poney.'); return; }
 
       console.log('✅ All fields validated');
       setLoading(true);
@@ -113,8 +108,7 @@ export default function ReserverCoachScreen() {
       console.log('🔑 Environment:', { SUPABASE_URL: !!SUPABASE_URL, SUPABASE_ANON_KEY: !!SUPABASE_ANON_KEY });
 
       if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        console.log('❌ Supabase config missing');
-        Alert.alert('Erreur', 'Variables Supabase non configurées');
+        showErr('Erreur', 'Variables Supabase non configurées.');
         setLoading(false);
         return;
       }
@@ -122,7 +116,7 @@ export default function ReserverCoachScreen() {
       const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       const authToken = await getAuthToken();
       if (!authToken) {
-        Alert.alert('Erreur', 'Non authentifié');
+        showErr('Non authentifié', 'Veuillez vous reconnecter avant de réserver.');
         return;
       }
 
@@ -156,7 +150,7 @@ export default function ReserverCoachScreen() {
         .single();
 
       if (demandError || !demand) {
-        Alert.alert('Erreur', 'Impossible de créer la demande');
+        showErr('Erreur', 'Impossible de créer la demande.');
         return;
       }
 
@@ -187,8 +181,7 @@ export default function ReserverCoachScreen() {
     } catch (error) {
       console.error('❌ Error in submit:', error);
       const errorMsg = error instanceof Error ? error.message : String(error);
-      console.log('Error details:', errorMsg);
-      Alert.alert('Erreur', `Une erreur est survenue: ${errorMsg}`);
+      showErr('Erreur', `Une erreur est survenue : ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -397,6 +390,14 @@ export default function ReserverCoachScreen() {
           </View>
         </View>
       </Modal>
+
+      <AlertModal
+        visible={!!alertState}
+        title={alertState?.title ?? ''}
+        message={alertState?.message}
+        variant={alertState?.variant ?? 'info'}
+        onClose={() => setAlertState(null)}
+      />
     </SafeAreaView>
   );
 }
