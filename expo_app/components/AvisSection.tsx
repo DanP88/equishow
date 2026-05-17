@@ -74,10 +74,10 @@ export function AvisSection({ userId, type = 'coach', refId }: AvisSectionProps)
           </TouchableOpacity>
         )}
 
-        {isLoading ? (
-          <ActivityIndicator size="large" color={Colors.primary} style={styles.loader} />
-        ) : avis.length === 0 ? (
-          <Text style={styles.emptyText}>Aucun avis pour le moment</Text>
+        {avis.length === 0 ? (
+          <Text style={styles.emptyText}>
+            {isLoading ? 'Chargement…' : 'Aucun avis pour le moment'}
+          </Text>
         ) : (
           <FlatList
             data={avis}
