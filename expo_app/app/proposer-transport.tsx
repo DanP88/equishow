@@ -214,8 +214,7 @@ export default function ProposerTransportScreen() {
   const { annonces, createAnnonce, updateAnnonce } = useMyTransportAnnonces();
   const existing = editId ? annonces.find((t) => t.id === editId) : undefined;
 
-  const [villeDepart, setVilleDepart] = useState(existing?.villeDepart ?? '');
-  const [villeArrivee, setVilleArrivee] = useState(existing?.villeArrivee ?? '');
+  // villeDepart/villeArrivee retirés de l'UI — dérivés des adresses au save.
   const [dateTrajet, setDateTrajet] = useState<Date | undefined>(existing?.dateTrajet);
   const [nbPlaces, setNbPlaces] = useState(existing ? String(existing.nbPlacesTotal) : '');
   const [prix, setPrix] = useState(existing ? String(existing.prixHT) : '');
@@ -269,8 +268,6 @@ export default function ProposerTransportScreen() {
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
     if (typeTransport === 'trajet') {
-      if (!villeDepart) { showErr('Ville de départ manquante', 'Indiquez la ville d\'où vous partez.'); return; }
-      if (!villeArrivee) { showErr('Ville d\'arrivée manquante', 'Indiquez la ville où vous allez.'); return; }
       if (!dateTrajet) { showErr('Date manquante', 'Sélectionnez la date du trajet.'); return; }
       if (dateTrajet.getTime() < today.getTime()) {
         showErr('Date dans le passé', `La date du trajet (${dateTrajet.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`);
@@ -283,7 +280,6 @@ export default function ProposerTransportScreen() {
       if (!prix) { showErr('Prix manquant', 'Indiquez votre prix par place ou par km.'); return; }
       if (Number.isNaN(prixNum) || prixNum <= 0) { showErr('Prix invalide', 'Le prix doit être un nombre supérieur à 0€.'); return; }
     } else {
-      if (!villeDepart) { showErr('Ville manquante', 'Indiquez la ville où se trouve le van.'); return; }
       if (!adresseVan) { showErr('Adresse manquante', 'Indiquez l\'adresse précise du van.'); return; }
       if (!nbPlaces) { showErr('Places manquantes', 'Indiquez le nombre de places du van.'); return; }
       if (parseInt(nbPlaces, 10) <= 0) { showErr('Places invalides', 'Le nombre de places doit être supérieur à 0.'); return; }
@@ -315,10 +311,16 @@ export default function ProposerTransportScreen() {
       ? (datesDisponibles.length > 0 ? datesDisponibles[0] : new Date())
       : dateTrajet!;
 
+    // ville_depart / ville_arrivee : dérivés des adresses (champ legacy DB NOT NULL).
+    // On garde le dernier segment après virgule (typiquement "75001 Paris").
+    const extractCity = (addr: string): string => {
+      const parts = (addr || '').split(',').map((p) => p.trim()).filter(Boolean);
+      return parts[parts.length - 1] || addr.trim() || '—';
+    };
     const payload: Partial<TransportAnnonce> = {
       dateTrajet: dateTrajetFinal,
-      villeDepart: villeDepart.trim(),
-      villeArrivee: typeTransport === 'location' ? '' : villeArrivee.trim(),
+      villeDepart: extractCity(adresseVan),
+      villeArrivee: typeTransport === 'location' ? '' : extractCity(adresseArrivee),
       nbPlacesTotal: nb,
       nbPlacesDisponibles: nb,
       prixHT: parseFloat(prix),
@@ -400,16 +402,6 @@ export default function ProposerTransportScreen() {
                 <Text style={[s.typeBtnText, typeTransport === 'location' && s.typeBtnTextActive]}>🔑 Location du transport seul</Text>
               </TouchableOpacity>
             </View>
-          </Field>
-        )}
-
-        <Field label="Ville de départ *" required>
-          <VillesPicker value={villeDepart} onChange={setVilleDepart} />
-        </Field>
-
-        {typeTransport === 'trajet' && (
-          <Field label="Ville d'arrivée *" required>
-            <VillesPicker value={villeArrivee} onChange={setVilleArrivee} />
           </Field>
         )}
 
