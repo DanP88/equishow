@@ -419,22 +419,22 @@ export default function CommunauteScreen() {
           const liked = post.likedBy.includes(userStore.id);
           return (
             <View key={post.id} style={styles.card}>
-              <TouchableOpacity
-                style={styles.postHeader}
-                onPress={() => router.push(`/user-profile/${post.auteur}`)}
-                activeOpacity={0.7}
-              >
-                <View style={[styles.avatar, { backgroundColor: post.couleur }]}>
-                  <Text style={styles.avatarText}>{post.initiales}</Text>
-                </View>
+              <View style={styles.postHeader}>
+                <TouchableOpacity onPress={() => router.push(`/user-profile/${post.auteur}`)} activeOpacity={0.7}>
+                  <View style={[styles.avatar, { backgroundColor: post.couleur }]}>
+                    <Text style={styles.avatarText}>{post.initiales}</Text>
+                  </View>
+                </TouchableOpacity>
                 <View style={styles.postMeta}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                    <Text style={styles.auteur}>{post.auteur}</Text>
+                    <TouchableOpacity onPress={() => router.push(`/user-profile/${post.auteur}`)} activeOpacity={0.7}>
+                      <Text style={styles.auteur}>{post.auteur}</Text>
+                    </TouchableOpacity>
                     <UserBadge userId={post.auteurId} variant="icon" size="sm" />
                   </View>
                   <Text style={styles.date}>{timeAgo(post.date)}</Text>
                 </View>
-              </TouchableOpacity>
+              </View>
               <Text style={styles.contenu}>{post.contenu}</Text>
               <View style={styles.actions}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => toggleLike(post.id)}>
