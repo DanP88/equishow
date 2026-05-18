@@ -30,6 +30,7 @@ import { useUserBadges } from '../hooks/useUserBadges';
 import { useAuth } from '../hooks/useAuth';
 import { LevelMedal } from './LevelMedal';
 import { LevelInfoModal } from './LevelInfoModal';
+import { CertifiedSeal } from './CertifiedSeal';
 
 type Size = 'xs' | 'sm' | 'md';
 type Variant = 'pill' | 'icon';
@@ -75,9 +76,7 @@ export function UserBadge({
     }
     if (showCertified && badges.isCertified) {
       items.push(
-        <Text key="cert-icon" style={[styles.starIcon, { color: COACH_BADGES.certified.fg, fontSize: ICON_SIZE[size] }]}>
-          ✓
-        </Text>,
+        <CertifiedSeal key="cert-seal" size={MEDAL_SIZE[size]} />,
       );
     }
     if (showBoost && badges.isBoosted) {
