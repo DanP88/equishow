@@ -31,6 +31,7 @@ import { useAuth } from '../hooks/useAuth';
 import { LevelMedal } from './LevelMedal';
 import { LevelInfoModal } from './LevelInfoModal';
 import { CertifiedSeal } from './CertifiedSeal';
+import { CertifiedInfoModal } from './CertifiedInfoModal';
 
 type Size = 'xs' | 'sm' | 'md';
 type Variant = 'pill' | 'icon';
@@ -57,6 +58,7 @@ export function UserBadge({
   const { badges } = useUserBadges(userId);
   const { profile } = useAuth();
   const [modalOpen, setModalOpen] = useState(false);
+  const [certifiedModalOpen, setCertifiedModalOpen] = useState(false);
 
   if (!badges) return null;
 
@@ -64,6 +66,7 @@ export function UserBadge({
   const items: React.ReactNode[] = [];
   const isCurrentUser = !!profile?.id && profile.id === userId;
   const openInfo = (e?: any) => { e?.stopPropagation?.(); setModalOpen(true); };
+  const openCertifiedInfo = (e?: any) => { e?.stopPropagation?.(); setCertifiedModalOpen(true); };
 
   // ── Variante "icon" : médaille ronde premium collée au nom ────────────
   if (variant === 'icon') {
@@ -76,7 +79,9 @@ export function UserBadge({
     }
     if (showCertified && badges.isCertified) {
       items.push(
-        <CertifiedSeal key="cert-seal" size={MEDAL_SIZE[size]} />,
+        <TouchableOpacity key="cert-seal" onPress={openCertifiedInfo} activeOpacity={0.7}>
+          <CertifiedSeal size={MEDAL_SIZE[size]} />
+        </TouchableOpacity>,
       );
     }
     if (showBoost && badges.isBoosted) {
@@ -97,6 +102,11 @@ export function UserBadge({
           isCurrentUser={isCurrentUser}
           onClose={() => setModalOpen(false)}
         />
+        <CertifiedInfoModal
+          visible={certifiedModalOpen}
+          isCurrentUser={isCurrentUser}
+          onClose={() => setCertifiedModalOpen(false)}
+        />
       </>
     );
   }
@@ -116,11 +126,16 @@ export function UserBadge({
   if (showCertified && badges.isCertified) {
     const s = COACH_BADGES.certified;
     items.push(
-      <View key="cert" style={[styles.pill, dims.pill, { backgroundColor: s.bg, borderColor: s.border, borderWidth: 1 }]}>
+      <TouchableOpacity
+        key="cert"
+        onPress={openCertifiedInfo}
+        activeOpacity={0.7}
+        style={[styles.pill, dims.pill, { backgroundColor: s.bg, borderColor: s.border, borderWidth: 1 }]}
+      >
         <Text style={[styles.text, dims.text, { color: s.fg }]} numberOfLines={1}>
           {s.icon} {s.label}
         </Text>
-      </View>,
+      </TouchableOpacity>,
     );
   }
 
@@ -154,6 +169,11 @@ export function UserBadge({
         points={badges.points}
         isCurrentUser={isCurrentUser}
         onClose={() => setModalOpen(false)}
+      />
+      <CertifiedInfoModal
+        visible={certifiedModalOpen}
+        isCurrentUser={isCurrentUser}
+        onClose={() => setCertifiedModalOpen(false)}
       />
     </>
   );
