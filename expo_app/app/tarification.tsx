@@ -20,8 +20,26 @@ export default function TarificationScreen() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const plans = getPlansByRole(userRole);
-  const currentPlanId = (profile as any)?.plan_id ?? null;
-  const currentPlan = plans.find((p) => p.id === currentPlanId) ?? null;
+
+  // Résoudre le plan actuel — robuste aux anciennes valeurs DB :
+  //   - 'gratuit' / 'free' / null → plan gratuit du rôle (le 1er plan dont prix=0)
+  //   - sinon match exact sur plan.id
+  //   - fallback : match sur le nom textuel (users.plan) en tolérant casse/accents
+  const rawPlanId = ((profile as any)?.plan_id ?? '').toString().toLowerCase().trim();
+  const rawPlanNom = ((profile as any)?.plan ?? '').toString().toLowerCase().trim();
+  const normalize = (s: string) =>
+    s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
+  const isLegacyFree = ['', 'gratuit', 'free', 'decouverte', 'découverte'].includes(rawPlanId)
+    || ['', 'gratuit', 'free'].includes(rawPlanNom);
+  let currentPlan: Plan | null = null;
+  if (rawPlanId) currentPlan = plans.find((p) => p.id === rawPlanId) ?? null;
+  if (!currentPlan && rawPlanNom) {
+    currentPlan = plans.find((p) => normalize(p.nom) === normalize(rawPlanNom)) ?? null;
+  }
+  if (!currentPlan && isLegacyFree) {
+    currentPlan = plans.find((p) => p.prix === 0) ?? null;
+  }
+  const currentPlanId = currentPlan?.id ?? null;
 
   const ROLE_LABELS: Record<string, string> = {
     cavalier: 'Cavalier',
