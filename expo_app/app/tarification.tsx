@@ -20,6 +20,8 @@ export default function TarificationScreen() {
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
 
   const plans = getPlansByRole(userRole);
+  const currentPlanId = (profile as any)?.plan_id ?? null;
+  const currentPlan = plans.find((p) => p.id === currentPlanId) ?? null;
 
   const ROLE_LABELS: Record<string, string> = {
     cavalier: 'Cavalier',
@@ -46,12 +48,31 @@ export default function TarificationScreen() {
           <Text style={styles.subtitle}>{ROLE_DESCRIPTIONS[userRole]}</Text>
         </View>
 
+        {/* Bannière "Plan actuel" — bien visible en haut */}
+        {currentPlan && (
+          <View style={styles.currentBanner}>
+            <View style={styles.currentBannerLeft}>
+              <Text style={styles.currentBannerLabel}>VOTRE FORFAIT ACTUEL</Text>
+              <Text style={styles.currentBannerName}>{currentPlan.nom}</Text>
+              <Text style={styles.currentBannerPrice}>
+                {currentPlan.prix === 0
+                  ? 'Gratuit'
+                  : `${currentPlan.prix}€${currentPlan.periode === 'mensuel' ? '/mois' : currentPlan.periode === 'annuel' ? '/an' : ''}`}
+              </Text>
+            </View>
+            <View style={styles.currentBannerBadge}>
+              <Text style={styles.currentBannerBadgeText}>✓ Actif</Text>
+            </View>
+          </View>
+        )}
+
         {/* Plans Grid */}
         <View style={styles.plansContainer}>
           {plans.map((plan) => (
             <PlanCard
               key={plan.id}
               plan={plan}
+              isCurrent={plan.id === currentPlanId}
               isSelected={selectedPlanId === plan.id}
               onSelect={() => setSelectedPlanId(plan.id)}
               onSubscribe={() => {
@@ -96,16 +117,22 @@ export default function TarificationScreen() {
 
 interface PlanCardProps {
   plan: Plan;
+  isCurrent: boolean;
   isSelected: boolean;
   onSelect: () => void;
   onSubscribe: () => void;
 }
 
-function PlanCard({ plan, isSelected, onSelect, onSubscribe }: PlanCardProps) {
+function PlanCard({ plan, isCurrent, isSelected, onSelect, onSubscribe }: PlanCardProps) {
   const isFree = plan.prix === 0;
   return (
-    <View style={[styles.planCard, isSelected && styles.planCardSelected]}>
-      {plan.badge && (
+    <View style={[styles.planCard, isSelected && styles.planCardSelected, isCurrent && styles.planCardCurrent]}>
+      {isCurrent && (
+        <View style={styles.currentBadge}>
+          <Text style={styles.currentBadgeText}>✓ FORFAIT ACTUEL</Text>
+        </View>
+      )}
+      {plan.badge && !isCurrent && (
         <View style={styles.badge}>
           <Text style={styles.badgeText}>{plan.badge}</Text>
         </View>
@@ -146,15 +173,23 @@ function PlanCard({ plan, isSelected, onSelect, onSubscribe }: PlanCardProps) {
         </View>
       </TouchableOpacity>
 
-      <TouchableOpacity
-        style={[styles.subscribeBtn, isSelected && styles.subscribeBtnActive]}
-        onPress={onSubscribe}
-        activeOpacity={0.85}
-      >
-        <Text style={[styles.subscribeBtnText, isSelected && styles.subscribeBtnTextActive]}>
-          {isFree ? 'Choisir Découverte' : 'S\'abonner'}
-        </Text>
-      </TouchableOpacity>
+      {isCurrent ? (
+        <View style={[styles.subscribeBtn, styles.subscribeBtnCurrent]}>
+          <Text style={[styles.subscribeBtnText, styles.subscribeBtnCurrentText]}>
+            Vous y êtes ✓
+          </Text>
+        </View>
+      ) : (
+        <TouchableOpacity
+          style={[styles.subscribeBtn, isSelected && styles.subscribeBtnActive]}
+          onPress={onSubscribe}
+          activeOpacity={0.85}
+        >
+          <Text style={[styles.subscribeBtnText, isSelected && styles.subscribeBtnTextActive]}>
+            {isFree ? 'Choisir Découverte' : 'S\'abonner'}
+          </Text>
+        </TouchableOpacity>
+      )}
     </View>
   );
 }
@@ -218,6 +253,49 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxxl,
   },
 
+  currentBanner: {
+    backgroundColor: Colors.successBg,
+    borderColor: Colors.success,
+    borderWidth: 2,
+    borderRadius: Radius.md,
+    padding: Spacing.lg,
+    marginBottom: Spacing.xl,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+  },
+  currentBannerLeft: {
+    flex: 1,
+  },
+  currentBannerLabel: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: Colors.success,
+    letterSpacing: 1,
+    marginBottom: 4,
+  },
+  currentBannerName: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
+  },
+  currentBannerPrice: {
+    fontSize: FontSize.base,
+    color: Colors.textSecondary,
+    marginTop: 2,
+  },
+  currentBannerBadge: {
+    backgroundColor: Colors.success,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 20,
+  },
+  currentBannerBadgeText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: '#fff',
+  },
+
   planCard: {
     ...CommonStyles.card,
     padding: Spacing.lg,
@@ -228,6 +306,27 @@ const styles = StyleSheet.create({
   planCardSelected: {
     borderColor: Colors.primary,
     backgroundColor: Colors.primaryLight,
+  },
+  planCardCurrent: {
+    borderColor: Colors.success,
+    borderWidth: 3,
+    backgroundColor: Colors.successBg,
+  },
+  currentBadge: {
+    position: 'absolute',
+    top: -12,
+    left: Spacing.lg,
+    backgroundColor: Colors.success,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 20,
+    zIndex: 2,
+  },
+  currentBadgeText: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.bold,
+    color: '#fff',
+    letterSpacing: 0.5,
   },
 
   badge: {
@@ -316,6 +415,13 @@ const styles = StyleSheet.create({
   },
   subscribeBtnTextActive: {
     color: Colors.textInverse,
+  },
+  subscribeBtnCurrent: {
+    backgroundColor: Colors.success,
+    borderColor: Colors.success,
+  },
+  subscribeBtnCurrentText: {
+    color: '#fff',
   },
 
   faqSection: {
