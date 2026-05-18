@@ -1,5 +1,5 @@
 {
-  "buildCommand": "npm install && npx expo export --platform web",
+  "buildCommand": "npm install && npx expo export --platform web && node scripts/inject-pwa-meta.mjs",
   "outputDirectory": "dist",
   "installCommand": "echo skip install",
 
