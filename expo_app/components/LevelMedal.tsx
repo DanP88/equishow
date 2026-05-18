@@ -1,22 +1,20 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// <LevelMedal /> — Cocarde équestre stylisée pour les niveaux cavalier.
+// <LevelMedal /> — Cocarde équestre HAUTE COUTURE
 //
-// Inspiré des rosettes de concours hippique françaises.
-// Structure :
-//   - 2 rubans (tails) en bas (V inversé qui dépasse)
-//   - cocarde plissée extérieure (anneau radial)
-//   - bouton central métallique avec gradient + reflet
-//   - étoile dorée au centre (or sur tous niveaux, l'or de la victoire)
+// Design refined :
+//   - Plis en soie (12 secteurs alternés clair/foncé pour vrai effet plissé satin)
+//   - Anneau intérieur métallique doré/argenté (rim) avec hairline
+//   - Médaillon central avec dégradé radial + reflet diagonal + ombre interne
+//   - Étoile 5 branches polie (gradient or → ambre)
+//   - Rubans à pli central + V-cut net en bas
+//   - Drop shadow sous l'ensemble pour effet 3D
 //
-// 5 niveaux = 5 couleurs de ruban et de cocarde :
-//   Débutant  — gris perle / blanc cassé
-//   Passionné — bleu cobalt
-//   Confirmé  — vert émeraude
-//   Expert    — argent / platine (métallique)
-//   Élite     — or 24 carats
-//
-// Implémenté avec react-native-svg → vraie qualité vectorielle, gradient
-// radial, ombres, reflet, peu importe la taille (xs → lg).
+// 5 niveaux :
+//   Débutant  — satin nacré
+//   Passionné — bleu cobalt royal
+//   Confirmé  — vert émeraude soie
+//   Expert    — platine métallique
+//   Élite     — or massif 24 carats
 // ─────────────────────────────────────────────────────────────────────────────
 
 import React from 'react';
@@ -31,97 +29,135 @@ import Svg, {
   G,
   Polygon,
   Ellipse,
-  Line,
 } from 'react-native-svg';
 import { UserLevel } from '../lib/badges';
 
 type Size = 'xs' | 'sm' | 'md' | 'lg';
 
 interface Palette {
-  ribbonDark: string;
-  ribbonLight: string;
-  cocardeDark: string;
-  cocardeMid: string;
-  cocardeLight: string;
+  // Rubans
+  ribbonShadow: string;
+  ribbonBase: string;
+  ribbonHi: string;
+  // Cocarde (plis soie)
+  pleatDark: string;
+  pleatLight: string;
+  pleatEdge: string;
+  // Anneau métallique
+  rimDark: string;
+  rimLight: string;
+  // Médaillon central
   centerDark: string;
+  centerMid: string;
   centerLight: string;
-  star: string;        // couleur étoile
+  // Étoile
+  starHi: string;
+  starLo: string;
   starOutline: string;
 }
 
+const GOLD = {
+  rimDark: '#8C5A1A',
+  rimLight: '#FFE082',
+  starHi: '#FEF3C7',
+  starLo: '#D97706',
+  starOutline: '#78350F',
+};
+
+const SILVER = {
+  rimDark: '#475569',
+  rimLight: '#F1F5F9',
+  starHi: '#F8FAFC',
+  starLo: '#94A3B8',
+  starOutline: '#334155',
+};
+
 const PALETTE: Record<UserLevel, Palette> = {
-  // Débutant — gris perle / nacré
+  // Débutant — perle / satin blanc
   debutant: {
-    ribbonDark: '#94A3B8',
-    ribbonLight: '#E2E8F0',
-    cocardeDark: '#64748B',
-    cocardeMid: '#CBD5E1',
-    cocardeLight: '#F1F5F9',
+    ribbonShadow: '#64748B',
+    ribbonBase: '#94A3B8',
+    ribbonHi: '#F1F5F9',
+    pleatDark: '#94A3B8',
+    pleatLight: '#F8FAFC',
+    pleatEdge: '#64748B',
     centerDark: '#475569',
-    centerLight: '#E2E8F0',
-    star: '#94A3B8',
-    starOutline: '#475569',
+    centerMid: '#CBD5E1',
+    centerLight: '#F8FAFC',
+    ...SILVER,
   },
-  // Passionné — bleu cobalt profond
+  // Passionné — bleu cobalt royal
   passionne: {
-    ribbonDark: '#1E3A8A',
-    ribbonLight: '#60A5FA',
-    cocardeDark: '#1D4ED8',
-    cocardeMid: '#3B82F6',
-    cocardeLight: '#93C5FD',
+    ribbonShadow: '#1E3A8A',
+    ribbonBase: '#1D4ED8',
+    ribbonHi: '#93C5FD',
+    pleatDark: '#1D4ED8',
+    pleatLight: '#93C5FD',
+    pleatEdge: '#1E3A8A',
     centerDark: '#1E3A8A',
+    centerMid: '#3B82F6',
     centerLight: '#DBEAFE',
-    star: '#FBBF24',
-    starOutline: '#92400E',
+    ...GOLD,
   },
-  // Confirmé — vert émeraude
+  // Confirmé — vert émeraude soie
   confirme: {
-    ribbonDark: '#065F46',
-    ribbonLight: '#34D399',
-    cocardeDark: '#047857',
-    cocardeMid: '#10B981',
-    cocardeLight: '#6EE7B7',
+    ribbonShadow: '#064E3B',
+    ribbonBase: '#047857',
+    ribbonHi: '#6EE7B7',
+    pleatDark: '#047857',
+    pleatLight: '#A7F3D0',
+    pleatEdge: '#064E3B',
     centerDark: '#064E3B',
+    centerMid: '#10B981',
     centerLight: '#D1FAE5',
-    star: '#FBBF24',
-    starOutline: '#92400E',
+    ...GOLD,
   },
-  // Expert — argent / platine métallique
+  // Expert — platine métallique brossé
   expert: {
-    ribbonDark: '#475569',
-    ribbonLight: '#CBD5E1',
-    cocardeDark: '#334155',
-    cocardeMid: '#94A3B8',
-    cocardeLight: '#F1F5F9',
+    ribbonShadow: '#334155',
+    ribbonBase: '#64748B',
+    ribbonHi: '#F1F5F9',
+    pleatDark: '#64748B',
+    pleatLight: '#F8FAFC',
+    pleatEdge: '#334155',
     centerDark: '#1F2937',
-    centerLight: '#F1F5F9',
-    star: '#F8FAFC',
+    centerMid: '#94A3B8',
+    centerLight: '#F8FAFC',
+    rimDark: '#334155',
+    rimLight: '#E2E8F0',
+    starHi: '#FFFFFF',
+    starLo: '#94A3B8',
     starOutline: '#475569',
   },
   // Élite — or 24 carats
   elite: {
-    ribbonDark: '#92400E',
-    ribbonLight: '#FCD34D',
-    cocardeDark: '#B45309',
-    cocardeMid: '#F59E0B',
-    cocardeLight: '#FEF3C7',
+    ribbonShadow: '#78350F',
+    ribbonBase: '#B45309',
+    ribbonHi: '#FDE68A',
+    pleatDark: '#B45309',
+    pleatLight: '#FEF3C7',
+    pleatEdge: '#78350F',
     centerDark: '#78350F',
+    centerMid: '#F59E0B',
     centerLight: '#FEF3C7',
-    star: '#FFFBEB',
-    starOutline: '#92400E',
+    rimDark: '#92400E',
+    rimLight: '#FFFBEB',
+    starHi: '#FFFBEB',
+    starLo: '#D97706',
+    starOutline: '#7C2D12',
   },
 };
 
-const SIZE_PX: Record<Size, number> = { xs: 18, sm: 22, md: 32, lg: 48 };
+const SIZE_PX: Record<Size, number> = { xs: 18, sm: 24, md: 36, lg: 56 };
 
 interface Props {
   level: UserLevel;
   size?: Size;
 }
 
-// Étoile 5 branches centrée sur (cx, cy) de rayon r (extérieur)
+// Étoile 5 branches centrée
 function starPoints(cx: number, cy: number, r: number): string {
-  const inner = r * 0.45;
+  const inner = r * 0.42;
   const pts: string[] = [];
   for (let i = 0; i < 10; i++) {
     const radius = i % 2 === 0 ? r : inner;
@@ -131,19 +167,38 @@ function starPoints(cx: number, cy: number, r: number): string {
   return pts.join(' ');
 }
 
+// Construit le path d'un secteur (pleat) de la cocarde
+function sectorPath(cx: number, cy: number, r: number, a0: number, a1: number): string {
+  const x0 = cx + r * Math.cos(a0);
+  const y0 = cy + r * Math.sin(a0);
+  const x1 = cx + r * Math.cos(a1);
+  const y1 = cy + r * Math.sin(a1);
+  const large = a1 - a0 > Math.PI ? 1 : 0;
+  return `M ${cx} ${cy} L ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1} Z`;
+}
+
 export function LevelMedal({ level, size = 'sm' }: Props) {
   const p = PALETTE[level];
   const px = SIZE_PX[size];
 
-  // Viewbox 100x140 (cocarde 100x100 + rubans qui dépassent 40px en bas)
+  // Viewbox 100×144 : cocarde 100×100 + rubans 44px
   const W = 100;
-  const H = 140;
+  const H = 144;
   const cx = 50;
-  const cyCocarde = 48;
-  const rOuter = 38;   // cocarde plissée
-  const rInner = 24;   // bouton central
+  const cy = 50;
+  const rOuter = 42; // cocarde plissée
+  const rRim   = 26; // anneau métallique
+  const rCenter = 22; // disque central
+  const rStar = rCenter * 0.68;
 
-  // Suffixe d'id unique par niveau pour éviter collision SVG defs
+  // 12 secteurs alternés
+  const N_PLEATS = 12;
+  const sectors = Array.from({ length: N_PLEATS }, (_, i) => {
+    const a0 = (i / N_PLEATS) * Math.PI * 2 - Math.PI / 2;
+    const a1 = ((i + 1) / N_PLEATS) * Math.PI * 2 - Math.PI / 2;
+    return { a0, a1, light: i % 2 === 0 };
+  });
+
   const gid = `lvm-${level}`;
 
   return (
@@ -160,121 +215,178 @@ export function LevelMedal({ level, size = 'sm' }: Props) {
         preserveAspectRatio="xMidYMid meet"
       >
         <Defs>
-          {/* Gradient rubans (vertical, clair au milieu) */}
+          {/* Ruban : gradient longitudinal avec hi-light central */}
           <SvgLinearGradient id={`${gid}-ribbon`} x1="0" y1="0" x2="1" y2="0">
-            <Stop offset="0" stopColor={p.ribbonDark} />
-            <Stop offset="0.5" stopColor={p.ribbonLight} />
-            <Stop offset="1" stopColor={p.ribbonDark} />
+            <Stop offset="0" stopColor={p.ribbonShadow} />
+            <Stop offset="0.45" stopColor={p.ribbonHi} />
+            <Stop offset="0.55" stopColor={p.ribbonHi} />
+            <Stop offset="1" stopColor={p.ribbonShadow} />
           </SvgLinearGradient>
-          {/* Gradient cocarde plissée (radial, foncé bord → clair centre) */}
-          <RadialGradient id={`${gid}-cocarde`} cx="0.5" cy="0.4" r="0.7" fx="0.4" fy="0.3">
-            <Stop offset="0" stopColor={p.cocardeLight} />
-            <Stop offset="0.6" stopColor={p.cocardeMid} />
-            <Stop offset="1" stopColor={p.cocardeDark} />
+
+          {/* Pleat light → highlight diagonal */}
+          <SvgLinearGradient id={`${gid}-pleat-light`} x1="0" y1="0" x2="0.5" y2="1">
+            <Stop offset="0" stopColor={p.pleatLight} />
+            <Stop offset="1" stopColor={p.pleatDark} />
+          </SvgLinearGradient>
+          <SvgLinearGradient id={`${gid}-pleat-dark`} x1="0" y1="0" x2="0.5" y2="1">
+            <Stop offset="0" stopColor={p.pleatDark} />
+            <Stop offset="1" stopColor={p.pleatEdge} />
+          </SvgLinearGradient>
+
+          {/* Anneau métallique (or / argent) — radial dégradé */}
+          <RadialGradient id={`${gid}-rim`} cx="0.5" cy="0.35" r="0.65">
+            <Stop offset="0" stopColor={p.rimLight} />
+            <Stop offset="0.7" stopColor={p.rimLight} stopOpacity="0.7" />
+            <Stop offset="1" stopColor={p.rimDark} />
           </RadialGradient>
-          {/* Gradient bouton central — métallique 3D */}
-          <RadialGradient id={`${gid}-center`} cx="0.4" cy="0.3" r="0.7">
+
+          {/* Médaillon central — radial profond */}
+          <RadialGradient id={`${gid}-center`} cx="0.4" cy="0.3" r="0.75">
             <Stop offset="0" stopColor={p.centerLight} />
-            <Stop offset="0.6" stopColor={p.cocardeMid} />
+            <Stop offset="0.55" stopColor={p.centerMid} />
             <Stop offset="1" stopColor={p.centerDark} />
           </RadialGradient>
-          {/* Reflet lumineux (overlay haut blanc → transparent) */}
+
+          {/* Reflet diagonal lumineux */}
           <SvgLinearGradient id={`${gid}-shine`} x1="0" y1="0" x2="0" y2="1">
-            <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.55" />
-            <Stop offset="0.5" stopColor="#FFFFFF" stopOpacity="0.1" />
+            <Stop offset="0" stopColor="#FFFFFF" stopOpacity="0.6" />
+            <Stop offset="0.5" stopColor="#FFFFFF" stopOpacity="0.12" />
             <Stop offset="1" stopColor="#FFFFFF" stopOpacity="0" />
           </SvgLinearGradient>
+
+          {/* Étoile — gradient diagonal lumineux */}
+          <SvgLinearGradient id={`${gid}-star`} x1="0.2" y1="0" x2="0.8" y2="1">
+            <Stop offset="0" stopColor={p.starHi} />
+            <Stop offset="1" stopColor={p.starLo} />
+          </SvgLinearGradient>
+
+          {/* Ombre portée subtile (sous tout l'ensemble) */}
+          <RadialGradient id={`${gid}-shadow`} cx="0.5" cy="0.5" r="0.5">
+            <Stop offset="0" stopColor="#000" stopOpacity="0.28" />
+            <Stop offset="1" stopColor="#000" stopOpacity="0" />
+          </RadialGradient>
         </Defs>
 
-        {/* ── RUBANS du bas (2 tails inversés en V) ──────────────────── */}
-        {/* Tail gauche */}
-        <Polygon
-          points={`40,80 50,80 38,135 26,128`}
-          fill={`url(#${gid}-ribbon)`}
-          stroke={p.ribbonDark}
-          strokeWidth="0.8"
-        />
-        {/* Tail droite */}
-        <Polygon
-          points={`50,80 60,80 74,128 62,135`}
-          fill={`url(#${gid}-ribbon)`}
-          stroke={p.ribbonDark}
-          strokeWidth="0.8"
-        />
-        {/* Encoche centrale (les 2 rubans se rejoignent sous la cocarde) */}
-        <Polygon
-          points={`44,75 56,75 52,90 48,90`}
-          fill={p.ribbonDark}
-          opacity="0.5"
-        />
+        {/* Ombre portée */}
+        <Ellipse cx={cx} cy={H - 6} rx={26} ry={4} fill={`url(#${gid}-shadow)`} />
 
-        {/* ── COCARDE plissée extérieure ──────────────────────────────── */}
-        {/* Plis (rays) — 16 traits radiaux qui simulent le plissé */}
-        <G>
-          {Array.from({ length: 16 }).map((_, i) => {
-            const a = (i * Math.PI * 2) / 16;
-            const x2 = cx + rOuter * Math.cos(a);
-            const y2 = cyCocarde + rOuter * Math.sin(a);
-            return (
-              <Line
-                key={`pli-${i}`}
-                x1={cx}
-                y1={cyCocarde}
-                x2={x2}
-                y2={y2}
-                stroke={p.cocardeDark}
-                strokeWidth="0.4"
-                opacity="0.5"
-              />
-            );
-          })}
-        </G>
-        {/* Disque cocarde (gradient radial) */}
-        <Circle
-          cx={cx}
-          cy={cyCocarde}
-          r={rOuter}
-          fill={`url(#${gid}-cocarde)`}
-          stroke={p.cocardeDark}
-          strokeWidth="1.4"
-        />
-        {/* Pli en zig-zag (anneau crénelé) — approximation via cercle dashed */}
-        <Circle
-          cx={cx}
-          cy={cyCocarde}
-          r={rOuter - 1}
-          fill="none"
-          stroke={p.cocardeLight}
+        {/* ── RUBANS du bas ───────────────────────────────────────────── */}
+        {/* Tail gauche (avec pli central) */}
+        <Path
+          d="M 38 78 L 50 78 L 47 100 L 43 140 L 27 134 L 35 100 Z"
+          fill={`url(#${gid}-ribbon)`}
+          stroke={p.ribbonShadow}
           strokeWidth="0.6"
-          opacity="0.65"
-          strokeDasharray="2,1.5"
+          strokeLinejoin="round"
+        />
+        {/* V-cut en bas du ruban gauche (ombre interne) */}
+        <Polygon points="27,134 35,128 43,140" fill={p.ribbonShadow} opacity="0.5" />
+
+        {/* Tail droite */}
+        <Path
+          d="M 50 78 L 62 78 L 65 100 L 73 134 L 57 140 L 53 100 Z"
+          fill={`url(#${gid}-ribbon)`}
+          stroke={p.ribbonShadow}
+          strokeWidth="0.6"
+          strokeLinejoin="round"
+        />
+        <Polygon points="73,134 65,128 57,140" fill={p.ribbonShadow} opacity="0.5" />
+
+        {/* Nœud central (le pli qui maintient les rubans) */}
+        <Path
+          d="M 40 76 L 60 76 L 56 92 L 44 92 Z"
+          fill={p.ribbonShadow}
+          opacity="0.85"
+        />
+        <Path
+          d="M 41 76 L 59 76 L 56 80 L 44 80 Z"
+          fill={p.ribbonHi}
+          opacity="0.7"
         />
 
-        {/* ── BOUTON central métallique ──────────────────────────────── */}
+        {/* ── COCARDE plissée extérieure ─────────────────────────────── */}
+        {/* 12 secteurs alternés (effet plissé satin) */}
+        <G>
+          {sectors.map((s, i) => (
+            <Path
+              key={`sec-${i}`}
+              d={sectorPath(cx, cy, rOuter, s.a0, s.a1)}
+              fill={s.light ? `url(#${gid}-pleat-light)` : `url(#${gid}-pleat-dark)`}
+            />
+          ))}
+        </G>
+        {/* Cercle bordure cocarde */}
         <Circle
           cx={cx}
-          cy={cyCocarde}
-          r={rInner}
-          fill={`url(#${gid}-center)`}
-          stroke={p.centerDark}
+          cy={cy}
+          r={rOuter}
+          fill="none"
+          stroke={p.pleatEdge}
           strokeWidth="1.2"
         />
-        {/* Reflet supérieur — ellipse claire */}
+        {/* Reflet supérieur sur cocarde (ellipse douce) */}
         <Ellipse
-          cx={cx - 2}
-          cy={cyCocarde - 8}
-          rx={rInner * 0.55}
-          ry={rInner * 0.32}
+          cx={cx}
+          cy={cy - rOuter * 0.55}
+          rx={rOuter * 0.65}
+          ry={rOuter * 0.18}
           fill={`url(#${gid}-shine)`}
         />
 
-        {/* ── ÉTOILE centrale ─────────────────────────────────────────── */}
-        <Polygon
-          points={starPoints(cx, cyCocarde, rInner * 0.7)}
-          fill={p.star}
-          stroke={p.starOutline}
+        {/* ── ANNEAU MÉTALLIQUE intérieur (or/argent) ─────────────────── */}
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={rRim}
+          fill={`url(#${gid}-rim)`}
+          stroke={p.rimDark}
           strokeWidth="0.8"
+        />
+        {/* Hairline lumineuse interne du rim */}
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={rRim - 1.6}
+          fill="none"
+          stroke={p.rimLight}
+          strokeWidth="0.35"
+          opacity="0.8"
+        />
+
+        {/* ── MÉDAILLON central ──────────────────────────────────────── */}
+        <Circle
+          cx={cx}
+          cy={cy}
+          r={rCenter}
+          fill={`url(#${gid}-center)`}
+          stroke={p.centerDark}
+          strokeWidth="0.8"
+        />
+        {/* Reflet supérieur (ellipse blanc translucide) */}
+        <Ellipse
+          cx={cx - 2}
+          cy={cy - rCenter * 0.42}
+          rx={rCenter * 0.55}
+          ry={rCenter * 0.28}
+          fill={`url(#${gid}-shine)`}
+        />
+
+        {/* ── ÉTOILE centrale polie ─────────────────────────────────── */}
+        <Polygon
+          points={starPoints(cx, cy, rStar)}
+          fill={`url(#${gid}-star)`}
+          stroke={p.starOutline}
+          strokeWidth="0.6"
           strokeLinejoin="round"
+        />
+        {/* Reflet sur l'étoile (mini ellipse) */}
+        <Ellipse
+          cx={cx - rStar * 0.3}
+          cy={cy - rStar * 0.4}
+          rx={rStar * 0.3}
+          ry={rStar * 0.15}
+          fill="#FFFFFF"
+          opacity="0.5"
         />
       </Svg>
     </View>
