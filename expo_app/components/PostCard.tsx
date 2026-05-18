@@ -14,6 +14,7 @@ import { usePostMutations } from '../hooks/usePosts';
 import { useAuth } from '../hooks/useAuth';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
+import { UserBadge } from './UserBadge';
 
 type PostType = 'community' | 'coach' | 'organisateur';
 
@@ -93,7 +94,10 @@ export default function PostCard({ post, type, onRefresh }: PostCardProps) {
             </Text>
           </View>
           <View style={s.authorMeta}>
-            <Text style={s.authorName}>{post.auteur_nom}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text style={s.authorName}>{post.auteur_nom}</Text>
+              <UserBadge userId={post.auteur_id} size="xs" />
+            </View>
             <Text style={s.date}>{formattedDate}</Text>
           </View>
         </View>
@@ -345,7 +349,10 @@ function CommentItem({
         <View style={s.commentAuthor}>
           <Text style={s.avatarSmall}>{comment.auteur_nom.charAt(0)}</Text>
           <View>
-            <Text style={s.commentAuthorName}>{comment.auteur_nom}</Text>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+              <Text style={s.commentAuthorName}>{comment.auteur_nom}</Text>
+              <UserBadge userId={comment.auteur_id} size="xs" />
+            </View>
             <Text style={s.commentDate}>{formattedDate}</Text>
           </View>
         </View>

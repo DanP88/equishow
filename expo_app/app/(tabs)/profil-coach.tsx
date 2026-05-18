@@ -9,6 +9,7 @@ import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
 import { FollowListModal } from '../../components/FollowListModal';
 import { useAuth } from '../../hooks/useAuth';
+import { UserBadge } from '../../components/UserBadge';
 
 const ROLE_LABELS: Record<string, string> = {
   coach: 'Coach',
@@ -54,6 +55,9 @@ export default function ProfilCoachScreen() {
             size={88}
           />
           <Text style={styles.name}>{user.prenom} {user.nom}</Text>
+          <View style={{ marginTop: 6 }}>
+            <UserBadge userId={user.id} size="md" hideIfDebutant={false} />
+          </View>
           <View style={styles.ratingRow}>
             <Text style={styles.stars}>★★★★★</Text>
             <Text style={styles.rating}>4.9 (47 avis)</Text>
@@ -136,6 +140,11 @@ export default function ProfilCoachScreen() {
           <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/tarification?role=coach' as any)} activeOpacity={0.7}>
             <Text style={styles.menuIcon}>💳</Text>
             <Text style={[styles.menuLabel, { color: Colors.gold }]}>Abonnement</Text>
+            <Text style={styles.menuArrow}>›</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/boost-coach' as any)} activeOpacity={0.7}>
+            <Text style={styles.menuIcon}>🚀</Text>
+            <Text style={[styles.menuLabel, { color: '#92400E' }]}>Booster mon profil</Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
         </View>

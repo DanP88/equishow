@@ -84,11 +84,44 @@ async function callStripeAPI(
 // EVENT HANDLERS
 // ============================================================================
 
+// ── Boost handler (séparé : kind='boost' routé ici) ─────────────────────────
+async function handleBoostChargeSucceeded(
+  supabase: any,
+  charge: any
+) {
+  const purchaseId = charge.metadata?.boost_purchase_id
+    ?? charge.payment_intent_data?.metadata?.boost_purchase_id;
+
+  if (!purchaseId) {
+    console.log("Boost charge sans boost_purchase_id metadata:", charge.id);
+    return;
+  }
+
+  // fn_apply_boost est idempotent (return si déjà paid) + cumul expiration
+  const { error } = await supabase.rpc("fn_apply_boost", {
+    p_purchase_id: purchaseId,
+    p_stripe_charge_id: charge.id,
+    p_stripe_pi_id: charge.payment_intent ?? null,
+  });
+
+  if (error) {
+    console.error("fn_apply_boost failed:", error.message);
+    throw new Error(`Boost apply failed: ${error.message}`);
+  }
+  console.log("Boost applied for purchase:", purchaseId);
+}
+
 async function handleChargeSucceeded(
   supabase: any,
   event: any
 ) {
   const charge = event.data.object;
+
+  // Router : Boost a sa propre logique (table dédiée, pas de transfer Connect)
+  if (charge.metadata?.kind === "boost") {
+    await handleBoostChargeSucceeded(supabase, charge);
+    return;
+  }
 
   // Find payment by payment_id from metadata
   const paymentMetaId = charge.metadata?.payment_id
@@ -189,6 +222,23 @@ async function handleChargeFailed(
 ) {
   const charge = event.data.object;
 
+  // Boost route — table séparée
+  if (charge.metadata?.kind === "boost") {
+    const purchaseId = charge.metadata?.boost_purchase_id;
+    if (purchaseId) {
+      await supabase
+        .from("coach_boost_purchases")
+        .update({
+          status: "failed",
+          error_message: charge.failure_message ?? null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", purchaseId);
+      console.log("Boost purchase marked failed:", purchaseId);
+    }
+    return;
+  }
+
   const { data: payments } = await supabase
     .from("payments")
     .select("*")
@@ -214,6 +264,26 @@ async function handleChargeRefunded(
   event: any
 ) {
   const charge = event.data.object;
+
+  // Boost route — marque refunded mais ne révoque pas auto le boost.
+  // (Décision admin : politique remboursement boost à définir.)
+  if (charge.metadata?.kind === "boost") {
+    const purchaseId = charge.metadata?.boost_purchase_id;
+    const firstRefund = charge.refunds?.data?.[0];
+    if (purchaseId) {
+      await supabase
+        .from("coach_boost_purchases")
+        .update({
+          status: "refunded",
+          stripe_refund_id: firstRefund?.id ?? null,
+          refunded_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", purchaseId);
+      console.log("Boost purchase marked refunded:", purchaseId);
+    }
+    return;
+  }
 
   const { data: payments } = await supabase
     .from("payments")

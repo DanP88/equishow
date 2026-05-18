@@ -26,6 +26,9 @@ interface CoachProfileRow {
   tarif_heure: number | null;
   disponible: boolean;
   photo_url: string | null;
+  is_certified: boolean | null;
+  is_boosted: boolean | null;
+  boost_expires_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -62,6 +65,9 @@ function rowToProfile(coach: CoachProfileRow, user?: UserRow | null): CoachProfi
     disponible: coach.disponible,
     specialites: coach.specialites ?? [],
     featured: isFeaturedCoach(user?.plan_id ?? null, user?.plan ?? null),
+    isCertified: !!coach.is_certified,
+    isBoosted:   !!coach.is_boosted,
+    boostExpiresAt: coach.boost_expires_at ?? null,
   };
 }
 

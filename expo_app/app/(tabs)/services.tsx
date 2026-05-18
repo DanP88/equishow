@@ -93,12 +93,14 @@ function applyCoachFilters(list: CoachProfil[], f: FiltersCoach) {
   if (f.sort === 'note_desc') out.sort((a, b) => b.note - a.note);
   if (f.sort === 'prix_asc') out.sort((a, b) => a.tarifHeure - b.tarifHeure);
   if (f.sort === 'prix_desc') out.sort((a, b) => b.tarifHeure - a.tarifHeure);
-  // Coachs mis en avant (plan annuel) toujours en tête, sans perturber
-  // l'ordre relatif des autres (sort stable).
+  // Tri prioritaire (sort stable, n'altère pas l'ordre intra-groupe) :
+  //   1. Boost payant (visibilité sponsorisée)
+  //   2. Coach Certifié (mérite auto)
+  //   3. Featured plan annuel (legacy)
   out.sort((a, b) => {
-    if (a.featured && !b.featured) return -1;
-    if (!a.featured && b.featured) return 1;
-    return 0;
+    const rank = (c: CoachProfil) =>
+      (c.isBoosted ? 4 : 0) + (c.isCertified ? 2 : 0) + (c.featured ? 1 : 0);
+    return rank(b) - rank(a);
   });
   return out;
 }
@@ -1045,12 +1047,24 @@ function CoachCard({ item, onModify }: { item: CoachProfil; onModify?: () => voi
   };
 
   return (
-    <View style={[s.card, item.featured && s.cardFeatured]}>
-      {item.featured && (
-        <View style={s.featuredBadge}>
-          <Text style={s.featuredBadgeText}>⭐ Mis en avant</Text>
-        </View>
-      )}
+    <View style={[s.card, (item.isBoosted || item.featured) && s.cardFeatured]}>
+      <View style={s.badgeRow}>
+        {item.isBoosted && (
+          <View style={s.boostBadge}>
+            <Text style={s.boostBadgeText}>⭐ Boost</Text>
+          </View>
+        )}
+        {item.isCertified && (
+          <View style={s.certifiedBadge}>
+            <Text style={s.certifiedBadgeText}>✓ Coach Certifié</Text>
+          </View>
+        )}
+        {item.featured && !item.isBoosted && (
+          <View style={s.featuredBadge}>
+            <Text style={s.featuredBadgeText}>⭐ Mis en avant</Text>
+          </View>
+        )}
+      </View>
       {/* Clickable Header Section */}
       <TouchableOpacity
         style={[s.coachHeader, { paddingVertical: 12, paddingHorizontal: 12, marginHorizontal: -12, marginTop: -12, marginBottom: 0 }]}
@@ -1344,8 +1358,13 @@ const s = StyleSheet.create({
   ownerBadge: { alignSelf: 'flex-start', backgroundColor: Colors.primaryLight, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: Colors.primaryBorder, marginBottom: Spacing.xs },
   ownerBadgeText: { fontSize: 10, color: Colors.primary, fontWeight: FontWeight.bold },
   cardFeatured: { borderColor: Colors.gold, borderWidth: 2, backgroundColor: Colors.goldBg },
-  featuredBadge: { alignSelf: 'flex-start', backgroundColor: Colors.gold, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3, marginBottom: Spacing.sm },
+  badgeRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, marginBottom: Spacing.sm },
+  featuredBadge: { alignSelf: 'flex-start', backgroundColor: Colors.gold, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
   featuredBadgeText: { fontSize: 11, color: Colors.textInverse, fontWeight: FontWeight.bold, letterSpacing: 0.3 },
+  boostBadge: { alignSelf: 'flex-start', backgroundColor: '#FEF3C7', borderColor: '#F59E0B', borderWidth: 1, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
+  boostBadgeText: { fontSize: 11, color: '#92400E', fontWeight: FontWeight.bold, letterSpacing: 0.3 },
+  certifiedBadge: { alignSelf: 'flex-start', backgroundColor: '#DBEAFE', borderColor: '#93C5FD', borderWidth: 1, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
+  certifiedBadgeText: { fontSize: 11, color: '#1E40AF', fontWeight: FontWeight.bold, letterSpacing: 0.3 },
   ownerModifyBtn: { borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 2, paddingVertical: Spacing.xs + 2, alignItems: 'center', justifyContent: 'center' },
   ownerModifyText: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold },
   ownerCancelBtn: { borderWidth: 1, borderColor: Colors.urgent, borderRadius: Radius.md, paddingHorizontal: Spacing.sm + 2, paddingVertical: Spacing.xs + 2, alignItems: 'center', justifyContent: 'center' },

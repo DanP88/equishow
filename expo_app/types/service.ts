@@ -151,6 +151,9 @@ export interface CoachProfil {
   disponible: boolean;
   specialites: string[];
   featured: boolean;
+  isCertified: boolean;
+  isBoosted: boolean;
+  boostExpiresAt: string | null;
 }
 
 export interface Disponibilite {

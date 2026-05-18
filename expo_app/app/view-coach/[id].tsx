@@ -8,6 +8,7 @@ import { AvisSection } from '../../components/AvisSection';
 import { useFollow } from '../../hooks/useFollow';
 import { useAvisStats } from '../../hooks/useAvis';
 import { useCoachProfile } from '../../hooks/useCoachProfiles';
+import { UserBadge } from '../../components/UserBadge';
 
 export default function ViewCoachScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -55,6 +56,9 @@ export default function ViewCoachScreen() {
           </View>
           <Text style={s.name}>{coach.prenom} {coach.nom}</Text>
           <Text style={s.pseudo}>@{coach.pseudo}</Text>
+          <View style={{ marginTop: 8 }}>
+            <UserBadge userId={coachUserId} size="md" />
+          </View>
           {!coach.disponible && (
             <View style={s.indispoBadge}><Text style={s.indispoText}>Indisponible</Text></View>
           )}

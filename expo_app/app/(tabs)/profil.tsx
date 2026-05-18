@@ -15,6 +15,9 @@ import { AvisSection } from '../../components/AvisSection';
 import { TEST_ACCOUNTS } from '../../data/mockUsers';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { useAuth } from '../../hooks/useAuth';
+import { UserBadge } from '../../components/UserBadge';
+import { useMyProgression } from '../../hooks/useMyProgression';
+import { LEVEL_STYLE } from '../../lib/badges';
 
 const ROLE_LABELS: Record<string, string> = {
   cavalier: 'Cavalier',
@@ -81,6 +84,9 @@ export default function ProfilScreen() {
           />
           <Text style={styles.name}>{user.prenom} {user.nom}</Text>
           <Text style={styles.pseudo}>@{user.pseudo}</Text>
+          <View style={{ marginTop: 6 }}>
+            <UserBadge userId={user.id} size="md" hideIfDebutant={false} />
+          </View>
           <View style={styles.roleBadge}>
             <Text style={styles.roleIcon}>{ROLE_ICONS[user.role]}</Text>
             <Text style={styles.roleText}>{ROLE_LABELS[user.role]}</Text>
@@ -89,6 +95,9 @@ export default function ProfilScreen() {
             <Text style={styles.planText}>🌟 Plan {user.plan}</Text>
           </View>
         </View>
+
+        <ProgressionCard />
+
 
         {/* Followers stats */}
         <View style={styles.followRow}>
@@ -271,6 +280,27 @@ function TestAccountItem({ account, onSwitch }: { account: any; onSwitch: () => 
   );
 }
 
+function ProgressionCard() {
+  const { points, level, levelLabel, nextLevel, nextLevelLabel, nextMin, progressPct, pointsToNext } = useMyProgression();
+  const style = LEVEL_STYLE[level];
+  return (
+    <View style={[styles.progressCard, { borderLeftColor: style.fg }]}>
+      <View style={styles.progressHeader}>
+        <Text style={styles.progressLevel}>{levelLabel}</Text>
+        <Text style={styles.progressPoints}>{points} pts</Text>
+      </View>
+      <View style={styles.progressBarBg}>
+        <View style={[styles.progressBarFill, { width: `${Math.round(progressPct * 100)}%`, backgroundColor: style.fg }]} />
+      </View>
+      <Text style={styles.progressFooter}>
+        {nextLevel
+          ? `${pointsToNext} pts vers ${nextLevelLabel} (${nextMin})`
+          : 'Niveau maximum atteint 🎉'}
+      </Text>
+    </View>
+  );
+}
+
 function StatBox({ label, value, icon }: { label: string; value: number; icon: string }) {
   return (
     <View style={styles.statBox}>
@@ -337,6 +367,14 @@ const styles = StyleSheet.create({
   roleText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   planBadge: { backgroundColor: Colors.goldBg, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: Colors.goldBorder },
   planText: { fontSize: FontSize.sm, color: Colors.gold, fontWeight: FontWeight.semibold },
+
+  progressCard: { ...CommonStyles.card, marginBottom: Spacing.md, paddingVertical: Spacing.md, borderLeftWidth: 4 },
+  progressHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: Spacing.sm },
+  progressLevel: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  progressPoints: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  progressBarBg: { height: 8, borderRadius: 4, backgroundColor: Colors.border, overflow: 'hidden' },
+  progressBarFill: { height: '100%', borderRadius: 4 },
+  progressFooter: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: Spacing.xs },
 
   followRow: { ...CommonStyles.card, flexDirection: 'row', marginBottom: Spacing.md, paddingVertical: Spacing.md },
   followItem: { flex: 1, alignItems: 'center', paddingVertical: 4 },
