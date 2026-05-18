@@ -73,17 +73,17 @@ const SILVER = {
 };
 
 const PALETTE: Record<UserLevel, Palette> = {
-  // Débutant — perle / satin blanc
+  // Débutant — jaune soleil satin
   debutant: {
-    ribbonShadow: '#64748B',
-    ribbonBase: '#94A3B8',
-    ribbonHi: '#F1F5F9',
-    pleatDark: '#94A3B8',
-    pleatLight: '#F8FAFC',
-    pleatEdge: '#64748B',
-    centerDark: '#475569',
-    centerMid: '#CBD5E1',
-    centerLight: '#F8FAFC',
+    ribbonShadow: '#854D0E',
+    ribbonBase: '#EAB308',
+    ribbonHi: '#FEF3C7',
+    pleatDark: '#CA8A04',
+    pleatLight: '#FEF9C3',
+    pleatEdge: '#713F12',
+    centerDark: '#713F12',
+    centerMid: '#FACC15',
+    centerLight: '#FEF9C3',
     ...SILVER,
   },
   // Passionné — bleu cobalt royal
