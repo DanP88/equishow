@@ -6,7 +6,7 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { userStore, concoursStore } from '../../data/store';
+import { userStore, concoursStore, totalUnreadForUser } from '../../data/store';
 import { useTransportAnnonces, useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useBoxAnnonces, useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useCoachAnnonces, useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
@@ -134,6 +134,9 @@ export default function ServicesScreen() {
   } | null>(null);
   const [upgradeAlert, setUpgradeAlert] = useState<{ title: string; message: string } | null>(null);
 
+  // Compteur messages non lus (badge cloche dans le header)
+  const msgUnreadCount = totalUnreadForUser(userStore.id);
+
   // Gating plan : Découverte (gratuit) bloque Transport et Box.
   const planLimits = getPlanLimits((userStore as any).plan);
   const transportLocked = !planLimits.canAccessTransport;
@@ -251,7 +254,11 @@ export default function ServicesScreen() {
           </TouchableOpacity>
           <TouchableOpacity style={s.msgBtn} onPress={() => router.push('/messagerie')} activeOpacity={0.8}>
             <Text style={s.msgBtnIcon}>💬</Text>
-            <View style={s.msgBadge}><Text style={s.msgBadgeText}>3</Text></View>
+            {msgUnreadCount > 0 && (
+              <View style={s.msgBadge}>
+                <Text style={s.msgBadgeText}>{msgUnreadCount > 9 ? '9+' : msgUnreadCount}</Text>
+              </View>
+            )}
           </TouchableOpacity>
         </View>
       </View>
