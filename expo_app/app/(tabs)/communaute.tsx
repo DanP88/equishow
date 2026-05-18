@@ -428,9 +428,9 @@ export default function CommunauteScreen() {
                   <Text style={styles.avatarText}>{post.initiales}</Text>
                 </View>
                 <View style={styles.postMeta}>
-                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+                  <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
                     <Text style={styles.auteur}>{post.auteur}</Text>
-                    <UserBadge userId={post.auteurId} size="xs" />
+                    <UserBadge userId={post.auteurId} variant="icon" size="sm" />
                   </View>
                   <Text style={styles.date}>{timeAgo(post.date)}</Text>
                 </View>
@@ -515,7 +515,7 @@ export default function CommunauteScreen() {
                     <View style={styles.commentBubble}>
                       <View style={styles.commentBubbleTop}>
                         <Text style={styles.commentAuteur}>{c.auteur}</Text>
-                        <UserBadge userId={c.auteurId} size="xs" />
+                        <UserBadge userId={c.auteurId} variant="icon" size="xs" />
                         <Text style={styles.commentDate}>{c.date}</Text>
                       </View>
                       <Text style={styles.commentTexte}>{c.texte}</Text>

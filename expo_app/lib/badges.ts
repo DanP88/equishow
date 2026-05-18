@@ -15,14 +15,22 @@ export interface LevelStyle {
   minPoints: number;
 }
 
-// Fallback côté front (en cas de fetch level_thresholds échoué)
+// Palette ajustée par niveau (logo ★ + pill) :
+//   Débutant  → gris clair
+//   Passionné → bleu
+//   Confirmé  → vert
+//   Expert    → argent (métallique)
+//   Élite     → or
 export const LEVEL_STYLE: Record<UserLevel, LevelStyle> = {
-  debutant:  { bg: '#F3F4F6', fg: '#6B7280', label: 'Débutant',  minPoints: 0    },
-  passionne: { bg: '#DBEAFE', fg: '#1D4ED8', label: 'Passionné', minPoints: 100  },
-  confirme:  { bg: '#DCFCE7', fg: '#15803D', label: 'Confirmé',  minPoints: 300  },
-  expert:    { bg: '#FEF3C7', fg: '#B45309', label: 'Expert',    minPoints: 700  },
-  elite:     { bg: '#FCE7F3', fg: '#9D174D', label: 'Élite',     minPoints: 1500 },
+  debutant:  { bg: '#F3F4F6', fg: '#9CA3AF', label: 'Débutant',  minPoints: 0    },
+  passionne: { bg: '#DBEAFE', fg: '#2563EB', label: 'Passionné', minPoints: 100  },
+  confirme:  { bg: '#D1FAE5', fg: '#059669', label: 'Confirmé',  minPoints: 300  },
+  expert:    { bg: '#E5E7EB', fg: '#64748B', label: 'Expert',    minPoints: 700  },
+  elite:     { bg: '#FEF3C7', fg: '#D97706', label: 'Élite',     minPoints: 1500 },
 };
+
+// Icône ★ collée au nom — couleur = LEVEL_STYLE[level].fg
+export const LEVEL_ICON = '★';
 
 export const LEVELS_ORDER: UserLevel[] = [
   'debutant', 'passionne', 'confirme', 'expert', 'elite',

@@ -94,9 +94,9 @@ export default function PostCard({ post, type, onRefresh }: PostCardProps) {
             </Text>
           </View>
           <View style={s.authorMeta}>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <Text style={s.authorName}>{post.auteur_nom}</Text>
-              <UserBadge userId={post.auteur_id} size="xs" />
+              <UserBadge userId={post.auteur_id} variant="icon" size="sm" />
             </View>
             <Text style={s.date}>{formattedDate}</Text>
           </View>
@@ -349,9 +349,9 @@ function CommentItem({
         <View style={s.commentAuthor}>
           <Text style={s.avatarSmall}>{comment.auteur_nom.charAt(0)}</Text>
           <View>
-            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+            <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
               <Text style={s.commentAuthorName}>{comment.auteur_nom}</Text>
-              <UserBadge userId={comment.auteur_id} size="xs" />
+              <UserBadge userId={comment.auteur_id} variant="icon" size="xs" />
             </View>
             <Text style={s.commentDate}>{formattedDate}</Text>
           </View>
