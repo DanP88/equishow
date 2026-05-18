@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { View, StyleSheet, Platform, ActivityIndicator, Dimensions } from 'react-native';
 
 // Largeur en dessous de laquelle on supprime le frame "faux téléphone" (PWA mobile / phone browsers)
@@ -243,7 +244,15 @@ function RootLayout() {
   );
 }
 
-export default Sentry.wrap(RootLayout);
+function RootLayoutWithProviders() {
+  return (
+    <SafeAreaProvider>
+      <RootLayout />
+    </SafeAreaProvider>
+  );
+}
+
+export default Sentry.wrap(RootLayoutWithProviders);
 
 const styles = StyleSheet.create({
   webBg: {

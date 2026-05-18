@@ -1,6 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { View, TouchableOpacity, Text, StyleSheet, Platform } from 'react-native';
 import { useRouter, usePathname, useFocusEffect } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { useUserRole } from '../hooks/useUserRole';
 import { useUnreadNotificationsCount } from '../hooks/useNotifications';
@@ -53,6 +54,7 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
 };
 
 export function CustomBottomBar() {
+  const insets = useSafeAreaInsets();
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur' | 'admin';
   const router = useRouter();
   const pathname = usePathname();
@@ -150,8 +152,9 @@ export function CustomBottomBar() {
     return [styles.tabButton, styles.tabButtonCavalier];
   };
 
+  const safePadBottom = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8);
   return (
-    <View style={getContainerStyle()}>
+    <View style={[getContainerStyle(), { paddingBottom: safePadBottom, height: undefined }]}>
       {tabs.map((tab) => (
         <View key={tab.name} style={{ position: 'relative' }}>
           <TouchableOpacity

@@ -72,13 +72,8 @@ const extraCss = `
     margin: 0;
     overflow: hidden;
     background: #F8F7F4;
-
-    /* Safe area pour notch / home indicator iOS PWA */
-    padding-top: env(safe-area-inset-top);
-    padding-bottom: env(safe-area-inset-bottom);
-    padding-left: env(safe-area-inset-left);
-    padding-right: env(safe-area-inset-right);
-    box-sizing: border-box;
+    /* Safe-area gérée par SafeAreaProvider + useSafeAreaInsets côté React (pas en CSS body)
+       pour éviter la double application (body padding + insets dans les barres). */
   }
   #root {
     display: flex;

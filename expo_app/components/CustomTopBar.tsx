@@ -6,12 +6,14 @@ import {
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../constants/theme';
 import { userStore } from '../data/store';
 
 export function CustomTopBar() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   // Get initials from userStore
   const getInitials = () => {
@@ -45,7 +47,7 @@ export function CustomTopBar() {
 
   return (
     <>
-      <View style={s.container}>
+      <View style={[s.container, { paddingTop: insets.top + Spacing.sm }]}>
         {/* Spacer */}
         <View style={{ flex: 1 }} />
 
