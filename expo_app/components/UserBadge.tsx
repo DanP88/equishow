@@ -27,6 +27,7 @@ import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { LEVEL_STYLE, LEVEL_ICON, COACH_BADGES } from '../lib/badges';
 import { useUserBadges } from '../hooks/useUserBadges';
+import { LevelMedal } from './LevelMedal';
 
 type Size = 'xs' | 'sm' | 'md';
 type Variant = 'pill' | 'icon';
@@ -56,18 +57,11 @@ export function UserBadge({
   const dims = SIZE[size];
   const items: React.ReactNode[] = [];
 
-  // ── Variante "icon" : étoile colorée collée au nom ────────────────────
+  // ── Variante "icon" : médaille ronde premium collée au nom ────────────
   if (variant === 'icon') {
     if (showLevel) {
-      const s = LEVEL_STYLE[badges.level];
       items.push(
-        <Text
-          key="lvl-icon"
-          style={[styles.starIcon, { color: s.fg, fontSize: ICON_SIZE[size] }]}
-          accessibilityLabel={`Niveau ${s.label}`}
-        >
-          {LEVEL_ICON}
-        </Text>,
+        <LevelMedal key="lvl-medal" level={badges.level} size={MEDAL_SIZE[size]} />,
       );
     }
     if (showCertified && badges.isCertified) {
@@ -79,7 +73,7 @@ export function UserBadge({
     }
     if (showBoost && badges.isBoosted) {
       items.push(
-        <Text key="boost-icon" style={[styles.starIcon, { color: COACH_BADGES.boost.fg, fontSize: ICON_SIZE[size] }]}>
+        <Text key="boost-icon" style={[styles.starIcon, { fontSize: ICON_SIZE[size] }]}>
           🚀
         </Text>,
       );
@@ -116,9 +110,10 @@ export function UserBadge({
     if (!skip) {
       const s = LEVEL_STYLE[badges.level];
       items.push(
-        <View key="lvl" style={[styles.pill, dims.pill, { backgroundColor: s.bg }]}>
-          <Text style={[styles.text, dims.text, { color: s.fg }]} numberOfLines={1}>
-            <Text style={{ color: s.fg }}>{LEVEL_ICON} </Text>{s.label}
+        <View key="lvl" style={[styles.pill, dims.pill, styles.pillRow, { backgroundColor: s.bg }]}>
+          <LevelMedal level={badges.level} size={MEDAL_SIZE[size]} />
+          <Text style={[styles.text, dims.text, { color: s.fg, marginLeft: 5 }]} numberOfLines={1}>
+            {s.label}
           </Text>
         </View>,
       );
@@ -137,10 +132,18 @@ const SIZE: Record<Size, { pill: any; text: any }> = {
 
 const ICON_SIZE: Record<Size, number> = { xs: 13, sm: 15, md: 18 };
 
+// Mapping Size pill → Size LevelMedal (la médaille a 'lg' en plus)
+const MEDAL_SIZE: Record<Size, 'xs' | 'sm' | 'md' | 'lg'> = {
+  xs: 'xs',
+  sm: 'sm',
+  md: 'md',
+};
+
 const styles = StyleSheet.create({
   row: { flexDirection: 'row', flexWrap: 'wrap', gap: 4, alignItems: 'center' },
-  iconRow: { flexDirection: 'row', alignItems: 'center', gap: 2 },
+  iconRow: { flexDirection: 'row', alignItems: 'center', gap: 3 },
   pill: { alignSelf: 'flex-start' },
+  pillRow: { flexDirection: 'row', alignItems: 'center' },
   text: { fontWeight: '600' },
   starIcon: { fontWeight: '700', textShadowColor: 'rgba(0,0,0,0.08)', textShadowOffset: { width: 0, height: 1 }, textShadowRadius: 1 },
 });
