@@ -31,7 +31,6 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
   coach: [
     { name: 'coach-agenda', label: 'Agenda', emoji: '📅', route: '/(tabs)/coach-agenda' },
     { name: 'coach-concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/coach-concours' },
-    { name: 'coach-services', label: 'Services', emoji: '🎓', route: '/(tabs)/coach-services' },
     { name: 'coach-stages', label: 'Stages', emoji: '📚', route: '/(tabs)/coach-stages' },
     { name: 'coach-notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/coach-notifications' },
     { name: 'coach-demandes', label: 'Demandes', emoji: '📬', route: '/(tabs)/coach-demandes' },
