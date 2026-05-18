@@ -1,8 +1,25 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { Stack } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { View, StyleSheet, Platform, ActivityIndicator } from 'react-native';
+import { View, StyleSheet, Platform, ActivityIndicator, Dimensions } from 'react-native';
+
+// Largeur en dessous de laquelle on supprime le frame "faux téléphone" (PWA mobile / phone browsers)
+const DESKTOP_MIN_WIDTH = 900;
+
+function useIsDesktop() {
+  const [isDesktop, setIsDesktop] = useState(() =>
+    Platform.OS === 'web' ? Dimensions.get('window').width >= DESKTOP_MIN_WIDTH : false
+  );
+  useEffect(() => {
+    if (Platform.OS !== 'web') return;
+    const sub = Dimensions.addEventListener('change', ({ window }) => {
+      setIsDesktop(window.width >= DESKTOP_MIN_WIDTH);
+    });
+    return () => sub.remove();
+  }, []);
+  return isDesktop;
+}
 import * as Sentry from '@sentry/react-native';
 import { Colors } from '../constants/colors';
 import { useAuth } from '../hooks/useAuth';
@@ -86,6 +103,7 @@ Sentry.init({
 });
 function RootLayout() {
   const { isSignedIn, isLoading } = useAuth();
+  const isDesktop = useIsDesktop();
 
   // Charger les commissions depuis Supabase au démarrage
   usePlatformSettings();
@@ -118,7 +136,7 @@ function RootLayout() {
       </View>
     );
 
-    if (Platform.OS === 'web') {
+    if (Platform.OS === 'web' && isDesktop) {
       return (
         <View style={styles.webBg}>
           <View style={styles.phoneFrame}>
@@ -132,7 +150,7 @@ function RootLayout() {
     return loadingView;
   }
 
-  if (Platform.OS === 'web') {
+  if (Platform.OS === 'web' && isDesktop) {
     return (
       <ErrorBoundary>
         <View style={styles.webBg}>
