@@ -148,7 +148,7 @@ const PALETTE: Record<UserLevel, Palette> = {
   },
 };
 
-const SIZE_PX: Record<Size, number> = { xs: 18, sm: 24, md: 36, lg: 56 };
+const SIZE_PX: Record<Size, number> = { xs: 13, sm: 17, md: 28, lg: 50 };
 
 interface Props {
   level: UserLevel;
