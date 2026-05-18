@@ -23,11 +23,13 @@
 //   Élite     → or
 // ─────────────────────────────────────────────────────────────────────────────
 
-import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { LEVEL_STYLE, LEVEL_ICON, COACH_BADGES } from '../lib/badges';
 import { useUserBadges } from '../hooks/useUserBadges';
+import { useAuth } from '../hooks/useAuth';
 import { LevelMedal } from './LevelMedal';
+import { LevelInfoModal } from './LevelInfoModal';
 
 type Size = 'xs' | 'sm' | 'md';
 type Variant = 'pill' | 'icon';
@@ -52,16 +54,23 @@ export function UserBadge({
   hideIfDebutant = true,
 }: Props) {
   const { badges } = useUserBadges(userId);
+  const { profile } = useAuth();
+  const [modalOpen, setModalOpen] = useState(false);
+
   if (!badges) return null;
 
   const dims = SIZE[size];
   const items: React.ReactNode[] = [];
+  const isCurrentUser = !!profile?.id && profile.id === userId;
+  const openInfo = (e?: any) => { e?.stopPropagation?.(); setModalOpen(true); };
 
   // ── Variante "icon" : médaille ronde premium collée au nom ────────────
   if (variant === 'icon') {
     if (showLevel) {
       items.push(
-        <LevelMedal key="lvl-medal" level={badges.level} size={MEDAL_SIZE[size]} />,
+        <TouchableOpacity key="lvl-medal" onPress={openInfo} activeOpacity={0.7}>
+          <LevelMedal level={badges.level} size={MEDAL_SIZE[size]} />
+        </TouchableOpacity>,
       );
     }
     if (showCertified && badges.isCertified) {
@@ -79,7 +88,18 @@ export function UserBadge({
       );
     }
     if (items.length === 0) return null;
-    return <View style={styles.iconRow}>{items}</View>;
+    return (
+      <>
+        <View style={styles.iconRow}>{items}</View>
+        <LevelInfoModal
+          visible={modalOpen}
+          level={badges.level}
+          points={badges.points}
+          isCurrentUser={isCurrentUser}
+          onClose={() => setModalOpen(false)}
+        />
+      </>
+    );
   }
 
   // ── Variante "pill" (par défaut) ──────────────────────────────────────
@@ -110,18 +130,34 @@ export function UserBadge({
     if (!skip) {
       const s = LEVEL_STYLE[badges.level];
       items.push(
-        <View key="lvl" style={[styles.pill, dims.pill, styles.pillRow, { backgroundColor: s.bg }]}>
+        <TouchableOpacity
+          key="lvl"
+          onPress={openInfo}
+          activeOpacity={0.7}
+          style={[styles.pill, dims.pill, styles.pillRow, { backgroundColor: s.bg }]}
+        >
           <LevelMedal level={badges.level} size={MEDAL_SIZE[size]} />
           <Text style={[styles.text, dims.text, { color: s.fg, marginLeft: 5 }]} numberOfLines={1}>
             {s.label}
           </Text>
-        </View>,
+        </TouchableOpacity>,
       );
     }
   }
 
   if (items.length === 0) return null;
-  return <View style={styles.row}>{items}</View>;
+  return (
+    <>
+      <View style={styles.row}>{items}</View>
+      <LevelInfoModal
+        visible={modalOpen}
+        level={badges.level}
+        points={badges.points}
+        isCurrentUser={isCurrentUser}
+        onClose={() => setModalOpen(false)}
+      />
+    </>
+  );
 }
 
 const SIZE: Record<Size, { pill: any; text: any }> = {
