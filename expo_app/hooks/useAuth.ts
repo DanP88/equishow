@@ -83,12 +83,25 @@ export const useAuth = () => {
         if (newSession?.user) {
           setAuthUser(newSession.user);
 
-          // Fetch profile when user signs in
-          if (event === 'SIGNED_IN') {
+          // Fetch profile dès qu'on a un user dans la session.
+          // On couvre SIGNED_IN, INITIAL_SESSION (cold start PWA iOS),
+          // TOKEN_REFRESHED et USER_UPDATED — sinon profile reste null
+          // après réveil de l'app PWA et toute action authentifiée échoue
+          // ("Non authentifié").
+          if (
+            event === 'SIGNED_IN' ||
+            event === 'INITIAL_SESSION' ||
+            event === 'TOKEN_REFRESHED' ||
+            event === 'USER_UPDATED'
+          ) {
             const { data: profileData } = await getUserProfile(newSession.user.id);
-            setProfile(profileData);
-            syncUserStore(profileData);
-            console.log('✅ User signed in:', newSession.user.email);
+            if (profileData) {
+              setProfile(profileData);
+              syncUserStore(profileData);
+            }
+            if (event === 'SIGNED_IN') {
+              console.log('✅ User signed in:', newSession.user.email);
+            }
           }
         } else {
           setAuthUser(null);
