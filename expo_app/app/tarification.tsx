@@ -272,8 +272,8 @@ const styles = StyleSheet.create({
   },
 
   currentBanner: {
-    backgroundColor: Colors.successBg,
-    borderColor: Colors.success,
+    backgroundColor: Colors.primaryLight,
+    borderColor: Colors.primary,
     borderWidth: 2,
     borderRadius: Radius.md,
     padding: Spacing.lg,
@@ -288,7 +288,7 @@ const styles = StyleSheet.create({
   currentBannerLabel: {
     fontSize: FontSize.xs,
     fontWeight: FontWeight.bold,
-    color: Colors.success,
+    color: Colors.primary,
     letterSpacing: 1,
     marginBottom: 4,
   },
@@ -303,7 +303,7 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   currentBannerBadge: {
-    backgroundColor: Colors.success,
+    backgroundColor: Colors.primary,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: 20,
@@ -326,15 +326,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.primaryLight,
   },
   planCardCurrent: {
-    borderColor: Colors.success,
+    borderColor: Colors.primary,
     borderWidth: 3,
-    backgroundColor: Colors.successBg,
+    backgroundColor: Colors.primaryLight,
   },
   currentBadge: {
     position: 'absolute',
     top: -12,
     left: Spacing.lg,
-    backgroundColor: Colors.success,
+    backgroundColor: Colors.primary,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.xs,
     borderRadius: 20,
@@ -435,8 +435,8 @@ const styles = StyleSheet.create({
     color: Colors.textInverse,
   },
   subscribeBtnCurrent: {
-    backgroundColor: Colors.success,
-    borderColor: Colors.success,
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
   },
   subscribeBtnCurrentText: {
     color: '#fff',
