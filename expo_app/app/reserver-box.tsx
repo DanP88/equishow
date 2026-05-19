@@ -294,7 +294,17 @@ export default function ReserverBoxScreen() {
         visible={showDateDebut}
         value={dateReservationDebut}
         title="Date d'arrivée"
-        onConfirm={(d) => setDateReservationDebut(d)}
+        minDate={box.dateDebut}
+        // L'arrivée doit laisser au moins 1 nuit (max = veille de la fin de plage)
+        maxDate={new Date(box.dateFin.getTime() - 24 * 60 * 60 * 1000)}
+        onConfirm={(d) => {
+          setDateReservationDebut(d);
+          // Cohérence : si le départ est antérieur ou égal à l'arrivée, le repousser à arrivée+1
+          if (dateReservationFin && dateReservationFin.getTime() <= d.getTime()) {
+            const nextDay = new Date(d.getTime() + 24 * 60 * 60 * 1000);
+            setDateReservationFin(nextDay <= box.dateFin ? nextDay : box.dateFin);
+          }
+        }}
         onClose={() => setShowDateDebut(false)}
       />
 
@@ -302,6 +312,11 @@ export default function ReserverBoxScreen() {
         visible={showDateFin}
         value={dateReservationFin}
         title="Date de départ"
+        // Le départ doit être strictement après l'arrivée (min = arrivée + 1 jour)
+        minDate={dateReservationDebut
+          ? new Date(dateReservationDebut.getTime() + 24 * 60 * 60 * 1000)
+          : box.dateDebut}
+        maxDate={box.dateFin}
         onConfirm={(d) => setDateReservationFin(d)}
         onClose={() => setShowDateFin(false)}
       />

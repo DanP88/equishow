@@ -12,25 +12,61 @@ function daysInMonth(month: number, year: number) {
   return new Date(year, month, 0).getDate();
 }
 
-export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'Sélectionner une date' }: {
+export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'Sélectionner une date', minDate, maxDate }: {
   visible: boolean;
   value?: Date;
   onConfirm: (date: Date) => void;
   onClose: () => void;
   title?: string;
+  minDate?: Date;
+  maxDate?: Date;
 }) {
-  const init = value ?? new Date();
+  // Helper : début de jour (sans heure) pour comparer date à date
+  const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  const inRange = (d: Date): boolean => {
+    const t = startOfDay(d).getTime();
+    if (minDate && t < startOfDay(minDate).getTime()) return false;
+    if (maxDate && t > startOfDay(maxDate).getTime()) return false;
+    return true;
+  };
+
+  // Init : si value fournie et dans la plage, l'utiliser. Sinon clamp à minDate (ou today).
+  const initRaw = value ?? minDate ?? new Date();
+  const init = inRange(initRaw) ? initRaw : (minDate ?? initRaw);
   const [day, setDay] = useState(init.getDate());
   const [month, setMonth] = useState(init.getMonth() + 1);
   const [year, setYear] = useState(init.getFullYear());
 
   const maxDay = daysInMonth(month, year);
   const days = Array.from({ length: maxDay }, (_, i) => i + 1);
-  const years = Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i);
+  // Si minDate/maxDate sont fournis, restreindre la plage d'années aux années dans la plage.
+  // Sinon, comportement historique (20 années glissantes vers le passé).
+  const years = (minDate || maxDate)
+    ? (() => {
+        const minY = minDate ? minDate.getFullYear() : new Date().getFullYear();
+        const maxY = maxDate ? maxDate.getFullYear() : new Date().getFullYear() + 5;
+        return Array.from({ length: maxY - minY + 1 }, (_, i) => minY + i);
+      })()
+    : Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i);
+
+  // Désactivation visuelle des items hors plage
+  const isDayDisabled = (d: number) => !inRange(new Date(year, month - 1, d));
+  const isMonthDisabled = (m: number) => {
+    // Un mois est désactivé si TOUS ses jours sont hors plage.
+    const last = daysInMonth(m, year);
+    const firstDay = new Date(year, m - 1, 1);
+    const lastDay = new Date(year, m - 1, last);
+    return !inRange(firstDay) && !inRange(lastDay)
+      && (minDate ? lastDay < startOfDay(minDate) : false || (maxDate ? firstDay > startOfDay(maxDate) : false));
+  };
 
   function confirm() {
-    const d = day > maxDay ? maxDay : day;
-    onConfirm(new Date(year, month - 1, d));
+    let d = day > maxDay ? maxDay : day;
+    let candidate = new Date(year, month - 1, d);
+    // Clamp final : si hors plage, ramener à la borne la plus proche.
+    if (minDate && candidate < startOfDay(minDate)) candidate = startOfDay(minDate);
+    if (maxDate && candidate > startOfDay(maxDate)) candidate = startOfDay(maxDate);
+    onConfirm(candidate);
     onClose();
   }
 
@@ -45,17 +81,21 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
             <View style={s.col}>
               <Text style={s.colLabel}>Jour</Text>
               <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
-                {days.map((d) => (
-                  <TouchableOpacity
-                    key={d}
-                    style={[s.item, day === d && s.itemActive]}
-                    onPress={() => setDay(d)}
-                  >
-                    <Text style={[s.itemText, day === d && s.itemTextActive]}>
-                      {String(d).padStart(2, '0')}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                {days.map((d) => {
+                  const disabled = isDayDisabled(d);
+                  return (
+                    <TouchableOpacity
+                      key={d}
+                      style={[s.item, day === d && s.itemActive, disabled && s.itemDisabled]}
+                      onPress={() => { if (!disabled) setDay(d); }}
+                      disabled={disabled}
+                    >
+                      <Text style={[s.itemText, day === d && s.itemTextActive, disabled && s.itemTextDisabled]}>
+                        {String(d).padStart(2, '0')}
+                      </Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
 
@@ -63,15 +103,19 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
             <View style={[s.col, { flex: 2 }]}>
               <Text style={s.colLabel}>Mois</Text>
               <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
-                {MOIS.map((m, i) => (
-                  <TouchableOpacity
-                    key={m}
-                    style={[s.item, month === i + 1 && s.itemActive]}
-                    onPress={() => setMonth(i + 1)}
-                  >
-                    <Text style={[s.itemText, month === i + 1 && s.itemTextActive]}>{m}</Text>
-                  </TouchableOpacity>
-                ))}
+                {MOIS.map((m, i) => {
+                  const disabled = isMonthDisabled(i + 1);
+                  return (
+                    <TouchableOpacity
+                      key={m}
+                      style={[s.item, month === i + 1 && s.itemActive, disabled && s.itemDisabled]}
+                      onPress={() => { if (!disabled) setMonth(i + 1); }}
+                      disabled={disabled}
+                    >
+                      <Text style={[s.itemText, month === i + 1 && s.itemTextActive, disabled && s.itemTextDisabled]}>{m}</Text>
+                    </TouchableOpacity>
+                  );
+                })}
               </ScrollView>
             </View>
 
@@ -142,8 +186,10 @@ const s = StyleSheet.create({
   scroll: { maxHeight: 200, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md },
   item: { paddingVertical: Spacing.sm, alignItems: 'center', borderBottomWidth: 1, borderBottomColor: Colors.border },
   itemActive: { backgroundColor: Colors.primaryLight },
+  itemDisabled: { backgroundColor: Colors.surfaceVariant, opacity: 0.5 },
   itemText: { fontSize: FontSize.base, color: Colors.textPrimary },
   itemTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
+  itemTextDisabled: { color: Colors.textTertiary, textDecorationLine: 'line-through' },
   actions: { flexDirection: 'row', gap: Spacing.sm },
   cancelBtn: { flex: 1, borderWidth: 1, borderColor: Colors.borderMedium, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
   cancelText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold },
