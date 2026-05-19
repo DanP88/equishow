@@ -251,11 +251,41 @@ export function useMyStages() {
 
   const createStage = useCallback(async (input: StageCreateInput): Promise<StageResult> => {
     if (!profile?.id) return { data: null, error: 'Non authentifié' };
+
+    // ── Optimistic UI : on insère un stage temporaire immédiatement ────────
+    // La liste s'update instantanément, l'écran de retour voit le stage avant
+    // même que la DB ait répondu. On réconcilie (ou rollback) après l'insert.
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const auteurNom = `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim() || '';
+    const optimistic: CoachStage = {
+      id: tempId,
+      auteurId: profile.id,
+      auteurNom,
+      auteurPseudo: '',
+      auteurInitiales: '',
+      auteurCouleur: '#7C3AED',
+      titre: input.titre,
+      description: input.description ?? '',
+      disciplines: input.disciplines,
+      niveaux: input.niveaux,
+      dateDebut: input.dateDebut,
+      dateFin: input.dateFin,
+      nbJours: input.nbJours ?? 1,
+      prixTTC: input.prixTTC,
+      places: input.places,
+      placesDisponibles: input.places,
+      concours: input.concours ?? undefined,
+      region: input.region ?? undefined,
+    };
+    setList((curr) => [optimistic, ...curr]);
+    emitStageMutation({ kind: 'upsert', stage: optimistic });
+
+    // ── Insert réel en DB ────────────────────────────────────────────────
     const { data, error } = await supabase
       .from('stages')
       .insert({
         auteur_id: profile.id,
-        auteur_nom: `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim() || null,
+        auteur_nom: auteurNom || null,
         titre: input.titre,
         description: input.description ?? null,
         disciplines: input.disciplines,
@@ -271,9 +301,18 @@ export function useMyStages() {
       })
       .select('*')
       .single();
-    if (error || !data) return { data: null, error: error?.message ?? 'Erreur création' };
+
+    if (error || !data) {
+      // Rollback : retirer la row optimistique
+      setList((curr) => curr.filter((s) => s.id !== tempId));
+      emitStageMutation({ kind: 'delete', id: tempId });
+      return { data: null, error: error?.message ?? 'Erreur création' };
+    }
+
+    // Réconciliation : remplacer la row temp par la vraie (avec le bon id DB)
     const created = rowToStage(data as StageRow);
-    setList((curr) => (curr.some((s) => s.id === created.id) ? curr : [created, ...curr]));
+    setList((curr) => curr.map((s) => (s.id === tempId ? created : s)));
+    emitStageMutation({ kind: 'delete', id: tempId });
     emitStageMutation({ kind: 'upsert', stage: created });
     return { data: created, error: null };
   }, [profile?.id, (profile as any)?.prenom, (profile as any)?.nom]);

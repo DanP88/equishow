@@ -83,10 +83,14 @@ export default function ProposerStageScreen() {
     setShowConfirmation(true);
   }
 
-  async function handleConfirmation() {
+  function handleConfirmation() {
     if (submitting) return;
-    setSubmitting(true);
-    const { error } = await createStage({
+    setShowConfirmation(false);
+
+    // Optimistic + fire-and-navigate : on lance la création en arrière-plan,
+    // on navigue immédiatement. La liste sur coach-stages a déjà le stage
+    // optimistique (cf createStage du hook), donc rien à attendre côté UI.
+    createStage({
       titre,
       description,
       disciplines: selectedDisciplines,
@@ -96,14 +100,13 @@ export default function ProposerStageScreen() {
       nbJours,
       prixTTC: parseFloat(tarif),
       places: parseInt(places, 10),
+    }).then(({ error }) => {
+      if (error) {
+        // L'utilisateur a déjà navigué — on log et on pourra remonter via toast/notif si nécessaire.
+        console.error('[proposer-stage] createStage failed (background):', error);
+      }
     });
-    setSubmitting(false);
-    if (error) {
-      setShowConfirmation(false);
-      showErr('Erreur', `Impossible de publier le stage : ${error}`);
-      return;
-    }
-    setShowConfirmation(false);
+
     if (router.canGoBack()) router.back();
     else router.replace('/(tabs)/coach-stages');
   }
