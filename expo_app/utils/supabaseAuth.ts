@@ -1,10 +1,7 @@
-import { createClient } from "@supabase/supabase-js";
-
-// Create a single instance of Supabase client
-const supabase = createClient(
-  process.env.EXPO_PUBLIC_SUPABASE_URL || "",
-  process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || ""
-);
+// ⚠️ Instance Supabase UNIQUE partagée avec lib/supabase.ts. Avant on avait
+// `createClient(...)` ici, ce qui créait un 2e GoTrueClient → "Lock was stolen
+// by another request" + auth qui rate de façon erratique.
+import supabase from "../lib/supabase";
 
 /**
  * Get the current authenticated user's session token

@@ -103,16 +103,11 @@ export function CustomBottomBar() {
     updateNotificationCount();
   }, [updateNotificationCount]));
 
-  // Écouter les changements en temps réel
+  // updateNotificationCount est un useCallback qui dépend des reservations/demands.
+  // Quand un hook realtime push une mise à jour, leur référence change → cet effet
+  // se redéclenche automatiquement. Plus besoin de setInterval 300ms (drain CPU 3Hz).
   useEffect(() => {
-    // Mettre à jour immédiatement
     updateNotificationCount();
-
-    const interval = setInterval(() => {
-      updateNotificationCount();
-    }, 300); // Mettre à jour toutes les 300ms
-
-    return () => clearInterval(interval);
   }, [updateNotificationCount]);
 
   const tabs = TABS_BY_ROLE[role] || TABS_BY_ROLE.cavalier;

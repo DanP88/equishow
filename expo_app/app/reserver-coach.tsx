@@ -12,7 +12,7 @@ import { CoachAnnonce } from '../types/service';
 import { useCoachAnnonce } from '../hooks/useCoachAnnonces';
 import { useCommission } from '../hooks/useCommissions';
 import { getAuthToken } from '../utils/supabaseAuth';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '../lib/supabase';
 import { AlertModal } from '../components/AlertModal';
 
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
@@ -102,18 +102,6 @@ export default function ReserverCoachScreen() {
       console.log('✅ All fields validated');
       setLoading(true);
 
-      const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
-
-      console.log('🔑 Environment:', { SUPABASE_URL: !!SUPABASE_URL, SUPABASE_ANON_KEY: !!SUPABASE_ANON_KEY });
-
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        showErr('Erreur', 'Variables Supabase non configurées.');
-        setLoading(false);
-        return;
-      }
-
-      const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
       const authToken = await getAuthToken();
       if (!authToken) {
         showErr('Non authentifié', 'Veuillez vous reconnecter avant de réserver.');

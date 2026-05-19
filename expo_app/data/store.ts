@@ -1,4 +1,3 @@
-import { createClient } from '@supabase/supabase-js';
 // Types CoachProfil/CoachAnnonce/etc. retirés de store.ts P24 phase 5
 // (plus de stores mock à typer — utilisés directement par les hooks Supabase).
 import { Concours, ConcoursCSV, ImportBatch, ImportError } from '../types/concours';
@@ -7,15 +6,10 @@ import { mockConcours } from './mockConcours';
 import { mockConcoursCsv } from './mockConcoursCsv';
 import { mockUsers } from './mockUsers';
 
-// Supabase client
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
-
-if (!supabaseUrl || !supabaseAnonKey) {
-  console.warn('Supabase configuration missing');
-}
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+// ⚠️ Instance Supabase UNIQUE : on re-export depuis lib/supabase.ts pour ne pas créer
+// un 2e GoTrueClient (cause des "Lock was stolen by another request" et auth qui rate).
+// Tous les imports `import { supabase } from '../data/store'` continuent de fonctionner.
+export { supabase } from '../lib/supabase';
 
 // Interface for userStore with switchAccount method
 export interface UserStore {

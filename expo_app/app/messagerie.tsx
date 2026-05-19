@@ -39,16 +39,13 @@ export default function MessagerieScreen() {
   const [convs, setConvs] = useState<Conversation[]>([]);
   const [activeConvId, setActiveConvId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
-  const [tick, setTick] = useState(0); // force re-render
+  // tick : force re-render après mutation in-memory de messagesStore (openConv, handleSend).
+  // Avant on faisait aussi un setInterval 400ms pour "voir les messages entrants",
+  // retiré (drain CPU) — messagerie sera de toute façon migrée sur realtime Supabase (P0-2).
+  const [, setTick] = useState(0);
   const scrollRef = useRef<ScrollView>(null);
 
   const myId = userStore.id;
-
-  // Refresh toutes les 400ms pour voir les messages entrants
-  useEffect(() => {
-    const iv = setInterval(() => setTick(t => t + 1), 400);
-    return () => clearInterval(iv);
-  }, []);
 
   useFocusEffect(useCallback(() => {
     refreshConvs();
