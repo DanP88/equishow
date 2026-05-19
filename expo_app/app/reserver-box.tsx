@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Alert, ActivityIndicator,
@@ -24,6 +24,25 @@ export default function ReserverBoxScreen() {
   const { createReservation } = useMyBoxReservations();
   const box = boxes.find((b) => b.id === id);
 
+  // ⚠️ React #310 : tous les hooks doivent être appelés AVANT tout return conditionnel,
+  // sinon le re-render quand `box` passe de undefined → object déclenche un mismatch
+  // du nombre de hooks. Init des dates via useEffect dès que box est disponible.
+  const [dateReservationDebut, setDateReservationDebut] = useState<Date | undefined>(undefined);
+  const [dateReservationFin, setDateReservationFin] = useState<Date | undefined>(undefined);
+  const [message, setMessage] = useState('');
+  const [showDateDebut, setShowDateDebut] = useState(false);
+  const [showDateFin, setShowDateFin] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [errorAlert, setErrorAlert] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (box && !dateReservationDebut) {
+      setDateReservationDebut(box.dateDebut);
+      setDateReservationFin(new Date(box.dateDebut.getTime() + 24 * 60 * 60 * 1000));
+    }
+  }, [box, dateReservationDebut]);
+
   if (!box) {
     return (
       <SafeAreaView style={s.root}>
@@ -38,16 +57,6 @@ export default function ReserverBoxScreen() {
   }
 
   const joursDisponibles = Math.max(1, Math.round((box.dateFin.getTime() - box.dateDebut.getTime()) / (1000 * 60 * 60 * 24)));
-
-  // Réservation: le locataire choisit les dates
-  const [dateReservationDebut, setDateReservationDebut] = useState<Date | undefined>(box.dateDebut);
-  const [dateReservationFin, setDateReservationFin] = useState<Date | undefined>(new Date(box.dateDebut.getTime() + 24 * 60 * 60 * 1000)); // Par défaut 1 nuit
-  const [message, setMessage] = useState('');
-  const [showDateDebut, setShowDateDebut] = useState(false);
-  const [showDateFin, setShowDateFin] = useState(false);
-  const [loading, setLoading] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
-  const [errorAlert, setErrorAlert] = useState<string | null>(null);
 
   // Calculer le nombre de nuits réservées
   const nuitesReservees = dateReservationDebut && dateReservationFin
