@@ -114,14 +114,14 @@ export default function ServicesScreen() {
   const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'transport');
   const [transportSubTab, setTransportSubTab] = useState<TransportSubTab>((params.subTab as TransportSubTab) ?? 'trajets');
   const [coachTab, setCoachTab] = useState<CoachTab>('concours');
-  const { transports } = useTransportAnnonces();
+  const { transports, isLoading: transportsLoading } = useTransportAnnonces();
   const { deleteAnnonce: deleteTransportAnnonce } = useMyTransportAnnonces();
-  const { boxes } = useBoxAnnonces();
+  const { boxes, isLoading: boxesLoading } = useBoxAnnonces();
   const { deleteAnnonce: deleteBoxAnnonce } = useMyBoxAnnonces();
-  const { annonces: coachAnnonces } = useCoachAnnonces();
+  const { annonces: coachAnnonces, isLoading: coachAnnoncesLoading } = useCoachAnnonces();
   const { deleteAnnonce: deleteCoachAnnonce } = useMyCoachAnnonces();
   const { stages } = useStages();
-  const { coaches } = useCoachProfiles();
+  const { coaches, isLoading: coachesLoading } = useCoachProfiles();
 
   const [filtersT, setFiltersT] = useState<FiltersTransport>(DEFAULT_FT);
   const [filtersB, setFiltersB] = useState<FiltersBox>(DEFAULT_FB);
@@ -271,9 +271,9 @@ export default function ServicesScreen() {
 
       {/* Tabs */}
       <View style={s.tabBar}>
-        <TabBtn label="Transport" count={filteredT.length} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
-        <TabBtn label="Box" count={filteredB.length} active={tab === 'box'} locked={boxLocked} onPress={() => handleTabPress('box')} />
-        <TabBtn label="Coachs" count={filteredC.length} active={tab === 'coach'} onPress={() => handleTabPress('coach')} />
+        <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
+        <TabBtn label="Box" count={filteredB.length} loading={boxesLoading} active={tab === 'box'} locked={boxLocked} onPress={() => handleTabPress('box')} />
+        <TabBtn label="Coachs" count={filteredC.length} loading={coachAnnoncesLoading || coachesLoading} active={tab === 'coach'} onPress={() => handleTabPress('coach')} />
       </View>
 
       {/* Transport Sub-Tabs */}
@@ -804,8 +804,8 @@ function ChipGroup({ options, value, onSelect }: {
 
 /* ─── Card components ──────────────────────────────────────────────────────── */
 
-function TabBtn({ label, count, active, locked, onPress }: {
-  label: string; count: number; active: boolean; locked?: boolean; onPress: () => void;
+function TabBtn({ label, count, active, locked, loading, onPress }: {
+  label: string; count: number; active: boolean; locked?: boolean; loading?: boolean; onPress: () => void;
 }) {
   return (
     <TouchableOpacity
@@ -818,7 +818,8 @@ function TabBtn({ label, count, active, locked, onPress }: {
       </Text>
       {!locked && (
         <View style={[s.tabCount, active && s.tabCountActive]}>
-          <Text style={[s.tabCountText, active && s.tabCountTextActive]}>{count}</Text>
+          {/* '…' tant que le hook fetch encore — évite d'afficher '0' menteur */}
+          <Text style={[s.tabCountText, active && s.tabCountTextActive]}>{loading ? '…' : count}</Text>
         </View>
       )}
     </TouchableOpacity>
