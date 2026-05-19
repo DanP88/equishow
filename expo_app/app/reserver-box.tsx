@@ -63,10 +63,13 @@ export default function ReserverBoxScreen() {
     ? Math.max(1, Math.round((dateReservationFin.getTime() - dateReservationDebut.getTime()) / (1000 * 60 * 60 * 24)))
     : 1;
 
+  // ⚠️ Doit rester aligné avec le trigger DB recalc_box_reservation_amounts
+  // (migration 011) qui est source de vérité côté serveur : HT + commission + TVA.
   const sousTotal = box.prixNuitHT * nuitesReservees;
   const commissionRate = getCommission('box');
   const commissionMontant = Math.round(sousTotal * commissionRate * 100) / 100;
-  const totalAPayer = Math.round((sousTotal + commissionMontant) * 100) / 100;
+  const tvaMontant = Math.round(sousTotal * 0.20 * 100) / 100;
+  const totalAPayer = Math.round((sousTotal + commissionMontant + tvaMontant) * 100) / 100;
   const commissionPct = Math.round(commissionRate * 100);
 
   const validate = (): string | null => {
@@ -184,6 +187,9 @@ export default function ReserverBoxScreen() {
         {/* Dates de réservation */}
         <View style={s.field}>
           <Text style={s.fieldLabel}>Votre réservation *</Text>
+          <Text style={s.fieldHelp}>
+            Disponible du {box.dateDebut.toLocaleDateString('fr-FR')} au {box.dateFin.toLocaleDateString('fr-FR')} · touchez les dates pour modifier
+          </Text>
           <View style={s.datesRow}>
             <View style={{ flex: 1 }}>
               <Text style={s.dateSubLabel}>Arrivée</Text>
@@ -211,19 +217,31 @@ export default function ReserverBoxScreen() {
           />
         </View>
 
-        {/* Prix récap (sans commission — affiché à la confirmation) */}
+        {/* Prix récap — détail complet pour aligner avec ce que le user verra sur Stripe */}
         <View style={s.prixCard}>
           <View style={s.prixRow}>
-            <Text style={s.prixLabel}>Prix / nuit</Text>
+            <Text style={s.prixLabel}>Prix / nuit HT</Text>
             <Text style={s.prixVal}>{box.prixNuitHT}€</Text>
           </View>
           <View style={s.prixRow}>
             <Text style={s.prixLabel}>Nuits réservées</Text>
             <Text style={s.prixVal}>{nuitesReservees}</Text>
           </View>
+          <View style={s.prixRow}>
+            <Text style={s.prixLabel}>Sous-total HT</Text>
+            <Text style={s.prixVal}>{sousTotal.toFixed(2)}€</Text>
+          </View>
+          <View style={s.prixRow}>
+            <Text style={s.prixLabel}>Commission Equishow ({commissionPct}%)</Text>
+            <Text style={s.prixVal}>+ {commissionMontant.toFixed(2)}€</Text>
+          </View>
+          <View style={s.prixRow}>
+            <Text style={s.prixLabel}>TVA (20%)</Text>
+            <Text style={s.prixVal}>+ {tvaMontant.toFixed(2)}€</Text>
+          </View>
           <View style={[s.prixRow, s.prixTotal]}>
-            <Text style={s.prixTotalLabel}>Sous-total</Text>
-            <Text style={s.prixTotalVal}>{sousTotal}€</Text>
+            <Text style={s.prixTotalLabel}>Total à payer TTC</Text>
+            <Text style={s.prixTotalVal}>{totalAPayer.toFixed(2)}€</Text>
           </View>
         </View>
 
@@ -249,16 +267,20 @@ export default function ReserverBoxScreen() {
           <View style={cs.body}>
             <View style={cs.row}>
               <Text style={cs.label}>{box.prixNuitHT}€ × {nuitesReservees} nuit{nuitesReservees > 1 ? 's' : ''}</Text>
-              <Text style={cs.value}>{sousTotal}€</Text>
+              <Text style={cs.value}>{sousTotal.toFixed(2)}€</Text>
             </View>
             <View style={cs.row}>
               <Text style={cs.label}>Commission Equishow ({commissionPct}%)</Text>
-              <Text style={cs.value}>+ {commissionMontant}€</Text>
+              <Text style={cs.value}>+ {commissionMontant.toFixed(2)}€</Text>
+            </View>
+            <View style={cs.row}>
+              <Text style={cs.label}>TVA (20%)</Text>
+              <Text style={cs.value}>+ {tvaMontant.toFixed(2)}€</Text>
             </View>
             <View style={cs.divider} />
             <View style={cs.row}>
               <Text style={cs.totalLabel}>Total à payer</Text>
-              <Text style={cs.totalValue}>{totalAPayer}€</Text>
+              <Text style={cs.totalValue}>{totalAPayer.toFixed(2)}€</Text>
             </View>
           </View>
         }
@@ -312,6 +334,7 @@ const s = StyleSheet.create({
   infoValue: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   field: { gap: Spacing.sm },
   fieldLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  fieldHelp: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: -Spacing.xs },
   datesRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.md },
   dateSubLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textSecondary, marginBottom: Spacing.xs },
   dateSep: { marginBottom: Spacing.sm, fontSize: FontSize.lg, color: Colors.textTertiary },
