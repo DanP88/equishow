@@ -3,6 +3,7 @@ import {
   View,
   TouchableOpacity,
   Text,
+  Image,
   StyleSheet,
 } from 'react-native';
 import { useRouter } from 'expo-router';
@@ -10,6 +11,16 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../constants/theme';
 import { userStore } from '../data/store';
+
+// Logo identitaire Equishow (en haut à gauche, clic = retour home du rôle)
+const LOGO_SRC = require('../assets/logo-equishow.png');
+
+const HOME_ROUTE_BY_ROLE: Record<string, string> = {
+  cavalier: '/(tabs)/chevaux',
+  coach: '/(tabs)/coach-agenda',
+  organisateur: '/(tabs)/org-concours',
+  admin: '/(tabs)/admin-settings',
+};
 
 export function CustomTopBar() {
   const router = useRouter();
@@ -45,9 +56,19 @@ export function CustomTopBar() {
     }
   };
 
+  const handleLogoPress = () => {
+    const target = HOME_ROUTE_BY_ROLE[userStore.role ?? 'cavalier'] ?? '/(tabs)/chevaux';
+    router.push(target as any);
+  };
+
   return (
     <>
       <View style={[s.container, { paddingTop: insets.top + Spacing.sm }]}>
+        {/* Logo Equishow — clic renvoie à la home du rôle */}
+        <TouchableOpacity style={s.logoBtn} onPress={handleLogoPress} activeOpacity={0.7}>
+          <Image source={LOGO_SRC} style={s.logo} resizeMode="contain" />
+        </TouchableOpacity>
+
         {/* Spacer */}
         <View style={{ flex: 1 }} />
 
@@ -77,6 +98,13 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surface,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  logoBtn: {
+    padding: Spacing.xs,
+  },
+  logo: {
+    width: 40,
+    height: 40,
   },
   rightIcons: {
     flexDirection: 'row',
