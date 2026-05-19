@@ -30,7 +30,10 @@ interface PaymentData {
 
 export default function CheckoutSuccessScreen() {
   useScreenTracking('checkout-success');
-  const { sessionId } = useLocalSearchParams<{ sessionId: string }>();
+  // Stripe redirige avec ?session_id=... (snake_case par convention Stripe).
+  // useLocalSearchParams lit les query params tels qu'ils sont dans l'URL,
+  // donc lire `session_id` et le renommer en sessionId pour le reste du code.
+  const { session_id: sessionId } = useLocalSearchParams<{ session_id: string }>();
   const [status, setStatus] = useState<ConfirmationStatus>('confirming');
   const [payment, setPayment] = useState<PaymentData | null>(null);
   const [error, setError] = useState<string | null>(null);
