@@ -194,26 +194,23 @@ export const useAuth = () => {
     return data;
   }, []);
 
-  // Sign out
+  // Sign out — clear state immédiatement pour navigation instantanée vers login,
+  // signOut() Supabase en arrière-plan (round-trip réseau pour invalider la session).
   const logout = useCallback(async () => {
-    try {
-      setIsLoading(true);
-      setError(null);
+    setError(null);
 
-      const { error: signOutError } = await signOut();
+    // 1. Clear local React state immédiatement → root layout bascule sur (auth)
+    setAuthUser(null);
+    setSession(null);
+    setProfile(null);
 
-      if (signOutError) throw signOutError;
+    // 2. signOut Supabase en background — n'attendons pas la réponse réseau.
+    //    L'onAuthStateChange (SIGNED_OUT) confirmera mais l'UI est déjà OK.
+    signOut().catch((err) => {
+      console.error('❌ Sign out background error:', err);
+    });
 
-      console.log('✅ Sign out successful');
-      return { error: null };
-    } catch (err: any) {
-      console.error('❌ Sign out error:', err);
-      const errorMsg = err.message || 'Sign out failed';
-      setError(errorMsg);
-      return { error: errorMsg };
-    } finally {
-      setIsLoading(false);
-    }
+    return { error: null };
   }, []);
 
   return {
