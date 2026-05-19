@@ -52,12 +52,14 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
   // Désactivation visuelle des items hors plage
   const isDayDisabled = (d: number) => !inRange(new Date(year, month - 1, d));
   const isMonthDisabled = (m: number) => {
-    // Un mois est désactivé si TOUS ses jours sont hors plage.
+    // Un mois est désactivé si TOUS ses jours sont hors plage, c'est-à-dire
+    // soit le mois entier est avant minDate, soit entièrement après maxDate.
     const last = daysInMonth(m, year);
     const firstDay = new Date(year, m - 1, 1);
     const lastDay = new Date(year, m - 1, last);
-    return !inRange(firstDay) && !inRange(lastDay)
-      && (minDate ? lastDay < startOfDay(minDate) : false || (maxDate ? firstDay > startOfDay(maxDate) : false));
+    const beforeMin = !!minDate && lastDay.getTime() < startOfDay(minDate).getTime();
+    const afterMax = !!maxDate && firstDay.getTime() > startOfDay(maxDate).getTime();
+    return beforeMin || afterMax;
   };
 
   function confirm() {
