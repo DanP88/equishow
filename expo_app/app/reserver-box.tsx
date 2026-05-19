@@ -63,13 +63,13 @@ export default function ReserverBoxScreen() {
     ? Math.max(1, Math.round((dateReservationFin.getTime() - dateReservationDebut.getTime()) / (1000 * 60 * 60 * 24)))
     : 1;
 
-  // ⚠️ Doit rester aligné avec le trigger DB recalc_box_reservation_amounts
-  // (migration 011) qui est source de vérité côté serveur : HT + commission + TVA.
+  // P2P entre particuliers : pas de TVA sur la location de box.
+  // Le trigger DB recalc_box_reservation_amounts (migration 011) doit être mis
+  // à jour pour ne plus ajouter TVA, sinon Stripe affichera un montant différent.
   const sousTotal = box.prixNuitHT * nuitesReservees;
   const commissionRate = getCommission('box');
   const commissionMontant = Math.round(sousTotal * commissionRate * 100) / 100;
-  const tvaMontant = Math.round(sousTotal * 0.20 * 100) / 100;
-  const totalAPayer = Math.round((sousTotal + commissionMontant + tvaMontant) * 100) / 100;
+  const totalAPayer = Math.round((sousTotal + commissionMontant) * 100) / 100;
   const commissionPct = Math.round(commissionRate * 100);
 
   const validate = (): string | null => {
@@ -217,10 +217,10 @@ export default function ReserverBoxScreen() {
           />
         </View>
 
-        {/* Prix récap — détail complet pour aligner avec ce que le user verra sur Stripe */}
+        {/* Prix récap — sans TVA (location P2P entre particuliers) */}
         <View style={s.prixCard}>
           <View style={s.prixRow}>
-            <Text style={s.prixLabel}>Prix / nuit HT</Text>
+            <Text style={s.prixLabel}>Prix / nuit</Text>
             <Text style={s.prixVal}>{box.prixNuitHT}€</Text>
           </View>
           <View style={s.prixRow}>
@@ -228,19 +228,15 @@ export default function ReserverBoxScreen() {
             <Text style={s.prixVal}>{nuitesReservees}</Text>
           </View>
           <View style={s.prixRow}>
-            <Text style={s.prixLabel}>Sous-total HT</Text>
+            <Text style={s.prixLabel}>Sous-total</Text>
             <Text style={s.prixVal}>{sousTotal.toFixed(2)}€</Text>
           </View>
           <View style={s.prixRow}>
             <Text style={s.prixLabel}>Commission Equishow ({commissionPct}%)</Text>
             <Text style={s.prixVal}>+ {commissionMontant.toFixed(2)}€</Text>
           </View>
-          <View style={s.prixRow}>
-            <Text style={s.prixLabel}>TVA (20%)</Text>
-            <Text style={s.prixVal}>+ {tvaMontant.toFixed(2)}€</Text>
-          </View>
           <View style={[s.prixRow, s.prixTotal]}>
-            <Text style={s.prixTotalLabel}>Total à payer TTC</Text>
+            <Text style={s.prixTotalLabel}>Total à payer</Text>
             <Text style={s.prixTotalVal}>{totalAPayer.toFixed(2)}€</Text>
           </View>
         </View>
@@ -273,10 +269,6 @@ export default function ReserverBoxScreen() {
               <Text style={cs.label}>Commission Equishow ({commissionPct}%)</Text>
               <Text style={cs.value}>+ {commissionMontant.toFixed(2)}€</Text>
             </View>
-            <View style={cs.row}>
-              <Text style={cs.label}>TVA (20%)</Text>
-              <Text style={cs.value}>+ {tvaMontant.toFixed(2)}€</Text>
-            </View>
             <View style={cs.divider} />
             <View style={cs.row}>
               <Text style={cs.totalLabel}>Total à payer</Text>
@@ -296,6 +288,22 @@ export default function ReserverBoxScreen() {
         message={errorAlert ?? ''}
         variant="error"
         onClose={() => setErrorAlert(null)}
+      />
+
+      <DatePickerModal
+        visible={showDateDebut}
+        value={dateReservationDebut}
+        title="Date d'arrivée"
+        onConfirm={(d) => setDateReservationDebut(d)}
+        onClose={() => setShowDateDebut(false)}
+      />
+
+      <DatePickerModal
+        visible={showDateFin}
+        value={dateReservationFin}
+        title="Date de départ"
+        onConfirm={(d) => setDateReservationFin(d)}
+        onClose={() => setShowDateFin(false)}
       />
 
     </SafeAreaView>
