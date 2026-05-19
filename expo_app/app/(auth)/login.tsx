@@ -67,7 +67,7 @@ export default function LoginScreen() {
             <Image
               source={require('../../assets/logo-equishow.png')}
               style={styles.logoImg}
-              resizeMode="contain"
+              resizeMode="cover"
             />
           </View>
           <Text style={styles.appName}>EQUISHOW</Text>
@@ -173,16 +173,15 @@ const styles = StyleSheet.create({
     height: 96,
     borderRadius: 48,
     backgroundColor: Colors.surface,
-    borderWidth: 2,
-    borderColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
     overflow: 'hidden',
   },
   logoImg: {
-    width: 80,
-    height: 80,
+    // Remplit tout le cercle (resizeMode cover clippé par overflow hidden)
+    width: 96,
+    height: 96,
   },
   logoText: {
     fontSize: 32,

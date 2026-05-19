@@ -66,7 +66,9 @@ export function CustomTopBar() {
       <View style={[s.container, { paddingTop: insets.top + Spacing.sm }]}>
         {/* Logo Equishow — clic renvoie à la home du rôle */}
         <TouchableOpacity style={s.logoBtn} onPress={handleLogoPress} activeOpacity={0.7}>
-          <Image source={LOGO_SRC} style={s.logo} resizeMode="contain" />
+          <View style={s.logoCircle}>
+            <Image source={LOGO_SRC} style={s.logo} resizeMode="cover" />
+          </View>
         </TouchableOpacity>
 
         {/* Spacer */}
@@ -101,6 +103,13 @@ const s = StyleSheet.create({
   },
   logoBtn: {
     padding: Spacing.xs,
+  },
+  logoCircle: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    overflow: 'hidden',
+    backgroundColor: Colors.surface,
   },
   logo: {
     width: 40,
