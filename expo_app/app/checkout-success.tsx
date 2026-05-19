@@ -31,9 +31,27 @@ interface PaymentData {
 export default function CheckoutSuccessScreen() {
   useScreenTracking('checkout-success');
   // Stripe redirige avec ?session_id=... (snake_case par convention Stripe).
-  // useLocalSearchParams lit les query params tels qu'ils sont dans l'URL,
-  // donc lire `session_id` et le renommer en sessionId pour le reste du code.
-  const { session_id: sessionId } = useLocalSearchParams<{ session_id: string }>();
+  // Plusieurs sources possibles selon le path (PWA / SSR / hydratation expo-router) :
+  //  1. params.session_id  (snake_case côté URL) — cas normal
+  //  2. params.sessionId   (camelCase) — au cas où une redirection intermédiaire renomme
+  //  3. window.location.search direct — fallback web si expo-router rate l'hydratation
+  const params = useLocalSearchParams<{ session_id?: string; sessionId?: string }>();
+  const sessionId =
+    (typeof params.session_id === 'string' && params.session_id) ||
+    (typeof params.sessionId === 'string' && params.sessionId) ||
+    (typeof window !== 'undefined'
+      ? new URLSearchParams(window.location.search).get('session_id')
+        ?? new URLSearchParams(window.location.search).get('sessionId')
+      : null) ||
+    null;
+  // Diag prod (à retirer après confirmation) : on saura immédiatement ce qui matche.
+  // eslint-disable-next-line no-console
+  console.log('[checkout-success] sessionId resolution', {
+    paramsSnake: params.session_id,
+    paramsCamel: params.sessionId,
+    url: typeof window !== 'undefined' ? window.location.search : null,
+    resolved: sessionId,
+  });
   const [status, setStatus] = useState<ConfirmationStatus>('confirming');
   const [payment, setPayment] = useState<PaymentData | null>(null);
   const [error, setError] = useState<string | null>(null);
