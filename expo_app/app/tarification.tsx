@@ -24,24 +24,28 @@ export default function TarificationScreen() {
   const plans = getPlansByRole(userRole);
 
   // Résoudre le plan actuel — robuste aux anciennes valeurs DB :
-  //   - 'gratuit' / 'free' / null → plan gratuit du rôle (le 1er plan dont prix=0)
-  //   - sinon match exact sur plan.id
-  //   - fallback : match sur le nom textuel (users.plan) en tolérant casse/accents
+  //   - match exact sur plan.id
+  //   - match sur le nom textuel (users.plan) en tolérant casse/accents
+  //   - fallback ULTIME : plan gratuit du rôle (pour cavalier → Découverte). Pour
+  //     coach/organisateur sans plan gratuit, la bannière reste légitimement masquée.
   const rawPlanId = ((profile as any)?.plan_id ?? '').toString().toLowerCase().trim();
   const rawPlanNom = ((profile as any)?.plan ?? '').toString().toLowerCase().trim();
   const normalize = (s: string) =>
     s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
-  const isLegacyFree = ['', 'gratuit', 'free', 'decouverte', 'découverte'].includes(rawPlanId)
-    || ['', 'gratuit', 'free'].includes(rawPlanNom);
   let currentPlan: Plan | null = null;
   if (rawPlanId) currentPlan = plans.find((p) => p.id === rawPlanId) ?? null;
   if (!currentPlan && rawPlanNom) {
     currentPlan = plans.find((p) => normalize(p.nom) === normalize(rawPlanNom)) ?? null;
   }
-  if (!currentPlan && isLegacyFree) {
+  if (!currentPlan) {
     currentPlan = plans.find((p) => p.prix === 0) ?? null;
   }
   const currentPlanId = currentPlan?.id ?? null;
+  if (__DEV__) {
+    // Diagnostic : pourquoi un user voit ou ne voit pas "Forfait actuel".
+    // eslint-disable-next-line no-console
+    console.log('[tarification]', { userRole, rawPlanId, rawPlanNom, currentPlanId });
+  }
 
   const ROLE_LABELS: Record<string, string> = {
     cavalier: 'Cavalier',
