@@ -63,13 +63,18 @@ export default function ReserverBoxScreen() {
     ? Math.max(1, Math.round((dateReservationFin.getTime() - dateReservationDebut.getTime()) / (1000 * 60 * 60 * 24)))
     : 1;
 
-  // P2P entre particuliers : pas de TVA sur la location de box.
-  // Le trigger DB recalc_box_reservation_amounts (migration 011) doit être mis
-  // à jour pour ne plus ajouter TVA, sinon Stripe affichera un montant différent.
+  // Pattern aligné sur reserver-transport (qui fonctionne) : on envoie en DB
+  // uniquement le sous-total (= prix vendeur) comme prix_total_ttc. Stripe
+  // affichera donc ce sous-total. La commission Equishow est visualisée pour
+  // l'utilisateur mais gérée séparément (hors-Stripe ou via Stripe Connect
+  // application_fee si le seller est onboardé).
   const sousTotal = box.prixNuitHT * nuitesReservees;
   const commissionRate = getCommission('box');
   const commissionMontant = Math.round(sousTotal * commissionRate * 100) / 100;
+  // Total visuel pour l'utilisateur (inclut la commission)
   const totalAPayer = Math.round((sousTotal + commissionMontant) * 100) / 100;
+  // Montant facturé via Stripe (= sous-total seulement, comme transport)
+  const montantStripe = sousTotal;
   const commissionPct = Math.round(commissionRate * 100);
 
   const validate = (): string | null => {
@@ -106,7 +111,9 @@ export default function ReserverBoxScreen() {
         message: message.trim(),
         prixTotalHT: sousTotal,
         commissionPlateform: commissionMontant,
-        prixTotalTTC: totalAPayer,
+        // Aligné transport : ce qui part en DB = sous-total seulement.
+        // C'est ce que l'Edge function lit pour envoyer le montant à Stripe.
+        prixTotalTTC: montantStripe,
       });
 
       if (createErr || !created) {
