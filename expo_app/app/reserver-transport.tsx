@@ -100,6 +100,12 @@ export default function ReserverTransportScreen() {
     }
   }
 
+  // Total réellement payé par le buyer = sous-total + commission Equishow.
+  // App ET Stripe affichent ce même montant (cohérence stricte avec box).
+  const commissionServiceType = isTrajet ? 'trajet' : 'location';
+  const commissionMontant = getCommissionMontant(prixTotalTTC, commissionServiceType);
+  const totalAPayer = Math.round((prixTotalTTC + commissionMontant) * 100) / 100;
+
   // ─── Géolocalisation ─────────────────────────────────────────────────────────
   function handleUseLocation() {
     if (typeof navigator === 'undefined' || !navigator.geolocation) {
@@ -267,8 +273,10 @@ export default function ReserverTransportScreen() {
       nbPlaces: isTrajet ? nbPlaces : 1,
       message: message.trim(),
       prixTotalHT: prixTotal,
-      commissionPlateform: prixTotal * 0.05,
-      prixTotalTTC,
+      commissionPlateform: commissionMontant,
+      // Aligné box : ce qui part en DB = total réellement facturé (sous-total + commission).
+      // L'Edge function le lit pour facturer Stripe → même montant que l'app.
+      prixTotalTTC: totalAPayer,
       ...routeSnapshot,
     });
 
@@ -294,10 +302,9 @@ export default function ReserverTransportScreen() {
       },
     });
 
-    // Montant final = backend price (déjà × 2 côté Edge si A/R) × nbPlaces.
-    const montantPaiement = routeResult
-      ? (routeResult.totalPrice * nbPlaces).toFixed(2)
-      : prixTotalTTC.toFixed(2);
+    // Montant final affiché sur paiement-transport = total déjà calculé (sous-total + commission).
+    // Cohérent avec ce qu'on a inséré en DB et donc avec ce que Stripe affichera.
+    const montantPaiement = totalAPayer.toFixed(2);
 
     router.push({
       pathname: '/paiement-transport',

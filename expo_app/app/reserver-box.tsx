@@ -63,18 +63,11 @@ export default function ReserverBoxScreen() {
     ? Math.max(1, Math.round((dateReservationFin.getTime() - dateReservationDebut.getTime()) / (1000 * 60 * 60 * 24)))
     : 1;
 
-  // Pattern aligné sur reserver-transport (qui fonctionne) : on envoie en DB
-  // uniquement le sous-total (= prix vendeur) comme prix_total_ttc. Stripe
-  // affichera donc ce sous-total. La commission Equishow est visualisée pour
-  // l'utilisateur mais gérée séparément (hors-Stripe ou via Stripe Connect
-  // application_fee si le seller est onboardé).
+  // App ET Stripe facturent le même montant : sous-total + commission Equishow.
   const sousTotal = box.prixNuitHT * nuitesReservees;
   const commissionRate = getCommission('box');
   const commissionMontant = Math.round(sousTotal * commissionRate * 100) / 100;
-  // Total visuel pour l'utilisateur (inclut la commission)
   const totalAPayer = Math.round((sousTotal + commissionMontant) * 100) / 100;
-  // Montant facturé via Stripe (= sous-total seulement, comme transport)
-  const montantStripe = sousTotal;
   const commissionPct = Math.round(commissionRate * 100);
 
   const validate = (): string | null => {
@@ -111,9 +104,7 @@ export default function ReserverBoxScreen() {
         message: message.trim(),
         prixTotalHT: sousTotal,
         commissionPlateform: commissionMontant,
-        // Aligné transport : ce qui part en DB = sous-total seulement.
-        // C'est ce que l'Edge function lit pour envoyer le montant à Stripe.
-        prixTotalTTC: montantStripe,
+        prixTotalTTC: totalAPayer,
       });
 
       if (createErr || !created) {
