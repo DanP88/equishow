@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import {
-  View, Text, TextInput, TouchableOpacity,
+  View, Text, TextInput, TouchableOpacity, Image,
   StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
@@ -64,7 +64,11 @@ export default function LoginScreen() {
         {/* Logo */}
         <View style={styles.logoArea}>
           <View style={styles.logoCircle}>
-            <Text style={styles.logoText}>E</Text>
+            <Image
+              source={require('../../assets/logo-equishow.png')}
+              style={styles.logoImg}
+              resizeMode="contain"
+            />
           </View>
           <Text style={styles.appName}>EQUISHOW</Text>
           <Text style={styles.tagline}>La plateforme des cavaliers</Text>
@@ -165,13 +169,20 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xxxl,
   },
   logoCircle: {
-    width: 72,
-    height: 72,
-    borderRadius: 36,
-    backgroundColor: Colors.primary,
+    width: 96,
+    height: 96,
+    borderRadius: 48,
+    backgroundColor: Colors.surface,
+    borderWidth: 2,
+    borderColor: Colors.primaryLight,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
+    overflow: 'hidden',
+  },
+  logoImg: {
+    width: 80,
+    height: 80,
   },
   logoText: {
     fontSize: 32,
