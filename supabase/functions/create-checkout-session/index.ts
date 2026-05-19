@@ -241,7 +241,16 @@ export async function handler(req: Request): Promise<Response> {
       description?.slice(0, 250) || `Equishow ${type}`
     );
     formData.append("line_items[0][price_data][unit_amount]", String(amountBuyerCents));
+    // tax_behavior=inclusive : indique à Stripe que le prix envoyé est le prix final
+    // affiché au buyer (pas de TVA à ajouter par-dessus). Override le default du
+    // compte Stripe si "Stripe Tax" est globalement activé.
+    formData.append("line_items[0][price_data][tax_behavior]", "inclusive");
     formData.append("line_items[0][quantity]", "1");
+
+    // Désactive explicitement le calcul automatique de tax côté Stripe.
+    // Sans ce paramètre, un compte avec Stripe Tax activé ajoute +20% TVA FR
+    // alors que l'app affiche le prix sans TVA (P2P entre particuliers).
+    formData.append("automatic_tax[enabled]", "false");
 
     // Stripe Connect Option A : transfer auto + application_fee.
     // Skip si test mode et seller pas onboardé → paiement direct (testable).
