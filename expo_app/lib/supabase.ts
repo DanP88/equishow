@@ -237,7 +237,11 @@ export const signIn = async (email: string, password: string): Promise<{ user: U
  */
 export const signOut = async (): Promise<{ error: AppError | null }> => {
   try {
-    const { error } = await supabase.auth.signOut();
+    // scope: 'local' = juste clear le localStorage, pas de round-trip serveur.
+    // Beaucoup plus rapide (perçu instantané) et c'est suffisant côté client.
+    // L'invalidation serveur-side se fera naturellement à expiration du refresh
+    // token (ou si l'user se reconnecte avec un nouveau token).
+    const { error } = await supabase.auth.signOut({ scope: 'local' });
     if (error) throw error;
     return { error: null };
   } catch (err: unknown) {
