@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal, Linking,
@@ -33,6 +33,24 @@ export default function ReserverCoachScreen() {
   const { annonce, isLoading: annonceLoading } = useCoachAnnonce(annonceId);
   const commissionCours = useCommission('cours');
 
+  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
+  const [discipline, setDiscipline] = useState('');
+  const [niveau, setNiveau] = useState('');
+  const [cheval, setCheval] = useState('');
+  const [message, setMessage] = useState('');
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [reservationRef, setReservationRef] = useState<string>('');
+  const [loading, setLoading] = useState(false);
+  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
+
+  // Sync discipline/niveau depuis l'annonce une fois chargée
+  useEffect(() => {
+    if (annonce) {
+      setDiscipline(annonce.discipline);
+      setNiveau(annonce.niveau);
+    }
+  }, [annonce]);
+
   if (annonceLoading && !annonce) {
     return <SafeAreaView style={s.root}><View style={s.errorContainer}><Text style={s.errorText}>Chargement…</Text></View></SafeAreaView>;
   }
@@ -54,16 +72,6 @@ export default function ReserverCoachScreen() {
 
   // Dates disponibles du concours
   const datesDisponibles = generateDatesInRange(annonce.dateDebut, annonce.dateFin);
-
-  const [selectedDates, setSelectedDates] = useState<Date[]>([]);
-  const [discipline, setDiscipline] = useState(annonce.discipline);
-  const [niveau, setNiveau] = useState(annonce.niveau);
-  const [cheval, setCheval] = useState('');
-  const [message, setMessage] = useState('');
-  const [showConfirmation, setShowConfirmation] = useState(false);
-  const [reservationRef, setReservationRef] = useState<string>('');
-  const [loading, setLoading] = useState(false);
-  const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
 
   const showErr = (title: string, message: string) => setAlertState({ title, message, variant: 'error' });
 
