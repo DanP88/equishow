@@ -12,8 +12,9 @@ import { Colors } from '../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../constants/theme';
 import { userStore } from '../data/store';
 
-// Logo identitaire Equishow (en haut à gauche, clic = retour home du rôle)
-const LOGO_SRC = require('../assets/logo-equishow.png');
+// Logo identitaire Equishow — wordmark "EquiShow" (IMG_4555.jpg rogné des
+// marges blanches → logo-wordmark.png). En haut à gauche, clic = home du rôle.
+const LOGO_SRC = require('../assets/logo-wordmark.png');
 
 const HOME_ROUTE_BY_ROLE: Record<string, string> = {
   cavalier: '/(tabs)/chevaux',
@@ -66,9 +67,7 @@ export function CustomTopBar() {
       <View style={[s.container, { paddingTop: insets.top + Spacing.sm }]}>
         {/* Logo Equishow — clic renvoie à la home du rôle */}
         <TouchableOpacity style={s.logoBtn} onPress={handleLogoPress} activeOpacity={0.7}>
-          <View style={s.logoCircle}>
-            <Image source={LOGO_SRC} style={s.logo} resizeMode="cover" />
-          </View>
+          <Image source={LOGO_SRC} style={s.logo} resizeMode="contain" />
         </TouchableOpacity>
 
         {/* Spacer */}
@@ -112,8 +111,8 @@ const s = StyleSheet.create({
     backgroundColor: Colors.surface,
   },
   logo: {
-    width: 40,
-    height: 40,
+    width: 138,
+    height: 44,
   },
   rightIcons: {
     flexDirection: 'row',
