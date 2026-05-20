@@ -111,28 +111,13 @@ export default function ProposerCoachAnnonceScreen() {
 
   const prixNum = parseFloat(prixHeure);
 
-  // Pour régulier: prixNum est HT, on ajoute la commission et TVA 20%
-  // Pour concours: prixNum est déjà TTC, pas de commission à ajouter
-  let prixTTC = null;
+  // Pas de TVA (marketplace P2P entre particuliers). Le tarif saisi = ce que
+  // le coach reçoit (par jour). Le cavalier paie ce tarif + la commission Equishow.
+  let prixHT = 0;            // ce que le coach reçoit
   let commissionMontant = 0;
-  let tvaMontant = 0;
-  let prixHT = 0;
-
-  if (type === 'regulier' && prixNum) {
+  if (prixNum) {
     prixHT = prixNum;
-    commissionMontant = prixNum * commissionCours;
-    tvaMontant = getTVAMontant(prixNum);
-    prixTTC = calculatePrixTTC(prixNum, 'cours');
-  } else if (type === 'concours' && prixNum) {
-    // Pour concours, le prix entré est déjà TTC
-    prixTTC = prixNum;
-    // Calculer le HT en fonction du TTC et de (commission + TVA 20%)
-    // TTC = HT * (1 + commission + tva)
-    // HT = TTC / (1 + commission + tva)
-    const totalPourcentage = commissionCours + 0.20;
-    prixHT = Math.round((prixTTC / (1 + totalPourcentage)) * 100) / 100;
-    commissionMontant = Math.round(prixHT * commissionCours * 100) / 100;
-    tvaMontant = getTVAMontant(prixHT);
+    commissionMontant = Math.round(prixNum * commissionCours * 100) / 100;
   }
 
   function showErr(title: string, msg: string) {
@@ -156,9 +141,9 @@ export default function ProposerCoachAnnonceScreen() {
       showErr('Date dans le passé', `La date de début (${dateDebut.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`);
       return;
     }
-    if (!prixHeure) { showErr('Prix manquant', 'Indiquez votre tarif horaire.'); return; }
+    if (!prixHeure) { showErr('Prix manquant', 'Indiquez votre tarif par jour.'); return; }
     const prixNum2 = parseFloat(prixHeure);
-    if (Number.isNaN(prixNum2) || prixNum2 <= 0) { showErr('Prix invalide', 'Le tarif horaire doit être un nombre supérieur à 0€.'); return; }
+    if (Number.isNaN(prixNum2) || prixNum2 <= 0) { showErr('Prix invalide', 'Le tarif par jour doit être un nombre supérieur à 0€.'); return; }
 
     setShowConfirmation(true);
   }
@@ -179,8 +164,8 @@ export default function ProposerCoachAnnonceScreen() {
           niveau: niveauFinal,
           date_debut: dateDebut!.toISOString().split('T')[0],
           date_fin: dateFin!.toISOString().split('T')[0],
-          prix_heure_ht: type === 'regulier' ? tarifAStocker : Math.round(tarifAStocker / 1.20 * 100) / 100,
-          prix_heure_ttc: type === 'regulier' ? Math.round(tarifAStocker * 1.20 * 100) / 100 : tarifAStocker,
+          prix_heure_ht: tarifAStocker,
+          prix_heure_ttc: tarifAStocker,
           concours_nom: concours || null,
           region: type === 'regulier' ? userStore.region : null,
         })
@@ -201,7 +186,7 @@ export default function ProposerCoachAnnonceScreen() {
       niveau: niveauFinal,
       dateDebut: dateDebut!,
       dateFin: dateFin!,
-      prixHeureHT: type === 'regulier' ? tarifAStocker : Math.round(tarifAStocker / 1.20 * 100) / 100,
+      prixHeureHT: tarifAStocker,
       places: 999,
       concours: concours || undefined,
       region: type === 'regulier' ? userStore.region : undefined,
@@ -472,7 +457,7 @@ export default function ProposerCoachAnnonceScreen() {
         <View style={type === 'concours' ? { flex: 1 } : s.priceRow}>
           <View style={{ flex: 1 }}>
             <View style={s.field}>
-              <Text style={s.fieldLabel}>Tarif par heure *</Text>
+              <Text style={s.fieldLabel}>Tarif par jour *</Text>
               <View style={f.priceRowInput}>
                 <TextInput
                   style={[f.input, { flex: 1 }, !!prixHeure && f.inputFilled]}
@@ -482,7 +467,7 @@ export default function ProposerCoachAnnonceScreen() {
                   placeholderTextColor={Colors.textTertiary}
                   keyboardType="numeric"
                 />
-                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / h</Text></View>
+                <View style={f.priceUnit}><Text style={f.priceUnitText}>€ / jour</Text></View>
               </View>
             </View>
           </View>
@@ -542,7 +527,7 @@ export default function ProposerCoachAnnonceScreen() {
 
               <View style={s.priceSection}>
                 <View style={s.priceRow}>
-                  <Text style={s.priceLabel}>Tarif{type === 'regulier' ? ' / heure' : ''} (ce que vous recevez) :</Text>
+                  <Text style={s.priceLabel}>Tarif{type === 'regulier' ? ' / jour' : ''} (ce que vous recevez) :</Text>
                   <Text style={s.priceValue}>{prixHT.toFixed(2)}€</Text>
                 </View>
                 <View style={s.priceRow}>
@@ -550,7 +535,7 @@ export default function ProposerCoachAnnonceScreen() {
                   <Text style={s.priceValue}>+ {commissionMontant.toFixed(2)}€</Text>
                 </View>
                 <View style={[s.priceRow, s.priceTotalRow]}>
-                  <Text style={s.priceTotalLabel}>Le cavalier paiera{type === 'regulier' ? ' / heure' : ''} :</Text>
+                  <Text style={s.priceTotalLabel}>Le cavalier paiera{type === 'regulier' ? ' / jour' : ''} :</Text>
                   <Text style={s.priceTotalValue}>{(prixHT + commissionMontant).toFixed(2)}€</Text>
                 </View>
               </View>

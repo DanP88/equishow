@@ -136,10 +136,10 @@ export default function ReserverCoachScreen() {
           date_debut: dateDebut.toISOString().split('T')[0],
           date_fin: dateFin.toISOString().split('T')[0],
           nb_jours: nbJours,
-          price_per_day_ttc: Math.round(prixParJourTTC * 100),
-          total_amount_ht: Math.round(prixTotalHT * 100),
-          platform_commission: Math.round(commissionPlateforme * 100),
-          total_amount_ttc: Math.round(prixTTCTotal * 100),
+          price_per_day_ttc: prixParJourTTC,
+          total_amount_ht: prixTotalHT,
+          platform_commission: commissionPlateforme,
+          total_amount_ttc: prixTTCTotal,
           status: 'pending',
         })
         .select('id')
@@ -207,7 +207,7 @@ export default function ReserverCoachScreen() {
             )}
           </View>
           <View style={s.tarifBadge}>
-            <Text style={s.tarifText}>{annonce.prixHeure}€/h HT</Text>
+            <Text style={s.tarifText}>{annonce.prixHeure}€/jour</Text>
           </View>
         </View>
 

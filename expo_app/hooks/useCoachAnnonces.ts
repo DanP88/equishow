@@ -219,7 +219,8 @@ export function useMyCoachAnnonces() {
 
   const createAnnonce = useCallback(async (input: AnnonceCreateInput): Promise<AnnonceResult> => {
     if (!profile?.id) return { data: null, error: 'Non authentifié' };
-    const prixTTC = Math.round(input.prixHeureHT * 1.20 * 100) / 100;
+    // Pas de TVA : prix_heure_ttc = ce que le coach reçoit (= le tarif saisi).
+    const prixTTC = input.prixHeureHT;
 
     // Optimistic UI : annonce temporaire dans la liste immédiatement.
     const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;

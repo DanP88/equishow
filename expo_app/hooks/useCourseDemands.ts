@@ -40,10 +40,10 @@ interface CourseDemandRow {
 }
 
 function rowToDemand(r: CourseDemandRow): CourseDemande {
-  // price_per_day_ttc et total_amount_ttc sont stockés en centimes (× 100)
-  // dans reserver-coach.tsx. On reconvertit en euros pour le front.
-  const prixParJour = Number(r.price_per_day_ttc) / 100;
-  const prix = Number(r.total_amount_ttc) / 100;
+  // Montants en EUROS (le trigger serveur mig 036 stocke des euros décimaux).
+  // Surtout PAS de /100 — sinon 218€ s'afficherait 2,18€.
+  const prixParJour = Number(r.price_per_day_ttc);
+  const prix = Number(r.total_amount_ttc);
   return {
     id: r.id,
     annonceId: r.annonce_id,
