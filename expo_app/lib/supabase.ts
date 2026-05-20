@@ -211,23 +211,44 @@ function withTimeout<T>(promise: Promise<T>, ms: number, label: string): Promise
   });
 }
 
+/**
+ * Rejoue `fn` jusqu'à `attempts` fois, mais UNIQUEMENT en cas de timeout
+ * (fetch réseau jamais résolu — hang intermittent côté client web). Les vraies
+ * erreurs (mauvais identifiants, profil absent) remontent via la valeur de
+ * retour {error} sans throw → elles ne sont jamais rejouées.
+ */
+async function callWithRetry<T>(fn: () => Promise<T>, label: string, attempts: number, timeoutMs: number): Promise<T> {
+  let last: unknown;
+  for (let i = 1; i <= attempts; i++) {
+    try {
+      return await withTimeout(fn(), timeoutMs, label);
+    } catch (e) {
+      last = e;
+      const msg = e instanceof Error ? e.message : '';
+      if (!msg.startsWith('Timeout') || i === attempts) throw e;
+      console.warn(`[retry] ${label} tentative ${i}/${attempts} a timeout — nouvel essai`);
+    }
+  }
+  throw last;
+}
+
 export const signIn = async (email: string, password: string): Promise<{ user: User | null; error: AppError | null }> => {
   try {
     console.log('[signIn] start', email);
-    const { data: { user }, error } = await withTimeout(
-      supabase.auth.signInWithPassword({ email, password }),
-      15000,
-      'signInWithPassword',
+    // 2 tentatives × 9s : couvre le hang intermittent du fetch (le serveur
+    // répond en <1s ; un essai bloqué est rejoué automatiquement, transparent).
+    const { data: { user }, error } = await callWithRetry(
+      () => supabase.auth.signInWithPassword({ email, password }),
+      'signInWithPassword', 2, 9000,
     );
 
     if (error) throw error;
     if (!user) throw new Error('No user returned from sign in');
     console.log('[signIn] auth OK, fetching profile');
 
-    const { data: profileData, error: profileError } = await withTimeout(
-      getUserProfile(user.id),
-      10000,
-      'getUserProfile',
+    const { data: profileData, error: profileError } = await callWithRetry(
+      () => getUserProfile(user.id),
+      'getUserProfile', 2, 8000,
     );
     if (profileError) throw profileError;
     console.log('[signIn] profile OK');
