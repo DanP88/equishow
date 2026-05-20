@@ -348,8 +348,11 @@ export default function ProposerTransportScreen() {
       const { error } = await updateAnnonce(editId, payload);
       if (error) { showErr('Erreur', error); return; }
     } else {
-      const { error } = await createAnnonce(payload);
-      if (error) { showErr('Erreur', error); return; }
+      // Fire-and-navigate : optimistic dans le hook → annonce visible tout de suite,
+      // insert DB en arrière-plan, on navigue sans attendre.
+      createAnnonce(payload).then(({ error }) => {
+        if (error) console.error('[proposer-transport] createAnnonce failed (bg):', error);
+      });
     }
     router.replace('/(tabs)/services?tab=transport' as any);
     } catch (e: any) {

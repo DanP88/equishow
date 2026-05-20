@@ -223,8 +223,11 @@ export default function ProposerBoxScreen() {
       if (error) { showErr('Erreur', error); return; }
       showSuccess('Annonce modifiée', `Votre annonce de boxes à "${lieu}" a été mise à jour.`, goBack);
     } else {
-      const { error } = await createAnnonce(payload);
-      if (error) { showErr('Erreur', error); return; }
+      // Fire-and-navigate : optimistic dans le hook → annonce visible tout de suite.
+      // On affiche le succès immédiatement, l'insert DB tourne en arrière-plan.
+      createAnnonce(payload).then(({ error }) => {
+        if (error) console.error('[proposer-box] createAnnonce failed (bg):', error);
+      });
       showSuccess(
         'Annonce publiée 🏠',
         `Votre annonce de boxes à "${lieu}" (${joursDisponibles} jour${joursDisponibles > 1 ? 's' : ''}) est maintenant visible dans la liste.`,

@@ -186,22 +186,28 @@ export default function ProposerCoachAnnonceScreen() {
         })
         .eq('id', annonceToEdit.id);
       if (error) { showErr('Erreur', error.message); return; }
-    } else {
-      const { error } = await createAnnonce({
-        titre: titre.trim(),
-        description: description.trim(),
-        type: type as 'concours' | 'regulier',
-        discipline,
-        niveau: niveauFinal,
-        dateDebut: dateDebut!,
-        dateFin: dateFin!,
-        prixHeureHT: type === 'regulier' ? tarifAStocker : Math.round(tarifAStocker / 1.20 * 100) / 100,
-        places: 999,
-        concours: concours || undefined,
-        region: type === 'regulier' ? userStore.region : undefined,
-      });
-      if (error) { showErr('Erreur', error); return; }
+      setShowConfirmation(false);
+      router.replace('/(tabs)/coach-concours' as any);
+      return;
     }
+
+    // Création : fire-and-navigate. L'optimistic update du hook rend l'annonce
+    // visible immédiatement dans la liste ; on navigue sans attendre l'insert DB.
+    createAnnonce({
+      titre: titre.trim(),
+      description: description.trim(),
+      type: type as 'concours' | 'regulier',
+      discipline,
+      niveau: niveauFinal,
+      dateDebut: dateDebut!,
+      dateFin: dateFin!,
+      prixHeureHT: type === 'regulier' ? tarifAStocker : Math.round(tarifAStocker / 1.20 * 100) / 100,
+      places: 999,
+      concours: concours || undefined,
+      region: type === 'regulier' ? userStore.region : undefined,
+    }).then(({ error }) => {
+      if (error) console.error('[proposer-coach-annonce] createAnnonce failed (bg):', error);
+    });
 
     setShowConfirmation(false);
     router.replace('/(tabs)/coach-concours' as any);
