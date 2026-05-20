@@ -44,7 +44,9 @@ export async function getCurrentUser() {
  * Listen to auth state changes
  */
 export function onAuthStateChange(callback: (token: string | null) => void) {
-  return supabase.auth.onAuthStateChange(async (event, session) => {
+  // Callback synchrone : ne jamais await de méthode supabase ici (deadlock
+  // signInWithPassword). On ne fait que propager le token.
+  return supabase.auth.onAuthStateChange((event, session) => {
     callback(session?.access_token || null);
   });
 }

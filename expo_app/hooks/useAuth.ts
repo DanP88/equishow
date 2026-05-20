@@ -74,8 +74,14 @@ export const useAuth = () => {
     initializeAuth();
 
     // Subscribe to auth changes
+    // ⚠️ CRITIQUE : le callback onAuthStateChange NE DOIT PAS être async ni
+    // await une méthode supabase. Il s'exécute DANS le flux interne de
+    // signInWithPassword ; un await ré-entrant (getUserProfile/getSession)
+    // bloque la résolution de signInWithPassword → "Timeout signInWithPassword"
+    // alors même que SIGNED_IN est émis. On défère donc le fetch profil hors
+    // du flux auth via setTimeout(0). (Recommandation officielle Supabase.)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, newSession) => {
+      (event, newSession) => {
         console.log(`🔄 Auth event: ${event}`);
 
         setSession(newSession);
@@ -83,22 +89,26 @@ export const useAuth = () => {
         if (newSession?.user) {
           setAuthUser(newSession.user);
 
-          // Fetch profile dès qu'on a un user dans la session.
-          // On couvre SIGNED_IN, INITIAL_SESSION (cold start PWA iOS),
-          // TOKEN_REFRESHED et USER_UPDATED — sinon profile reste null
-          // après réveil de l'app PWA et toute action authentifiée échoue
-          // ("Non authentifié").
+          // Fetch profile dès qu'on a un user dans la session (couvre SIGNED_IN,
+          // INITIAL_SESSION cold start PWA, TOKEN_REFRESHED, USER_UPDATED).
           if (
             event === 'SIGNED_IN' ||
             event === 'INITIAL_SESSION' ||
             event === 'TOKEN_REFRESHED' ||
             event === 'USER_UPDATED'
           ) {
-            const { data: profileData } = await getUserProfile(newSession.user.id);
-            if (profileData) {
-              setProfile(profileData);
-              syncUserStore(profileData);
-            }
+            const uid = newSession.user.id;
+            // Déféré : sort du flux auth pour ne pas bloquer signInWithPassword.
+            setTimeout(() => {
+              getUserProfile(uid)
+                .then(({ data: profileData }) => {
+                  if (profileData) {
+                    setProfile(profileData);
+                    syncUserStore(profileData);
+                  }
+                })
+                .catch((e) => console.warn('[onAuthStateChange] profile fetch:', e));
+            }, 0);
             if (event === 'SIGNED_IN') {
               console.log('✅ User signed in:', newSession.user.email);
             }
