@@ -1,4 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
+import { Platform } from 'react-native';
 import { AppError } from './errorHandler';
 
 // Extract a human-readable message from anything thrown.
@@ -33,6 +34,15 @@ export const supabase = createClient(
       persistSession: true,
       autoRefreshToken: true,
       detectSessionInUrl: true,
+      // Web : navigator.locks (Web Locks API) sérialise les opérations auth
+      // entre onglets. Un verrou orphelin (refresh d'init sur token périmé,
+      // double-mount StrictMode, fetch storage hung) fait que
+      // signInWithPassword attend indéfiniment → "Timeout ... après 15s".
+      // Lock pass-through = aucune attente de verrou, plus de deadlock.
+      // RN natif garde le lock in-process par défaut (pas concerné).
+      ...(Platform.OS === 'web'
+        ? { lock: <R>(_name: string, _acquireTimeout: number, fn: () => Promise<R>) => fn() }
+        : {}),
     },
     realtime: {
       params: {
