@@ -202,11 +202,38 @@ export function useMyCoachAnnonces() {
   const createAnnonce = useCallback(async (input: AnnonceCreateInput): Promise<AnnonceResult> => {
     if (!profile?.id) return { data: null, error: 'Non authentifié' };
     const prixTTC = Math.round(input.prixHeureHT * 1.20 * 100) / 100;
+
+    // Optimistic UI : annonce temporaire dans la liste immédiatement.
+    const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    const auteurNom = `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim() || '';
+    const optimistic: CoachAnnonce = {
+      id: tempId,
+      auteurId: profile.id,
+      auteurNom,
+      auteurPseudo: '',
+      auteurInitiales: '',
+      auteurCouleur: '#7C3AED',
+      titre: input.titre,
+      description: input.description ?? '',
+      type: input.type,
+      discipline: input.discipline,
+      niveau: input.niveau,
+      dateDebut: input.dateDebut,
+      dateFin: input.dateFin,
+      prixHeure: prixTTC,
+      places: input.places,
+      placesDisponibles: input.places,
+      concours: input.concours ?? undefined,
+      region: input.region ?? undefined,
+    };
+    setList((curr) => [optimistic, ...curr]);
+    emitCoachMutation({ kind: 'upsert', annonce: optimistic });
+
     const { data, error } = await supabase
       .from('coach_annonces')
       .insert({
         auteur_id: profile.id,
-        auteur_nom: `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim() || null,
+        auteur_nom: auteurNom || null,
         titre: input.titre,
         description: input.description ?? null,
         type: input.type,
@@ -223,9 +250,16 @@ export function useMyCoachAnnonces() {
       })
       .select('*')
       .single();
-    if (error || !data) return { data: null, error: error?.message ?? 'Erreur création' };
+
+    if (error || !data) {
+      setList((curr) => curr.filter((a) => a.id !== tempId));
+      emitCoachMutation({ kind: 'delete', id: tempId });
+      return { data: null, error: error?.message ?? 'Erreur création' };
+    }
+
     const created = rowToAnnonce(data as CoachAnnonceRow);
-    setList((curr) => (curr.some((a) => a.id === created.id) ? curr : [created, ...curr]));
+    setList((curr) => curr.map((a) => (a.id === tempId ? created : a)));
+    emitCoachMutation({ kind: 'delete', id: tempId });
     emitCoachMutation({ kind: 'upsert', annonce: created });
     return { data: created, error: null };
   }, [profile?.id, (profile as any)?.prenom, (profile as any)?.nom]);

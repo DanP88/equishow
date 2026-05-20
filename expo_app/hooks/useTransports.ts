@@ -235,6 +235,29 @@ export function useMyTransportAnnonces() {
     async (input: Partial<TransportAnnonce>): Promise<AnnonceResult> => {
       if (!profile?.id) return { data: null, error: 'Non authentifié' };
       const patch = annonceToRowPatch(input);
+
+      // Optimistic UI : annonce transport temporaire visible immédiatement.
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const auteurNom = `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim() || '';
+      const optimistic = {
+        ...input,
+        id: tempId,
+        auteurId: profile.id,
+        auteurNom,
+        auteurPseudo: input.auteurPseudo ?? '',
+        auteurInitiales: input.auteurInitiales ?? '',
+        auteurCouleur: input.auteurCouleur ?? '',
+        dateTrajet: input.dateTrajet ?? new Date(),
+        villeDepart: input.villeDepart ?? '',
+        villeArrivee: input.villeArrivee ?? '',
+        nbPlacesTotal: input.nbPlacesTotal ?? 0,
+        nbPlacesDisponibles: input.nbPlacesDisponibles ?? input.nbPlacesTotal ?? 0,
+        prixHT: input.prixHT ?? 0,
+        typeTransport: input.typeTransport ?? 'trajet',
+      } as TransportAnnonce;
+      setList((curr) => [optimistic, ...curr]);
+      emitTransportMutation({ kind: 'upsert', annonce: optimistic });
+
       const { data, error: insErr } = await supabase
         .from('transport_annonces')
         .insert({
@@ -247,13 +270,20 @@ export function useMyTransportAnnonces() {
         })
         .select('*')
         .single();
-      if (insErr || !data) return { data: null, error: insErr?.message ?? 'Erreur création' };
+
+      if (insErr || !data) {
+        setList((curr) => curr.filter((t) => t.id !== tempId));
+        emitTransportMutation({ kind: 'delete', id: tempId });
+        return { data: null, error: insErr?.message ?? 'Erreur création' };
+      }
+
       const created = rowToAnnonce(data as TransportAnnonceRow);
-      setList((curr) => (curr.some((t) => t.id === created.id) ? curr : [created, ...curr]));
+      setList((curr) => curr.map((t) => (t.id === tempId ? created : t)));
+      emitTransportMutation({ kind: 'delete', id: tempId });
       emitTransportMutation({ kind: 'upsert', annonce: created });
       return { data: created, error: null };
     },
-    [profile?.id],
+    [profile?.id, (profile as any)?.prenom, (profile as any)?.nom],
   );
 
   const updateAnnonce = useCallback(

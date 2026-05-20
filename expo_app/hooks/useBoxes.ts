@@ -170,6 +170,29 @@ export function useMyBoxAnnonces() {
     async (input: Partial<BoxAnnonce>): Promise<AnnonceResult> => {
       if (!profile?.id) return { data: null, error: 'Non authentifié' };
       const patch = annonceToRowPatch(input);
+
+      // Optimistic UI : annonce box temporaire visible immédiatement.
+      const tempId = `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const now = new Date();
+      const optimistic: BoxAnnonce = {
+        id: tempId,
+        auteurId: profile.id,
+        auteurNom: `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim() || '',
+        auteurPseudo: '',
+        auteurInitiales: '',
+        auteurCouleur: '',
+        lieu: input.lieu ?? '',
+        dateDebut: input.dateDebut ?? now,
+        dateFin: input.dateFin ?? now,
+        nbBoxes: input.nbBoxes ?? 1,
+        nbBoxesDisponibles: input.nbBoxesDisponibles ?? input.nbBoxes ?? 1,
+        prixNuitHT: input.prixNuitHT ?? 0,
+        concours: input.concours ?? undefined,
+        description: input.description ?? undefined,
+      };
+      setList((curr) => [optimistic, ...curr]);
+      emitBoxMutation({ kind: 'upsert', annonce: optimistic });
+
       const { data, error: insErr } = await supabase
         .from('box_annonces')
         .insert({
@@ -182,13 +205,20 @@ export function useMyBoxAnnonces() {
         })
         .select('*')
         .single();
-      if (insErr || !data) return { data: null, error: insErr?.message ?? 'Erreur création' };
+
+      if (insErr || !data) {
+        setList((curr) => curr.filter((b) => b.id !== tempId));
+        emitBoxMutation({ kind: 'delete', id: tempId });
+        return { data: null, error: insErr?.message ?? 'Erreur création' };
+      }
+
       const created = rowToAnnonce(data as BoxAnnonceRow);
-      setList((curr) => (curr.some((b) => b.id === created.id) ? curr : [created, ...curr]));
+      setList((curr) => curr.map((b) => (b.id === tempId ? created : b)));
+      emitBoxMutation({ kind: 'delete', id: tempId });
       emitBoxMutation({ kind: 'upsert', annonce: created });
       return { data: created, error: null };
     },
-    [profile?.id],
+    [profile?.id, (profile as any)?.prenom, (profile as any)?.nom],
   );
 
   const updateAnnonce = useCallback(
