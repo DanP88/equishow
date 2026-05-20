@@ -326,7 +326,61 @@ export function useMyStages() {
     return { error: null };
   }, []);
 
-  return { stages: list, isLoading, createStage, deleteStage, reload: load };
+  const updateStage = useCallback(async (id: string, input: StageCreateInput): Promise<StageResult> => {
+    if (!profile?.id) return { data: null, error: 'Non authentifié' };
+
+    // Optimistic : patch local immédiat (rollback si l'update DB échoue)
+    let snapshot: CoachStage[] = [];
+    setList((curr) => {
+      snapshot = curr;
+      return curr.map((s) => (s.id === id ? {
+        ...s,
+        titre: input.titre,
+        description: input.description ?? '',
+        disciplines: input.disciplines,
+        niveaux: input.niveaux,
+        dateDebut: input.dateDebut,
+        dateFin: input.dateFin,
+        nbJours: input.nbJours ?? s.nbJours,
+        prixTTC: input.prixTTC,
+        places: input.places,
+        concours: input.concours ?? s.concours,
+        region: input.region ?? s.region,
+      } : s));
+    });
+
+    // places_disponibles laissé tel quel en DB : ne pas écraser la compta des réservations.
+    const { data, error } = await supabase
+      .from('stages')
+      .update({
+        titre: input.titre,
+        description: input.description ?? null,
+        disciplines: input.disciplines,
+        niveaux: input.niveaux,
+        date_debut: input.dateDebut.toISOString(),
+        date_fin: input.dateFin.toISOString(),
+        nb_jours: input.nbJours ?? null,
+        prix_ttc: input.prixTTC,
+        places: input.places,
+        concours: input.concours ?? null,
+        region: input.region ?? null,
+      })
+      .eq('id', id)
+      .select('*')
+      .single();
+
+    if (error || !data) {
+      setList(snapshot);
+      return { data: null, error: error?.message ?? 'Erreur modification' };
+    }
+
+    const updated = rowToStage(data as StageRow);
+    setList((curr) => curr.map((s) => (s.id === id ? updated : s)));
+    emitStageMutation({ kind: 'upsert', stage: updated });
+    return { data: updated, error: null };
+  }, [profile?.id]);
+
+  return { stages: list, isLoading, createStage, updateStage, deleteStage, reload: load };
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

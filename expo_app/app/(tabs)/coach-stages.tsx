@@ -137,7 +137,10 @@ function StageCard({ stage, onCancel }: StageCardProps) {
       )}
 
       <View style={s.actions}>
-        <TouchableOpacity style={s.actionBtn}>
+        <TouchableOpacity
+          style={s.actionBtn}
+          onPress={() => router.push({ pathname: '/proposer-stage', params: { stageId: stage.id } })}
+        >
           <Text style={s.actionBtnText}>Modifier</Text>
         </TouchableOpacity>
         <TouchableOpacity

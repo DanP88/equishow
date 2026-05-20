@@ -1,9 +1,9 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../../components/DatePickerModal';
@@ -14,7 +14,9 @@ const DISCIPLINES = ['Dressage', 'Saut d\'obstacles', 'Cross', 'Western', 'Attel
 const NIVEAUX = ['Débutant', 'Intermédiaire', 'Avancé', 'Expert'];
 
 export default function ProposerStageScreen() {
-  const { createStage } = useMyStages();
+  const { stageId } = useLocalSearchParams<{ stageId?: string }>();
+  const isEdit = !!stageId;
+  const { stages, createStage, updateStage } = useMyStages();
   const [submitting, setSubmitting] = useState(false);
   const [titre, setTitre] = useState('');
   const [description, setDescription] = useState('');
@@ -27,9 +29,27 @@ export default function ProposerStageScreen() {
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [prefilled, setPrefilled] = useState(false);
   const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
 
   const showErr = (title: string, message: string) => setAlertState({ title, message, variant: 'error' });
+
+  // Mode édition : préremplir les champs avec les données du stage existant.
+  // Une seule fois (prefilled) pour ne pas écraser les saisies en cours.
+  useEffect(() => {
+    if (!stageId || prefilled) return;
+    const existing = stages.find((s) => s.id === stageId);
+    if (!existing) return;
+    setTitre(existing.titre);
+    setDescription(existing.description ?? '');
+    setDateDebut(existing.dateDebut);
+    setDateFin(existing.dateFin);
+    setSelectedDisciplines(existing.disciplines ?? []);
+    setSelectedNiveaux(existing.niveaux ?? []);
+    setTarif(String(existing.prixTTC));
+    setPlaces(String(existing.places));
+    setPrefilled(true);
+  }, [stageId, stages, prefilled]);
 
   // Calculer le nombre de jours
   const nbJours = dateDebut && dateFin
@@ -87,10 +107,10 @@ export default function ProposerStageScreen() {
     if (submitting) return;
     setShowConfirmation(false);
 
-    // Optimistic + fire-and-navigate : on lance la création en arrière-plan,
-    // on navigue immédiatement. La liste sur coach-stages a déjà le stage
-    // optimistique (cf createStage du hook), donc rien à attendre côté UI.
-    createStage({
+    // Optimistic + fire-and-navigate : on lance la mutation en arrière-plan,
+    // on navigue immédiatement. La liste sur coach-stages reflète déjà le
+    // changement (optimistic du hook), donc rien à attendre côté UI.
+    const payload = {
       titre,
       description,
       disciplines: selectedDisciplines,
@@ -100,10 +120,12 @@ export default function ProposerStageScreen() {
       nbJours,
       prixTTC: parseFloat(tarif),
       places: parseInt(places, 10),
-    }).then(({ error }) => {
+    };
+    const action = isEdit ? updateStage(stageId!, payload) : createStage(payload);
+    action.then(({ error }) => {
       if (error) {
         // L'utilisateur a déjà navigué — on log et on pourra remonter via toast/notif si nécessaire.
-        console.error('[proposer-stage] createStage failed (background):', error);
+        console.error(`[proposer-stage] ${isEdit ? 'updateStage' : 'createStage'} failed (background):`, error);
       }
     });
 
@@ -117,7 +139,7 @@ export default function ProposerStageScreen() {
         <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={s.backIcon}>‹</Text>
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Proposer un stage</Text>
+        <Text style={s.headerTitle}>{isEdit ? 'Modifier le stage' : 'Proposer un stage'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
@@ -231,7 +253,7 @@ export default function ProposerStageScreen() {
         </View>
 
         <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>
-          <Text style={s.submitText}>Proposer le stage</Text>
+          <Text style={s.submitText}>{isEdit ? 'Enregistrer les modifications' : 'Proposer le stage'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -243,10 +265,10 @@ export default function ProposerStageScreen() {
           <View style={s.confirmationCard}>
             <Text style={s.confirmationIcon}>✅</Text>
 
-            <Text style={s.confirmationTitle}>Stage créé !</Text>
+            <Text style={s.confirmationTitle}>{isEdit ? 'Stage modifié !' : 'Stage créé !'}</Text>
 
             <Text style={s.confirmationMessage}>
-              Votre stage est maintenant visible par les cavaliers
+              {isEdit ? 'Vos modifications ont été enregistrées' : 'Votre stage est maintenant visible par les cavaliers'}
             </Text>
 
             <View style={s.confirmationDetails}>
