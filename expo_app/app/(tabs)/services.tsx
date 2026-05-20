@@ -273,7 +273,7 @@ export default function ServicesScreen() {
       <View style={s.tabBar}>
         <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
         <TabBtn label="Box" count={filteredB.length} loading={boxesLoading} active={tab === 'box'} locked={boxLocked} onPress={() => handleTabPress('box')} />
-        <TabBtn label="Coachs" count={filteredC.length} loading={coachAnnoncesLoading || coachesLoading} active={tab === 'coach'} onPress={() => handleTabPress('coach')} />
+        <TabBtn label="Coachs" count={filteredCoachAnnonces.length + filteredCoaches.length} loading={coachAnnoncesLoading || coachesLoading} active={tab === 'coach'} onPress={() => handleTabPress('coach')} />
       </View>
 
       {/* Transport Sub-Tabs */}
