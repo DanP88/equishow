@@ -818,8 +818,10 @@ function TabBtn({ label, count, active, locked, loading, onPress }: {
       </Text>
       {!locked && (
         <View style={[s.tabCount, active && s.tabCountActive]}>
-          {/* '…' tant que le hook fetch encore — évite d'afficher '0' menteur */}
-          <Text style={[s.tabCountText, active && s.tabCountTextActive]}>{loading ? '…' : count}</Text>
+          {/* '…' seulement au 1er chargement (count encore inconnu). Pendant un
+              refetch au focus la liste reste peuplée → on garde le chiffre
+              (stale-while-revalidate) au lieu de flasher '…' à chaque visite. */}
+          <Text style={[s.tabCountText, active && s.tabCountTextActive]}>{loading && count === 0 ? '…' : count}</Text>
         </View>
       )}
     </TouchableOpacity>
