@@ -1,17 +1,15 @@
-import { useState, useCallback, useRef, useEffect } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, KeyboardAvoidingView, Platform,
+  TextInput, KeyboardAvoidingView, Platform, ActivityIndicator,
 } from 'react-native';
-import { router, useLocalSearchParams, useFocusEffect } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
+import { userStore } from '../data/store';
 import {
-  messagesStore, userStore,
-  getOrCreateConversation, sendMessageToConv, markConvAsRead,
-  Conversation,
-} from '../data/store';
-import { getUserById } from '../data/mockUsers';
+  useConversations, useConversationMessages, getOrCreateConversation,
+} from '../hooks/useMessaging';
 
 const ANNONCE_COLORS: Record<string, string> = {
   transport: '#0369A1',
@@ -19,153 +17,100 @@ const ANNONCE_COLORS: Record<string, string> = {
   coach: '#7C3AED',
 };
 
+function hhmm(d: Date | null) {
+  if (!d) return '';
+  return d.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
+
+type Other = { id: string; nom: string; pseudo: string; couleur: string; initiales: string };
+
 export default function MessagerieScreen() {
   const params = useLocalSearchParams<{
-    otherId?: string;
-    otherNom?: string;
-    otherPseudo?: string;
-    otherCouleur?: string;
-    otherInitiales?: string;
-    sujet?: string;
-    annonce?: string;
-    annonceType?: string;
-    // Legacy compat
-    cavalierNom?: string;
-    cavalierPseudo?: string;
-    cavalierCouleur?: string;
-    titre?: string;
+    otherId?: string; otherNom?: string; otherPseudo?: string; otherCouleur?: string; otherInitiales?: string;
+    sujet?: string; annonce?: string; annonceType?: string;
+    // Legacy compat (agenda coach)
+    cavalierNom?: string; cavalierPseudo?: string; cavalierCouleur?: string; titre?: string;
   }>();
 
-  const [convs, setConvs] = useState<Conversation[]>([]);
-  const [activeConvId, setActiveConvId] = useState<string | null>(null);
+  const { conversations, reload } = useConversations();
+  const [active, setActive] = useState<{ convId: string; other: Other } | null>(null);
   const [message, setMessage] = useState('');
-  // tick : force re-render après mutation in-memory de messagesStore (openConv, handleSend).
-  // Avant on faisait aussi un setInterval 400ms pour "voir les messages entrants",
-  // retiré (drain CPU) — messagerie sera de toute façon migrée sur realtime Supabase (P0-2).
-  const [, setTick] = useState(0);
+  const [creating, setCreating] = useState(false);
   const scrollRef = useRef<ScrollView>(null);
-
   const myId = userStore.id;
 
-  useFocusEffect(useCallback(() => {
-    refreshConvs();
-  }, []));
+  const { messages, send, markRead } = useConversationMessages(active?.convId);
 
-  function refreshConvs() {
-    const mine = messagesStore.list.filter(c => c.participants.includes(myId));
-    setConvs([...mine]);
-  }
-
-  // Ouvrir/créer une conversation depuis les params
+  // Ouvre/crée une conversation depuis les params (une seule fois).
+  const didInit = useRef(false);
   useEffect(() => {
-    // Résoudre otherId depuis les params (nouveau format ou legacy)
-    let otherId = params.otherId;
-    let otherNom = params.otherNom;
-    let otherPseudo = params.otherPseudo;
-    let otherCouleur = params.otherCouleur ?? Colors.primary;
-    let otherInitiales = params.otherInitiales;
-    let sujet = params.sujet;
-    let annonce = params.annonce;
-    let annonceType = params.annonceType as 'transport' | 'box' | 'coach' | undefined;
-
-    // Legacy: cavalierNom / titre (venant de l'agenda coach)
-    if (!otherId && params.cavalierNom) {
-      otherNom = params.cavalierNom;
-      otherPseudo = params.cavalierPseudo ?? params.cavalierNom;
-      otherCouleur = params.cavalierCouleur ?? Colors.primary;
-      const parts = params.cavalierNom.split(' ');
-      otherInitiales = parts.map(p => p[0]).join('').slice(0, 2).toUpperCase();
-      sujet = params.titre ? `🎓 ${params.titre}` : '💬 Discussion';
-      annonceType = 'coach';
-    }
-
-    if (!otherNom) return;
-
-    // Chercher otherId dans les utilisateurs connus si pas fourni
-    if (!otherId && otherPseudo) {
-      const all = messagesStore.list.find(c => {
-        const other = c.participants.find(p => p !== myId);
-        return other && (c.userA.pseudo === otherPseudo || c.userB.pseudo === otherPseudo);
+    if (didInit.current || !params.otherId) return;
+    didInit.current = true;
+    const otherNom = params.otherNom ?? params.cavalierNom ?? 'Utilisateur';
+    const other: Other = {
+      id: params.otherId,
+      nom: otherNom,
+      pseudo: params.otherPseudo ?? params.cavalierPseudo ?? otherNom,
+      couleur: params.otherCouleur ?? params.cavalierCouleur ?? Colors.primary,
+      initiales: params.otherInitiales ?? otherNom.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase(),
+    };
+    const me: Other = {
+      id: myId,
+      nom: `${userStore.prenom} ${userStore.nom}`.trim() || 'Moi',
+      pseudo: userStore.pseudo ?? '',
+      couleur: userStore.avatarColor ?? Colors.primary,
+      initiales: `${(userStore.prenom || '?')[0] ?? ''}${(userStore.nom || '')[0] ?? ''}`.toUpperCase(),
+    };
+    (async () => {
+      setCreating(true);
+      const { id } = await getOrCreateConversation({
+        me, other,
+        sujet: params.sujet ?? (params.titre ? `🎓 ${params.titre}` : undefined),
+        annonce: params.annonce,
+        annonceType: params.annonceType,
       });
-      if (all) {
-        setActiveConvId(all.id);
-        markConvAsRead(all.id, myId);
-        return;
-      }
-    }
+      setCreating(false);
+      if (id) { setActive({ convId: id, other }); reload(); }
+    })();
+  }, [params.otherId]);
 
-    if (!otherId) return; // pas assez d'info pour créer
+  // Marquer comme lu quand la conv est ouverte / nouveaux messages.
+  useEffect(() => {
+    if (active?.convId) markRead();
+  }, [active?.convId, messages.length, markRead]);
 
-    const myNom = `${userStore.prenom} ${userStore.nom}`;
-    const myPseudo = userStore.pseudo;
-    const myCouleur = userStore.avatarColor;
-    const myInitiales = `${userStore.prenom[0]}${userStore.nom[0]}`;
-
-    const conv = getOrCreateConversation(
-      myId, myNom, myPseudo, myCouleur, myInitiales,
-      otherId, otherNom!, otherPseudo ?? otherNom!, otherCouleur, otherInitiales ?? (otherNom!.split(' ').map(p => p[0]).join('').slice(0, 2).toUpperCase()),
-      sujet, annonce, annonceType,
-    );
-    refreshConvs();
-    setActiveConvId(conv.id);
-    markConvAsRead(conv.id, myId);
-  }, [params.otherId, params.cavalierNom, params.otherNom]);
-
-  const activeConv = activeConvId ? messagesStore.list.find(c => c.id === activeConvId) ?? null : null;
-
-  // Infos de l'autre dans la conv active
-  const otherUser = activeConv
-    ? (activeConv.userA.id === myId ? activeConv.userB : activeConv.userA)
-    : null;
-
-  function openConv(conv: Conversation) {
-    markConvAsRead(conv.id, myId);
-    setActiveConvId(conv.id);
-    setTick(t => t + 1);
-  }
-
-  function handleSend() {
-    if (!message.trim() || !activeConv) return;
-    sendMessageToConv(activeConv.id, myId, message.trim());
+  async function handleSend() {
+    const text = message.trim();
+    if (!text || !active?.convId) return;
     setMessage('');
-    setTick(t => t + 1);
+    await send(text);
     setTimeout(() => scrollRef.current?.scrollToEnd({ animated: true }), 80);
   }
 
   // ── Vue conversation active ──
-  if (activeConv && otherUser) {
-    // Marquer comme lu à chaque render
-    markConvAsRead(activeConv.id, myId);
-    const msgs = activeConv.messages;
-
+  if (active) {
+    const other = active.other;
+    const annonceType = (params.annonceType as string) || 'coach';
     return (
       <SafeAreaView style={s.root}>
         <View style={s.convHeader}>
-          <TouchableOpacity style={s.backBtn} onPress={() => { setActiveConvId(null); refreshConvs(); }}>
+          <TouchableOpacity style={s.backBtn} onPress={() => { setActive(null); reload(); }}>
             <Text style={s.backIcon}>‹</Text>
           </TouchableOpacity>
           <TouchableOpacity
             style={s.convHeaderInfo}
-            onPress={() => router.push({ pathname: '/cavalier/[id]', params: { id: otherUser.id } } as any)}
+            onPress={() => router.push({ pathname: '/cavalier/[id]', params: { id: other.id } } as any)}
             activeOpacity={0.7}
           >
-            <View style={[s.convAvatar, { backgroundColor: otherUser.couleur }]}>
-              <Text style={s.convAvatarText}>{otherUser.initiales}</Text>
+            <View style={[s.convAvatar, { backgroundColor: other.couleur }]}>
+              <Text style={s.convAvatarText}>{other.initiales}</Text>
             </View>
             <View>
-              <Text style={s.convName}>{otherUser.nom}</Text>
-              <Text style={s.convPseudo}>@{otherUser.pseudo} · voir profil ›</Text>
+              <Text style={s.convName}>{other.nom}</Text>
+              <Text style={s.convPseudo}>@{other.pseudo} · voir profil ›</Text>
             </View>
           </TouchableOpacity>
         </View>
-
-        {activeConv.annonce && (
-          <View style={[s.annonceTag, { backgroundColor: ANNONCE_COLORS[activeConv.annonceType!] + '18', borderColor: ANNONCE_COLORS[activeConv.annonceType!] + '55' }]}>
-            <Text style={[s.annonceTagText, { color: ANNONCE_COLORS[activeConv.annonceType!] }]}>
-              {activeConv.sujet} · {activeConv.annonce}
-            </Text>
-          </View>
-        )}
 
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <ScrollView
@@ -173,21 +118,21 @@ export default function MessagerieScreen() {
             contentContainerStyle={s.messages}
             onContentSizeChange={() => scrollRef.current?.scrollToEnd({ animated: false })}
           >
-            {msgs.length === 0 && (
+            {messages.length === 0 && (
               <Text style={s.noMsgText}>Commencez la discussion...</Text>
             )}
-            {msgs.map((msg) => {
+            {messages.map((msg) => {
               const isMine = msg.senderId === myId;
               return (
                 <View key={msg.id} style={[s.msgRow, isMine && s.msgRowMoi]}>
                   {!isMine && (
-                    <View style={[s.smallAvatar, { backgroundColor: otherUser.couleur }]}>
-                      <Text style={s.smallAvatarText}>{otherUser.initiales}</Text>
+                    <View style={[s.smallAvatar, { backgroundColor: other.couleur }]}>
+                      <Text style={s.smallAvatarText}>{other.initiales}</Text>
                     </View>
                   )}
                   <View style={[s.bubble, isMine ? s.bubbleMoi : s.bubbleEux]}>
-                    <Text style={[s.bubbleText, isMine && s.bubbleTextMoi]}>{msg.texte}</Text>
-                    <Text style={[s.bubbleTime, isMine && s.bubbleTimeMoi]}>{msg.heure}</Text>
+                    <Text style={[s.bubbleText, isMine && s.bubbleTextMoi]}>{msg.contenu}</Text>
+                    <Text style={[s.bubbleTime, isMine && s.bubbleTimeMoi]}>{hhmm(msg.createdAt)}</Text>
                   </View>
                 </View>
               );
@@ -218,8 +163,6 @@ export default function MessagerieScreen() {
   }
 
   // ── Liste des conversations ──
-  const myConvs = messagesStore.list.filter(c => c.participants.includes(myId));
-
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
@@ -231,39 +174,37 @@ export default function MessagerieScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.list}>
-        {myConvs.length === 0 ? (
+        {creating && <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.lg }} />}
+        {conversations.length === 0 && !creating ? (
           <View style={s.empty}>
             <Text style={s.emptyIcon}>💬</Text>
             <Text style={s.emptyTitle}>Aucun message</Text>
             <Text style={s.emptyText}>Vos conversations apparaîtront ici.</Text>
           </View>
         ) : (
-          myConvs.map((c) => {
-            const other = c.userA.id === myId ? c.userB : c.userA;
-            const nonLus = c.unreadBy[myId] ?? 0;
-            return (
-              <TouchableOpacity key={c.id} style={s.convCard} onPress={() => openConv(c)} activeOpacity={0.85}>
-                <View style={[s.convAvatar, { backgroundColor: other.couleur }]}>
-                  <Text style={s.convAvatarText}>{other.initiales}</Text>
+          conversations.map((c) => (
+            <TouchableOpacity
+              key={c.id}
+              style={s.convCard}
+              onPress={() => setActive({ convId: c.id, other: { id: c.otherId, nom: c.otherNom, pseudo: c.otherPseudo, couleur: c.otherCouleur, initiales: c.otherInitiales } })}
+              activeOpacity={0.85}
+            >
+              <View style={[s.convAvatar, { backgroundColor: c.otherCouleur }]}>
+                <Text style={s.convAvatarText}>{c.otherInitiales}</Text>
+              </View>
+              <View style={{ flex: 1 }}>
+                <View style={s.convTopRow}>
+                  <Text style={[s.convCardName, c.unread && s.convCardNameBold]}>{c.otherNom}</Text>
+                  <Text style={s.convTime}>{hhmm(c.lastMessageAt)}</Text>
                 </View>
-                <View style={{ flex: 1 }}>
-                  <View style={s.convTopRow}>
-                    <Text style={[s.convCardName, nonLus > 0 && s.convCardNameBold]}>{other.nom}</Text>
-                    <Text style={s.convTime}>{c.heure}</Text>
-                  </View>
-                  <Text style={s.convSujet}>{c.sujet}</Text>
-                  <Text style={[s.convLastMsg, nonLus > 0 && s.convLastMsgBold]} numberOfLines={1}>
-                    {c.dernierMsg || 'Démarrez la conversation...'}
-                  </Text>
-                </View>
-                {nonLus > 0 && (
-                  <View style={s.nonLusBadge}>
-                    <Text style={s.nonLusText}>{nonLus > 9 ? '9+' : nonLus}</Text>
-                  </View>
-                )}
-              </TouchableOpacity>
-            );
-          })
+                <Text style={s.convSujet}>{c.sujet}</Text>
+                <Text style={[s.convLastMsg, c.unread && s.convLastMsgBold]} numberOfLines={1}>
+                  {c.dernierMsg || 'Démarrez la conversation...'}
+                </Text>
+              </View>
+              {c.unread && <View style={s.nonLusDot} />}
+            </TouchableOpacity>
+          ))
         )}
       </ScrollView>
     </SafeAreaView>
@@ -291,17 +232,13 @@ const s = StyleSheet.create({
   convSujet: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold, marginTop: 2 },
   convLastMsg: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
   convLastMsgBold: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  nonLusBadge: { width: 24, height: 24, borderRadius: 12, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
-  nonLusText: { color: Colors.textInverse, fontSize: 11, fontWeight: FontWeight.bold },
+  nonLusDot: { width: 12, height: 12, borderRadius: 6, backgroundColor: Colors.primary, flexShrink: 0 },
 
   // Conversation view
   convHeader: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, padding: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border, backgroundColor: Colors.surface },
   convHeaderInfo: { flex: 1, flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
   convName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   convPseudo: { fontSize: FontSize.xs, color: Colors.primary },
-
-  annonceTag: { marginHorizontal: Spacing.md, marginTop: Spacing.sm, borderRadius: Radius.md, padding: Spacing.sm, borderWidth: 1 },
-  annonceTagText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
 
   messages: { padding: Spacing.lg, gap: Spacing.sm, paddingBottom: 20 },
   noMsgText: { textAlign: 'center', color: Colors.textTertiary, fontSize: FontSize.sm, paddingVertical: 40 },

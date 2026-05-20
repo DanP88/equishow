@@ -971,7 +971,7 @@ function TransportCard({ item, onCancel, onModify }: {
           </View>
         ) : (
           <View style={s.footerBtns}>
-            <TouchableOpacity style={s.msgContactBtn} onPress={() => router.push('/messagerie')}>
+            <TouchableOpacity style={s.msgContactBtn} onPress={() => router.push({ pathname: '/messagerie', params: { otherId: item.auteurId, otherNom: item.auteurNom, otherPseudo: item.auteurPseudo, otherInitiales: item.auteurInitiales, otherCouleur: item.auteurCouleur, annonceType: 'transport', sujet: '🚚 Transport' } } as any)}>
               <Text style={s.msgContactText}>💬</Text>
             </TouchableOpacity>
             <TouchableOpacity
@@ -1037,7 +1037,7 @@ function BoxCard({ item, onCancel, onModify }: {
           </View>
         ) : (
           <View style={s.footerBtns}>
-            <TouchableOpacity style={s.msgContactBtn} onPress={() => router.push('/messagerie')}>
+            <TouchableOpacity style={s.msgContactBtn} onPress={() => router.push({ pathname: '/messagerie', params: { otherId: item.auteurId, otherNom: item.auteurNom, otherPseudo: item.auteurPseudo, otherInitiales: item.auteurInitiales, otherCouleur: item.auteurCouleur, annonceType: 'box', sujet: '📦 Box' } } as any)}>
               <Text style={s.msgContactText}>💬</Text>
             </TouchableOpacity>
             <TouchableOpacity style={[s.ctaBtn, left === 0 && s.ctaBtnDisabled]} disabled={left === 0} onPress={() => router.push(`/reserver-box?id=${item.id}` as any)}>
@@ -1118,7 +1118,7 @@ function CoachCard({ item, onModify }: { item: CoachProfil; onModify?: () => voi
       </View>
       <Text style={s.bio} numberOfLines={2}>{item.bio}</Text>
       <View style={s.footerBtns}>
-        <TouchableOpacity style={[s.msgContactBtn, { flex: 1 }]} onPress={() => router.push('/messagerie')}>
+        <TouchableOpacity style={[s.msgContactBtn, { flex: 1 }]} onPress={() => router.push({ pathname: '/messagerie', params: { otherId: item.id, otherNom: `${item.prenom} ${item.nom}`, otherPseudo: item.pseudo, otherInitiales: item.initiales, otherCouleur: item.couleur, annonceType: 'coach', sujet: '🎓 Coaching' } } as any)}>
           <Text style={s.msgContactText}>💬 Discuter</Text>
         </TouchableOpacity>
         {onModify ? (
@@ -1210,7 +1210,7 @@ function CoachAnnonceCard({ item, onCancel }: { item: CoachAnnonce; onCancel?: (
         </View>
       ) : (
         <View style={s.footerBtns}>
-          <TouchableOpacity style={[s.msgContactBtn, { flex: 1 }]} onPress={() => router.push('/messagerie')}>
+          <TouchableOpacity style={[s.msgContactBtn, { flex: 1 }]} onPress={() => router.push({ pathname: '/messagerie', params: { otherId: item.auteurId, otherNom: item.auteurNom, otherPseudo: item.auteurPseudo, otherInitiales: item.auteurInitiales, otherCouleur: item.auteurCouleur, annonceType: 'coach', sujet: `🎓 ${item.titre}`, annonce: item.titre } } as any)}>
             <Text style={s.msgContactText}>💬 Contacter</Text>
           </TouchableOpacity>
           <TouchableOpacity
