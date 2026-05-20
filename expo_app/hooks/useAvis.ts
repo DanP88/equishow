@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 
 export type AvisType = 'coach' | 'transport' | 'box' | 'stage';
@@ -64,9 +65,7 @@ export function useAvis(destinataireId?: string) {
     setIsLoading(false);
   }, [destinataireId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   // Realtime : nouveaux avis / suppressions sur ce destinataire.
   useEffect(() => {
@@ -169,9 +168,7 @@ export function useAvisStats(userId?: string) {
     setStats({ count, average });
   }, [userId]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!userId) return;
@@ -222,9 +219,7 @@ export function useMyAvisRefs() {
     setRefs(new Set((data ?? []).filter(r => r.ref_id).map(r => r.ref_id as string)));
   }, [profile?.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!profile?.id) return;

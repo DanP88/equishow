@@ -12,6 +12,7 @@
 
 import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { CoachProfil } from '../types/service';
 import { isFeaturedCoach } from '../lib/planLimits';
@@ -120,7 +121,7 @@ export function useCoachProfiles() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     const channel = supabase
@@ -158,7 +159,7 @@ export function useCoachProfile(userId?: string) {
     setIsLoading(false);
   }, [userId]);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!userId) return;

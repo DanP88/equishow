@@ -13,6 +13,7 @@
 
 import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { CommunautePost, CommunauteComment } from '../data/store';
 
@@ -119,7 +120,7 @@ export function useCommunautePosts(scope: PostScope) {
     setIsLoading(false);
   }, [postsTable, commentsTable]);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     const channel = supabase

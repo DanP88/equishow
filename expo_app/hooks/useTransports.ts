@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { TransportAnnonce, TransportReservation } from '../types/service';
 
@@ -142,9 +143,7 @@ export function useTransportAnnonces() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     const channel = supabase
@@ -207,9 +206,7 @@ export function useMyTransportAnnonces() {
     setIsLoading(false);
   }, [profile?.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -463,9 +460,7 @@ export function useMyTransportReservations() {
     setIsLoading(false);
   }, [profile?.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!profile?.id) return;

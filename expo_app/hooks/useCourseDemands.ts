@@ -12,6 +12,7 @@
 
 import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { CourseDemande } from '../types/service';
 
@@ -87,7 +88,7 @@ export function useMyCourseDemands() {
     setIsLoading(false);
   }, [profile?.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!profile?.id) return;

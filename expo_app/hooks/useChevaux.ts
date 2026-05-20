@@ -1,5 +1,6 @@
 import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import {
   Cheval,
@@ -139,9 +140,7 @@ export function useMyChevaux() {
     setIsLoading(false);
   }, [profile?.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   // Realtime sync sur les chevaux du user.
   useEffect(() => {
@@ -265,9 +264,7 @@ export function useCheval(id?: string) {
     setIsLoading(false);
   }, [id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!id) return;
@@ -345,9 +342,7 @@ export function useMyChevauxCount() {
     }
   }, [profile?.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!profile?.id) return;

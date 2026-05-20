@@ -16,6 +16,7 @@
 
 import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { CoachStage, StageReservation } from '../types/service';
 
@@ -155,7 +156,7 @@ export function useStages() {
     setIsLoading(false);
   }, []);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     const channel = supabase
@@ -203,7 +204,7 @@ export function useStage(id?: string) {
     setIsLoading(false);
   }, [id]);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!id) return;
@@ -238,7 +239,7 @@ export function useMyStages() {
     setIsLoading(false);
   }, [profile?.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!profile?.id) return;
@@ -422,7 +423,7 @@ export function useMyStageReservations() {
     setIsLoading(false);
   }, [profile?.id]);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!profile?.id) return;

@@ -10,6 +10,7 @@
 
 import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { UserLevel, isValidLevel, levelFromPoints } from '../lib/badges';
 
 export interface UserBadges {
@@ -83,7 +84,7 @@ export function useUserBadges(userId?: string) {
     setIsLoading(false);
   }, [userId]);
 
-  useEffect(() => { load(); }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!userId) return;

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { Notification } from '../types/notification';
 
@@ -121,9 +122,7 @@ export function useNotifications() {
     setIsLoading(false);
   }, [profile?.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   // Realtime sync sur ma boîte de réception.
   useEffect(() => {
@@ -209,9 +208,7 @@ export function useUnreadNotificationsCount() {
     }
   }, [profile?.id]);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useAutoRefresh(load);
 
   useEffect(() => {
     if (!profile?.id) return;
