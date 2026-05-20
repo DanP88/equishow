@@ -3,6 +3,9 @@ import { View, Text, Modal, TouchableOpacity, StyleSheet, Image, ActivityIndicat
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 
+// Image par défaut (cheval sans photo + avatar de compte sans photo) = logo Equishow
+const DEFAULT_LOGO = require('../assets/logo-equishow.png');
+
 const COLORS = [
   '#F97316', '#EA580C', '#B45309', '#92400E',
   '#16A34A', '#0369A1', '#7C3AED', '#DB2777',
@@ -74,7 +77,7 @@ export function PhotoAvatar({
         {hasPhoto ? (
           <Image source={{ uri: photoUrl }} style={{ width: size, height: size, borderRadius: size / 2 }} />
         ) : (
-          <Text style={{ fontSize: size * 0.45 }}>{selEmoji}</Text>
+          <Image source={DEFAULT_LOGO} style={{ width: size, height: size, borderRadius: size / 2 }} resizeMode="cover" />
         )}
         {editable && (
           <View style={s.editBadge}>
@@ -94,7 +97,7 @@ export function PhotoAvatar({
                 {hasPhoto ? (
                   <Image source={{ uri: photoUrl }} style={s.previewImage} />
                 ) : (
-                  <Text style={{ fontSize: 48 }}>{selEmoji}</Text>
+                  <Image source={DEFAULT_LOGO} style={s.previewImage} resizeMode="cover" />
                 )}
               </View>
 

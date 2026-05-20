@@ -177,7 +177,7 @@ function ChevalCard({ cheval, onPress, onDelete, deleting }: {
           {cheval.photoUrl ? (
             <Image source={{ uri: cheval.photoUrl }} style={{ width: '100%', height: '100%' }} />
           ) : (
-            <Text style={styles.cardAvatarEmoji}>{emoji}</Text>
+            <Image source={require('../../assets/logo-equishow.png')} style={{ width: '100%', height: '100%' }} resizeMode="cover" />
           )}
         </View>
 
