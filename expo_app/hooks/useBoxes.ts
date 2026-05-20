@@ -166,6 +166,24 @@ export function useMyBoxAnnonces() {
     return () => { supabase.removeChannel(channel); };
   }, [profile?.id, load]);
 
+  // Pubsub local : affichage instantané des mutations émises par une autre
+  // instance (ex: proposer-box qui crée puis navigue ici). Sans ça, on
+  // attendrait le round-trip realtime → délai.
+  useEffect(() => {
+    const handler = (m: BoxMutation) => {
+      if (m.kind === 'delete') setList((curr) => curr.filter((b) => b.id !== m.id));
+      else if (m.kind === 'upsert') setList((curr) => {
+        const idx = curr.findIndex((b) => b.id === m.annonce.id);
+        if (idx === -1) return [m.annonce, ...curr];
+        const next = curr.slice();
+        next[idx] = m.annonce;
+        return next;
+      });
+    };
+    boxMutationListeners.add(handler);
+    return () => { boxMutationListeners.delete(handler); };
+  }, []);
+
   const createAnnonce = useCallback(
     async (input: Partial<BoxAnnonce>): Promise<AnnonceResult> => {
       if (!profile?.id) return { data: null, error: 'Non authentifié' };

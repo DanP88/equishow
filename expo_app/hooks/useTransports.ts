@@ -231,6 +231,23 @@ export function useMyTransportAnnonces() {
     };
   }, [profile?.id, load]);
 
+  // Pubsub local : affichage instantané des mutations émises par une autre
+  // instance (ex: proposer-transport qui crée puis navigue ici).
+  useEffect(() => {
+    const handler = (m: TransportMutation) => {
+      if (m.kind === 'delete') setList((curr) => curr.filter((t) => t.id !== m.id));
+      else if (m.kind === 'upsert') setList((curr) => {
+        const idx = curr.findIndex((t) => t.id === m.annonce.id);
+        if (idx === -1) return [m.annonce, ...curr];
+        const next = curr.slice();
+        next[idx] = m.annonce;
+        return next;
+      });
+    };
+    transportMutationListeners.add(handler);
+    return () => { transportMutationListeners.delete(handler); };
+  }, []);
+
   const createAnnonce = useCallback(
     async (input: Partial<TransportAnnonce>): Promise<AnnonceResult> => {
       if (!profile?.id) return { data: null, error: 'Non authentifié' };

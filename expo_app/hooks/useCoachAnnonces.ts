@@ -199,6 +199,23 @@ export function useMyCoachAnnonces() {
     return () => { supabase.removeChannel(channel); };
   }, [profile?.id, load, channelId]);
 
+  // Pubsub local : affichage instantané des mutations émises par une autre
+  // instance (ex: proposer-coach-annonce qui crée puis navigue ici).
+  useEffect(() => {
+    const handler = (m: CoachMutation) => {
+      if (m.kind === 'delete') setList((curr) => curr.filter((a) => a.id !== m.id));
+      else if (m.kind === 'upsert') setList((curr) => {
+        const idx = curr.findIndex((a) => a.id === m.annonce.id);
+        if (idx === -1) return [m.annonce, ...curr];
+        const next = curr.slice();
+        next[idx] = m.annonce;
+        return next;
+      });
+    };
+    coachMutationListeners.add(handler);
+    return () => { coachMutationListeners.delete(handler); };
+  }, []);
+
   const createAnnonce = useCallback(async (input: AnnonceCreateInput): Promise<AnnonceResult> => {
     if (!profile?.id) return { data: null, error: 'Non authentifié' };
     const prixTTC = Math.round(input.prixHeureHT * 1.20 * 100) / 100;
