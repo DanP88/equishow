@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Modal, TextInput, Alert,
@@ -44,6 +44,8 @@ export default function ProfilScreen() {
   const [showEdit, setShowEdit] = useState(false);
   const [draft, setDraft] = useState({ ...userStore });
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
+  const scrollRef = useRef<ScrollView>(null);
+  const [reviewsY, setReviewsY] = useState(0);
 
   // Re-read userStore every time profile screen is focused
   useFocusEffect(useCallback(() => {
@@ -70,7 +72,7 @@ export default function ProfilScreen() {
 
   return (
     <SafeAreaView style={styles.root}>
-      <ScrollView contentContainerStyle={styles.container}>
+      <ScrollView ref={scrollRef} contentContainerStyle={styles.container}>
         {/* Hero */}
         <View style={styles.heroSection}>
           <PhotoAvatar
@@ -122,7 +124,7 @@ export default function ProfilScreen() {
             <StatBox label="Concours" value={nbConcours} icon="🏆" />
           </TouchableOpacity>
           <View style={styles.statsDivider} />
-          <TouchableOpacity style={{ flex: 1 }} onPress={() => router.push('/(tabs)/profil#reviews')}>
+          <TouchableOpacity style={{ flex: 1 }} onPress={() => scrollRef.current?.scrollTo({ y: reviewsY, animated: true })}>
             <StatBox label="Avis" value={nbAvis} icon="⭐" />
           </TouchableOpacity>
         </View>
@@ -135,7 +137,9 @@ export default function ProfilScreen() {
         ) : null}
 
         {/* Avis Section */}
-        <AvisSection userId={userStore.id} />
+        <View onLayout={(e) => setReviewsY(e.nativeEvent.layout.y)}>
+          <AvisSection userId={userStore.id} />
+        </View>
 
         {/* Infos */}
         <View style={styles.section}>
