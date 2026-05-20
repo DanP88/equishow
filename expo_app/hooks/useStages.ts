@@ -249,6 +249,24 @@ export function useMyStages() {
     return () => { supabase.removeChannel(channel); };
   }, [profile?.id, load, channelId]);
 
+  // Pubsub local : propage instantanément les mutations émises par une autre
+  // instance du hook (ex: proposer-stage qui crée/édite puis navigue ici).
+  // Sans ça, coach-stages attendrait le round-trip realtime → délai d'affichage.
+  useEffect(() => {
+    const handler = (m: StageMutation) => {
+      if (m.kind === 'delete') setList((curr) => curr.filter((s) => s.id !== m.id));
+      else if (m.kind === 'upsert') setList((curr) => {
+        const idx = curr.findIndex((s) => s.id === m.stage.id);
+        if (idx === -1) return [m.stage, ...curr];
+        const next = curr.slice();
+        next[idx] = m.stage;
+        return next;
+      });
+    };
+    stageMutationListeners.add(handler);
+    return () => { stageMutationListeners.delete(handler); };
+  }, []);
+
   const createStage = useCallback(async (input: StageCreateInput): Promise<StageResult> => {
     if (!profile?.id) return { data: null, error: 'Non authentifié' };
 
