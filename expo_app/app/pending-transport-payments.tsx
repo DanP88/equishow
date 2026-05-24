@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Alert, ActivityIndicator, Linking,
+  Alert, ActivityIndicator, Linking, Platform,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
@@ -86,8 +86,13 @@ export default function PendingTransportPaymentsScreen() {
         },
       });
 
-      // Rediriger vers Stripe
-      await Linking.openURL(data.checkoutUrl);
+      // Rediriger vers Stripe — sur web, window.location évite le blocage popup
+      // (Linking.openURL = window.open('_blank') après await => bloqué par le navigateur).
+      if (Platform.OS === 'web') {
+        window.location.href = data.checkoutUrl;
+      } else {
+        await Linking.openURL(data.checkoutUrl);
+      }
     } catch (error) {
       console.error('Payment error:', error);
       Alert.alert('Erreur', 'Une erreur est survenue lors de l\'initiation du paiement');
