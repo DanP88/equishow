@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Stack } from 'expo-router';
+import { Redirect, Stack, useSegments } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -105,6 +105,7 @@ Sentry.init({
 function RootLayout() {
   const { isSignedIn, isLoading } = useAuth();
   const isDesktop = useIsDesktop();
+  const segments = useSegments();
 
   // Charger les commissions depuis Supabase au démarrage
   usePlatformSettings();
@@ -149,6 +150,15 @@ function RootLayout() {
       );
     }
     return loadingView;
+  }
+
+  // Garde d'authentification global. Sur l'export web statique, l'enregistrement
+  // conditionnel des <Stack.Screen> ci-dessous ne suffit pas : un deep-link direct
+  // (/chevaux, /messagerie, /pending-payments…) monte la route quand même. On
+  // redirige donc explicitement tout ce qui n'est pas le groupe (auth) vers /login.
+  const inAuthGroup = segments[0] === '(auth)';
+  if (!isSignedIn && !inAuthGroup) {
+    return <Redirect href="/login" />;
   }
 
   if (Platform.OS === 'web' && isDesktop) {
