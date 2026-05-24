@@ -159,7 +159,7 @@ export default function ProfilScreen() {
             sublabel={ROLE_LABELS[user.role]}
             onPress={() => router.push('/compte-type')}
           />
-          <MenuButton icon="🔔" label="Notifications" onPress={() => router.push('/notifications')} />
+          <MenuButton icon="🔔" label="Notifications" onPress={() => router.push('/parametres-notifications')} />
           <MenuButton icon="🔒" label="Sécurité" onPress={() => router.push('/securite')} />
           <MenuButton icon="💳" label="Abonnement" onPress={() => router.push('/tarification')} color={Colors.gold} />
         </View>
