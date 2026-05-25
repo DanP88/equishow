@@ -39,22 +39,44 @@ interface CourseDemandRow {
   updated_at: string;
 }
 
-function rowToDemand(r: CourseDemandRow): CourseDemande {
+// Identité d'affichage récupérée via la vue public.users_public (mig 007) :
+// la RLS de `users` est self-only, donc on ne peut pas joindre directement.
+interface PublicUser {
+  prenom: string | null;
+  nom: string | null;
+  pseudo: string | null;
+  initiales: string | null;
+  avatar_color: string | null;
+}
+
+function fullName(u?: PublicUser): string {
+  if (!u) return '';
+  return `${u.prenom ?? ''} ${u.nom ?? ''}`.trim();
+}
+
+function rowToDemand(
+  r: CourseDemandRow,
+  users: Map<string, PublicUser>,
+  annonceRegion: Map<string, string | null>,
+): CourseDemande {
   // Montants en EUROS (le trigger serveur mig 036 stocke des euros décimaux).
   // Surtout PAS de /100 — sinon 218€ s'afficherait 2,18€.
   const prixParJour = Number(r.price_per_day_ttc);
   const prix = Number(r.total_amount_ttc);
+  const cavalier = users.get(r.cavalier_id);
+  const coach = users.get(r.coach_id);
   return {
     id: r.id,
     annonceId: r.annonce_id,
     annonceTitre: r.title,
     concoursNom: r.concours_nom ?? undefined,
+    lieu: annonceRegion.get(r.annonce_id) ?? undefined,
     coachId: r.coach_id,
-    coachNom: '',
-    cavalierNom: '',
-    cavalierPseudo: '',
-    cavalierInitiales: '',
-    cavalierCouleur: '#0369A1',
+    coachNom: fullName(coach),
+    cavalierNom: fullName(cavalier),
+    cavalierPseudo: cavalier?.pseudo ?? '',
+    cavalierInitiales: cavalier?.initiales ?? '',
+    cavalierCouleur: cavalier?.avatar_color ?? '#0369A1',
     cavalierUserId: r.cavalier_id,
     discipline: r.discipline ?? '',
     niveau: r.level ?? '',
@@ -84,7 +106,28 @@ export function useMyCourseDemands() {
       .select('*')
       .or(`cavalier_id.eq.${profile.id},coach_id.eq.${profile.id}`)
       .order('created_at', { ascending: false });
-    if (!error && data) setList((data as CourseDemandRow[]).map(rowToDemand));
+    if (error || !data) { setIsLoading(false); return; }
+    const rows = data as CourseDemandRow[];
+
+    // Lookups identité (users_public, RLS self-only sur users) + lieu (région
+    // de l'annonce). En parallèle, dédupliqués.
+    const userIds = [...new Set(rows.flatMap((r) => [r.cavalier_id, r.coach_id]))];
+    const annonceIds = [...new Set(rows.map((r) => r.annonce_id))];
+    const [usersRes, annoncesRes] = await Promise.all([
+      userIds.length
+        ? supabase.from('users_public').select('id,prenom,nom,pseudo,initiales,avatar_color').in('id', userIds)
+        : Promise.resolve({ data: [] as any[] }),
+      annonceIds.length
+        ? supabase.from('coach_annonces').select('id,region').in('id', annonceIds)
+        : Promise.resolve({ data: [] as any[] }),
+    ]);
+
+    const users = new Map<string, PublicUser>();
+    (usersRes.data ?? []).forEach((u: any) => users.set(u.id, u));
+    const annonceRegion = new Map<string, string | null>();
+    (annoncesRes.data ?? []).forEach((a: any) => annonceRegion.set(a.id, a.region ?? null));
+
+    setList(rows.map((r) => rowToDemand(r, users, annonceRegion)));
     setIsLoading(false);
   }, [profile?.id]);
 

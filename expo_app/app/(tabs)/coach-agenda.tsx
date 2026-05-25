@@ -37,6 +37,8 @@ export default function CoachAgendaScreen() {
           niveau: d.niveau,
           date: new Date(current),
           concours: d.concoursNom,
+          lieu: d.lieu,
+          cheval: d.cheval,
           description: d.message,
           prix: d.prix,
         });
@@ -100,16 +102,38 @@ export default function CoachAgendaScreen() {
                   <View style={s.eventContent}>
                     <View style={s.eventHeader}>
                       <View style={[s.avatar, { backgroundColor: event.cavalierCouleur }]}>
-                        <Text style={s.avatarText}>{event.cavalierNom.charAt(0)}</Text>
+                        <Text style={s.avatarText}>
+                          {(event.cavalierNom || event.cavalierPseudo || '?').charAt(0).toUpperCase()}
+                        </Text>
                       </View>
                       <View style={{ flex: 1 }}>
-                        <Text style={s.eventTitle}>@{event.cavalierPseudo}</Text>
+                        <Text style={s.eventTitle}>
+                          {event.cavalierNom || (event.cavalierPseudo ? `@${event.cavalierPseudo}` : 'Cavalier')}
+                        </Text>
+                        {!!event.cavalierPseudo && !!event.cavalierNom && (
+                          <Text style={s.eventPseudo}>@{event.cavalierPseudo}</Text>
+                        )}
                         <Text style={s.eventSubtitle}>{event.titre}</Text>
                       </View>
+                      {event.prix != null && (
+                        <Text style={s.priceText}>{event.prix}€</Text>
+                      )}
                     </View>
 
-                    {event.discipline && (
-                      <Text style={s.detailText}>🎯 {event.discipline} · {event.niveau}</Text>
+                    <Text style={s.detailText}>
+                      📅 {event.date.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' })}
+                    </Text>
+                    {!!event.lieu && (
+                      <Text style={s.detailText}>📍 {event.lieu}</Text>
+                    )}
+                    {event.discipline ? (
+                      <Text style={s.detailText}>🎯 {event.discipline}{event.niveau ? ` · ${event.niveau}` : ''}</Text>
+                    ) : null}
+                    {!!event.cheval && (
+                      <Text style={s.detailText}>🐴 {event.cheval}</Text>
+                    )}
+                    {!!event.description && (
+                      <Text style={s.messageText}>💬 {event.description}</Text>
                     )}
                   </View>
 
@@ -161,8 +185,11 @@ const s = StyleSheet.create({
   avatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center' },
   avatarText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textInverse },
   eventTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  eventPseudo: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold, marginTop: 1 },
   eventSubtitle: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: Spacing.xs },
+  priceText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary },
   detailText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  messageText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic' },
   footerSection: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: Spacing.sm, marginTop: Spacing.sm },
   concoursText: { fontSize: FontSize.sm, color: Colors.textSecondary, flex: 1 },
   contactBtnSmall: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, alignItems: 'center' },
