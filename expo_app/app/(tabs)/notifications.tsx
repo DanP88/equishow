@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Alert, Modal,
+  Alert, Modal, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -12,6 +12,7 @@ import { useMyTransportReservations } from '../../hooks/useTransports';
 import { useMyBoxReservations } from '../../hooks/useBoxes';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
+import { useCoursePayment } from '../../hooks/useCoursePayment';
 import { Notification } from '../../types/notification';
 
 export default function NotificationsScreen() {
@@ -21,6 +22,7 @@ export default function NotificationsScreen() {
   const { reservations: boxReservations } = useMyBoxReservations();
   const { demands: courseDemands } = useMyCourseDemands();
   const { reservations: stageReservations } = useMyStageReservations();
+  const { payCourse, loading: payLoading } = useCoursePayment();
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
@@ -111,14 +113,25 @@ export default function NotificationsScreen() {
             <Text style={s.emptyText}>Vous recevrez une notification quand un coach valide ou refuse votre réservation</Text>
           </View>
         ) : (
-          myNotifications.map((notif) => (
-            <NotificationCard
-              key={notif.id}
-              notification={notif}
-              onMarkAsRead={() => { markAsRead(notif.id); }}
-              onDelete={() => handleDelete(notif.id)}
-            />
-          ))
+          myNotifications.map((notif) => {
+            // Paiement direct depuis la notif si on retrouve la demande acceptée
+            // (donnees.demandId, posé à l'acceptation côté coach). Sinon, la carte
+            // retombe sur la navigation vers /pending-payments.
+            const demandId = notif.donnees?.demandId as string | undefined;
+            const payableDemand = demandId
+              ? courseDemands.find((d) => d.id === demandId && d.statut === 'accepted')
+              : undefined;
+            return (
+              <NotificationCard
+                key={notif.id}
+                notification={notif}
+                onMarkAsRead={() => { markAsRead(notif.id); }}
+                onDelete={() => handleDelete(notif.id)}
+                onPay={payableDemand ? () => payCourse(payableDemand) : undefined}
+                payLoading={payLoading}
+              />
+            );
+          })
         )}
 
         <View style={{ height: 20 }} />
@@ -153,9 +166,12 @@ interface NotificationCardProps {
   notification: Notification;
   onMarkAsRead: () => void;
   onDelete: () => void;
+  /** Paiement direct (Stripe) si la demande est retrouvée ; sinon undefined → navigation. */
+  onPay?: () => void;
+  payLoading?: boolean;
 }
 
-function NotificationCard({ notification, onMarkAsRead, onDelete }: NotificationCardProps) {
+function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoading }: NotificationCardProps) {
   const handlePaymentNavigation = () => {
     if (notification.actionUrl) {
       router.push(notification.actionUrl);
@@ -223,9 +239,14 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
         {showPaymentButton && (
           <TouchableOpacity
             style={[s.actionBtn, s.payBtn]}
-            onPress={handlePaymentNavigation}
+            onPress={onPay ?? handlePaymentNavigation}
+            disabled={!!payLoading}
           >
-            <Text style={s.payBtnText}>💳 Payer maintenant</Text>
+            {onPay && payLoading ? (
+              <ActivityIndicator color={Colors.textInverse} />
+            ) : (
+              <Text style={s.payBtnText}>💳 Payer maintenant</Text>
+            )}
           </TouchableOpacity>
         )}
         <TouchableOpacity

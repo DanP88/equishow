@@ -22,6 +22,7 @@ export interface Notification {
     nombreParticipants?: number;
     prixTotal?: number;
     message?: string;
+    demandId?: string;
     annonceId?: string;
     annonceTitre?: string;
     transportId?: string;

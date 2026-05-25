@@ -1,104 +1,22 @@
-import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Alert, ActivityIndicator, Linking, Platform,
+  ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { userStore } from '../data/store';
-import { createNotification } from '../hooks/useNotifications';
-import { CourseDemande } from '../types/service';
-import { getAuthToken } from '../utils/supabaseAuth';
 import { useMyCourseDemands } from '../hooks/useCourseDemands';
-
-const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
-const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
+import { useCoursePayment } from '../hooks/useCoursePayment';
 
 export default function PendingPaymentsScreen() {
-  const { demands, updateStatus } = useMyCourseDemands();
-  const [loading, setLoading] = useState(false);
+  const { demands } = useMyCourseDemands();
+  const { payCourse, loading } = useCoursePayment();
 
   const validatedDemands = demands.filter(
     d => d.cavalierUserId === userStore.id && d.statut === 'accepted'
   );
 
-  const handlePayNow = async (demand: CourseDemande) => {
-    try {
-      setLoading(true);
-
-      // Vérifier les variables d'environnement
-      if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-        Alert.alert('Erreur', 'Configuration Supabase manquante');
-        return;
-      }
-
-      // JWT utilisateur (Edge Function exige Authorization: Bearer <user JWT>)
-      const userToken = await getAuthToken();
-      if (!userToken) {
-        Alert.alert('Erreur', 'Session expirée, veuillez vous reconnecter');
-        return;
-      }
-
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/create-checkout-session`,
-        {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${userToken}`,
-            'apikey': SUPABASE_ANON_KEY,
-          },
-          body: JSON.stringify({
-            type: 'course',
-            demandId: demand.id,
-          }),
-        }
-      );
-
-      if (!response.ok) {
-        const errorData = await response.text();
-        console.error('Edge Function error:', errorData);
-        Alert.alert('Erreur', 'Impossible de créer la session de paiement');
-        return;
-      }
-
-      const data = await response.json();
-
-      if (!data.checkoutUrl) {
-        Alert.alert('Erreur', 'URL de paiement non disponible: ' + (data.error || 'Unknown error'));
-        return;
-      }
-
-      // Marquer comme en attente de paiement (DB)
-      await updateStatus(demand.id, 'awaiting_payment');
-
-      await createNotification({
-        destinataireId: demand.coachId,
-        type: 'course_request',
-        titre: '💳 Paiement en cours',
-        message: `${userStore.nom} procède au paiement pour "${demand.annonceTitre}"`,
-        status: 'pending',
-        donnees: {
-          annonceTitre: demand.annonceTitre,
-          prix: demand.prix,
-        },
-      });
-
-      // Rediriger vers Stripe — sur web, window.location évite le blocage popup
-      // (Linking.openURL = window.open('_blank') après await => bloqué par le navigateur).
-      if (Platform.OS === 'web') {
-        window.location.href = data.checkoutUrl;
-      } else {
-        await Linking.openURL(data.checkoutUrl);
-      }
-    } catch (error) {
-      console.error('Payment error:', error);
-      Alert.alert('Erreur', 'Une erreur est survenue lors de l\'initiation du paiement');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const handlePayNow = payCourse;
 
   return (
     <SafeAreaView style={s.root}>
