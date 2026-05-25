@@ -4,6 +4,7 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { userStore } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
+import { sendReservationEmail } from '../../utils/sendReservationEmail';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
 
@@ -35,6 +36,10 @@ export default function CoachDemandesScreen() {
         prix: demande.prix,
       },
     });
+
+    // Email « réservation confirmée » aux 2 parties (best-effort, non bloquant).
+    await sendReservationEmail('course', demandeId);
+
     Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
   }, [courseDemandes, updateCourseStatus]);
 
@@ -77,6 +82,10 @@ export default function CoachDemandesScreen() {
         prixTotal: reservation.prixTotal,
       },
     });
+
+    // Email « réservation confirmée » aux 2 parties (best-effort, non bloquant).
+    await sendReservationEmail('stage', reservationId);
+
     Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
   }, [stageReservations, updateStageStatus]);
 

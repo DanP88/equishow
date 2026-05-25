@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { useAuth } from '../hooks/useAuth';
 import { useMyBoxReservations } from '../hooks/useBoxes';
 import { createNotification } from '../hooks/useNotifications';
+import { sendReservationEmail } from '../utils/sendReservationEmail';
 import { BoxReservation } from '../types/service';
 
 export default function BoxPendingDemandsScreen() {
@@ -38,6 +39,9 @@ export default function BoxPendingDemandsScreen() {
         prix: demand.prixTotalTTC,
       },
     });
+
+    // Email « réservation confirmée » aux 2 parties (best-effort, non bloquant).
+    await sendReservationEmail('box', demand.id);
 
     setShowModal(false);
     Alert.alert('✅ Réservation acceptée', 'Le cavalier a été notifié et peut maintenant payer.');
