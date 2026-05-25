@@ -114,13 +114,18 @@ export default function NotificationsScreen() {
           </View>
         ) : (
           myNotifications.map((notif) => {
-            // Paiement direct depuis la notif si on retrouve la demande acceptée
-            // (donnees.demandId, posé à l'acceptation côté coach). Sinon, la carte
-            // retombe sur la navigation vers /pending-payments.
-            const demandId = notif.donnees?.demandId as string | undefined;
-            const payableDemand = demandId
-              ? courseDemands.find((d) => d.id === demandId && d.statut === 'accepted')
-              : undefined;
+            // Paiement direct depuis la notif : on retrouve la demande acceptée
+            // par demandId (posé à l'acceptation depuis ce déploiement), ou à
+            // défaut par annonceId pour les notifs plus anciennes. Si rien ne
+            // matche (transport/box, demande déjà payée…), la carte retombe sur
+            // la navigation vers /pending-payments.
+            const demandId = notif.donnees?.demandId;
+            const annonceId = notif.donnees?.annonceId;
+            const payableDemand = courseDemands.find((d) =>
+              d.cavalierUserId === profile?.id &&
+              d.statut === 'accepted' &&
+              (demandId ? d.id === demandId : annonceId ? d.annonceId === annonceId : false),
+            );
             return (
               <NotificationCard
                 key={notif.id}
