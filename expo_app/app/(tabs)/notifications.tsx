@@ -207,16 +207,16 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
         </View>
       )}
 
-      {/* Cavalier pseudo */}
-      <Text style={s.cavalierPseudo}>@{notification.auteurPseudo}</Text>
+      {/* Titre + message (l'info lisible que le cavalier attend) */}
+      <Text style={s.notificationTitle}>{notification.titre}</Text>
+      {!!notification.message && (
+        <Text style={s.notificationMessage}>{notification.message}</Text>
+      )}
 
-      {/* Détails */}
-      <Text style={s.detailsText}>
-        {notification.donnees?.stageTitre || notification.donnees?.annonceTitre || notification.donnees?.titre} · {notification.donnees?.nombreParticipants || ''} {notification.donnees?.nombreParticipants ? 'participant' + (notification.donnees.nombreParticipants !== 1 ? 's' : '') : ''}
-      </Text>
-
-      {/* Montant */}
-      <Text style={s.montantText}>💰 {notification.donnees?.prixTotal || notification.donnees?.prix}€ TTC</Text>
+      {/* Montant (si connu) */}
+      {(notification.donnees?.prixTotal || notification.donnees?.prix) != null && (
+        <Text style={s.montantText}>💰 {notification.donnees?.prixTotal || notification.donnees?.prix}€ TTC</Text>
+      )}
 
       {/* Action buttons */}
       <View style={s.buttonRow}>

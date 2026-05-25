@@ -160,13 +160,18 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
         </View>
       )}
 
-      <Text style={s.cavalierPseudo}>@{notification.auteurPseudo}</Text>
+      <Text style={s.notificationTitle}>{notification.titre}</Text>
+      {!!notification.message && (
+        <Text style={s.notificationMessage}>{notification.message}</Text>
+      )}
 
-      <Text style={s.detailsText}>
-        {notification.donnees?.stageTitre || notification.donnees?.annonceTitre || notification.donnees?.titre} · {notification.donnees?.nombreParticipants || ''} {notification.donnees?.nombreParticipants ? 'participant' + (notification.donnees.nombreParticipants !== 1 ? 's' : '') : ''}
-      </Text>
+      {!!notification.auteurPseudo && (
+        <Text style={s.cavalierPseudo}>@{notification.auteurPseudo}</Text>
+      )}
 
-      <Text style={s.montantText}>💰 {notification.donnees?.prixTotal || notification.donnees?.prix}€ TTC</Text>
+      {(notification.donnees?.prixTotal || notification.donnees?.prix) != null && (
+        <Text style={s.montantText}>💰 {notification.donnees?.prixTotal || notification.donnees?.prix}€ TTC</Text>
+      )}
 
       <View style={s.buttonRow}>
         {showPaymentButton && (
