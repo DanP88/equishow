@@ -228,6 +228,7 @@ export interface CourseDemande {
   annonceId: string;
   annonceTitre: string;
   concoursNom?: string;
+  lieu?: string;
   coachId: string;
   coachNom: string;
   cavalierNom: string;
@@ -261,6 +262,7 @@ export interface CoachAgendaEvent {
   date: Date;
   concours?: string;
   lieu?: string;
+  cheval?: string;
   description?: string;
   prix?: number;
 }
