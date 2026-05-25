@@ -29,6 +29,7 @@ export default function CoachPendingDemandsScreen() {
       status: 'accepted',
       actionUrl: '/pending-payments',
       donnees: {
+        demandId: demand.id,
         annonceId: demand.annonceId,
         annonceTitre: demand.annonceTitre,
         prix: demand.prix,
