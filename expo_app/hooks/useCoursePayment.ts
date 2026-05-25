@@ -40,10 +40,12 @@ export function useCoursePayment() {
         `${SUPABASE_URL}/functions/v1/create-checkout-session`,
         {
           method: 'POST',
+          // Pas de header `apikey` : la fonction Edge n'autorise que
+          // Content-Type + Authorization en CORS (sinon le preflight navigateur
+          // est bloqué). Le JWT utilisateur dans Authorization suffit au gateway.
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${userToken}`,
-            'apikey': SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({ type: 'course', demandId: demand.id }),
         },
