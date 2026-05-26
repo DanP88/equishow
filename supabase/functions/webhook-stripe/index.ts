@@ -5,6 +5,13 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
 // throwait → 401 systématique → aucun webhook jamais validé. Bug corrigé ici.
 import { sendTransactional, getUserContact } from "../_shared/email.ts";
 import type { EmailEventType, EmailModule } from "../_shared/email-templates.ts";
+import {
+  computeReleaseDueAt,
+  holdHoursForType,
+  isEscrowEnabled,
+  loadEscrowSettings,
+  type EscrowModule,
+} from "../_shared/escrow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -197,6 +204,41 @@ async function handleBoostChargeSucceeded(
   console.log("Boost applied for purchase:", purchaseId);
 }
 
+// Date de fin de prestation (pour calculer release_due_at en mode séquestre).
+// Lecture défensive ; null si introuvable → fallback sur la date de paiement.
+async function getPrestationEndAt(supabase: any, payment: any): Promise<string | null> {
+  try {
+    if (payment.type === "stage" && payment.stage_reservation_id) {
+      const { data: sr } = await supabase
+        .from("stage_reservations")
+        .select("stage_id, date_reservation")
+        .eq("id", payment.stage_reservation_id)
+        .maybeSingle();
+      if (sr?.stage_id) {
+        const { data: st } = await supabase
+          .from("stages")
+          .select("date_fin, date_debut")
+          .eq("id", sr.stage_id)
+          .maybeSingle();
+        return st?.date_fin ?? st?.date_debut ?? sr?.date_reservation ?? null;
+      }
+      return sr?.date_reservation ?? null;
+    }
+    const TBL: Record<string, { table: string; fk: string }> = {
+      course: { table: "course_demands", fk: "course_demand_id" },
+      box: { table: "box_reservations", fk: "box_reservation_id" },
+      transport: { table: "transport_reservations", fk: "transport_reservation_id" },
+    };
+    const cfg = TBL[payment.type];
+    if (!cfg || !payment[cfg.fk]) return null;
+    const { data } = await supabase.from(cfg.table).select("*").eq("id", payment[cfg.fk]).maybeSingle();
+    if (!data) return null;
+    return data.date_fin ?? data.date_trajet ?? data.date_debut ?? data.date_reservation ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function handleChargeSucceeded(
   supabase: any,
   event: any
@@ -231,6 +273,10 @@ async function handleChargeSucceeded(
 
   const payment = payments[0];
 
+  // V2 séquestre : activé pour ce module ? (flag OFF → escrowOn=false → legacy)
+  const escrowSettings = await loadEscrowSettings(supabase);
+  const escrowOn = isEscrowEnabled(escrowSettings, payment.type as EscrowModule);
+
   // Update payment status + propagate transfer_id if Stripe auto-transferred
   // (Connect destination charge with transfer_data → charge.transfer is set).
   const updateFields: Record<string, unknown> = {
@@ -241,6 +287,17 @@ async function handleChargeSucceeded(
   };
   if (charge.transfer) {
     updateFields.stripe_transfer_id = charge.transfer;
+  }
+
+  // En séquestre : on retient les fonds (held) et on calcule la date de
+  // libération auto = fin de prestation + délai du module. AUCUN transfert ici.
+  if (escrowOn) {
+    const prestationEnd = await getPrestationEndAt(supabase, payment);
+    const baseMs = prestationEnd ? Date.parse(prestationEnd) : Date.now();
+    const holdH = holdHoursForType(payment.type as EscrowModule, escrowSettings);
+    updateFields.transfer_state = "held";
+    updateFields.prestation_end_at = prestationEnd;
+    updateFields.release_due_at = computeReleaseDueAt(Number.isFinite(baseMs) ? baseMs : Date.now(), holdH);
   }
   await supabase
     .from("payments")
@@ -272,7 +329,9 @@ async function handleChargeSucceeded(
 
   // If Stripe didn't auto-transfer (legacy non-Connect or transfer_data absent),
   // fall back to manual transfer creation.
-  if (!charge.transfer) {
+  // V2 séquestre : on NE transfère JAMAIS ici (libération différée). escrowOn
+  // OFF → condition legacy EXACTE inchangée.
+  if (!charge.transfer && !escrowOn) {
     const { data: seller } = await supabase
       .from("users")
       .select("stripe_account_id")
