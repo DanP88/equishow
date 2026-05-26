@@ -1,5 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
 import * as crypto from "https://deno.land/std@0.208.0/crypto/mod.ts";
+import { sendTransactional, getUserContact } from "../_shared/email.ts";
+import type { EmailEventType, EmailModule } from "../_shared/email-templates.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -78,6 +80,87 @@ async function callStripeAPI(
 
   const response = await fetch(url, options);
   return response.json();
+}
+
+// ============================================================================
+// EMAILS TRANSACTIONNELS (best-effort — ne bloque JAMAIS le webhook)
+// ============================================================================
+
+// Mapping module → table d'entité + colonne FK sur payments (pour le contenu).
+const MODULE_ENTITY: Record<string, { table: string; fk: string }> = {
+  course: { table: "course_demands", fk: "course_demand_id" },
+  stage: { table: "stage_reservations", fk: "stage_reservation_id" },
+  transport: { table: "transport_reservations", fk: "transport_reservation_id" },
+  box: { table: "box_reservations", fk: "box_reservation_id" },
+};
+
+// Envoie l'email de paiement aux 2 parties. idemId = stripe_event_id (adossé à
+// l'idempotence Stripe). N'altère aucun montant : amountEur en affichage seul.
+async function emailPaymentBothParties(
+  supabase: any,
+  payment: any,
+  eventType: EmailEventType,
+  stripeEventId: string,
+): Promise<void> {
+  try {
+    const module = payment?.type as string;
+    const cfg = MODULE_ENTITY[module];
+    if (!cfg) return; // boost / type inconnu → pas d'email
+
+    // Contenu (titre/lieu/date) — défensif, jamais bloquant.
+    let entityTitle: string | undefined;
+    let lieu: string | undefined;
+    let dateLabel: string | undefined;
+    try {
+      const entityId = payment[cfg.fk];
+      if (entityId) {
+        const { data: ent } = await supabase
+          .from(cfg.table)
+          .select("*")
+          .eq("id", entityId)
+          .maybeSingle();
+        if (ent) {
+          entityTitle = ent.title ?? ent.stage_titre;
+          lieu = ent.lieu ?? ent.concours_nom;
+          const dv = ent.date_debut ?? ent.date_trajet ?? ent.date_reservation;
+          if (dv) {
+            const d = new Date(dv);
+            if (!Number.isNaN(d.getTime())) {
+              dateLabel = d.toLocaleDateString("fr-FR", { day: "2-digit", month: "long", year: "numeric" });
+            }
+          }
+        }
+      }
+    } catch (_) { /* contenu best-effort */ }
+
+    const amountEur =
+      typeof payment.amount_buyer_ttc === "number" ? payment.amount_buyer_ttc / 100 : undefined;
+    const relatedEntityId = payment[cfg.fk] ? String(payment[cfg.fk]) : null;
+
+    const [buyer, seller] = await Promise.all([
+      getUserContact(supabase, payment.buyer_id),
+      getUserContact(supabase, payment.seller_id),
+    ]);
+
+    if (buyer.email) {
+      await sendTransactional({
+        supabase, eventType, module: module as EmailModule, role: "buyer",
+        idemId: stripeEventId, recipientId: payment.buyer_id, recipientEmail: buyer.email,
+        relatedPaymentId: payment.id, relatedEntityId,
+        data: { recipientName: buyer.name, counterpartName: seller.name, entityTitle, lieu, dateLabel, amountEur },
+      });
+    }
+    if (seller.email) {
+      await sendTransactional({
+        supabase, eventType, module: module as EmailModule, role: "seller",
+        idemId: stripeEventId, recipientId: payment.seller_id, recipientEmail: seller.email,
+        relatedPaymentId: payment.id, relatedEntityId,
+        data: { recipientName: seller.name, counterpartName: buyer.name, entityTitle, lieu, dateLabel, amountEur },
+      });
+    }
+  } catch (e) {
+    console.error("emailPaymentBothParties (non bloquant):", e instanceof Error ? e.message : e);
+  }
 }
 
 // ============================================================================
@@ -214,6 +297,9 @@ async function handleChargeSucceeded(
       }
     }
   }
+
+  // Emails « paiement confirmé » aux 2 parties — best-effort, après les MAJ DB.
+  await emailPaymentBothParties(supabase, payment, "payment_succeeded", event.id);
 }
 
 async function handleChargeFailed(
@@ -256,6 +342,9 @@ async function handleChargeFailed(
       .eq("id", payment.id);
 
     console.log("Payment marked as failed:", payment.id);
+
+    // Email « paiement échoué » — best-effort.
+    await emailPaymentBothParties(supabase, payment, "payment_failed", event.id);
   }
 }
 
@@ -329,6 +418,9 @@ async function handleChargeRefunded(
   }
 
   console.log("Payment refunded:", payment.id);
+
+  // Email « remboursement » — best-effort.
+  await emailPaymentBothParties(supabase, payment, "payment_refunded", event.id);
 }
 
 // ============================================================================

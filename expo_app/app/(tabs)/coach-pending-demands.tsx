@@ -8,6 +8,7 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { userStore } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
+import { sendReservationEmail } from '../../utils/sendReservationEmail';
 import { CourseDemande } from '../../types/service';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 
@@ -35,6 +36,9 @@ export default function CoachPendingDemandsScreen() {
         prix: demand.prix,
       },
     });
+
+    // Email « réservation confirmée » aux 2 parties (best-effort, non bloquant).
+    await sendReservationEmail('course', demand.id);
 
     setShowModal(false);
     Alert.alert('✅ Demande acceptée', 'Le cavalier a été notifié et peut maintenant payer.');
