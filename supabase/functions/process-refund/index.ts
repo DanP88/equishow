@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
+import { refundFlagsFor } from "../_shared/escrow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -162,35 +163,47 @@ export async function handler(req: Request): Promise<Response> {
 
     // ========================================================================
     // STEP 4: Create refund with Stripe (P4)
-    // - refund_application_fee=true : la commission plateforme est rendue au buyer
-    // - reverse_transfer=true       : le transfert au seller est reversé
-    // Stripe Connect (transfer_data) requiert ces deux flags pour annuler
-    // proprement à la fois la portion seller et la commission plateforme.
+    // Flags choisis selon l'état séquestre (refundFlagsFor) :
+    //  - legacy 'not_applicable' (destination charge) : refund_application_fee +
+    //    reverse_transfer (COMPORTEMENT ACTUEL INCHANGÉ).
+    //  - 'released' (séquestre versé) : reverse_transfer seul.
+    //  - 'held'/… : refund SIMPLE (ni reverse_transfer ni refund_application_fee).
     // ========================================================================
 
-    const refundResponse = await callStripeAPI("/refunds", "POST", {
+    const flags = refundFlagsFor(payment.transfer_state);
+    const refundParams: Record<string, string> = {
       charge: payment.stripe_charge_id,
       reason,
-      refund_application_fee: "true",
-      reverse_transfer: "true",
       "metadata[payment_id]": body.paymentId,
       "metadata[reason]": reason,
       "metadata[refunded_by]": user.id,
       "metadata[refunded_at]": new Date().toISOString(),
-    });
+    };
+    if (flags.reverse_transfer) refundParams.reverse_transfer = "true";
+    if (flags.refund_application_fee) refundParams.refund_application_fee = "true";
+
+    const refundResponse = await callStripeAPI("/refunds", "POST", refundParams);
 
     // ========================================================================
     // STEP 5: Update payment record in database
     // ========================================================================
 
+    const refundUpdate: Record<string, unknown> = {
+      payment_status: "refunded",
+      stripe_refund_id: refundResponse.id,
+      refunded_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+    // Séquestre : marquer 'reversed' (fonds rendus) pour bloquer toute libération
+    // future. Legacy 'not_applicable' → transfer_state laissé tel quel (inchangé).
+    if (payment.transfer_state && payment.transfer_state !== "not_applicable") {
+      refundUpdate.transfer_state = "reversed";
+      refundUpdate.transfer_reversed_at = new Date().toISOString();
+    }
+
     const { error: updateError } = await supabase
       .from("payments")
-      .update({
-        payment_status: "refunded",
-        stripe_refund_id: refundResponse.id,
-        refunded_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-      })
+      .update(refundUpdate)
       .eq("id", body.paymentId);
 
     if (updateError) {

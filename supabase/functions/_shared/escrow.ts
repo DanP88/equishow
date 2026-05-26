@@ -118,6 +118,28 @@ export function isEscrowEnabled(settings: Record<string, unknown>, type: EscrowM
   return list.includes(type);
 }
 
+// ── Flags de remboursement Stripe selon l'état séquestre (pur) ──────────────
+// - legacy 'not_applicable' (destination charge) : comportement ACTUEL inchangé
+//   (refund_application_fee + reverse_transfer).
+// - 'released' (séquestre versé) : reverse_transfer seul (pas d'application_fee).
+// - 'held'/'releasing'/'reversed'/'failed' : refund SIMPLE (rien à reverser).
+export function refundFlagsFor(transferState: string | null | undefined): {
+  reverse_transfer: boolean;
+  refund_application_fee: boolean;
+} {
+  if (transferState === "released") return { reverse_transfer: true, refund_application_fee: false };
+  if (
+    transferState === "held" ||
+    transferState === "releasing" ||
+    transferState === "reversed" ||
+    transferState === "failed"
+  ) {
+    return { reverse_transfer: false, refund_application_fee: false };
+  }
+  // 'not_applicable' / null / inconnu → legacy destination charge
+  return { reverse_transfer: true, refund_application_fee: true };
+}
+
 // ── Sélection de la réservation liée (pur) ──────────────────────────────────
 export function reservationIdOf(
   payment: Record<string, unknown>,

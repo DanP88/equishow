@@ -8,6 +8,7 @@ import {
   computeReleaseDueAt,
   holdHoursForType,
   isEscrowEnabled,
+  refundFlagsFor,
   reservationIdOf,
   transferAmountCents,
   transferIdempotencyKey,
@@ -75,6 +76,13 @@ ok(isEscrowEnabled({ escrow_enabled: true, escrow_enabled_modules: [] }, "box") 
 ok(isEscrowEnabled({ escrow_enabled: true, escrow_enabled_modules: ["box"] }, "box") === true, "on + module → true");
 ok(isEscrowEnabled({ escrow_enabled: true, escrow_enabled_modules: "box,course" }, "course") === true, "modules en string CSV");
 ok(isEscrowEnabled({ escrow_enabled: true, escrow_enabled_modules: ["box"] }, "course") === false, "autre module → false");
+
+// ── flags de remboursement selon transfer_state ─────────────────────────────
+// legacy not_applicable = comportement ACTUEL (les deux flags true)
+ok(refundFlagsFor("not_applicable").reverse_transfer === true && refundFlagsFor("not_applicable").refund_application_fee === true, "legacy not_applicable → reverse+fee (inchangé)");
+ok(refundFlagsFor(null).reverse_transfer === true && refundFlagsFor(null).refund_application_fee === true, "null → legacy");
+ok(refundFlagsFor("held").reverse_transfer === false && refundFlagsFor("held").refund_application_fee === false, "held → refund simple");
+ok(refundFlagsFor("released").reverse_transfer === true && refundFlagsFor("released").refund_application_fee === false, "released → reverse_transfer seul");
 
 // ── réservation liée ─────────────────────────────────────────────────────────
 ok(reservationIdOf({ course_demand_id: "c1" }).key === "course_demand_id", "fk course");
