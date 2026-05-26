@@ -6,9 +6,11 @@ import {
   canReleasePayment,
   classifyTransferError,
   computeReleaseDueAt,
+  disputeResolution,
   holdHoursForType,
   isEscrowEnabled,
   refundFlagsFor,
+  shouldBlockOnDispute,
   reservationIdOf,
   transferAmountCents,
   transferIdempotencyKey,
@@ -83,6 +85,22 @@ ok(refundFlagsFor("not_applicable").reverse_transfer === true && refundFlagsFor(
 ok(refundFlagsFor(null).reverse_transfer === true && refundFlagsFor(null).refund_application_fee === true, "null → legacy");
 ok(refundFlagsFor("held").reverse_transfer === false && refundFlagsFor("held").refund_application_fee === false, "held → refund simple");
 ok(refundFlagsFor("released").reverse_transfer === true && refundFlagsFor("released").refund_application_fee === false, "released → reverse_transfer seul");
+
+// ── litiges ──────────────────────────────────────────────────────────────────
+ok(shouldBlockOnDispute("held") === true, "held → bloque");
+ok(shouldBlockOnDispute("releasing") === true, "releasing → bloque");
+ok(shouldBlockOnDispute("released") === false, "released → pas de blocage escrow");
+ok(shouldBlockOnDispute("reversed") === false, "reversed → pas de blocage");
+ok(shouldBlockOnDispute("not_applicable") === false, "legacy → pas de blocage escrow");
+ok(shouldBlockOnDispute(null) === false, "null → pas de blocage");
+ok(disputeResolution("won") === "unblock", "dispute won → unblock");
+ok(disputeResolution("warning_closed") === "unblock", "warning_closed → unblock");
+ok(disputeResolution("lost") === "keep_blocked", "dispute lost → keep_blocked");
+ok(disputeResolution("under_review") === "noop", "under_review → noop");
+ok(disputeResolution(undefined) === "noop", "status absent → noop");
+// un litige ouvert empêche release-payment (garde déjà testée, on re-vérifie l'invariant)
+ok(canReleasePayment({ ...base, dispute_status: "open" }, { id: "X", isAdmin: true }, NOW).code === "blocked", "litige bloque même admin");
+ok(canReleasePayment({ ...base, release_blocked_reason: "chargeback" }, { id: "X", isAdmin: true }, NOW).code === "blocked", "chargeback bloque même admin");
 
 // ── réservation liée ─────────────────────────────────────────────────────────
 ok(reservationIdOf({ course_demand_id: "c1" }).key === "course_demand_id", "fk course");

@@ -118,6 +118,23 @@ export function isEscrowEnabled(settings: Record<string, unknown>, type: EscrowM
   return list.includes(type);
 }
 
+// ── Litiges (pur) ────────────────────────────────────────────────────────────
+// Bloquer la libération sur litige UNIQUEMENT si les fonds sont encore retenus
+// (held/releasing). 'released'/'reversed'/'not_applicable' → pas de blocage escrow
+// (rien à retenir ; legacy géré nativement par Stripe).
+export function shouldBlockOnDispute(transferState: string | null | undefined): boolean {
+  return transferState === "held" || transferState === "releasing";
+}
+
+// Action à la clôture d'un dispute Stripe (charge.dispute.closed).
+export type DisputeResolution = "unblock" | "keep_blocked" | "noop";
+export function disputeResolution(stripeStatus: string | undefined): DisputeResolution {
+  const s = (stripeStatus || "").toLowerCase();
+  if (s === "won" || s === "warning_closed") return "unblock"; // gagné → libérable
+  if (s === "lost") return "keep_blocked"; // perdu → fonds repris, reste bloqué
+  return "noop"; // under_review / needs_response / warning_* → on ne touche à rien
+}
+
 // ── Flags de remboursement Stripe selon l'état séquestre (pur) ──────────────
 // - legacy 'not_applicable' (destination charge) : comportement ACTUEL inchangé
 //   (refund_application_fee + reverse_transfer).
