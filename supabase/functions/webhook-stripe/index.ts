@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
-import * as crypto from "https://deno.land/std@0.208.0/crypto/mod.ts";
+// NB : pas d'import std/crypto — on utilise le WebCrypto GLOBAL de Deno.
+// L'ancien `import * as crypto from "std/crypto/mod.ts"` exposait `crypto.subtle`
+// = undefined (le module exporte `crypto`, pas `subtle`) → verifyStripeSignature
+// throwait → 401 systématique → aucun webhook jamais validé. Bug corrigé ici.
 import { sendTransactional, getUserContact } from "../_shared/email.ts";
 import type { EmailEventType, EmailModule } from "../_shared/email-templates.ts";
 
