@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
+import { isEscrowEnabled, loadEscrowSettings } from "../_shared/escrow.ts";
 
 // Audit P1+P2+P3 :
 // - JWT obligatoire (P3)
@@ -192,6 +193,11 @@ export async function handler(req: Request): Promise<Response> {
     const isStripeTestMode = STRIPE_SECRET_KEY.startsWith("sk_test_");
     const sellerHasConnect = !!seller.stripe_account_id && !!seller.stripe_charges_enabled;
 
+    // V2 séquestre : si activé pour ce module, on encaisse en charge SIMPLE
+    // (fonds retenus plateforme) → pas de transfer_data ni d'application_fee.
+    // Flag OFF / module non activé → escrowOn=false → comportement legacy EXACT.
+    const escrowOn = isEscrowEnabled(await loadEscrowSettings(supabase), type);
+
     if (!isStripeTestMode && !sellerHasConnect) {
       return jsonResponse(
         { error: "Le vendeur n'a pas finalisé ses paiements." },
@@ -252,9 +258,11 @@ export async function handler(req: Request): Promise<Response> {
     // alors que l'app affiche le prix sans TVA (P2P entre particuliers).
     formData.append("automatic_tax[enabled]", "false");
 
-    // Stripe Connect Option A : transfer auto + application_fee.
+    // Stripe Connect Option A : transfer auto + application_fee (LEGACY).
     // Skip si test mode et seller pas onboardé → paiement direct (testable).
-    if (sellerHasConnect) {
+    // V2 séquestre (escrowOn) : on NE met PAS transfer_data/application_fee →
+    // charge simple, libération différée via release-payment.
+    if (sellerHasConnect && !escrowOn) {
       formData.append(
         "payment_intent_data[transfer_data][destination]",
         seller.stripe_account_id!,
