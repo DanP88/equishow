@@ -10,6 +10,29 @@ import { useMyStageReservations, useStages } from '../../hooks/useStages';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { getUserById } from '../../data/mockUsers';
 import { useAvis, useMyAvisRefs, AvisType } from '../../hooks/useAvis';
+import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
+import { useEscrowActions } from '../../hooks/useEscrowActions';
+
+// Libellé + style du statut séquestre (escrow) côté acheteur.
+function escrowBadge(p: { transferState: string; disputeStatus: string | null; releaseBlockedReason: string | null }) {
+  if (p.disputeStatus === 'open' || p.releaseBlockedReason === 'dispute' || p.releaseBlockedReason === 'chargeback') {
+    return { label: '⚠️ Litige en cours', bg: '#FEF3C7', border: '#F59E0B', color: '#92400E' };
+  }
+  switch (p.transferState) {
+    case 'held':
+      return { label: '🔒 Fonds sécurisés', bg: '#EFF6FF', border: '#3B82F6', color: '#1E40AF' };
+    case 'releasing':
+      return { label: '⏳ Versement en cours', bg: '#EFF6FF', border: '#3B82F6', color: '#1E40AF' };
+    case 'released':
+      return { label: '✅ Versé au vendeur', bg: '#ECFDF5', border: '#10B981', color: '#065F46' };
+    case 'reversed':
+      return { label: '↩️ Remboursé', bg: '#F3F4F6', border: '#9CA3AF', color: '#374151' };
+    case 'failed':
+      return { label: '❌ Échec versement', bg: '#FEE2E2', border: '#EF4444', color: '#991B1B' };
+    default:
+      return null;
+  }
+}
 
 type AgendaItem = {
   id: string;
@@ -87,6 +110,19 @@ export default function CavalierAgendaScreen() {
   const [avisSubmitting, setAvisSubmitting] = useState(false);
   const { createAvis } = useAvis();
   const myAvisRefs = useMyAvisRefs();
+  const { byReservation: escrowByResa, reload: reloadEscrow } = useMyEscrowPayments();
+  const { confirmPrestation, openDispute, loading: escrowLoading } = useEscrowActions();
+
+  // Confirme la prestation (release anticipé) puis rafraîchit les statuts.
+  const onConfirmPrestation = useCallback(async (paymentId: string) => {
+    if (escrowLoading) return;
+    if (await confirmPrestation(paymentId)) reloadEscrow();
+  }, [escrowLoading, confirmPrestation, reloadEscrow]);
+
+  const onOpenDispute = useCallback(async (paymentId: string) => {
+    if (escrowLoading) return;
+    if (await openDispute(paymentId)) reloadEscrow();
+  }, [escrowLoading, openDispute, reloadEscrow]);
 
   function openAvis(item: AgendaItem) {
     setAvisNote(5);
@@ -118,7 +154,8 @@ export default function CavalierAgendaScreen() {
 
   useFocusEffect(useCallback(() => {
     setTick((t) => t + 1);
-  }, []));
+    reloadEscrow();
+  }, [reloadEscrow]));
 
   useEffect(() => {
     const uid = userStore.id;
@@ -372,6 +409,55 @@ export default function CavalierAgendaScreen() {
                         )
                       )}
                     </View>
+
+                    {/* Séquestre (escrow) — acheteur uniquement, si paiement séquestre */}
+                    {item.type === 'box_buyer' && escrowByResa[item.id] && (() => {
+                      const ep = escrowByResa[item.id];
+                      const badge = escrowBadge(ep);
+                      if (!badge) return null;
+                      const blocked = ep.disputeStatus === 'open' || !!ep.releaseBlockedReason;
+                      const canAct = ep.transferState === 'held' && !blocked;
+                      return (
+                        <View style={s.escrowBox}>
+                          <View style={s.escrowTop}>
+                            <View style={[s.escrowBadge, { backgroundColor: badge.bg, borderColor: badge.border }]}>
+                              <Text style={[s.escrowBadgeText, { color: badge.color }]}>{badge.label}</Text>
+                            </View>
+                          </View>
+                          {ep.transferState === 'held' && !blocked && (
+                            <Text style={s.escrowHint}>
+                              Votre paiement est conservé en sécurité. Il sera versé au vendeur automatiquement
+                              après la prestation, ou dès que vous confirmez l'avoir reçue.
+                            </Text>
+                          )}
+                          {blocked && (
+                            <Text style={s.escrowHint}>
+                              Versement bloqué : un administrateur examine le litige.
+                            </Text>
+                          )}
+                          {canAct && (
+                            <View style={s.escrowActions}>
+                              <TouchableOpacity
+                                style={[s.escrowBtnPrimary, escrowLoading && s.escrowBtnDisabled]}
+                                disabled={escrowLoading}
+                                onPress={() => onConfirmPrestation(ep.id)}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={s.escrowBtnPrimaryText}>✅ J'ai reçu la prestation — libérer</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[s.escrowBtnGhost, escrowLoading && s.escrowBtnDisabled]}
+                                disabled={escrowLoading}
+                                onPress={() => onOpenDispute(ep.id)}
+                                activeOpacity={0.8}
+                              >
+                                <Text style={s.escrowBtnGhostText}>⚠️ Signaler un problème</Text>
+                              </TouchableOpacity>
+                            </View>
+                          )}
+                        </View>
+                      );
+                    })()}
                   </View>
                 );
               })}
@@ -481,6 +567,17 @@ const s = StyleSheet.create({
   avisBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#92400E' },
   avisDoneBadge: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 5 },
   avisDoneText: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
+  escrowBox: { marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, gap: 6 },
+  escrowTop: { flexDirection: 'row' },
+  escrowBadge: { borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 4, borderWidth: 1 },
+  escrowBadgeText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  escrowHint: { fontSize: FontSize.xs, color: Colors.textSecondary, lineHeight: 16 },
+  escrowActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: 4, flexWrap: 'wrap' },
+  escrowBtnPrimary: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 8, flexGrow: 1, alignItems: 'center' },
+  escrowBtnPrimaryText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#FFFFFF' },
+  escrowBtnGhost: { backgroundColor: Colors.surface, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 8, borderWidth: 1, borderColor: '#FCD34D', alignItems: 'center' },
+  escrowBtnGhostText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#92400E' },
+  escrowBtnDisabled: { opacity: 0.5 },
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
   modalSheet: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, padding: Spacing.xl, paddingBottom: 40 },
   modalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, textAlign: 'center', marginBottom: 4 },
