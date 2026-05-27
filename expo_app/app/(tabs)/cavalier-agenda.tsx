@@ -18,7 +18,7 @@ import { AlertModal } from '../../components/AlertModal';
 // Libellé + style du statut séquestre (escrow) côté acheteur.
 function escrowBadge(p: { transferState: string; disputeStatus: string | null; releaseBlockedReason: string | null }) {
   if (p.disputeStatus === 'open' || p.releaseBlockedReason === 'dispute' || p.releaseBlockedReason === 'chargeback') {
-    return { label: '⚠️ Litige en cours', bg: '#FEF3C7', border: '#F59E0B', color: '#92400E' };
+    return { label: '⚠️ Litige en cours', bg: '#FEE2E2', border: '#EF4444', color: '#991B1B' };
   }
   // États « en attente » neutres (jamais « litige ») : vendeur non configuré, ou
   // versement temporairement bloqué côté Stripe.
