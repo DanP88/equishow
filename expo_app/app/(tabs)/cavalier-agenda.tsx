@@ -12,6 +12,8 @@ import { getUserById } from '../../data/mockUsers';
 import { useAvis, useMyAvisRefs, AvisType } from '../../hooks/useAvis';
 import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
 import { useEscrowActions } from '../../hooks/useEscrowActions';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal } from '../../components/AlertModal';
 
 // Libellé + style du statut séquestre (escrow) côté acheteur.
 function escrowBadge(p: { transferState: string; disputeStatus: string | null; releaseBlockedReason: string | null }) {
@@ -121,18 +123,48 @@ export default function CavalierAgendaScreen() {
   const { createAvis } = useAvis();
   const myAvisRefs = useMyAvisRefs();
   const { byReservation: escrowByResa, reload: reloadEscrow } = useMyEscrowPayments();
-  const { confirmPrestation, openDispute, loading: escrowLoading } = useEscrowActions();
+  const { releasePayment, openDispute, loading: escrowLoading } = useEscrowActions();
+  // Modales escrow stylées (cohérentes avec le reste de l'app) au lieu des
+  // window.confirm/alert natifs du navigateur.
+  const [escrowConfirm, setEscrowConfirm] = useState<{ kind: 'release' | 'dispute'; paymentId: string } | null>(null);
+  const [escrowAlert, setEscrowAlert] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'info' } | null>(null);
 
-  // Confirme la prestation (release anticipé) puis rafraîchit les statuts.
-  const onConfirmPrestation = useCallback(async (paymentId: string) => {
+  // Les boutons escrow ouvrent une modale de confirmation stylée ; l'appel réseau
+  // ne part qu'après confirmation (runEscrowAction).
+  const onConfirmPrestation = useCallback((paymentId: string) => {
     if (escrowLoading) return;
-    if (await confirmPrestation(paymentId)) reloadEscrow();
-  }, [escrowLoading, confirmPrestation, reloadEscrow]);
+    setEscrowConfirm({ kind: 'release', paymentId });
+  }, [escrowLoading]);
 
-  const onOpenDispute = useCallback(async (paymentId: string) => {
+  const onOpenDispute = useCallback((paymentId: string) => {
     if (escrowLoading) return;
-    if (await openDispute(paymentId)) reloadEscrow();
-  }, [escrowLoading, openDispute, reloadEscrow]);
+    setEscrowConfirm({ kind: 'dispute', paymentId });
+  }, [escrowLoading]);
+
+  // Exécute l'action confirmée, puis affiche le résultat dans une modale stylée.
+  const runEscrowAction = useCallback(async () => {
+    if (!escrowConfirm) return;
+    const { kind, paymentId } = escrowConfirm;
+    setEscrowConfirm(null);
+    const res = kind === 'release'
+      ? await releasePayment(paymentId)
+      : await openDispute(paymentId);
+    if (res.ok) {
+      reloadEscrow();
+      setEscrowAlert(kind === 'release'
+        ? { title: 'Paiement libéré', message: 'Le vendeur va recevoir son versement. Merci !', variant: 'success' }
+        : { title: 'Litige ouvert', message: 'Le versement est bloqué. Un administrateur va examiner votre signalement.', variant: 'success' });
+    } else {
+      const message = res.code === 'no_token'
+        ? 'Session expirée, veuillez vous reconnecter.'
+        : res.code === 'network'
+          ? 'Une erreur réseau est survenue.'
+          : kind === 'release'
+            ? `Le versement n'a pas pu être libéré (${res.code}).`
+            : `Le litige n'a pas pu être ouvert (${res.code}).`;
+      setEscrowAlert({ title: 'Action impossible', message, variant: 'error' });
+    }
+  }, [escrowConfirm, releasePayment, openDispute, reloadEscrow]);
 
   function openAvis(item: AgendaItem) {
     setAvisNote(5);
@@ -531,6 +563,28 @@ export default function CavalierAgendaScreen() {
           </View>
         </View>
       </Modal>
+
+      {/* Confirmation escrow (libérer / signaler) — modale stylée app */}
+      <ConfirmModal
+        visible={!!escrowConfirm}
+        title={escrowConfirm?.kind === 'dispute' ? 'Signaler un problème' : 'Libérer le paiement'}
+        message={escrowConfirm?.kind === 'dispute'
+          ? "Un litige sera ouvert et le versement au vendeur bloqué, le temps qu'un administrateur vérifie la situation. Continuer ?"
+          : 'Confirmez-vous avoir bien reçu la prestation ? Les fonds seront versés au vendeur. Cette action est définitive.'}
+        confirmLabel={escrowConfirm?.kind === 'dispute' ? 'Ouvrir un litige' : 'Oui, libérer'}
+        destructive={escrowConfirm?.kind === 'dispute'}
+        onCancel={() => setEscrowConfirm(null)}
+        onConfirm={runEscrowAction}
+      />
+
+      {/* Résultat escrow — modale stylée app */}
+      <AlertModal
+        visible={!!escrowAlert}
+        title={escrowAlert?.title ?? ''}
+        message={escrowAlert?.message}
+        variant={escrowAlert?.variant ?? 'info'}
+        onClose={() => setEscrowAlert(null)}
+      />
     </SafeAreaView>
   );
 }
