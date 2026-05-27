@@ -252,6 +252,24 @@ export async function handler(req: Request): Promise<Response> {
           updated_at: new Date().toISOString(),
         })
         .eq("id", payment.stage_reservation_id);
+    } else if (payment.box_reservation_id) {
+      // Refund box → la réservation est annulée (évite « Réservé » + « Remboursé »).
+      await supabase
+        .from("box_reservations")
+        .update({
+          status: "cancelled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", payment.box_reservation_id);
+    } else if (payment.transport_reservation_id) {
+      // Refund transport → réservation annulée. Colonne FR `statut`.
+      await supabase
+        .from("transport_reservations")
+        .update({
+          statut: "cancelled",
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", payment.transport_reservation_id);
     }
 
     // ========================================================================

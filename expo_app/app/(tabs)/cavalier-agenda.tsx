@@ -18,6 +18,14 @@ function escrowBadge(p: { transferState: string; disputeStatus: string | null; r
   if (p.disputeStatus === 'open' || p.releaseBlockedReason === 'dispute' || p.releaseBlockedReason === 'chargeback') {
     return { label: '⚠️ Litige en cours', bg: '#FEF3C7', border: '#F59E0B', color: '#92400E' };
   }
+  // États « en attente » neutres (jamais « litige ») : vendeur non configuré, ou
+  // versement temporairement bloqué côté Stripe.
+  if (p.releaseBlockedReason === 'seller_not_onboarded') {
+    return { label: '⏳ En attente vendeur', bg: '#F3F4F6', border: '#9CA3AF', color: '#374151' };
+  }
+  if (p.releaseBlockedReason === 'transfer_blocked') {
+    return { label: '⏳ Versement en attente', bg: '#F3F4F6', border: '#9CA3AF', color: '#374151' };
+  }
   switch (p.transferState) {
     case 'held':
       return { label: '🔒 Fonds sécurisés', bg: '#EFF6FF', border: '#3B82F6', color: '#1E40AF' };
@@ -55,6 +63,8 @@ function statutStyle(statut: string) {
   if (statut === 'accepted') return { label: '● Confirmé', bg: '#ECFDF5', border: '#10B981' };
   if (statut === 'pending') return { label: '● En attente', bg: '#FFF7ED', border: '#F59E0B' };
   if (statut === 'rejected') return { label: '● Refusé', bg: '#FEE2E2', border: '#EF4444' };
+  if (statut === 'cancelled') return { label: '● Annulé', bg: Colors.surfaceVariant, border: '#9CA3AF' };
+  if (statut === 'completed') return { label: '● Terminé', bg: '#ECFDF5', border: '#10B981' };
   return { label: statut, bg: Colors.surfaceVariant, border: Colors.border };
 }
 
@@ -415,7 +425,10 @@ export default function CavalierAgendaScreen() {
                       const ep = escrowByResa[item.id];
                       const badge = escrowBadge(ep);
                       if (!badge) return null;
-                      const blocked = ep.disputeStatus === 'open' || !!ep.releaseBlockedReason;
+                      const isDispute = ep.disputeStatus === 'open' || ep.releaseBlockedReason === 'dispute' || ep.releaseBlockedReason === 'chargeback';
+                      const isSellerPending = ep.releaseBlockedReason === 'seller_not_onboarded';
+                      const isTransferBlocked = ep.releaseBlockedReason === 'transfer_blocked';
+                      const blocked = isDispute || !!ep.releaseBlockedReason;
                       const canAct = ep.transferState === 'held' && !blocked;
                       return (
                         <View style={s.escrowBox}>
@@ -430,9 +443,19 @@ export default function CavalierAgendaScreen() {
                               après la prestation, ou dès que vous confirmez l'avoir reçue.
                             </Text>
                           )}
-                          {blocked && (
+                          {isDispute && (
                             <Text style={s.escrowHint}>
                               Versement bloqué : un administrateur examine le litige.
+                            </Text>
+                          )}
+                          {isSellerPending && (
+                            <Text style={s.escrowHint}>
+                              Versement en attente de la configuration du compte vendeur.
+                            </Text>
+                          )}
+                          {isTransferBlocked && (
+                            <Text style={s.escrowHint}>
+                              Versement temporairement en attente, il sera réessayé automatiquement.
                             </Text>
                           )}
                           {canAct && (
