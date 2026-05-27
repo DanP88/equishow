@@ -161,6 +161,23 @@ export function refundFlagsFor(transferState: string | null | undefined): {
   return { reverse_transfer: true, refund_application_fee: true };
 }
 
+// Un paiement séquestre 'held' est-il échu pour libération auto (cron backstop) ?
+// VRAI si release_due_at est échu, OU — à défaut de date — si paid_at/created_at
+// + escrow_hard_cap_days est dépassé (filet ultime anti-blocage indéfini).
+// Pur : la décision d'échéance, pas les garde-fous (litige/onboarding) qui restent
+// dans canReleasePayment.
+export function isReleaseDue(
+  p: { release_due_at?: string | null; paid_at?: string | null; created_at?: string | null },
+  hardCapDays: number,
+  nowMs: number,
+): boolean {
+  const dueMs = p.release_due_at ? Date.parse(p.release_due_at) : NaN;
+  if (!Number.isNaN(dueMs)) return dueMs <= nowMs;
+  const baseMs = Date.parse(p.paid_at ?? p.created_at ?? "");
+  if (Number.isNaN(baseMs)) return false;
+  return baseMs + hardCapDays * 24 * 60 * 60 * 1000 <= nowMs;
+}
+
 // Faut-il annuler explicitement le Transfer autonome avant de rembourser ?
 // VRAI uniquement pour un séquestre déjà versé ('released') avec un transfert
 // existant. Le flag reverse_transfer d'un refund ne marche que pour les

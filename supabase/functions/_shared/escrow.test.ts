@@ -9,6 +9,7 @@ import {
   disputeResolution,
   holdHoursForType,
   isEscrowEnabled,
+  isReleaseDue,
   needsTransferReversal,
   refundFlagsFor,
   shouldBlockOnDispute,
@@ -93,6 +94,21 @@ ok(needsTransferReversal("released", null) === false, "released sans transfer id
 ok(needsTransferReversal("held", "tr_123") === false, "held → jamais de reversal (fonds non versés)");
 ok(needsTransferReversal("not_applicable", "tr_123") === false, "legacy not_applicable → jamais de reversal (destination charge)");
 ok(needsTransferReversal(null, null) === false, "null → pas de reversal");
+
+// isReleaseDue : échéance cron (release_due_at OU filet hard-cap).
+{
+  const now = Date.parse("2026-06-13T12:00:00Z");
+  const DAY = 24 * 60 * 60 * 1000;
+  ok(isReleaseDue({ release_due_at: "2026-06-13T00:00:00Z" }, 14, now) === true, "release_due_at échu → due");
+  ok(isReleaseDue({ release_due_at: "2026-06-14T00:00:00Z" }, 14, now) === false, "release_due_at futur → pas due");
+  // Pas de release_due_at : filet hard-cap sur paid_at.
+  ok(isReleaseDue({ release_due_at: null, paid_at: new Date(now - 15 * DAY).toISOString() }, 14, now) === true, "null + paid_at -15j (cap 14) → due");
+  ok(isReleaseDue({ release_due_at: null, paid_at: new Date(now - 10 * DAY).toISOString() }, 14, now) === false, "null + paid_at -10j (cap 14) → pas due");
+  // Fallback created_at si paid_at absent.
+  ok(isReleaseDue({ release_due_at: null, paid_at: null, created_at: new Date(now - 20 * DAY).toISOString() }, 14, now) === true, "null + created_at -20j → due (fallback)");
+  // Aucune date exploitable → jamais due (sécurité).
+  ok(isReleaseDue({ release_due_at: null, paid_at: null, created_at: null }, 14, now) === false, "aucune date → jamais due");
+}
 
 // ── litiges ──────────────────────────────────────────────────────────────────
 ok(shouldBlockOnDispute("held") === true, "held → bloque");
