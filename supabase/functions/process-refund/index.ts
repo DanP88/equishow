@@ -81,17 +81,16 @@ export async function handler(req: Request): Promise<Response> {
       );
     }
 
-    // Initialize Supabase
+    // Initialize Supabase — client SERVICE ROLE PUR (pas de header Authorization
+    // acheteur). Sinon PostgREST exécute toutes les requêtes sous l'identité de
+    // l'acheteur (RLS active) : le SELECT passe (policy select), mais l'UPDATE
+    // payments (aucune policy update pour l'acheteur) est SILENCIEUSEMENT refusé
+    // (0 ligne, sans erreur) → STEP5 n'écrivait rien (stripe_refund_id/transfer_state
+    // restaient figés). L'autorisation reste vérifiée par getUser(token) +
+    // user.id === payment.buyer_id (STEP2). Même pattern que release-payment/manage-dispute.
     const supabase = createClient(
       SUPABASE_URL,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-      {
-        global: {
-          headers: {
-            Authorization: authHeader,
-          },
-        },
-      }
     );
 
     // Get current user
