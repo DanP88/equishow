@@ -116,10 +116,8 @@ export async function handler(req: Request): Promise<Response> {
         country: "FR",
         email: seller.email,
         business_type: "individual",
-        metadata: {
-          seller_id: sellerId,
-          created_at: new Date().toISOString(),
-        },
+        "metadata[seller_id]": sellerId,
+        "metadata[created_at]": new Date().toISOString(),
       });
 
       if (!newAccount.id) {

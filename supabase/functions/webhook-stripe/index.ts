@@ -452,14 +452,28 @@ async function handleChargeRefunded(
   const payment = payments[0];
   const firstRefund = charge.refunds?.data?.[0];
 
+  // Séquestre : un paiement déjà versé ('released') puis remboursé doit refléter
+  // 'reversed' (le Transfer a été annulé via process-refund). Le webhook et
+  // process-refund écrivent tous deux cette ligne sur un refund ; on converge ici
+  // vers l'état escrow correct quel que soit l'ordre. Legacy 'not_applicable' →
+  // transfer_state laissé tel quel (COMPORTEMENT INCHANGÉ).
+  const refundPatch: Record<string, unknown> = {
+    payment_status: "refunded",
+    refunded_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  // Ne jamais écraser un refund id existant avec undefined (charge.refunds n'est
+  // pas toujours étendu dans le payload webhook).
+  const refundId = firstRefund?.id ?? payment.stripe_refund_id ?? null;
+  if (refundId) refundPatch.stripe_refund_id = refundId;
+  if (payment.transfer_state === "released" || payment.transfer_state === "reversed") {
+    refundPatch.transfer_state = "reversed";
+    refundPatch.transfer_reversed_at = payment.transfer_reversed_at ?? new Date().toISOString();
+  }
+
   await supabase
     .from("payments")
-    .update({
-      payment_status: "refunded",
-      stripe_refund_id: firstRefund?.id,
-      refunded_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(refundPatch)
     .eq("id", payment.id);
 
   // Update demand/reservation to cancelled

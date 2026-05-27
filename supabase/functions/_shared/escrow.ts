@@ -144,7 +144,11 @@ export function refundFlagsFor(transferState: string | null | undefined): {
   reverse_transfer: boolean;
   refund_application_fee: boolean;
 } {
-  if (transferState === "released") return { reverse_transfer: true, refund_application_fee: false };
+  // 'released' (séquestre versé) : le refund Stripe est SIMPLE. Le transfert
+  // autonome (Separate Charges & Transfers) n'est PAS annulable via le flag
+  // reverse_transfer du refund — il faut un Transfer Reversal explicite
+  // (cf. needsTransferReversal). NE PAS poser reverse_transfer ici.
+  if (transferState === "released") return { reverse_transfer: false, refund_application_fee: false };
   if (
     transferState === "held" ||
     transferState === "releasing" ||
@@ -155,6 +159,18 @@ export function refundFlagsFor(transferState: string | null | undefined): {
   }
   // 'not_applicable' / null / inconnu → legacy destination charge
   return { reverse_transfer: true, refund_application_fee: true };
+}
+
+// Faut-il annuler explicitement le Transfer autonome avant de rembourser ?
+// VRAI uniquement pour un séquestre déjà versé ('released') avec un transfert
+// existant. Le flag reverse_transfer d'un refund ne marche que pour les
+// destination charges (legacy) ; un transfert créé via /v1/transfers exige un
+// POST /v1/transfers/{id}/reversals.
+export function needsTransferReversal(
+  transferState: string | null | undefined,
+  stripeTransferId: string | null | undefined,
+): boolean {
+  return transferState === "released" && !!stripeTransferId;
 }
 
 // ── Sélection de la réservation liée (pur) ──────────────────────────────────

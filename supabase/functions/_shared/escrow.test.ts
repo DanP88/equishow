@@ -9,6 +9,7 @@ import {
   disputeResolution,
   holdHoursForType,
   isEscrowEnabled,
+  needsTransferReversal,
   refundFlagsFor,
   shouldBlockOnDispute,
   reservationIdOf,
@@ -84,7 +85,14 @@ ok(isEscrowEnabled({ escrow_enabled: true, escrow_enabled_modules: ["box"] }, "c
 ok(refundFlagsFor("not_applicable").reverse_transfer === true && refundFlagsFor("not_applicable").refund_application_fee === true, "legacy not_applicable → reverse+fee (inchangé)");
 ok(refundFlagsFor(null).reverse_transfer === true && refundFlagsFor(null).refund_application_fee === true, "null → legacy");
 ok(refundFlagsFor("held").reverse_transfer === false && refundFlagsFor("held").refund_application_fee === false, "held → refund simple");
-ok(refundFlagsFor("released").reverse_transfer === true && refundFlagsFor("released").refund_application_fee === false, "released → reverse_transfer seul");
+ok(refundFlagsFor("released").reverse_transfer === false && refundFlagsFor("released").refund_application_fee === false, "released → refund SIMPLE (reversal explicite, pas de flag reverse_transfer)");
+
+// needsTransferReversal : seul 'released' avec un transfer id exige un Transfer Reversal explicite.
+ok(needsTransferReversal("released", "tr_123") === true, "released + transfer → reversal requis");
+ok(needsTransferReversal("released", null) === false, "released sans transfer id → pas de reversal");
+ok(needsTransferReversal("held", "tr_123") === false, "held → jamais de reversal (fonds non versés)");
+ok(needsTransferReversal("not_applicable", "tr_123") === false, "legacy not_applicable → jamais de reversal (destination charge)");
+ok(needsTransferReversal(null, null) === false, "null → pas de reversal");
 
 // ── litiges ──────────────────────────────────────────────────────────────────
 ok(shouldBlockOnDispute("held") === true, "held → bloque");

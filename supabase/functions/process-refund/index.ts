@@ -1,5 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
-import { refundFlagsFor } from "../_shared/escrow.ts";
+import { needsTransferReversal, refundFlagsFor } from "../_shared/escrow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -22,15 +22,18 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 async function callStripeAPI(
   endpoint: string,
   method: string = "POST",
-  data?: Record<string, any>
+  data?: Record<string, any>,
+  idempotencyKey?: string
 ): Promise<any> {
   const url = `https://api.stripe.com/v1${endpoint}`;
+  const headers: Record<string, string> = {
+    "Authorization": `Bearer ${STRIPE_SECRET_KEY}`,
+    "Content-Type": "application/x-www-form-urlencoded",
+  };
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   const options: RequestInit = {
     method,
-    headers: {
-      "Authorization": `Bearer ${STRIPE_SECRET_KEY}`,
-      "Content-Type": "application/x-www-form-urlencoded",
-    },
+    headers,
   };
 
   if (data) {
@@ -171,6 +174,24 @@ export async function handler(req: Request): Promise<Response> {
     // ========================================================================
 
     const flags = refundFlagsFor(payment.transfer_state);
+
+    // Séquestre versé ('released') : annuler le Transfer AUTONOME avant le refund.
+    // Un transfert créé via /v1/transfers (Separate Charges & Transfers) n'est pas
+    // annulable par le flag reverse_transfer du refund — il faut un Transfer
+    // Reversal explicite. Idempotent (Idempotency-Key) → rejouable sans double
+    // reversal. N'affecte JAMAIS le legacy 'not_applicable' (destination charge).
+    if (needsTransferReversal(payment.transfer_state, payment.stripe_transfer_id)) {
+      await callStripeAPI(
+        `/transfers/${payment.stripe_transfer_id}/reversals`,
+        "POST",
+        {
+          "metadata[payment_id]": body.paymentId,
+          "metadata[reason]": reason,
+        },
+        `reversal:${body.paymentId}`
+      );
+    }
+
     const refundParams: Record<string, string> = {
       charge: payment.stripe_charge_id,
       reason,
