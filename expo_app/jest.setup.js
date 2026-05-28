@@ -22,7 +22,7 @@ jest.mock('@react-native-async-storage/async-storage', () => ({
 }));
 
 // Mock Supabase
-jest.mock('../lib/supabase', () => ({
+jest.mock('./lib/supabase', () => ({
   supabase: {
     from: jest.fn(() => ({
       select: jest.fn().mockReturnThis(),
