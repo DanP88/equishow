@@ -5,6 +5,15 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.101.1";
 // throwait → 401 systématique → aucun webhook jamais validé. Bug corrigé ici.
 import { sendTransactional, getUserContact } from "../_shared/email.ts";
 import type { EmailEventType, EmailModule } from "../_shared/email-templates.ts";
+import {
+  computeReleaseDueAt,
+  disputeResolution,
+  holdHoursForType,
+  isEscrowEnabled,
+  loadEscrowSettings,
+  shouldBlockOnDispute,
+  type EscrowModule,
+} from "../_shared/escrow.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -197,6 +206,41 @@ async function handleBoostChargeSucceeded(
   console.log("Boost applied for purchase:", purchaseId);
 }
 
+// Date de fin de prestation (pour calculer release_due_at en mode séquestre).
+// Lecture défensive ; null si introuvable → fallback sur la date de paiement.
+async function getPrestationEndAt(supabase: any, payment: any): Promise<string | null> {
+  try {
+    if (payment.type === "stage" && payment.stage_reservation_id) {
+      const { data: sr } = await supabase
+        .from("stage_reservations")
+        .select("stage_id, date_reservation")
+        .eq("id", payment.stage_reservation_id)
+        .maybeSingle();
+      if (sr?.stage_id) {
+        const { data: st } = await supabase
+          .from("stages")
+          .select("date_fin, date_debut")
+          .eq("id", sr.stage_id)
+          .maybeSingle();
+        return st?.date_fin ?? st?.date_debut ?? sr?.date_reservation ?? null;
+      }
+      return sr?.date_reservation ?? null;
+    }
+    const TBL: Record<string, { table: string; fk: string }> = {
+      course: { table: "course_demands", fk: "course_demand_id" },
+      box: { table: "box_reservations", fk: "box_reservation_id" },
+      transport: { table: "transport_reservations", fk: "transport_reservation_id" },
+    };
+    const cfg = TBL[payment.type];
+    if (!cfg || !payment[cfg.fk]) return null;
+    const { data } = await supabase.from(cfg.table).select("*").eq("id", payment[cfg.fk]).maybeSingle();
+    if (!data) return null;
+    return data.date_fin ?? data.date_trajet ?? data.date_debut ?? data.date_reservation ?? null;
+  } catch (_) {
+    return null;
+  }
+}
+
 async function handleChargeSucceeded(
   supabase: any,
   event: any
@@ -231,6 +275,10 @@ async function handleChargeSucceeded(
 
   const payment = payments[0];
 
+  // V2 séquestre : activé pour ce module ? (flag OFF → escrowOn=false → legacy)
+  const escrowSettings = await loadEscrowSettings(supabase);
+  const escrowOn = isEscrowEnabled(escrowSettings, payment.type as EscrowModule);
+
   // Update payment status + propagate transfer_id if Stripe auto-transferred
   // (Connect destination charge with transfer_data → charge.transfer is set).
   const updateFields: Record<string, unknown> = {
@@ -241,6 +289,17 @@ async function handleChargeSucceeded(
   };
   if (charge.transfer) {
     updateFields.stripe_transfer_id = charge.transfer;
+  }
+
+  // En séquestre : on retient les fonds (held) et on calcule la date de
+  // libération auto = fin de prestation + délai du module. AUCUN transfert ici.
+  if (escrowOn) {
+    const prestationEnd = await getPrestationEndAt(supabase, payment);
+    const baseMs = prestationEnd ? Date.parse(prestationEnd) : Date.now();
+    const holdH = holdHoursForType(payment.type as EscrowModule, escrowSettings);
+    updateFields.transfer_state = "held";
+    updateFields.prestation_end_at = prestationEnd;
+    updateFields.release_due_at = computeReleaseDueAt(Number.isFinite(baseMs) ? baseMs : Date.now(), holdH);
   }
   await supabase
     .from("payments")
@@ -272,7 +331,9 @@ async function handleChargeSucceeded(
 
   // If Stripe didn't auto-transfer (legacy non-Connect or transfer_data absent),
   // fall back to manual transfer creation.
-  if (!charge.transfer) {
+  // V2 séquestre : on NE transfère JAMAIS ici (libération différée). escrowOn
+  // OFF → condition legacy EXACTE inchangée.
+  if (!charge.transfer && !escrowOn) {
     const { data: seller } = await supabase
       .from("users")
       .select("stripe_account_id")
@@ -391,14 +452,28 @@ async function handleChargeRefunded(
   const payment = payments[0];
   const firstRefund = charge.refunds?.data?.[0];
 
+  // Séquestre : un paiement déjà versé ('released') puis remboursé doit refléter
+  // 'reversed' (le Transfer a été annulé via process-refund). Le webhook et
+  // process-refund écrivent tous deux cette ligne sur un refund ; on converge ici
+  // vers l'état escrow correct quel que soit l'ordre. Legacy 'not_applicable' →
+  // transfer_state laissé tel quel (COMPORTEMENT INCHANGÉ).
+  const refundPatch: Record<string, unknown> = {
+    payment_status: "refunded",
+    refunded_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+  // Ne jamais écraser un refund id existant avec undefined (charge.refunds n'est
+  // pas toujours étendu dans le payload webhook).
+  const refundId = firstRefund?.id ?? payment.stripe_refund_id ?? null;
+  if (refundId) refundPatch.stripe_refund_id = refundId;
+  if (payment.transfer_state === "released" || payment.transfer_state === "reversed") {
+    refundPatch.transfer_state = "reversed";
+    refundPatch.transfer_reversed_at = payment.transfer_reversed_at ?? new Date().toISOString();
+  }
+
   await supabase
     .from("payments")
-    .update({
-      payment_status: "refunded",
-      stripe_refund_id: firstRefund?.id,
-      refunded_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-    })
+    .update(refundPatch)
     .eq("id", payment.id);
 
   // Update demand/reservation to cancelled
@@ -424,6 +499,66 @@ async function handleChargeRefunded(
 
   // Email « remboursement » — best-effort.
   await emailPaymentBothParties(supabase, payment, "payment_refunded", event.id);
+}
+
+// ============================================================================
+// LITIGES / CHARGEBACKS (PHASE 6) — best-effort, n'affecte pas le legacy
+// ============================================================================
+
+async function findPaymentByCharge(supabase: any, chargeId: string): Promise<any | null> {
+  const { data } = await supabase.from("payments").select("*").eq("stripe_charge_id", chargeId).limit(1);
+  return data?.[0] ?? null;
+}
+
+// charge.dispute.created : trace le litige + bloque la libération si fonds
+// encore retenus (escrow held/releasing). Legacy (not_applicable) : audit only,
+// payment row NON modifiée (Stripe gère le chargeback nativement).
+async function handleChargeDisputeCreated(supabase: any, event: any) {
+  const dispute = event.data.object;
+  const payment = await findPaymentByCharge(supabase, dispute.charge);
+  if (!payment) {
+    console.log("dispute.created : payment introuvable pour charge", dispute.charge);
+    return;
+  }
+  await supabase.from("payment_disputes").insert({
+    payment_id: payment.id,
+    source: "stripe",
+    status: "open",
+    reason: dispute.reason ?? null,
+    stripe_dispute_id: dispute.id,
+  });
+  if (shouldBlockOnDispute(payment.transfer_state)) {
+    await supabase
+      .from("payments")
+      .update({ dispute_status: "open", release_blocked_reason: "chargeback" })
+      .eq("id", payment.id);
+    console.log("dispute.created : libération bloquée (chargeback) pour payment", payment.id);
+  }
+}
+
+// charge.dispute.closed : débloque si gagné (et toujours bloqué par chargeback),
+// sinon marque résolu. Ne débloque jamais un litige interne admin.
+async function handleChargeDisputeClosed(supabase: any, event: any) {
+  const dispute = event.data.object;
+  const payment = await findPaymentByCharge(supabase, dispute.charge);
+  if (!payment) return;
+  const action = disputeResolution(dispute.status);
+  if (action === "unblock") {
+    await supabase
+      .from("payments")
+      .update({ dispute_status: null, release_blocked_reason: null })
+      .eq("id", payment.id)
+      .eq("release_blocked_reason", "chargeback");
+    await supabase
+      .from("payment_disputes")
+      .update({ status: "resolved_release", resolved_at: new Date().toISOString() })
+      .eq("stripe_dispute_id", dispute.id);
+  } else if (action === "keep_blocked") {
+    await supabase
+      .from("payment_disputes")
+      .update({ status: "resolved_refund", resolved_at: new Date().toISOString() })
+      .eq("stripe_dispute_id", dispute.id);
+  }
 }
 
 // ============================================================================
@@ -511,6 +646,16 @@ export async function handler(req: Request): Promise<Response> {
         case "charge.refunded":
           console.log("Processing charge.refunded");
           await handleChargeRefunded(supabase, event);
+          break;
+
+        case "charge.dispute.created":
+          console.log("Processing charge.dispute.created");
+          await handleChargeDisputeCreated(supabase, event);
+          break;
+
+        case "charge.dispute.closed":
+          console.log("Processing charge.dispute.closed");
+          await handleChargeDisputeClosed(supabase, event);
           break;
 
         default:

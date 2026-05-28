@@ -38,3 +38,9 @@ enable_confirmations   = true
 [auth.sms]
 enable_signup        = false
 enable_confirmations = false
+
+# Webhook Stripe : appelé par Stripe SANS JWT Supabase → l'auth se fait par
+# vérification de signature HMAC (verifyStripeSignature). NE PAS remettre
+# verify_jwt=true sinon le gateway renvoie 401 avant le code (livraison cassée).
+[functions.webhook-stripe]
+verify_jwt = false
