@@ -231,7 +231,15 @@ jobs:
     runs-on: ubuntu-latest
     name: Deploy to Production
     needs: [build]
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # DISABLED: real prod deploy pipeline not wired yet. Steps 4-5 ne sont que
+    # des stubs (echo + commandes commentées), Step 3 utilise actions/create-release@v1
+    # (repo archivé, à remplacer e.g. softprops/action-gh-release@v2), Step 6 notif
+    # Slack mensongère (« successful » sans rien déployer). Vercel prod = intégration
+    # GitHub séparée, non impactée par ce job.
+    # RÉACTIVER quand : commandes deploy réelles posées + create-release remplacée +
+    # SLACK_WEBHOOK_URL configuré si Slack conservé. Remplacer `if: false` par :
+    #   if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    if: false
 
     steps:
       - name: Checkout code
