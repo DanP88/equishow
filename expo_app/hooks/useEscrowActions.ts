@@ -29,11 +29,15 @@ async function callFn(path: string, body: unknown): Promise<EscrowActionResult> 
 }
 
 /**
- * Actions séquestre (escrow) côté acheteur — appels réseau uniquement.
+ * Actions séquestre (escrow) — appels réseau uniquement.
  * - releasePayment : libère les fonds au vendeur (release-payment). Release
  *   ANTICIPÉ optionnel : sinon le cron libère automatiquement à release_due_at.
  * - openDispute : ouvre un litige interne (manage-dispute) → bloque le versement
  *   le temps qu'un admin vérifie.
+ * - resolveDispute : ADMIN uniquement. Marque le litige résolu (release ou refund).
+ *   Côté release : débloque dispute_status → release-payment ensuite libère.
+ *   Côté refund : marque resolved_refund ; le remboursement Stripe reste à faire
+ *   par l'acheteur (process-refund buyer-only) ou via Dashboard Stripe.
  * Renvoie { ok, code } ; l'appelant affiche la confirmation/résultat.
  */
 export function useEscrowActions() {
@@ -61,5 +65,21 @@ export function useEscrowActions() {
     }
   }, []);
 
-  return { releasePayment, openDispute, loading };
+  const resolveDispute = useCallback(async (
+    paymentId: string,
+    outcome: 'release' | 'refund',
+  ): Promise<EscrowActionResult> => {
+    try {
+      setLoading(true);
+      return await callFn('manage-dispute', {
+        payment_id: paymentId,
+        action: 'resolve',
+        outcome,
+      });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  return { releasePayment, openDispute, resolveDispute, loading };
 }

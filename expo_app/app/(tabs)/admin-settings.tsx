@@ -154,6 +154,20 @@ function AdminSettingsContent() {
         <Text style={styles.analyticsBtnArrow}>›</Text>
       </TouchableOpacity>
 
+      {/* Disputes shortcut */}
+      <TouchableOpacity
+        style={styles.analyticsBtn}
+        onPress={() => router.push('/admin-disputes')}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.analyticsBtnIcon}>⚖️</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.analyticsBtnTitle}>Litiges</Text>
+          <Text style={styles.analyticsBtnSub}>Litiges ouverts · libérer fonds · rembourser acheteur</Text>
+        </View>
+        <Text style={styles.analyticsBtnArrow}>›</Text>
+      </TouchableOpacity>
+
       {/* Admin Info */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Informations Admin</Text>
