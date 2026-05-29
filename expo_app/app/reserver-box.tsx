@@ -35,6 +35,7 @@ export default function ReserverBoxScreen() {
   const [loading, setLoading] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
 
   useEffect(() => {
     if (box && !dateReservationDebut) {
@@ -112,8 +113,6 @@ export default function ReserverBoxScreen() {
         return;
       }
 
-      const reference = `EQ-BOX-${created.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
-
       await createNotification({
         destinataireId: sellerId,
         type: 'reservation_request',
@@ -124,19 +123,10 @@ export default function ReserverBoxScreen() {
         donnees: { boxId: box.id, titre, prix: totalAPayer, message: message.trim() },
       });
 
-      router.push({
-        pathname: '/paiement-box',
-        params: {
-          reservationId: created.id,
-          titre,
-          montant: totalAPayer.toFixed(2),
-          nbNuits: String(nuitesReservees),
-          lieu: box.lieu,
-          dateDebut: dateReservationDebut.toLocaleDateString('fr-FR'),
-          dateFin: dateReservationFin.toLocaleDateString('fr-FR'),
-          reference,
-        },
-      } as any);
+      const ownerLabel = box.auteurNom?.trim() || box.auteurPseudo?.trim() || 'le propriétaire du box';
+      setSuccessMessage(
+        `Demande envoyée à ${ownerLabel}. Vous serez notifié(e) dès la validation, puis vous pourrez procéder au paiement de ${totalAPayer.toFixed(2)}€.`,
+      );
     } catch {
       setErrorAlert('Erreur lors de la création de la réservation.');
     } finally {
@@ -247,7 +237,7 @@ export default function ReserverBoxScreen() {
         >
           {loading
             ? <ActivityIndicator color={Colors.textInverse} />
-            : <Text style={s.submitText}>Valider la demande et payer</Text>
+            : <Text style={s.submitText}>Envoyer la demande</Text>
           }
         </TouchableOpacity>
 
@@ -275,7 +265,7 @@ export default function ReserverBoxScreen() {
           </View>
         }
         cancelLabel="Annuler"
-        confirmLabel="Confirmer et payer"
+        confirmLabel="Envoyer la demande"
         onCancel={() => setShowConfirm(false)}
         onConfirm={doSubmit}
       />
@@ -286,6 +276,17 @@ export default function ReserverBoxScreen() {
         message={errorAlert ?? ''}
         variant="error"
         onClose={() => setErrorAlert(null)}
+      />
+
+      <AlertModal
+        visible={!!successMessage}
+        title="✅ Demande envoyée"
+        message={successMessage ?? ''}
+        variant="success"
+        onClose={() => {
+          setSuccessMessage(null);
+          router.replace('/cavalier-agenda');
+        }}
       />
 
       <DatePickerModal

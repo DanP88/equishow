@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAutoRefresh } from './useAutoRefresh';
+import { toLocalDateString } from '../utils/dateFormat';
 import { useAuth } from './useAuth';
 import { BoxAnnonce, BoxReservation } from '../types/service';
 
@@ -49,8 +50,8 @@ function rowToAnnonce(r: BoxAnnonceRow): BoxAnnonce {
 function annonceToRowPatch(a: Partial<BoxAnnonce>): Partial<BoxAnnonceRow> {
   const p: Partial<BoxAnnonceRow> = {};
   if (a.lieu !== undefined)               p.lieu = a.lieu;
-  if (a.dateDebut !== undefined)          p.date_debut = a.dateDebut.toISOString().slice(0, 10);
-  if (a.dateFin !== undefined)            p.date_fin = a.dateFin.toISOString().slice(0, 10);
+  if (a.dateDebut !== undefined)          p.date_debut = toLocalDateString(a.dateDebut);
+  if (a.dateFin !== undefined)            p.date_fin = toLocalDateString(a.dateFin);
   if (a.nbBoxes !== undefined)            p.nb_boxes = a.nbBoxes;
   if (a.nbBoxesDisponibles !== undefined) p.nb_boxes_disponibles = a.nbBoxesDisponibles;
   if (a.prixNuitHT !== undefined)         p.prix_nuit_ht = a.prixNuitHT;
@@ -218,8 +219,8 @@ export function useMyBoxAnnonces() {
           auteur_id: profile.id,
           lieu: input.lieu ?? '',
           prix_nuit_ht: input.prixNuitHT ?? 0,
-          date_debut: input.dateDebut?.toISOString().slice(0, 10) ?? new Date().toISOString().slice(0, 10),
-          date_fin: input.dateFin?.toISOString().slice(0, 10) ?? new Date().toISOString().slice(0, 10),
+          date_debut: input.dateDebut ? toLocalDateString(input.dateDebut) : toLocalDateString(new Date()),
+          date_fin: input.dateFin ? toLocalDateString(input.dateFin) : toLocalDateString(new Date()),
           ...patch,
         })
         .select('*')
@@ -382,8 +383,8 @@ export function useMyBoxReservations() {
           title: input.titre,
           lieu: input.lieu,
           nb_nuits: input.nbNuits,
-          date_debut: input.dateDebut.toISOString().slice(0, 10),
-          date_fin: input.dateFin.toISOString().slice(0, 10),
+          date_debut: toLocalDateString(input.dateDebut),
+          date_fin: toLocalDateString(input.dateFin),
           message: input.message,
           price_total_ht: input.prixTotalHT,
           platform_commission: input.commissionPlateform,

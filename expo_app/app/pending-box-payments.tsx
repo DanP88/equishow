@@ -45,10 +45,12 @@ export default function PendingBoxPaymentsScreen() {
         `${SUPABASE_URL}/functions/v1/create-checkout-session`,
         {
           method: 'POST',
+          // Pas de header `apikey` : l'Edge Function n'autorise que
+          // Content-Type + Authorization en CORS (preflight bloqué sinon).
+          // Cf. useCoursePayment.ts pour le même pattern.
           headers: {
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${userToken}`,
-            'apikey': SUPABASE_ANON_KEY,
           },
           body: JSON.stringify({
             type: 'box',

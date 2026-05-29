@@ -156,8 +156,16 @@ function RootLayout() {
   // conditionnel des <Stack.Screen> ci-dessous ne suffit pas : un deep-link direct
   // (/chevaux, /messagerie, /pending-payments…) monte la route quand même. On
   // redirige donc explicitement tout ce qui n'est pas le groupe (auth) vers /login.
+  //
+  // Exemptions : /checkout-success et /cancelled sont les retours Stripe ; au
+  // moment où le navigateur arrive sur ces URLs depuis stripe.com, la session
+  // peut être encore en cours d'hydratation depuis localStorage → le guard tirait
+  // un redirect vers /login avant que isSignedIn ne devienne true (cf. bug audit
+  // post-paiement renvoyé sur login). Ces écrans gèrent eux-mêmes l'absence de
+  // session via getAuthToken.
   const inAuthGroup = segments[0] === '(auth)';
-  if (!isSignedIn && !inAuthGroup) {
+  const isStripeReturn = segments[0] === 'checkout-success' || segments[0] === 'cancelled';
+  if (!isSignedIn && !inAuthGroup && !isStripeReturn) {
     return <Redirect href="/login" />;
   }
 

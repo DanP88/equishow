@@ -6,9 +6,12 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 import { userStore } from '../../data/store';
 import { useTransportAnnonces, useMyTransportReservations } from '../../hooks/useTransports';
 import { useMyBoxReservations } from '../../hooks/useBoxes';
+import { createNotification } from '../../hooks/useNotifications';
+import { sendReservationEmail } from '../../utils/sendReservationEmail';
 import { useMyStageReservations, useStages } from '../../hooks/useStages';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { getUserById } from '../../data/mockUsers';
+import { useUsersByIds } from '../../hooks/useUsersByIds';
 import { useAvis, useMyAvisRefs, AvisType } from '../../hooks/useAvis';
 import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
 import { useEscrowActions } from '../../hooks/useEscrowActions';
@@ -111,7 +114,7 @@ export default function CavalierAgendaScreen() {
   const [items, setItems] = useState<AgendaItem[]>([]);
   const { transports } = useTransportAnnonces();
   const { reservations: transportReservations } = useMyTransportReservations();
-  const { reservations: boxReservations } = useMyBoxReservations();
+  const { reservations: boxReservations, updateStatut: updateBoxStatut } = useMyBoxReservations();
   const { reservations: stageReservations } = useMyStageReservations();
   const { stages: allStages } = useStages();
   const { demands: courseDemands } = useMyCourseDemands();
@@ -172,6 +175,39 @@ export default function CavalierAgendaScreen() {
     setAvisModal({ destId: item.autrePartieId, destNom: item.autrePartieNom, type: item.type, refId: item.id });
   }
 
+  // Accept/Reject inline depuis l'agenda pour les box_seller pending. id agenda
+  // pour box_seller = `${r.id}_s`, on strip le suffixe pour retrouver la résa.
+  const acceptBoxFromAgenda = useCallback(async (item: AgendaItem) => {
+    const resaId = item.id.endsWith('_s') ? item.id.slice(0, -2) : item.id;
+    const { error } = await updateBoxStatut(resaId, 'accepted');
+    if (error) { Alert.alert('Erreur', error); return; }
+    await createNotification({
+      destinataireId: item.autrePartieId,
+      type: 'reservation_request',
+      titre: '✅ Votre réservation de box a été acceptée!',
+      message: `Votre réservation pour "${item.titre}" a été acceptée. Vous pouvez maintenant procéder au paiement.`,
+      status: 'accepted',
+      actionUrl: '/pending-box-payments',
+      donnees: { titre: item.titre, prix: item.montant },
+    });
+    await sendReservationEmail('box', resaId);
+    Alert.alert('✅ Réservation acceptée', 'Le cavalier a été notifié et peut maintenant payer.');
+  }, [updateBoxStatut]);
+
+  const rejectBoxFromAgenda = useCallback(async (item: AgendaItem) => {
+    const resaId = item.id.endsWith('_s') ? item.id.slice(0, -2) : item.id;
+    const { error } = await updateBoxStatut(resaId, 'rejected');
+    if (error) { Alert.alert('Erreur', error); return; }
+    await createNotification({
+      destinataireId: item.autrePartieId,
+      type: 'reservation_request',
+      titre: '❌ Votre réservation de box a été refusée',
+      message: `Votre réservation pour "${item.titre}" a été refusée.`,
+      status: 'rejected',
+    });
+    Alert.alert('Réservation refusée', 'Le cavalier a été notifié du refus.');
+  }, [updateBoxStatut]);
+
   async function submitAvis() {
     if (!avisModal || avisSubmitting) return;
     setAvisSubmitting(true);
@@ -199,6 +235,30 @@ export default function CavalierAgendaScreen() {
     reloadEscrow();
   }, [reloadEscrow]));
 
+  // Résout en lot tous les UUID (buyers/sellers/coaches) vers users_public,
+  // pour remplacer l'UUID brut par le nom dans l'agenda (bug #1).
+  const allIds = [
+    ...transportReservations.flatMap((r) => [r.sellerId, r.buyerId]),
+    ...boxReservations.flatMap((r) => [r.sellerId, r.buyerId]),
+    ...stageReservations.map((r) => r.coachId),
+    ...courseDemands.map((r) => r.coachId),
+  ];
+  const usersById = useUsersByIds(allIds);
+  const resolveUser = useCallback((id: string) => {
+    const u = usersById.get(id);
+    if (u) {
+      return {
+        id: u.id,
+        prenom: u.prenom,
+        nom: u.nom,
+        pseudo: u.pseudo,
+        initiales: u.initiales,
+        avatarColor: u.avatar_color,
+      };
+    }
+    return getUserById(id);
+  }, [usersById]);
+
   useEffect(() => {
     const uid = userStore.id;
     const all: AgendaItem[] = [];
@@ -208,7 +268,7 @@ export default function CavalierAgendaScreen() {
       .filter(r => r.buyerId === uid)
       .forEach(r => {
         const annonce = transports.find(t => t.id === r.transportId);
-        const seller = getUserById(r.sellerId) ?? {
+        const seller = resolveUser(r.sellerId) ?? {
           id: r.sellerId, prenom: annonce?.auteurNom?.split(' ')[0] ?? '?', nom: annonce?.auteurNom?.split(' ')[1] ?? '',
           pseudo: annonce?.auteurPseudo ?? '?', initiales: annonce?.auteurInitiales ?? '?',
           avatarColor: annonce?.auteurCouleur ?? Colors.primary,
@@ -236,7 +296,7 @@ export default function CavalierAgendaScreen() {
       .filter(r => r.sellerId === uid)
       .forEach(r => {
         const annonce = transports.find(t => t.id === r.transportId);
-        const buyer = getUserById(r.buyerId) ?? {
+        const buyer = resolveUser(r.buyerId) ?? {
           id: r.buyerId, prenom: '?', nom: '', pseudo: '?', initiales: '?',
           avatarColor: Colors.primary, role: 'cavalier', disciplines: [], region: '',
         };
@@ -261,7 +321,7 @@ export default function CavalierAgendaScreen() {
     boxReservations
       .filter(r => r.buyerId === uid)
       .forEach(r => {
-        const seller = getUserById(r.sellerId);
+        const seller = resolveUser(r.sellerId);
         all.push({
           id: r.id,
           type: 'box_buyer',
@@ -283,7 +343,7 @@ export default function CavalierAgendaScreen() {
     boxReservations
       .filter(r => r.sellerId === uid)
       .forEach(r => {
-        const buyer = getUserById(r.buyerId);
+        const buyer = resolveUser(r.buyerId);
         all.push({
           id: r.id + '_s',
           type: 'box_seller',
@@ -306,7 +366,7 @@ export default function CavalierAgendaScreen() {
       .filter(r => r.cavalierUserId === uid)
       .forEach(r => {
         const stage = allStages.find(s => s.id === r.stageId);
-        const coach = getUserById(r.coachId);
+        const coach = resolveUser(r.coachId);
         all.push({
           id: r.id,
           type: 'stage',
@@ -328,7 +388,7 @@ export default function CavalierAgendaScreen() {
     courseDemands
       .filter(r => r.cavalierUserId === uid)
       .forEach(r => {
-        const coach = getUserById(r.coachId);
+        const coach = resolveUser(r.coachId);
         all.push({
           id: r.id,
           type: 'cours',
@@ -348,7 +408,7 @@ export default function CavalierAgendaScreen() {
 
     all.sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
     setItems(all);
-  }, [tick, transports, transportReservations, boxReservations, stageReservations, allStages, courseDemands]);
+  }, [tick, transports, transportReservations, boxReservations, stageReservations, allStages, courseDemands, resolveUser]);
 
   // Grouper par date
   const byDate = new Map<string, AgendaItem[]>();
@@ -435,6 +495,26 @@ export default function CavalierAgendaScreen() {
                       </View>
                       <Text style={s.chevronMsg}>💬</Text>
                     </TouchableOpacity>
+
+                    {/* Accept/Reject inline pour box_seller pending */}
+                    {item.type === 'box_seller' && item.statut === 'pending' && (
+                      <View style={s.actionRow}>
+                        <TouchableOpacity
+                          style={[s.actionBtn, s.rejectBtn]}
+                          onPress={() => rejectBoxFromAgenda(item)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={s.rejectBtnText}>❌ Refuser</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                          style={[s.actionBtn, s.acceptBtn]}
+                          onPress={() => acceptBoxFromAgenda(item)}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={s.acceptBtnText}>✅ Accepter</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
 
                     {/* Montant + Avis */}
                     <View style={s.cardBottom}>
@@ -639,6 +719,12 @@ const s = StyleSheet.create({
   autrePartiePseudo: { fontSize: FontSize.xs, color: Colors.primary },
   chevronMsg: { fontSize: 20 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
+  actionRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
+  actionBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, alignItems: 'center', borderWidth: 1 },
+  rejectBtn: { backgroundColor: Colors.background, borderColor: '#EF4444' },
+  rejectBtnText: { color: '#EF4444', fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  acceptBtn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  acceptBtnText: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   montant: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primary },
   avisBtn: { backgroundColor: '#FEF3C7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 5, borderWidth: 1, borderColor: '#FCD34D' },
   avisBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#92400E' },

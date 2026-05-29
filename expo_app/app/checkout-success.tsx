@@ -12,6 +12,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
 import { getAuthToken } from '../utils/supabaseAuth';
+import supabase from '../lib/supabase';
 import { useScreenTracking } from '../hooks/useScreenTracking';
 import { trackFunnel } from '../lib/analytics';
 
@@ -72,6 +73,16 @@ export default function CheckoutSuccessScreen() {
         setStatus('error');
         setError('Configuration Supabase manquante');
         return;
+      }
+
+      // Le aller-retour Stripe peut prendre plusieurs minutes ; si l'access_token
+      // a expiré entre temps, getAuthToken() renvoie le token périmé en cache
+      // (Supabase JS ne refresh pas sur getSession). Forcer un refresh ici avant
+      // d'appeler verify-checkout-session qui rejetait sinon en 401 Unauthorized.
+      try {
+        await supabase.auth.refreshSession();
+      } catch (refreshErr) {
+        console.warn('[checkout-success] refreshSession failed', refreshErr);
       }
 
       const authToken = await getAuthToken();

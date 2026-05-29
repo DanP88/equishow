@@ -3,6 +3,7 @@ import { supabase } from '../lib/supabase';
 import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { TransportAnnonce, TransportReservation } from '../types/service';
+import { toLocalDateString } from '../utils/dateFormat';
 
 // ── DB row shapes (snake_case) ─────────────────────────────────────────────
 interface TransportAnnonceRow {
@@ -101,7 +102,7 @@ function annonceToRowPatch(a: Partial<TransportAnnonce>): Partial<TransportAnnon
   if (a.cautionRéparation !== undefined)       p.caution_reparation = a.cautionRéparation ?? null;
   if (a.cautionNettoyage !== undefined)        p.caution_nettoyage = a.cautionNettoyage ?? null;
   if (a.datesDisponibles !== undefined) {
-    p.dates_disponibles = a.datesDisponibles ? a.datesDisponibles.map((d) => d.toISOString().slice(0, 10)) : [];
+    p.dates_disponibles = a.datesDisponibles ? a.datesDisponibles.map((d) => toLocalDateString(d)) : [];
   }
   return p;
 }

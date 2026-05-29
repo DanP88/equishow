@@ -8,6 +8,7 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useMyBoxReservations } from '../hooks/useBoxes';
+import { useUsersByIds } from '../hooks/useUsersByIds';
 import { createNotification } from '../hooks/useNotifications';
 import { sendReservationEmail } from '../utils/sendReservationEmail';
 import { BoxReservation } from '../types/service';
@@ -21,6 +22,7 @@ export default function BoxPendingDemandsScreen() {
   const demands = reservations.filter(
     (r) => r.sellerId === profile?.id && r.statut === 'pending',
   );
+  const buyersById = useUsersByIds(demands.map((d) => d.buyerId));
 
   const handleAccept = async (demand: BoxReservation) => {
     const { error } = await updateStatut(demand.id, 'accepted');
@@ -115,7 +117,12 @@ export default function BoxPendingDemandsScreen() {
 
               <View style={s.detailsRow}>
                 <Text style={s.label}>👤 Cavalier:</Text>
-                <Text style={s.value}>{demand.buyerId}</Text>
+                <Text style={s.value}>
+                  {(() => {
+                    const b = buyersById.get(demand.buyerId);
+                    return b ? `${b.prenom} ${b.nom}`.trim() || b.pseudo || demand.buyerId : '…';
+                  })()}
+                </Text>
               </View>
 
               {demand.message && (
