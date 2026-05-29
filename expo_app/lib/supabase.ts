@@ -155,30 +155,47 @@ export const signUp = async (
   userData: Partial<User>
 ): Promise<{ user: User | null; error: AppError | null }> => {
   try {
-    // Sign up with auth
+    // Sign up with auth + pass user metadata (prenom/nom/role) so the
+    // server-side trigger handle_new_user_v2 (mig 045) can provision a minimal
+    // public.users row even if the client-side upsert below fails. Net effect :
+    // plus jamais d'orphelin auth.users sans row public.users.
+    const safeRole = (userData.role && ['cavalier','coach','organisateur'].includes(userData.role))
+      ? userData.role
+      : 'cavalier';
     const { data: { user }, error: authError } = await supabase.auth.signUp({
       email,
       password,
+      options: {
+        data: {
+          prenom: userData.prenom || '',
+          nom: userData.nom || '',
+          role: safeRole,
+        },
+      },
     });
 
     if (authError) throw authError;
     if (!user) throw new Error('No user returned from signup');
 
-    // Create user profile in database
+    // Upsert (pas INSERT) : le trigger a probablement déjà créé la row minimale ;
+    // on enrichit avec pseudo/avatar_color/plan que le trigger ne set pas. ON
+    // CONFLICT (id) DO UPDATE garantit l'idempotence côté front et le merge avec
+    // ce que le trigger a posé.
     const { error: dbError } = await supabase
       .from('users')
-      .insert([
+      .upsert(
         {
           id: user.id,
           email,
           prenom: userData.prenom || '',
           nom: userData.nom || '',
           pseudo: userData.pseudo || '',
-          role: userData.role || 'cavalier',
+          role: safeRole,
           plan: 'Gratuit',
           avatar_color: userData.avatar_color,
         },
-      ]);
+        { onConflict: 'id' },
+      );
 
     if (dbError) throw dbError;
 
