@@ -704,9 +704,9 @@ const s = StyleSheet.create({
   titre: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   sousTitre: { fontSize: FontSize.sm, color: Colors.textSecondary },
   datesRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
-  dateLabel: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
-  dateVal: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  dateSep: { fontSize: FontSize.xs, color: Colors.textTertiary, marginHorizontal: 2 },
+  dateLabel: { fontSize: FontSize.sm, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
+  dateVal: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  dateSep: { fontSize: FontSize.base, color: Colors.textTertiary, marginHorizontal: 4 },
   autrePartie: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.md,
     backgroundColor: Colors.background, borderRadius: Radius.md,
