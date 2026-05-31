@@ -39,12 +39,24 @@ interface CoachAnnonceRow {
 }
 
 function rowToAnnonce(r: CoachAnnonceRow): CoachAnnonce {
+  // Dérive pseudo + initiales depuis auteur_nom (table coach_annonces ne stocke
+  // pas ces champs contrairement à box_annonces). Pour "Sarah Lefebvre" :
+  // pseudo = "SarahL", initiales = "SL". Évite l'affichage "par @" vide
+  // observé en prod 2026-05-31 sur les cards d'annonces coach.
+  const nomComplet = (r.auteur_nom ?? '').trim();
+  const parts = nomComplet.split(/\s+/).filter(Boolean);
+  const prenom = parts[0] ?? '';
+  const nomFamille = parts.length > 1 ? parts[parts.length - 1] : '';
+  const auteurPseudo = prenom
+    ? `${prenom}${nomFamille.charAt(0).toUpperCase()}`
+    : '';
+  const auteurInitiales = (prenom.charAt(0) + nomFamille.charAt(0)).toUpperCase() || '?';
   return {
     id: r.id,
     auteurId: r.auteur_id,
-    auteurNom: r.auteur_nom ?? '',
-    auteurPseudo: '',
-    auteurInitiales: '',
+    auteurNom: nomComplet,
+    auteurPseudo,
+    auteurInitiales,
     auteurCouleur: '#7C3AED',
     titre: r.titre,
     description: r.description ?? '',

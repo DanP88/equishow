@@ -516,6 +516,26 @@ export default function CavalierAgendaScreen() {
                       </View>
                     )}
 
+                    {/* Payer maintenant inline pour items accepted côté buyer
+                        (cours/stage/box). Sinon le cavalier devait passer par
+                        la notif → écran cible. La card agenda devient un
+                        2e point d'entrée payment (utile si la notif a été
+                        supprimée). */}
+                    {item.statut === 'accepted' && (item.type === 'cours' || item.type === 'stage' || item.type === 'box_buyer') && (
+                      <View style={s.actionRow}>
+                        <TouchableOpacity
+                          style={[s.actionBtn, s.acceptBtn]}
+                          onPress={() => {
+                            const url = item.type === 'box_buyer' ? '/pending-box-payments' : '/pending-payments';
+                            router.push(url as any);
+                          }}
+                          activeOpacity={0.85}
+                        >
+                          <Text style={s.acceptBtnText}>💳 Payer maintenant</Text>
+                        </TouchableOpacity>
+                      </View>
+                    )}
+
                     {/* Montant + Avis */}
                     <View style={s.cardBottom}>
                       <Text style={s.montant}>{item.montant.toFixed(2)}€ TTC</Text>
@@ -532,8 +552,12 @@ export default function CavalierAgendaScreen() {
                       )}
                     </View>
 
-                    {/* Séquestre (escrow) — acheteur uniquement, si paiement séquestre */}
-                    {item.type === 'box_buyer' && escrowByResa[item.id] && (() => {
+                    {/* Séquestre (escrow) — acheteur uniquement, si paiement séquestre.
+                        Étendu à cours et stage : useMyEscrowPayments renvoie le
+                        payment via course_demand_id / stage_reservation_id, mais
+                        l'UI gate ne couvrait que box_buyer → cavalier ne pouvait
+                        ni libérer ni signaler le paiement après prestation. */}
+                    {(item.type === 'box_buyer' || item.type === 'cours' || item.type === 'stage') && escrowByResa[item.id] && (() => {
                       const ep = escrowByResa[item.id];
                       const badge = escrowBadge(ep);
                       if (!badge) return null;
