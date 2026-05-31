@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   ActivityIndicator,
@@ -13,9 +14,14 @@ import { useStagePayment } from '../hooks/useStagePayment';
 export default function PendingPaymentsScreen() {
   const { demands } = useMyCourseDemands();
   const { reservations: stageReservations } = useMyStageReservations();
-  const { payCourse, loading: payingCourse } = useCoursePayment();
-  const { payStage, loading: payingStage } = useStagePayment();
-  const loading = payingCourse || payingStage;
+  const { payCourse } = useCoursePayment();
+  const { payStage } = useStagePayment();
+
+  // Loading par card (id de la résa en cours de paiement). Avant on partageait
+  // `loading` entre toutes les cards → cliquer "Payer" sur 1 résa déclenchait
+  // l'état loading sur les 2 autres résa visibles, donnant l'illusion d'un
+  // paiement multi. Bug constaté en prod 2026-05-31 par user.
+  const [payingId, setPayingId] = useState<string | null>(null);
 
   const validatedDemands = demands.filter(
     d => d.cavalierUserId === userStore.id && d.statut === 'accepted'
@@ -25,7 +31,16 @@ export default function PendingPaymentsScreen() {
   );
   const totalToPay = validatedDemands.length + validatedStages.length;
 
-  const handlePayNow = payCourse;
+  const handlePayCourse = async (demand: typeof validatedDemands[number]) => {
+    if (payingId) return;
+    setPayingId(demand.id);
+    try { await payCourse(demand); } finally { setPayingId(null); }
+  };
+  const handlePayStage = async (reservation: typeof validatedStages[number]) => {
+    if (payingId) return;
+    setPayingId(reservation.id);
+    try { await payStage(reservation); } finally { setPayingId(null); }
+  };
 
   return (
     <SafeAreaView style={s.root}>
@@ -79,10 +94,10 @@ export default function PendingPaymentsScreen() {
 
               <TouchableOpacity
                 style={[s.btn, s.payBtn]}
-                onPress={() => handlePayNow(demand)}
-                disabled={loading}
+                onPress={() => handlePayCourse(demand)}
+                disabled={!!payingId}
               >
-                {loading ? (
+                {payingId === demand.id ? (
                   <ActivityIndicator color={Colors.textInverse} />
                 ) : (
                   <Text style={s.payBtnText}>💳 Payer maintenant</Text>
@@ -105,7 +120,7 @@ export default function PendingPaymentsScreen() {
 
               <View style={s.detailsRow}>
                 <Text style={s.label}>👥 Places:</Text>
-                <Text style={s.value}>{reservation.nbParticipants} participant{reservation.nbParticipants > 1 ? 's' : ''}</Text>
+                <Text style={s.value}>{reservation.nombreParticipants} participant{reservation.nombreParticipants > 1 ? 's' : ''}</Text>
               </View>
 
               <View style={s.statusBadge}>
@@ -114,10 +129,10 @@ export default function PendingPaymentsScreen() {
 
               <TouchableOpacity
                 style={[s.btn, s.payBtn]}
-                onPress={() => payStage(reservation)}
-                disabled={loading}
+                onPress={() => handlePayStage(reservation)}
+                disabled={!!payingId}
               >
-                {loading ? (
+                {payingId === reservation.id ? (
                   <ActivityIndicator color={Colors.textInverse} />
                 ) : (
                   <Text style={s.payBtnText}>💳 Payer maintenant</Text>

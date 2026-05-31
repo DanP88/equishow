@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import {
   View,
   Text,
@@ -56,6 +56,8 @@ export default function CheckoutSuccessScreen() {
   const [status, setStatus] = useState<ConfirmationStatus>('confirming');
   const [payment, setPayment] = useState<PaymentData | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Compteur de retries pour le polling webhook (cf. confirmPayment).
+  const attemptRef = useRef(0);
 
   useEffect(() => {
     if (sessionId) {
@@ -117,11 +119,26 @@ export default function CheckoutSuccessScreen() {
         setPayment(data);
         setStatus('success');
         trackFunnel('payment', 'payment_success', { session_id: session, type: data.type, amount: data.amount_buyer_ttc });
-      } else {
-        setStatus('error');
-        setError('Le paiement n\'a pas abouti');
-        trackFunnel('payment', 'payment_error', { session_id: session, reason: 'not_succeeded' });
+        return;
       }
+
+      // payment_status='pending' → le webhook Stripe peut ne pas avoir encore
+      // mis à jour la DB. On retry quelques fois avec backoff avant d'abandonner.
+      // En général le webhook arrive en <5s, mais on a vu des cas avec délai
+      // jusqu'à 30s+. Plutôt que d'afficher "Le paiement n'a pas abouti" qui
+      // panique le user, on retry transparente.
+      const attempt = attemptRef.current ?? 0;
+      attemptRef.current = attempt + 1;
+      const maxAttempts = 8; // ~30s avec backoff 2,3,4,4,4,4,5,5
+      if (attempt < maxAttempts) {
+        const delay = Math.min(2000 + attempt * 500, 5000);
+        setTimeout(() => confirmPayment(session), delay);
+        return;
+      }
+
+      setStatus('error');
+      setError('Le paiement n\'a pas abouti (timeout webhook). Si vous avez été débité, votre paiement a réussi côté Stripe — la confirmation arrivera dans quelques minutes via email. Vous pouvez aussi vérifier votre agenda.');
+      trackFunnel('payment', 'payment_error', { session_id: session, reason: 'not_succeeded_after_retries' });
     } catch (err) {
       console.error('Payment confirmation error:', err);
       setStatus('error');
@@ -137,6 +154,7 @@ export default function CheckoutSuccessScreen() {
   const handleRetry = () => {
     if (sessionId) {
       setStatus('confirming');
+      attemptRef.current = 0; // reset le compteur de retries pour repartir à 0
       confirmPayment(sessionId);
     }
   };

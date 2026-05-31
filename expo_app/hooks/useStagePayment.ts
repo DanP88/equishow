@@ -50,7 +50,7 @@ export function useStagePayment() {
             type: 'stage',
             reservationId: reservation.id,
             amount: reservation.prixTotal,
-            description: `Stage "${reservation.stageTitre}" · ${reservation.nbParticipants} participant${reservation.nbParticipants > 1 ? 's' : ''}`,
+            description: `Stage "${reservation.stageTitre}" · ${reservation.nombreParticipants} participant${reservation.nombreParticipants > 1 ? 's' : ''}`,
           }),
         },
       );
