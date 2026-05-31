@@ -121,10 +121,14 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
 
   // CTA "Voir la demande" pour le coach quand une nouvelle demande pending
   // arrive : sinon la notif est dead-end (aucun moyen de naviguer vers
-  // /coach-pending-demands où on accepte/refuse). Cf. bug #6 répliqué côté
-  // coach (le même pattern que cavalier-side fixé en Lot 2 Box).
+  // /coach-pending-demands ou /coach-demandes où on accepte/refuse). Cf.
+  // bug #6 répliqué côté coach (le même pattern que cavalier-side fixé en
+  // Lot 2 Box). Couvre cours individuel (course_request), stage
+  // (stage_reservation) et bookings génériques (reservation_request).
   const showViewDemandButton = notification.status === 'pending' &&
-    (notification.type === 'course_request' || notification.type === 'reservation_request') &&
+    (notification.type === 'course_request'
+      || notification.type === 'reservation_request'
+      || notification.type === 'stage_reservation') &&
     !!notification.actionUrl;
 
   const isCommunity = notification.type === 'like' || notification.type === 'comment';

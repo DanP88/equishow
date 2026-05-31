@@ -1,15 +1,15 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Modal, ActivityIndicator, Platform, Linking,
+  TextInput, Modal, ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { supabase } from '../lib/supabase';
-import { getAuthToken } from '../utils/supabaseAuth';
 import { useStage } from '../hooks/useStages';
 import { useAuth } from '../hooks/useAuth';
+import { createNotification } from '../hooks/useNotifications';
 import { AlertModal } from '../components/AlertModal';
 
 export default function ReserverStageScreen() {
@@ -23,6 +23,7 @@ export default function ReserverStageScreen() {
   const [loading, setLoading] = useState(false);
   const [reservationRef, setReservationRef] = useState<string | null>(null);
   const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
+  const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const showErr = (title: string, msg: string) => setAlertState({ title, message: msg, variant: 'error' });
 
@@ -77,11 +78,17 @@ export default function ReserverStageScreen() {
 
     setLoading(true);
     try {
-      // 1. Insert la réservation en DB
+      // Flow corrigé (cf. Lot 3b) : on crée juste la réservation en `pending`
+      // et on attend que le coach accepte. Le paiement Stripe vient APRÈS via
+      // la notif "Acceptée" → bouton "Payer maintenant". Avant, ce screen
+      // poussait directement vers Stripe avant validation du coach, et
+      // n'envoyait AUCUNE notif au coach — il fallait qu'il aille manuellement
+      // sur /coach-demandes pour découvrir la demande.
+      //
       // Les montants sont recalculés serveur-side par le trigger
-      // `trg_stage_reservations_recalc` (migration 012) — les valeurs
-      // envoyées ici servent juste à passer les CHECK NOT NULL/> 0.
-      const placeholderHt  = Math.max(0.01, Math.round((stage.prixTTC * nbParticipants / 1.20) * 100) / 100);
+      // `trg_stage_reservations_recalc` (migration 012) — les valeurs envoyées
+      // ici servent juste à passer les CHECK NOT NULL/> 0. Sans TVA depuis
+      // mig 036, le placeholder TTC = HT (pas de /1.20).
       const placeholderTtc = Math.max(0.01, Math.round(stage.prixTTC * nbParticipants * 100) / 100);
 
       const { data: reservation, error: dbError } = await supabase
@@ -92,7 +99,7 @@ export default function ReserverStageScreen() {
           cavalier_id: profile?.id,
           title: stage.titre,
           nb_participants: nbParticipants,
-          price_total_ht: placeholderHt,
+          price_total_ht: placeholderTtc,
           platform_commission: 0,
           price_total_ttc: placeholderTtc,
           message: message.trim() || null,
@@ -109,37 +116,31 @@ export default function ReserverStageScreen() {
       const reference = `EQ-STG-${reservation.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
       setReservationRef(reference);
 
-      // 2. Créer la session Stripe Checkout
-      const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL;
-      if (!supabaseUrl) throw new Error('Configuration manquante.');
-
-      const token = await getAuthToken();
-      const resp = await fetch(`${supabaseUrl}/functions/v1/create-checkout-session`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+      // Notifier le coach (la table coach_demandes affiche aussi les stages
+      // pending, donc actionUrl pointe là).
+      const fullName = `${profile?.prenom ?? ''} ${profile?.nom ?? ''}`.trim() || 'Un cavalier';
+      await createNotification({
+        destinataireId: stage.auteurId,
+        type: 'stage_reservation',
+        titre: '🎓 Nouvelle demande de stage',
+        message: `${fullName} demande à rejoindre "${stage.titre}" (${nbParticipants} participant${nbParticipants > 1 ? 's' : ''})`,
+        status: 'pending',
+        actionUrl: '/(tabs)/coach-demandes',
+        donnees: {
+          stageId: stage.id,
+          stageTitre: stage.titre,
+          nbParticipants,
+          prix: placeholderTtc,
+          message: message.trim(),
         },
-        body: JSON.stringify({
-          type: 'stage',
-          reservationId: reservation.id,
-          amount: prixTotal,
-          description: `Stage "${stage.titre}" · ${nbParticipants} participant${nbParticipants > 1 ? 's' : ''}`,
-        }),
       });
 
-      const data = await resp.json();
-      if (!resp.ok || !data.checkoutUrl) throw new Error(data.error || 'Erreur Stripe');
-
       setShowDetailsModal(false);
-
-      if (Platform.OS === 'web') {
-        window.location.href = data.checkoutUrl;
-      } else {
-        await Linking.openURL(data.checkoutUrl);
-      }
+      setSuccessMsg(
+        `Demande envoyée à ${stage.auteurNom?.trim() || 'l\'organisateur du stage'}. Vous serez notifié(e) dès la validation, puis vous pourrez procéder au paiement de ${placeholderTtc}€.`,
+      );
     } catch (err: any) {
-      showErr('Erreur', err.message || 'Impossible de démarrer le paiement.');
+      showErr('Erreur', err.message || 'Impossible de créer la réservation.');
     } finally {
       setLoading(false);
     }
@@ -310,7 +311,7 @@ export default function ReserverStageScreen() {
               >
                 {loading
                   ? <ActivityIndicator color={Colors.textInverse} />
-                  : <Text style={s.submitText}>Procéder au paiement</Text>
+                  : <Text style={s.submitText}>Envoyer la demande</Text>
                 }
               </TouchableOpacity>
 
@@ -326,6 +327,17 @@ export default function ReserverStageScreen() {
         message={alertState?.message}
         variant={alertState?.variant ?? 'info'}
         onClose={() => setAlertState(null)}
+      />
+
+      <AlertModal
+        visible={!!successMsg}
+        title="✅ Demande envoyée"
+        message={successMsg ?? ''}
+        variant="success"
+        onClose={() => {
+          setSuccessMsg(null);
+          router.replace('/cavalier-agenda');
+        }}
       />
     </SafeAreaView>
   );

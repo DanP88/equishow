@@ -7,14 +7,23 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { userStore } from '../data/store';
 import { useMyCourseDemands } from '../hooks/useCourseDemands';
 import { useCoursePayment } from '../hooks/useCoursePayment';
+import { useMyStageReservations } from '../hooks/useStages';
+import { useStagePayment } from '../hooks/useStagePayment';
 
 export default function PendingPaymentsScreen() {
   const { demands } = useMyCourseDemands();
-  const { payCourse, loading } = useCoursePayment();
+  const { reservations: stageReservations } = useMyStageReservations();
+  const { payCourse, loading: payingCourse } = useCoursePayment();
+  const { payStage, loading: payingStage } = useStagePayment();
+  const loading = payingCourse || payingStage;
 
   const validatedDemands = demands.filter(
     d => d.cavalierUserId === userStore.id && d.statut === 'accepted'
   );
+  const validatedStages = stageReservations.filter(
+    r => r.cavalierUserId === userStore.id && r.statut === 'accepted'
+  );
+  const totalToPay = validatedDemands.length + validatedStages.length;
 
   const handlePayNow = payCourse;
 
@@ -22,14 +31,14 @@ export default function PendingPaymentsScreen() {
     <SafeAreaView style={s.root}>
       <View style={s.header}>
         <Text style={s.headerTitle}>Demandes prêtes à payer</Text>
-        {validatedDemands.length > 0 && (
+        {totalToPay > 0 && (
           <View style={s.badge}>
-            <Text style={s.badgeText}>{validatedDemands.length}</Text>
+            <Text style={s.badgeText}>{totalToPay}</Text>
           </View>
         )}
       </View>
 
-      {validatedDemands.length === 0 ? (
+      {totalToPay === 0 ? (
         <View style={s.emptyState}>
           <Text style={s.emptyIcon}>💰</Text>
           <Text style={s.emptyTitle}>Pas de paiement en attente</Text>
@@ -71,6 +80,41 @@ export default function PendingPaymentsScreen() {
               <TouchableOpacity
                 style={[s.btn, s.payBtn]}
                 onPress={() => handlePayNow(demand)}
+                disabled={loading}
+              >
+                {loading ? (
+                  <ActivityIndicator color={Colors.textInverse} />
+                ) : (
+                  <Text style={s.payBtnText}>💳 Payer maintenant</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          ))}
+
+          {validatedStages.map(reservation => (
+            <View key={reservation.id} style={s.card}>
+              <View style={s.cardHeader}>
+                <View>
+                  <Text style={s.coachName}>{reservation.coachNom}</Text>
+                  <Text style={s.annonceTitle}>🎓 {reservation.stageTitre}</Text>
+                </View>
+                <View style={s.priceBadge}>
+                  <Text style={s.priceText}>{reservation.prixTotal}€</Text>
+                </View>
+              </View>
+
+              <View style={s.detailsRow}>
+                <Text style={s.label}>👥 Places:</Text>
+                <Text style={s.value}>{reservation.nbParticipants} participant{reservation.nbParticipants > 1 ? 's' : ''}</Text>
+              </View>
+
+              <View style={s.statusBadge}>
+                <Text style={s.statusText}>✅ Validée par le coach</Text>
+              </View>
+
+              <TouchableOpacity
+                style={[s.btn, s.payBtn]}
+                onPress={() => payStage(reservation)}
                 disabled={loading}
               >
                 {loading ? (

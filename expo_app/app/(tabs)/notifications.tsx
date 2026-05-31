@@ -183,8 +183,14 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoad
     }
   };
 
+  // Couvre cours (course_request), box/transport (reservation_request) et
+  // stage (stage_reservation). Sans stage_reservation, la notif "stage
+  // acceptée" n'avait aucun CTA pay → cavalier devait aller manuellement sur
+  // /pending-payments.
   const showPaymentButton = notification.status === 'accepted' &&
-    (notification.type === 'course_request' || notification.type === 'reservation_request');
+    (notification.type === 'course_request'
+      || notification.type === 'reservation_request'
+      || notification.type === 'stage_reservation');
 
   const isCommunity = notification.type === 'like' || notification.type === 'comment';
 
