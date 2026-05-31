@@ -14,6 +14,7 @@ import { useCommission } from '../hooks/useCommissions';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { supabase } from '../lib/supabase';
 import { AlertModal } from '../components/AlertModal';
+import { toLocalDateString } from '../utils/dateFormat';
 
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
 
@@ -133,8 +134,8 @@ export default function ReserverCoachScreen() {
           level: niveau,
           horse_name: cheval.trim(),
           message: message.trim(),
-          date_debut: dateDebut.toISOString().split('T')[0],
-          date_fin: dateFin.toISOString().split('T')[0],
+          date_debut: toLocalDateString(dateDebut),
+          date_fin: toLocalDateString(dateFin),
           nb_jours: nbJours,
           price_per_day_ttc: prixParJourTTC,
           total_amount_ht: prixTotalHT,
@@ -307,7 +308,7 @@ export default function ReserverCoachScreen() {
         )}
 
         <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85} disabled={loading}>
-          <Text style={s.submitText}>{loading ? '⏳ Paiement...' : '✓ Réserver & Payer'}</Text>
+          <Text style={s.submitText}>{loading ? '⏳ Envoi...' : '✓ Envoyer la demande'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />

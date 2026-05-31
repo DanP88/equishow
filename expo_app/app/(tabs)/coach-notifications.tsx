@@ -119,6 +119,14 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
   const showPaymentButton = notification.status === 'accepted' &&
     (notification.type === 'course_request' || notification.type === 'reservation_request');
 
+  // CTA "Voir la demande" pour le coach quand une nouvelle demande pending
+  // arrive : sinon la notif est dead-end (aucun moyen de naviguer vers
+  // /coach-pending-demands où on accepte/refuse). Cf. bug #6 répliqué côté
+  // coach (le même pattern que cavalier-side fixé en Lot 2 Box).
+  const showViewDemandButton = notification.status === 'pending' &&
+    (notification.type === 'course_request' || notification.type === 'reservation_request') &&
+    !!notification.actionUrl;
+
   const isCommunity = notification.type === 'like' || notification.type === 'comment';
 
   if (isCommunity) {
@@ -177,6 +185,11 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
         {showPaymentButton && (
           <TouchableOpacity style={[s.actionBtn, s.payBtn]} onPress={handlePaymentNavigation}>
             <Text style={s.payBtnText}>💳 Payer maintenant</Text>
+          </TouchableOpacity>
+        )}
+        {showViewDemandButton && (
+          <TouchableOpacity style={[s.actionBtn, s.payBtn]} onPress={handlePaymentNavigation}>
+            <Text style={s.payBtnText}>👀 Voir la demande</Text>
           </TouchableOpacity>
         )}
         <TouchableOpacity style={[s.actionBtn, s.deleteBtn]} onPress={onDelete}>

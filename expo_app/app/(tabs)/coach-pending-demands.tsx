@@ -63,12 +63,18 @@ export default function CoachPendingDemandsScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
+        <TouchableOpacity
+          style={s.backBtn}
+          onPress={() => router.canGoBack() ? router.back() : router.replace('/(tabs)/coach-agenda')}
+        >
+          <Text style={s.backIcon}>‹</Text>
+        </TouchableOpacity>
         <Text style={s.headerTitle}>Demandes en attente</Text>
-        {demands.length > 0 && (
+        {demands.length > 0 ? (
           <View style={s.badge}>
             <Text style={s.badgeText}>{demands.length}</Text>
           </View>
-        )}
+        ) : <View style={{ width: 28 }} />}
       </View>
 
       {demands.length === 0 ? (
@@ -143,7 +149,14 @@ const s = StyleSheet.create({
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
     backgroundColor: Colors.surface,
+    gap: Spacing.md,
   },
+  backBtn: {
+    width: 32, height: 32,
+    alignItems: 'center', justifyContent: 'center',
+    borderRadius: 16,
+  },
+  backIcon: { fontSize: 22, color: Colors.textPrimary, fontWeight: FontWeight.bold },
   headerTitle: {
     fontSize: FontSize.lg,
     fontWeight: FontWeight.bold,
