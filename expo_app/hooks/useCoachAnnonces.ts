@@ -15,6 +15,7 @@ import { supabase } from '../lib/supabase';
 import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { CoachAnnonce } from '../types/service';
+import { toLocalDateString } from '../utils/dateFormat';
 
 interface CoachAnnonceRow {
   id: string;
@@ -258,8 +259,8 @@ export function useMyCoachAnnonces() {
         type: input.type,
         discipline: input.discipline,
         niveau: input.niveau,
-        date_debut: input.dateDebut.toISOString().split('T')[0],
-        date_fin: input.dateFin.toISOString().split('T')[0],
+        date_debut: toLocalDateString(input.dateDebut),
+        date_fin: toLocalDateString(input.dateFin),
         prix_heure_ht: input.prixHeureHT,
         prix_heure_ttc: prixTTC,
         places: input.places,

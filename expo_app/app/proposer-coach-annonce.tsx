@@ -13,6 +13,7 @@ import { Disponibilite, prixTTC as calculatePrixTTC, getTVAMontant } from '../ty
 import { useCommission } from '../hooks/useCommissions';
 import { useCoachAnnonce, useMyCoachAnnonces } from '../hooks/useCoachAnnonces';
 import { supabase } from '../lib/supabase';
+import { toLocalDateString } from '../utils/dateFormat';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
@@ -162,8 +163,8 @@ export default function ProposerCoachAnnonceScreen() {
           type,
           discipline,
           niveau: niveauFinal,
-          date_debut: dateDebut!.toISOString().split('T')[0],
-          date_fin: dateFin!.toISOString().split('T')[0],
+          date_debut: toLocalDateString(dateDebut!),
+          date_fin: toLocalDateString(dateFin!),
           prix_heure_ht: tarifAStocker,
           prix_heure_ttc: tarifAStocker,
           concours_nom: concours || null,
