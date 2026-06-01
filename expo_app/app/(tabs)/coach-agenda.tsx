@@ -40,7 +40,9 @@ export default function CoachAgendaScreen() {
           lieu: d.lieu,
           cheval: d.cheval,
           description: d.message,
-          prix: d.prix,
+          // Le coach voit son NET (HT) — pas le TTC cavalier (commission
+          // incluse). Cf. fix coach-demandes/notif.
+          prix: d.prixSeller,
         });
         current.setDate(current.getDate() + 1);
       }
@@ -63,7 +65,7 @@ export default function CoachAgendaScreen() {
         date: stage?.dateDebut ?? r.dateReservation,
         concours: undefined,
         description: r.message,
-        prix: r.prixTotal,
+        prix: r.prixSeller,
       });
     });
 

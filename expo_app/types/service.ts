@@ -246,6 +246,7 @@ export interface CourseDemande {
   message: string;
   prixParJour: number;
   prix: number;
+  prixSeller: number;
   statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
   dateCreation: Date;
 }

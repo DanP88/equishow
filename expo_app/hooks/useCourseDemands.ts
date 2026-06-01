@@ -63,6 +63,9 @@ function rowToDemand(
   // Surtout PAS de /100 — sinon 218€ s'afficherait 2,18€.
   const prixParJour = Number(r.price_per_day_ttc);
   const prix = Number(r.total_amount_ttc);
+  // prixSeller = NET reçu par le coach (HT) — affiché sur agenda/demandes
+  // pour ne pas leak le TTC cavalier (commission incluse).
+  const prixSeller = Number(r.total_amount_ht);
   const cavalier = users.get(r.cavalier_id);
   const coach = users.get(r.coach_id);
   return {
@@ -87,6 +90,7 @@ function rowToDemand(
     message: r.message ?? '',
     prixParJour,
     prix,
+    prixSeller,
     statut: r.status,
     dateCreation: new Date(r.created_at),
   };
