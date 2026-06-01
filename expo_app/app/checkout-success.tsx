@@ -277,7 +277,7 @@ function SuccessView({ payment, onPress }: SuccessViewProps) {
       <View style={s.infoBox}>
         <Text style={s.infoText}>
           🔒 <Text style={s.infoBold}>Paiement en séquestre</Text>
-          {'\n'}Votre paiement est conservé par Equishow jusqu\'à la fin de la prestation. À l\'issue, vous pourrez confirmer que tout s\'est bien passé (les fonds seront alors versés au prestataire) ou signaler un problème. Vous pourrez aussi laisser un avis.
+          {'\n'}Votre paiement est conservé par Equishow jusqu’à la fin de la prestation. À l’issue, vous pourrez confirmer que tout s’est bien passé (les fonds seront alors versés au prestataire) ou signaler un problème. Vous pourrez aussi laisser un avis.
         </Text>
       </View>
 
@@ -304,7 +304,7 @@ function ErrorView({ message, onRetry, onCancel }: ErrorViewProps) {
       <Text style={s.emoji}>⚠️</Text>
       <Text style={s.title}>Erreur de confirmation</Text>
       <Text style={s.subtitle}>
-        {message || 'Une erreur s\'est produite lors de la confirmation du paiement'}
+        {message || 'Une erreur s’est produite lors de la confirmation du paiement'}
       </Text>
 
       <View style={s.infoBox}>

@@ -32,8 +32,9 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
     { name: 'coach-agenda', label: 'Agenda', emoji: '📅', route: '/(tabs)/coach-agenda' },
     { name: 'coach-concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/coach-concours' },
     { name: 'coach-stages', label: 'Stages', emoji: '📚', route: '/(tabs)/coach-stages' },
-    { name: 'coach-notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/coach-notifications' },
     { name: 'coach-demandes', label: 'Demandes', emoji: '📬', route: '/(tabs)/coach-demandes' },
+    { name: 'coach-messagerie', label: 'Messages', emoji: '💬', route: '/messagerie' },
+    { name: 'coach-notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/coach-notifications' },
     { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
     { name: 'profil-coach', label: 'Profil', emoji: '👤', route: '/(tabs)/profil-coach' },
   ],
@@ -124,7 +125,7 @@ export function CustomBottomBar() {
     } else if (role === 'cavalier') {
       if (tab.name === 'notifications') return notificationCount;
       if (tab.name === 'cavalier-agenda') return agendaCount;
-      if (tab.name === 'messagerie') return msgCount;
+      if (tab.name === 'messagerie' || tab.name === 'coach-messagerie') return msgCount;
     } else if (role === 'organisateur') {
       if (tab.name === 'org-notifications') return notificationCount;
       if (tab.name === 'org-messages') return msgCount;

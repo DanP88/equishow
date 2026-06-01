@@ -158,13 +158,23 @@ export default function CavalierAgendaScreen() {
         ? { title: 'Paiement libéré', message: 'Le vendeur va recevoir son versement. Merci !', variant: 'success' }
         : { title: 'Litige ouvert', message: 'Le versement est bloqué. Un administrateur va examiner votre signalement.', variant: 'success' });
     } else {
+      // On reload aussi en erreur : si l'Edge a écrit release_blocked_reason
+      // (ex. seller_not_onboarded), la card doit basculer en « En attente
+      // vendeur » et masquer le bouton « Libérer » pour éviter une boucle.
+      reloadEscrow();
       const message = res.code === 'no_token'
         ? 'Session expirée, veuillez vous reconnecter.'
         : res.code === 'network'
           ? 'Une erreur réseau est survenue.'
-          : kind === 'release'
-            ? `Le versement n'a pas pu être libéré (${res.code}).`
-            : `Le litige n'a pas pu être ouvert (${res.code}).`;
+          : res.code === 'too_early'
+            ? 'Vous pourrez confirmer une fois la prestation terminée.'
+            : res.code === 'blocked' || res.code === 'seller_not_onboarded'
+              ? 'Le vendeur n’a pas encore finalisé son onboarding paiement. Le versement reste sécurisé et sera libéré dès qu’il aura configuré son compte.'
+              : res.code === 'not_held' || res.code === 'not_held_or_in_progress'
+                ? 'Ce versement est déjà en cours de libération ou a déjà été versé.'
+                : kind === 'release'
+                  ? `Le versement n’a pas pu être libéré (${res.code}).`
+                  : `Le litige n’a pas pu être ouvert (${res.code}).`;
       setEscrowAlert({ title: 'Action impossible', message, variant: 'error' });
     }
   }, [escrowConfirm, releasePayment, openDispute, reloadEscrow]);

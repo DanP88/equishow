@@ -22,25 +22,31 @@ export default function CoachDemandesScreen() {
     const { error } = await updateCourseStatus(demandeId, 'accepted');
     if (error) { Alert.alert('Erreur', error); return; }
 
-    await createNotification({
-      destinataireId: demande.cavalierUserId,
-      type: 'course_request',
-      titre: '✓ Votre réservation a été acceptée !',
-      message: `${userStore.prenom} ${userStore.nom} a accepté votre demande pour "${demande.annonceTitre}"`,
-      status: 'accepted',
-      actionUrl: '/pending-payments',
-      donnees: {
-        demandId: demandeId,
-        annonceId: demande.annonceId,
-        annonceTitre: demande.annonceTitre,
-        prix: demande.prix,
-      },
-    });
-
-    // Email « réservation confirmée » aux 2 parties (best-effort, non bloquant).
-    await sendReservationEmail('course', demandeId);
-
+    // Feedback immédiat : la card disparaît grâce à l'update realtime, et le
+    // coach voit le succès sans attendre la notif + l'email (2-4 s cumulés).
+    // Notif + email lancés en arrière-plan, log silencieux si échec.
     Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
+    void (async () => {
+      try {
+        await createNotification({
+          destinataireId: demande.cavalierUserId,
+          type: 'course_request',
+          titre: '✓ Votre réservation a été acceptée !',
+          message: `${userStore.prenom} ${userStore.nom} a accepté votre demande pour "${demande.annonceTitre}"`,
+          status: 'accepted',
+          actionUrl: '/pending-payments',
+          donnees: {
+            demandId: demandeId,
+            annonceId: demande.annonceId,
+            annonceTitre: demande.annonceTitre,
+            prix: demande.prix,
+          },
+        });
+        await sendReservationEmail('course', demandeId);
+      } catch (e) {
+        console.warn('accept course post-tasks failed (non bloquant):', e);
+      }
+    })();
   }, [courseDemandes, updateCourseStatus]);
 
   const handleRejectCourse = useCallback(async (demandeId: string) => {
@@ -68,25 +74,29 @@ export default function CoachDemandesScreen() {
     const { error } = await updateStageStatus(reservationId, 'accepted');
     if (error) { Alert.alert('Erreur', error); return; }
 
-    await createNotification({
-      destinataireId: reservation.cavalierUserId,
-      type: 'stage_reservation',
-      titre: '✓ Votre réservation a été acceptée !',
-      message: `${userStore.prenom} ${userStore.nom} a accepté votre réservation pour le stage "${reservation.stageTitre}"`,
-      status: 'accepted',
-      actionUrl: '/pending-payments',
-      donnees: {
-        stageId: reservation.stageId,
-        stageTitre: reservation.stageTitre,
-        nombreParticipants: reservation.nombreParticipants,
-        prixTotal: reservation.prixTotal,
-      },
-    });
-
-    // Email « réservation confirmée » aux 2 parties (best-effort, non bloquant).
-    await sendReservationEmail('stage', reservationId);
-
+    // Feedback immédiat (cf. handleAcceptCourse). Évite ~2-4 s d'attente.
     Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
+    void (async () => {
+      try {
+        await createNotification({
+          destinataireId: reservation.cavalierUserId,
+          type: 'stage_reservation',
+          titre: '✓ Votre réservation a été acceptée !',
+          message: `${userStore.prenom} ${userStore.nom} a accepté votre réservation pour le stage "${reservation.stageTitre}"`,
+          status: 'accepted',
+          actionUrl: '/pending-payments',
+          donnees: {
+            stageId: reservation.stageId,
+            stageTitre: reservation.stageTitre,
+            nombreParticipants: reservation.nombreParticipants,
+            prixTotal: reservation.prixTotal,
+          },
+        });
+        await sendReservationEmail('stage', reservationId);
+      } catch (e) {
+        console.warn('accept stage post-tasks failed (non bloquant):', e);
+      }
+    })();
   }, [stageReservations, updateStageStatus]);
 
   const handleRejectStage = useCallback(async (reservationId: string) => {
