@@ -181,8 +181,8 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
         <Text style={s.cavalierPseudo}>@{notification.auteurPseudo}</Text>
       )}
 
-      {(notification.donnees?.prixTotal || notification.donnees?.prix) != null && (
-        <Text style={s.montantText}>💰 {notification.donnees?.prixTotal || notification.donnees?.prix}€ TTC</Text>
+      {(notification.donnees?.prixSeller ?? notification.donnees?.prixTotal ?? notification.donnees?.prix) != null && (
+        <Text style={s.montantText}>💰 {notification.donnees?.prixSeller ?? notification.donnees?.prixTotal ?? notification.donnees?.prix}€</Text>
       )}
 
       <View style={s.buttonRow}>

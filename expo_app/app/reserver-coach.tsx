@@ -169,7 +169,7 @@ export default function ReserverCoachScreen() {
         donnees: {
           annonceId: annonce.id,
           annonceTitre: annonce.titre,
-          prix: prixTTCTotal,
+          prixSeller: prixTotalHT,
           message: message.trim(),
         },
       });

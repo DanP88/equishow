@@ -29,6 +29,7 @@ export interface Notification {
     boxId?: string;
     titre?: string;
     prix?: number;
+    prixSeller?: number;
     postId?: string;
     convId?: string;
   };

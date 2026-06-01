@@ -127,7 +127,7 @@ function StageCard({ stage, onCancel }: StageCardProps) {
 
       <View style={s.infoRow}>
         <Text style={s.infoLabel}>💳 Tarif</Text>
-        <Text style={s.priceValue}>{stage.prixTTC}€ TTC</Text>
+        <Text style={s.priceValue}>{stage.prixTTC}€</Text>
       </View>
 
       {stage.description && (

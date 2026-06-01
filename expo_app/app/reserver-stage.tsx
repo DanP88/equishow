@@ -143,7 +143,7 @@ export default function ReserverStageScreen() {
           stageId: stage.id,
           stageTitre: stage.titre,
           nbParticipants,
-          prix: placeholderTtc,
+          prixSeller: placeholderTtc,
           message: message.trim(),
         },
       });

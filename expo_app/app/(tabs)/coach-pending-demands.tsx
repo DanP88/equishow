@@ -100,7 +100,7 @@ export default function CoachPendingDemandsScreen() {
                   <Text style={s.annonceTitle}>{demand.annonceTitre}</Text>
                 </View>
                 <View style={s.priceBadge}>
-                  <Text style={s.priceText}>{demand.prix}€</Text>
+                  <Text style={s.priceText}>{demand.prixSeller}€</Text>
                 </View>
               </View>
 
