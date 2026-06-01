@@ -74,6 +74,10 @@ export default function PendingTransportPaymentsScreen() {
 
       await updateStatut(reservation.id, 'awaiting_payment');
 
+      // Pas de `prix` ici : ce serait le TTC cavalier (commission incluse) que
+      // le seller ne doit pas voir. Le webhook bascule cette notif en
+      // « 💰 Paiement reçu » avec le montant NET seller dès confirmation
+      // Stripe (match via transportReservationId).
       await createNotification({
         destinataireId: reservation.sellerId,
         type: 'reservation_request',
@@ -82,7 +86,7 @@ export default function PendingTransportPaymentsScreen() {
         status: 'pending',
         donnees: {
           titre: reservation.titre,
-          prix: reservation.prixTotalTTC,
+          transportReservationId: reservation.id,
         },
       });
 

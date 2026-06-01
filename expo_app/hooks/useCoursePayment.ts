@@ -66,13 +66,17 @@ export function useCoursePayment() {
 
       await updateStatus(demand.id, 'awaiting_payment');
 
+      // Pas de `prix` ici : ce serait le TTC cavalier (commission incluse) que
+      // le coach ne doit pas voir. Le webhook bascule cette notif en
+      // « 💰 Paiement reçu » avec le montant NET seller dès confirmation
+      // Stripe (match via courseDemandId).
       await createNotification({
         destinataireId: demand.coachId,
         type: 'course_request',
         titre: '💳 Paiement en cours',
         message: `${userStore.nom} procède au paiement pour "${demand.annonceTitre}"`,
         status: 'pending',
-        donnees: { annonceTitre: demand.annonceTitre, prix: demand.prix },
+        donnees: { annonceTitre: demand.annonceTitre, courseDemandId: demand.id },
       });
 
       // Sur web, window.location évite le blocage popup (Linking.openURL =

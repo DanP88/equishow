@@ -1282,7 +1282,22 @@ function StageCard({ item }: { item: CoachStage }) {
       </View>
 
       <View style={s.footerBtns}>
-        <TouchableOpacity style={[s.msgContactBtn, { flex: 1 }]} onPress={() => router.push('/messagerie')}>
+        <TouchableOpacity
+          style={[s.msgContactBtn, { flex: 1 }]}
+          onPress={() => router.push({
+            pathname: '/messagerie',
+            params: {
+              otherId: item.auteurId,
+              otherNom: item.auteurNom,
+              otherPseudo: item.auteurPseudo,
+              otherInitiales: item.auteurInitiales,
+              otherCouleur: item.auteurCouleur,
+              annonceType: 'stage',
+              sujet: `📚 ${item.titre}`,
+              annonce: item.titre,
+            },
+          } as any)}
+        >
           <Text style={s.msgContactText}>💬 Contacter</Text>
         </TouchableOpacity>
         <TouchableOpacity

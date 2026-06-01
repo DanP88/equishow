@@ -65,13 +65,23 @@ interface StageReservationRow {
 }
 
 function rowToStage(r: StageRow): CoachStage {
+  // Pseudo/initiales dérivés du auteur_nom (même pattern que coach_annonces
+  // depuis 969fd62) : ces colonnes ne sont pas dénormalisées en DB pour les
+  // stages, donc on les calcule front-side pour éviter « par @ » vide.
+  const nom = r.auteur_nom ?? '';
+  const parts = nom.trim().split(/\s+/).filter(Boolean);
+  const auteurPseudo = parts.length
+    ? `${parts[0]}${parts[1]?.[0] ?? ''}`
+    : '';
+  const auteurInitiales = parts.length
+    ? `${parts[0][0] ?? ''}${parts[1]?.[0] ?? ''}`.toUpperCase()
+    : '';
   return {
     id: r.id,
     auteurId: r.auteur_id,
-    auteurNom: r.auteur_nom ?? '',
-    // Champs non stockés côté DB pour l'instant — laissés vides, l'UI gère.
-    auteurPseudo: '',
-    auteurInitiales: '',
+    auteurNom: nom,
+    auteurPseudo,
+    auteurInitiales,
     auteurCouleur: '#7C3AED',
     titre: r.titre,
     description: r.description ?? '',

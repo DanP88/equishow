@@ -238,14 +238,14 @@ function SuccessView({ payment, onPress }: SuccessViewProps) {
         <View style={s.receiptRow}>
           <Text style={s.receiptLabel}>Montant</Text>
           <Text style={s.receiptValue}>
-            {formatAmount(payment.amount_buyer_ttc)}
+            {formatAmount(payment.amount_seller_ht)}
           </Text>
         </View>
 
         <View style={s.receiptDivider} />
 
         <View style={s.receiptRow}>
-          <Text style={s.receiptLabel}>Commission</Text>
+          <Text style={s.receiptLabel}>Commission Equishow</Text>
           <Text style={s.receiptValue}>
             {formatAmount(payment.amount_platform_fee)}
           </Text>
@@ -276,8 +276,8 @@ function SuccessView({ payment, onPress }: SuccessViewProps) {
 
       <View style={s.infoBox}>
         <Text style={s.infoText}>
-          ⏱️ <Text style={s.infoBold}>Prochaines étapes</Text>
-          {'\n'}Le coach recevra votre demande et pourra l\'accepter ou la refuser
+          🔒 <Text style={s.infoBold}>Paiement en séquestre</Text>
+          {'\n'}Votre paiement est conservé par Equishow jusqu\'à la fin de la prestation. À l\'issue, vous pourrez confirmer que tout s\'est bien passé (les fonds seront alors versés au prestataire) ou signaler un problème. Vous pourrez aussi laisser un avis.
         </Text>
       </View>
 

@@ -70,13 +70,17 @@ export function useStagePayment() {
 
       await updateStatus(reservation.id, 'awaiting_payment');
 
+      // Pas de `prix` ici : ce serait le TTC cavalier (commission incluse) que
+      // le coach ne doit pas voir. Le webhook bascule cette notif en
+      // « 💰 Paiement reçu » avec le montant NET seller dès confirmation
+      // Stripe (match via stageReservationId).
       await createNotification({
         destinataireId: reservation.coachId,
         type: 'stage_reservation',
         titre: '💳 Paiement en cours',
         message: `${userStore.nom} procède au paiement pour "${reservation.stageTitre}"`,
         status: 'pending',
-        donnees: { stageTitre: reservation.stageTitre, prix: reservation.prixTotal },
+        donnees: { stageTitre: reservation.stageTitre, stageReservationId: reservation.id },
       });
 
       if (Platform.OS === 'web') {

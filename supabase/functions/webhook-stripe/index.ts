@@ -344,6 +344,48 @@ async function handleChargeSucceeded(
       .eq("id", payment.transport_reservation_id);
   }
 
+  // Mise à jour de la notification « 💳 Paiement en cours » côté vendeur :
+  // bascule vers « 💰 Paiement reçu (séquestre) » avec le montant NET (HT
+  // seller, jamais le TTC cavalier — confidentialité business : le coach ne
+  // doit pas voir la commission). Match via l'id réservation/demande stocké en
+  // donnees côté front (useStagePayment / useCoursePayment / pending-*). Best-
+  // effort : si la notif n'a jamais été créée (ancien flow), no-op silencieux.
+  try {
+    const FK_TO_DONNEES_KEY: Record<string, { fk: string; key: string }> = {
+      course: { fk: "course_demand_id", key: "courseDemandId" },
+      stage: { fk: "stage_reservation_id", key: "stageReservationId" },
+      box: { fk: "box_reservation_id", key: "boxReservationId" },
+      transport: { fk: "transport_reservation_id", key: "transportReservationId" },
+    };
+    const cfg = FK_TO_DONNEES_KEY[payment.type as string];
+    const entityId = cfg ? payment[cfg.fk] : null;
+    if (cfg && entityId) {
+      const amountNetEur =
+        typeof payment.amount_seller_ht === "number" ? payment.amount_seller_ht / 100 : null;
+      const heldNote = escrowOn ? " (en séquestre jusqu'à la prestation)" : "";
+      const { data: notifs } = await supabase
+        .from("notifications")
+        .select("id, donnees")
+        .eq("destinataire_id", payment.seller_id)
+        .eq("status", "pending")
+        .filter("donnees->>" + cfg.key, "eq", String(entityId))
+        .limit(5);
+      for (const n of notifs ?? []) {
+        const donneesNext = { ...(n.donnees ?? {}), prix: amountNetEur };
+        await supabase
+          .from("notifications")
+          .update({
+            titre: "💰 Paiement reçu" + heldNote,
+            status: "accepted",
+            donnees: donneesNext,
+          })
+          .eq("id", n.id);
+      }
+    }
+  } catch (e) {
+    console.error("notif seller update (non bloquant):", e instanceof Error ? e.message : e);
+  }
+
   // Destination charge (transfer_data.destination ou application_fee_amount set) :
   // Stripe a déjà créé le Transfer automatiquement ; charge.transfer peut être
   // null dans l'event charge.succeeded initial puis populé ultérieurement. NE
