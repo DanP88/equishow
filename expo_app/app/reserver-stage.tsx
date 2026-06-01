@@ -91,12 +91,25 @@ export default function ReserverStageScreen() {
       // mig 036, le placeholder TTC = HT (pas de /1.20).
       const placeholderTtc = Math.max(0.01, Math.round(stage.prixTTC * nbParticipants * 100) / 100);
 
+      // Denorm cavalier_nom/pseudo/initiales/couleur dans la résa pour que
+      // /coach-demandes affiche le cavalier sans JOIN supplémentaire. Sinon la
+      // card « Nouvelle inscription à un stage » affiche « par @ » vide et un
+      // rond sans initiales (cf. smoke 2026-06-01).
+      const cavalierNomDenorm = `${profile?.prenom ?? ''} ${profile?.nom ?? ''}`.trim() || null;
+      const cavalierPseudoDenorm = (profile as any)?.pseudo ?? null;
+      const cavalierInitialesDenorm = (profile as any)?.initiales ?? null;
+      const cavalierCouleurDenorm = (profile as any)?.avatar_color ?? null;
+
       const { data: reservation, error: dbError } = await supabase
         .from('stage_reservations')
         .insert({
           stage_id: stage.id,
           coach_id: stage.auteurId,
           cavalier_id: profile?.id,
+          cavalier_nom: cavalierNomDenorm,
+          cavalier_pseudo: cavalierPseudoDenorm,
+          cavalier_initiales: cavalierInitialesDenorm,
+          cavalier_couleur: cavalierCouleurDenorm,
           title: stage.titre,
           nb_participants: nbParticipants,
           price_total_ht: placeholderTtc,

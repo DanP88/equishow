@@ -112,6 +112,10 @@ function rowToReservation(r: StageReservationRow): StageReservation {
     cavalierUserId: r.cavalier_id,
     nombreParticipants: r.nb_participants,
     prixTotal: Number(r.price_total_ttc),
+    // prixSeller = montant NET reçu par le coach (HT). Affiché côté coach pour
+    // ne jamais leaker le TTC cavalier (commission incluse) — confidentialité
+    // business model. Cf. coach-demandes L280.
+    prixSeller: Number(r.price_total_ht),
     message: r.message ?? '',
     statut: r.status,
     dateReservation: r.date_reservation ? new Date(r.date_reservation) : new Date(r.created_at),

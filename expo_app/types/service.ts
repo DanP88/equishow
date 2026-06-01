@@ -218,6 +218,7 @@ export interface StageReservation {
   cavalierUserId: string;
   nombreParticipants: number;
   prixTotal: number;
+  prixSeller: number;
   message: string;
   statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
   dateReservation: Date;

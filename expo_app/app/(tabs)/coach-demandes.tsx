@@ -277,7 +277,7 @@ export default function CoachDemandesScreen() {
                     <Text style={s.detailIcon}>💳</Text>
                     <View style={{ flex: 1 }}>
                       <Text style={s.detailLabel}>MONTANT</Text>
-                      <Text style={s.detailValue}>{r.prixTotal}€ TTC</Text>
+                      <Text style={s.detailValue}>{r.prixSeller}€</Text>
                     </View>
                   </View>
 
