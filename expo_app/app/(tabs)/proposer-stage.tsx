@@ -214,7 +214,7 @@ export default function ProposerStageScreen() {
 
         {/* Tarif */}
         <View style={s.field}>
-          <Text style={s.fieldLabel}>Tarif (€ TTC) *</Text>
+          <Text style={s.fieldLabel}>Tarif (€) *</Text>
           <TextInput
             style={[s.input, !!tarif && s.inputFilled]}
             value={tarif}
@@ -288,7 +288,7 @@ export default function ProposerStageScreen() {
               </View>
               <View style={s.detailRow}>
                 <Text style={s.detailIcon}>💳</Text>
-                <Text style={s.detailText}>{tarif}€ TTC</Text>
+                <Text style={s.detailText}>{tarif}€</Text>
               </View>
             </View>
 
