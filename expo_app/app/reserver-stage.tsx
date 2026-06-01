@@ -148,15 +148,9 @@ export default function ReserverStageScreen() {
         },
       });
 
-      // Breakdown affiché à l'utilisateur : montant HT seller + commission
-      // Equishow 9 % = total TTC payé. Sans cette ventilation, le user voyait
-      // « 500 € » sans comprendre que 45 € de commission s'y ajoutent au
-      // paiement (cf. smoke 2026-06-01).
-      const commissionEur = Math.round(placeholderTtc * 0.09);
-      const totalTtcEur = placeholderTtc + commissionEur;
       setShowDetailsModal(false);
       setSuccessMsg(
-        `Demande envoyée à ${stage.auteurNom?.trim() || 'l’organisateur du stage'}. Vous serez notifié(e) dès la validation, puis vous pourrez procéder au paiement de ${placeholderTtc}€ + ${commissionEur}€ de commission Equishow = ${totalTtcEur}€ TTC.`,
+        `Demande envoyée à ${stage.auteurNom?.trim() || 'l’organisateur du stage'}. Vous serez notifié(e) dès la validation et pourrez ensuite procéder au paiement.`,
       );
     } catch (err: any) {
       showErr('Erreur', err.message || 'Impossible de créer la réservation.');
