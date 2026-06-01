@@ -175,6 +175,21 @@ async function emailPaymentBothParties(
   }
 }
 
+// Envoi des emails hors critical path : la réponse 200 est renvoyée
+// immédiatement et l'envoi Resend (séquentiel buyer→seller, 2-6s) ne retarde
+// plus la confirmation côté verify-checkout-session. waitUntil maintient le
+// process Deno vivant jusqu'à la résolution. Fallback await si EdgeRuntime
+// indisponible (ex. tests locaux Node).
+function scheduleEmail(job: Promise<void>): Promise<void> {
+  // @ts-ignore — EdgeRuntime est fourni par le runtime Supabase Edge.
+  if (typeof EdgeRuntime !== "undefined" && EdgeRuntime?.waitUntil) {
+    // @ts-ignore
+    EdgeRuntime.waitUntil(job);
+    return Promise.resolve();
+  }
+  return job;
+}
+
 // ============================================================================
 // EVENT HANDLERS
 // ============================================================================
@@ -329,11 +344,18 @@ async function handleChargeSucceeded(
       .eq("id", payment.transport_reservation_id);
   }
 
-  // If Stripe didn't auto-transfer (legacy non-Connect or transfer_data absent),
-  // fall back to manual transfer creation.
-  // V2 séquestre : on NE transfère JAMAIS ici (libération différée). escrowOn
-  // OFF → condition legacy EXACTE inchangée.
-  if (!charge.transfer && !escrowOn) {
+  // Destination charge (transfer_data.destination ou application_fee_amount set) :
+  // Stripe a déjà créé le Transfer automatiquement ; charge.transfer peut être
+  // null dans l'event charge.succeeded initial puis populé ultérieurement. NE
+  // PAS créer de transfer manuel — Stripe refuse (« charge has transfer_data »)
+  // et on perd 1-3s sync sur le critical path du webhook pour rien. Le
+  // stripe_transfer_id sera récupérable côté Stripe via expand au refund.
+  const isDestinationCharge =
+    !!charge.transfer_data?.destination || !!charge.application_fee_amount;
+
+  // Fallback manuel : SEULEMENT pour legacy non-destination-charge (cas
+  // historique). escrowOn ON → libération différée via release-payment.
+  if (!charge.transfer && !escrowOn && !isDestinationCharge) {
     const { data: seller } = await supabase
       .from("users")
       .select("stripe_account_id")
@@ -358,12 +380,14 @@ async function handleChargeSucceeded(
             updated_at: new Date().toISOString(),
           })
           .eq("id", payment.id);
+      } else {
+        console.error("Manual transfer failed for payment", payment.id, transferResponse);
       }
     }
   }
 
-  // Emails « paiement confirmé » aux 2 parties — best-effort, après les MAJ DB.
-  await emailPaymentBothParties(supabase, payment, "payment_succeeded", event.id);
+  // Emails « paiement confirmé » aux 2 parties — hors critical path.
+  await scheduleEmail(emailPaymentBothParties(supabase, payment, "payment_succeeded", event.id));
 }
 
 async function handleChargeFailed(
@@ -407,8 +431,8 @@ async function handleChargeFailed(
 
     console.log("Payment marked as failed:", payment.id);
 
-    // Email « paiement échoué » — best-effort.
-    await emailPaymentBothParties(supabase, payment, "payment_failed", event.id);
+    // Email « paiement échoué » — hors critical path.
+    await scheduleEmail(emailPaymentBothParties(supabase, payment, "payment_failed", event.id));
   }
 }
 
@@ -497,8 +521,8 @@ async function handleChargeRefunded(
 
   console.log("Payment refunded:", payment.id);
 
-  // Email « remboursement » — best-effort.
-  await emailPaymentBothParties(supabase, payment, "payment_refunded", event.id);
+  // Email « remboursement » — hors critical path.
+  await scheduleEmail(emailPaymentBothParties(supabase, payment, "payment_refunded", event.id));
 }
 
 // ============================================================================
@@ -612,9 +636,9 @@ export async function handler(req: Request): Promise<Response> {
 
     const { data: existingEvent } = await supabase
       .from("stripe_webhook_events")
-      .select("*")
+      .select("processed")
       .eq("stripe_event_id", stripeEventId)
-      .single();
+      .maybeSingle();
 
     if (existingEvent?.processed) {
       console.log("Event already processed:", stripeEventId);
