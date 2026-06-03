@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { UserRole } from '../../types/user';
 import { useAuth } from '../../hooks/useAuth';
 import { signupLimiter } from '../../lib/rateLimiter';
+import { HOME_ROUTE_BY_ROLE } from '../../constants/routes';
 
 const ROLES: { value: UserRole; label: string; desc: string }[] = [
   { value: 'cavalier', label: 'Cavalier', desc: 'Je pratique la compétition' },
@@ -56,7 +57,9 @@ export default function SignupScreen() {
       return;
     }
     await signupLimiter.reset();
-    router.replace('/(tabs)/chevaux');
+    // A7 : rediriger selon le rôle choisi (organisateur/coach/cavalier) au lieu
+    // du redirect fixe /chevaux qui envoyait tout le monde sur l'espace cavalier.
+    router.replace((HOME_ROUTE_BY_ROLE[role] ?? '/(tabs)/chevaux') as any);
   }
 
   return (

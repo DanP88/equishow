@@ -13,18 +13,10 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { userStore, supabase } from '../data/store';
 import { useAuth } from '../hooks/useAuth';
+import { HOME_ROUTE_BY_ROLE } from '../constants/routes';
 
 type Role = 'cavalier' | 'coach' | 'organisateur' | 'admin';
 type SelectableRole = 'cavalier' | 'coach' | 'organisateur';
-
-// Premier onglet (route home) par rôle — doit rester aligné avec
-// TABS_BY_ROLE dans components/CustomBottomBar.tsx.
-const HOME_ROUTE_BY_ROLE: Record<Role, string> = {
-  cavalier:     '/(tabs)/chevaux',
-  coach:        '/(tabs)/coach-agenda',
-  organisateur: '/(tabs)/org-concours',
-  admin:        '/(tabs)/admin-settings',
-};
 
 const ROLES: {
   id: SelectableRole;
