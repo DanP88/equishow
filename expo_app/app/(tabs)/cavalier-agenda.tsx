@@ -549,7 +549,10 @@ export default function CavalierAgendaScreen() {
                     {/* Montant + Avis */}
                     <View style={s.cardBottom}>
                       <Text style={s.montant}>{item.montant.toFixed(2)}€ TTC</Text>
-                      {(item.statut === 'paid' || item.statut === 'accepted') && (
+                      {/* A5 : avis autorisé uniquement après prestation terminée
+                          (status='completed', posé par la libération escrow — mig 049),
+                          plus sur 'accepted'/'paid'. */}
+                      {item.statut === 'completed' && (
                         myAvisRefs.has(item.id) ? (
                           <View style={s.avisDoneBadge}>
                             <Text style={s.avisDoneText}>⭐ Avis déposé</Text>
