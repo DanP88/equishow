@@ -563,11 +563,12 @@ export default function CavalierAgendaScreen() {
                     </View>
 
                     {/* Séquestre (escrow) — acheteur uniquement, si paiement séquestre.
-                        Étendu à cours et stage : useMyEscrowPayments renvoie le
-                        payment via course_demand_id / stage_reservation_id, mais
-                        l'UI gate ne couvrait que box_buyer → cavalier ne pouvait
-                        ni libérer ni signaler le paiement après prestation. */}
-                    {(item.type === 'box_buyer' || item.type === 'cours' || item.type === 'stage') && escrowByResa[item.id] && (() => {
+                        Étendu à cours, stage et transport_buyer : useMyEscrowPayments
+                        renvoie le payment via course_demand_id / stage_reservation_id /
+                        transport_reservation_id, mais l'UI gate ne couvrait que
+                        box_buyer → le cavalier ne pouvait ni libérer les fonds ni
+                        signaler un litige après la prestation sur ces modules. */}
+                    {(item.type === 'box_buyer' || item.type === 'cours' || item.type === 'stage' || item.type === 'transport_buyer') && escrowByResa[item.id] && (() => {
                       const ep = escrowByResa[item.id];
                       const badge = escrowBadge(ep);
                       if (!badge) return null;
