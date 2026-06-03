@@ -8,6 +8,7 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { useMyTransportReservations } from '../hooks/useTransports';
+import { useUsersByIds } from '../hooks/useUsersByIds';
 import { createNotification } from '../hooks/useNotifications';
 import { sendReservationEmail } from '../utils/sendReservationEmail';
 import { TransportReservation } from '../types/service';
@@ -21,6 +22,16 @@ export default function TransportPendingDemandsScreen() {
   const demands = reservations.filter(
     (r) => r.sellerId === profile?.id && r.statut === 'pending',
   );
+
+  // A6 : résoudre les UUID acheteurs vers leurs infos publiques (nom + pseudo)
+  // au lieu d'afficher l'UUID brut. RLS users_public : lecture authentifiée.
+  const usersById = useUsersByIds(demands.map((d) => d.buyerId));
+  const buyerLabel = (buyerId: string) => {
+    const u = usersById.get(buyerId);
+    if (!u) return 'Cavalier';
+    const nom = `${u.prenom} ${u.nom}`.trim();
+    return u.pseudo ? `${nom} (@${u.pseudo})` : nom || 'Cavalier';
+  };
 
   const handleAccept = async (demand: TransportReservation) => {
     const { error } = await updateStatut(demand.id, 'accepted');
@@ -105,7 +116,7 @@ export default function TransportPendingDemandsScreen() {
 
               <View style={s.detailsRow}>
                 <Text style={s.label}>👤 Cavalier:</Text>
-                <Text style={s.value}>{demand.buyerId}</Text>
+                <Text style={s.value}>{buyerLabel(demand.buyerId)}</Text>
               </View>
 
               <View style={s.detailsRow}>
