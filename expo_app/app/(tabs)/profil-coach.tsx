@@ -10,6 +10,7 @@ import { AvisSection } from '../../components/AvisSection';
 import { FollowListModal } from '../../components/FollowListModal';
 import { useAuth } from '../../hooks/useAuth';
 import { UserBadge } from '../../components/UserBadge';
+import { SellerStripeMenuItem } from '../../components/SellerStripeMenuItem';
 
 const ROLE_LABELS: Record<string, string> = {
   coach: 'Coach',
@@ -119,6 +120,7 @@ export default function ProfilCoachScreen() {
             <Text style={styles.menuLabel}>Modifier mon profil</Text>
             <Text style={styles.menuArrow}>›</Text>
           </TouchableOpacity>
+          <SellerStripeMenuItem />
           <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/compte-type')} activeOpacity={0.7}>
             <Text style={styles.menuIcon}>🎓</Text>
             <View style={{ flex: 1 }}>

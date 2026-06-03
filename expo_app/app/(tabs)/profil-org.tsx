@@ -9,6 +9,7 @@ import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
 import { FollowListModal } from '../../components/FollowListModal';
 import { useAuth } from '../../hooks/useAuth';
+import { SellerStripeMenuItem } from '../../components/SellerStripeMenuItem';
 
 const ROLE_LABELS: Record<string, string> = {
   organisateur: 'Organisateur',
@@ -114,6 +115,7 @@ export default function ProfilOrgScreen() {
         {/* Mon compte */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Mon compte</Text>
+          <SellerStripeMenuItem />
           <TouchableOpacity style={styles.menuBtn} onPress={() => router.push('/compte-type')} activeOpacity={0.7}>
             <Text style={styles.menuIcon}>🏟️</Text>
             <View style={{ flex: 1 }}>

@@ -18,6 +18,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { UserBadge } from '../../components/UserBadge';
 import { useMyProgression } from '../../hooks/useMyProgression';
 import { LEVEL_STYLE } from '../../lib/badges';
+import { SellerStripeMenuItem } from '../../components/SellerStripeMenuItem';
 
 const ROLE_LABELS: Record<string, string> = {
   cavalier: 'Cavalier',
@@ -153,6 +154,7 @@ export default function ProfilScreen() {
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Mon compte</Text>
           <MenuButton icon="✏️" label="Modifier mon profil" onPress={openEdit} />
+          <SellerStripeMenuItem />
           <MenuButton
             icon={ROLE_ICONS[user.role]}
             label="Changer de type de compte"
