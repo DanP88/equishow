@@ -72,7 +72,12 @@ export default function PendingTransportPaymentsScreen() {
         return;
       }
 
-      await updateStatut(reservation.id, 'awaiting_payment');
+      const { error: statutErr } = await updateStatut(reservation.id, 'awaiting_payment');
+      if (statutErr) {
+        // Non bloquant : on laisse le paiement Stripe continuer. Le webhook
+        // posera `paid` à la confirmation, indépendamment de ce passage.
+        console.warn('[pending-transport-payments] updateStatut(awaiting_payment) a échoué (non bloquant):', statutErr);
+      }
 
       // Pas de `prix` ici : ce serait le TTC cavalier (commission incluse) que
       // le seller ne doit pas voir. Le webhook bascule cette notif en
