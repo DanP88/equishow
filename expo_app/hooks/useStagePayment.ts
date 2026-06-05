@@ -4,7 +4,6 @@ import { userStore } from '../data/store';
 import { StageReservation } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createNotification } from './useNotifications';
-import { useMyStageReservations } from './useStages';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -12,15 +11,18 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
 /**
  * Paiement d'une réservation de stage acceptée — mirror de useCoursePayment.
  *
- * Appelle l'Edge Function create-checkout-session avec type='stage', marque
- * la réservation `awaiting_payment`, notifie le coach, puis redirige vers
- * Stripe (window.location sur web pour éviter le blocage popup).
+ * Appelle l'Edge Function create-checkout-session avec type='stage', notifie
+ * le coach, puis redirige vers Stripe (window.location sur web pour éviter le
+ * blocage popup).
+ *
+ * Note : la réservation reste `accepted` jusqu'au webhook (`paid`). On n'écrit
+ * pas `awaiting_payment` côté stage : statut absent du CHECK de
+ * stage_reservations, l'UPDATE échouait silencieusement (audit 2026-06-04).
  *
  * Pas de header `apikey` : l'Edge Function n'autorise que Content-Type +
  * Authorization en CORS (cf. fix Lot 2 #12 box).
  */
 export function useStagePayment() {
-  const { updateStatus } = useMyStageReservations();
   const [loading, setLoading] = useState(false);
 
   const payStage = useCallback(async (reservation: StageReservation) => {
@@ -68,8 +70,6 @@ export function useStagePayment() {
         return;
       }
 
-      await updateStatus(reservation.id, 'awaiting_payment');
-
       // Pas de `prix` ici : ce serait le TTC cavalier (commission incluse) que
       // le coach ne doit pas voir. Le webhook bascule cette notif en
       // « 💰 Paiement reçu » avec le montant NET seller dès confirmation
@@ -94,7 +94,7 @@ export function useStagePayment() {
     } finally {
       setLoading(false);
     }
-  }, [updateStatus]);
+  }, []);
 
   return { payStage, loading };
 }

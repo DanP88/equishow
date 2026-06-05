@@ -4,7 +4,6 @@ import { userStore } from '../data/store';
 import { CourseDemande } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createNotification } from './useNotifications';
-import { useMyCourseDemands } from './useCourseDemands';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -13,12 +12,15 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
  * Paiement d'une demande de cours acceptée — point unique partagé entre
  * l'écran /pending-payments et la carte de notification « Payer maintenant ».
  *
- * Appelle l'Edge Function create-checkout-session, marque la demande
- * `awaiting_payment`, notifie le coach, puis redirige vers Stripe (window.location
- * sur web pour éviter le blocage popup — cf. fix dcc0fdb).
+ * Appelle l'Edge Function create-checkout-session, notifie le coach, puis
+ * redirige vers Stripe (window.location sur web pour éviter le blocage popup —
+ * cf. fix dcc0fdb).
+ *
+ * Note : la demande reste `accepted` jusqu'au webhook (`paid`). On n'écrit pas
+ * `awaiting_payment` côté cours : ce statut est absent du CHECK de
+ * course_demands, l'UPDATE échouait silencieusement (audit 2026-06-04).
  */
 export function useCoursePayment() {
-  const { updateStatus } = useMyCourseDemands();
   const [loading, setLoading] = useState(false);
 
   const payCourse = useCallback(async (demand: CourseDemande) => {
@@ -64,8 +66,6 @@ export function useCoursePayment() {
         return;
       }
 
-      await updateStatus(demand.id, 'awaiting_payment');
-
       // Pas de `prix` ici : ce serait le TTC cavalier (commission incluse) que
       // le coach ne doit pas voir. Le webhook bascule cette notif en
       // « 💰 Paiement reçu » avec le montant NET seller dès confirmation
@@ -92,7 +92,7 @@ export function useCoursePayment() {
     } finally {
       setLoading(false);
     }
-  }, [updateStatus]);
+  }, []);
 
   return { payCourse, loading };
 }
