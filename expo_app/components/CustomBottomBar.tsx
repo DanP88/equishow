@@ -7,9 +7,10 @@ import { useUserRole } from '../hooks/useUserRole';
 import { useUnreadNotificationsCount } from '../hooks/useNotifications';
 import { useMyTransportReservations } from '../hooks/useTransports';
 import { useMyBoxReservations } from '../hooks/useBoxes';
-import { userStore, totalUnreadForUser } from '../data/store';
+import { userStore } from '../data/store';
 import { useMyCourseDemands } from '../hooks/useCourseDemands';
 import { useMyStageReservations } from '../hooks/useStages';
+import { useUnreadMessagesCount } from '../hooks/useMessaging';
 
 export interface TabConfig {
   name: string;
@@ -65,7 +66,8 @@ export function CustomBottomBar() {
   const { reservations: stageReservations } = useMyStageReservations();
   const [demandCount, setDemandCount] = useState(0);
   const [agendaCount, setAgendaCount] = useState(0);
-  const [msgCount, setMsgCount] = useState(0);
+  // Badge messages non lus : source Supabase unique (realtime), tous rôles.
+  const msgCount = useUnreadMessagesCount();
 
   // Tous les flux migrés sur Supabase via hooks realtime — plus de store mock.
   const updateNotificationCount = useCallback(() => {
@@ -93,9 +95,6 @@ export function CustomBottomBar() {
         r => r.cavalierUserId === uid && r.statut === 'pending'
       ).length;
       setAgendaCount(pendingTransport + pendingBox + pendingStage + pendingCours);
-      setMsgCount(totalUnreadForUser(uid));
-    } else if (role === 'organisateur') {
-      setMsgCount(totalUnreadForUser(uid));
     }
   }, [role, transportReservations, boxReservations, courseDemands, stageReservations]);
 

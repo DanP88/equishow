@@ -6,10 +6,11 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { userStore, concoursStore, totalUnreadForUser } from '../../data/store';
+import { userStore, concoursStore } from '../../data/store';
 import { useTransportAnnonces, useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useBoxAnnonces, useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useCoachAnnonces, useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
+import { useUnreadMessagesCount } from '../../hooks/useMessaging';
 import { useStages } from '../../hooks/useStages';
 import { useCoachProfiles } from '../../hooks/useCoachProfiles';
 import { useAvisStats } from '../../hooks/useAvis';
@@ -134,8 +135,8 @@ export default function ServicesScreen() {
   } | null>(null);
   const [upgradeAlert, setUpgradeAlert] = useState<{ title: string; message: string } | null>(null);
 
-  // Compteur messages non lus (badge cloche dans le header)
-  const msgUnreadCount = totalUnreadForUser(userStore.id);
+  // Compteur messages non lus (badge cloche dans le header) — Supabase realtime.
+  const msgUnreadCount = useUnreadMessagesCount();
 
   // Gating plan : Découverte (gratuit) bloque Transport et Box.
   const planLimits = getPlanLimits((userStore as any).plan);

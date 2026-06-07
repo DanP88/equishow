@@ -153,91 +153,10 @@ export const concoursCsvStore: {
 // courseDemandesStore retiré P24 phase 5 (hook useMyCourseDemands).
 // coachAgendaStore retiré P24 phase 5 (agenda dérivé des demandes/réservations).
 
-// Types pour la messagerie
-export interface Message {
-  id: string;
-  senderId: string;   // userId de l'expéditeur
-  texte: string;
-  heure: string;      // heure d'envoi (string affichage)
-  ts: number;         // timestamp pour tri
-}
-
-export interface Conversation {
-  id: string;
-  participants: [string, string]; // [userId1, userId2]
-  // Infos affichage pour chaque participant
-  userA: { id: string; nom: string; pseudo: string; couleur: string; initiales: string };
-  userB: { id: string; nom: string; pseudo: string; couleur: string; initiales: string };
-  sujet: string;
-  annonce?: string;
-  annonceType?: 'transport' | 'box' | 'coach';
-  messages: Message[];
-  unreadBy: Record<string, number>; // { [userId]: nombre non lus }
-  dernierMsg: string;
-  heure: string;
-}
-
-// Store global des conversations — partagé entre tous les comptes de la session
-export const messagesStore: { list: Conversation[] } = { list: [] };
-
-/** Trouve ou crée une conversation entre deux users */
-export function getOrCreateConversation(
-  myId: string, myNom: string, myPseudo: string, myCouleur: string, myInitiales: string,
-  otherId: string, otherNom: string, otherPseudo: string, otherCouleur: string, otherInitiales: string,
-  sujet?: string, annonce?: string, annonceType?: 'transport' | 'box' | 'coach',
-): Conversation {
-  const existing = messagesStore.list.find(
-    c => c.participants.includes(myId) && c.participants.includes(otherId)
-  );
-  if (existing) return existing;
-
-  const conv: Conversation = {
-    id: `conv_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
-    participants: [myId, otherId],
-    userA: { id: myId, nom: myNom, pseudo: myPseudo, couleur: myCouleur, initiales: myInitiales },
-    userB: { id: otherId, nom: otherNom, pseudo: otherPseudo, couleur: otherCouleur, initiales: otherInitiales },
-    sujet: sujet ?? '💬 Discussion',
-    annonce,
-    annonceType,
-    messages: [],
-    unreadBy: { [myId]: 0, [otherId]: 0 },
-    dernierMsg: '',
-    heure: '',
-  };
-  messagesStore.list = [conv, ...messagesStore.list];
-  return conv;
-}
-
-/** Envoie un message dans une conversation */
-export function sendMessageToConv(convId: string, senderId: string, texte: string) {
-  const conv = messagesStore.list.find(c => c.id === convId);
-  if (!conv) return;
-  const now = new Date();
-  const heure = now.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
-  const msg: Message = { id: `m_${Date.now()}`, senderId, texte, heure, ts: now.getTime() };
-  conv.messages = [...conv.messages, msg];
-  conv.dernierMsg = texte;
-  conv.heure = heure;
-  // Incrémenter non-lus pour l'autre participant
-  conv.participants.forEach(pid => {
-    if (pid !== senderId) {
-      conv.unreadBy[pid] = (conv.unreadBy[pid] ?? 0) + 1;
-    }
-  });
-  // Les notifs type='message' n'étaient lues par personne (filtrées hors des
-  // écrans notifs). Le badge "non lus messages" passe par messagesStore.unreadBy.
-}
-
-/** Marque tous les messages d'une conv comme lus pour un user */
-export function markConvAsRead(convId: string, userId: string) {
-  const conv = messagesStore.list.find(c => c.id === convId);
-  if (conv) conv.unreadBy[userId] = 0;
-}
-
-/** Nombre total de messages non lus pour un user */
-export function totalUnreadForUser(userId: string): number {
-  return messagesStore.list.reduce((acc, c) => acc + (c.unreadBy[userId] ?? 0), 0);
-}
+// Messagerie 100% migrée sur Supabase (mig 038). L'ancien store mémoire
+// (messagesStore + getOrCreateConversation/sendMessageToConv/markConvAsRead/
+// totalUnreadForUser + types Message/Conversation) a été retiré. Voir
+// hooks/useMessaging.ts (conversations, messages, conversation_reads, realtime).
 
 // Types pour la communauté
 export interface CommunauteComment {
