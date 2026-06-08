@@ -256,8 +256,9 @@ export default function ProposerTransportScreen() {
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
 
-  // Les prix sont directement en TTC
-  const prixNum = parseFloat(prix);
+  // Les prix sont directement en TTC.
+  // Accepte virgule OU point comme séparateur décimal (0.5 / 0,5 / 0.50 / 0,50).
+  const prixNum = parseFloat(prix.replace(',', '.'));
 
   function showErr(title: string, msg: string) {
     setAlertState({ title, message: msg, variant: 'error' });
@@ -323,8 +324,8 @@ export default function ProposerTransportScreen() {
       villeArrivee: typeTransport === 'location' ? '' : extractCity(adresseArrivee),
       nbPlacesTotal: nb,
       nbPlacesDisponibles: nb,
-      prixHT: parseFloat(prix),
-      pricePerKm: typeTransport === 'trajet' ? parseFloat(prix) : 0,
+      prixHT: prixNum,
+      pricePerKm: typeTransport === 'trajet' ? prixNum : 0,
       concours: concours || undefined,
       description: description || undefined,
       typeTransport,
