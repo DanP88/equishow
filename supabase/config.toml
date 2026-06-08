@@ -44,3 +44,9 @@ enable_confirmations = false
 # verify_jwt=true sinon le gateway renvoie 401 avant le code (livraison cassée).
 [functions.webhook-stripe]
 verify_jwt = false
+
+# send-push : appelée par le trigger DB (pg_net) SANS JWT Supabase → l'auth se
+# fait par secret partagé (header x-push-secret == PUSH_DISPATCH_SECRET). NE PAS
+# remettre verify_jwt=true sinon le gateway renvoie 401 avant le code.
+[functions.send-push]
+verify_jwt = false
