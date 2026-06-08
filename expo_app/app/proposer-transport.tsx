@@ -1,7 +1,7 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Modal,
+  TextInput, Modal, ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
@@ -211,7 +211,7 @@ function Dropdown({ placeholder, value, options, onChange }: {
 
 export default function ProposerTransportScreen() {
   const { editId, type } = useLocalSearchParams<{ editId?: string; type?: string }>();
-  const { annonces, createAnnonce, updateAnnonce } = useMyTransportAnnonces();
+  const { annonces, isLoading: annoncesLoading, createAnnonce, updateAnnonce } = useMyTransportAnnonces();
   const existing = editId ? annonces.find((t) => t.id === editId) : undefined;
 
   // villeDepart/villeArrivee retirés de l'UI — dérivés des adresses au save.
@@ -256,6 +256,38 @@ export default function ProposerTransportScreen() {
   const [confirmationMessage, setConfirmationMessage] = useState('');
   const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
 
+  // Hydratation édition : `existing` vient d'un fetch async. Les initialiseurs
+  // useState ci-dessus ne s'exécutent qu'au montage → si l'annonce n'est pas
+  // encore chargée, les champs restent vides. On réinjecte les valeurs UNE SEULE
+  // FOIS dès que `existing` arrive (hydratedRef), sans écraser une saisie en cours.
+  const hydratedRef = useRef(false);
+  useEffect(() => {
+    if (!editId || hydratedRef.current || !existing) return;
+    hydratedRef.current = true;
+    setDateTrajet(existing.dateTrajet);
+    setNbPlaces(String(existing.nbPlacesTotal));
+    setPrix(String(existing.prixHT));
+    setTypeTransport(existing.typeTransport ?? 'trajet');
+    setAdresseVan(existing.adresseVan ?? '');
+    setAdresseVanLat(existing.startLat);
+    setAdresseVanLng(existing.startLng);
+    setAdresseArrivee(existing.adresseArrivee ?? '');
+    setAdresseArriveeLat(existing.destinationLat);
+    setAdresseArriveeLng(existing.destinationLng);
+    setHeureDepart(existing.heureDepart ?? '');
+    setProposerRetour(existing.allerRetour ?? false);
+    setDateRetour(existing.dateRetour);
+    setKmInclus(existing.kmInclus ? String(existing.kmInclus) : '');
+    setTarifKmSupplémentaire(existing.tarifKmSupplémentaire ? String(existing.tarifKmSupplémentaire) : '');
+    setCautionRéparation(existing.cautionRéparation ? String(existing.cautionRéparation) : '');
+    setCautionNettoyage(existing.cautionNettoyage ? String(existing.cautionNettoyage) : '');
+    setDatesDisponibles(existing.datesDisponibles ?? []);
+    setConcours(existing.concours ?? '');
+    setDescription(existing.description ?? '');
+    // Champs retour (villedepartRetour/villearriveeRetour/nbPlacesRetour) : non
+    // persistés en base → non hydratés ici (traité dans le lot aller-retour).
+  }, [editId, existing]);
+
   // Les prix sont directement en TTC.
   // Accepte virgule OU point comme séparateur décimal (0.5 / 0,5 / 0.50 / 0,50).
   const prixNum = parseFloat(prix.replace(',', '.'));
@@ -266,6 +298,12 @@ export default function ProposerTransportScreen() {
 
   async function submit() {
     try {
+    // Garde édition : ne jamais sauvegarder depuis un state non hydraté, sinon
+    // l'update écraserait les valeurs existantes par du vide.
+    if (editId && (!existing || !hydratedRef.current)) {
+      showErr('Chargement en cours', 'Patiente une seconde, l\'annonce finit de se charger.');
+      return;
+    }
     const today = new Date(); today.setHours(0, 0, 0, 0);
 
     if (typeTransport === 'trajet') {
@@ -360,6 +398,32 @@ export default function ProposerTransportScreen() {
       console.error('Submit error:', e?.message, e);
       showErr('Erreur', e?.message || 'Une erreur est survenue');
     }
+  }
+
+  // Mode édition : tant que l'annonce n'est pas chargée + hydratée, on affiche un
+  // état d'attente plutôt qu'un formulaire vide (qui pourrait écraser les données).
+  if (editId && (!existing || !hydratedRef.current)) {
+    return (
+      <SafeAreaView style={s.root}>
+        <View style={s.header}>
+          <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
+            <Text style={s.backIcon}>‹</Text>
+          </TouchableOpacity>
+          <Text style={s.headerTitle}>Modifier le trajet</Text>
+          <View style={{ width: 40 }} />
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', padding: Spacing.lg }}>
+          {!existing && !annoncesLoading ? (
+            <Text style={{ color: '#6B7280', fontSize: FontSize.md }}>Annonce introuvable.</Text>
+          ) : (
+            <>
+              <ActivityIndicator size="large" color={Colors.urgent} />
+              <Text style={{ marginTop: Spacing.md, color: '#6B7280' }}>Chargement de l'annonce…</Text>
+            </>
+          )}
+        </View>
+      </SafeAreaView>
+    );
   }
 
   return (
