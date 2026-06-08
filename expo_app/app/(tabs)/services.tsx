@@ -207,7 +207,15 @@ export default function ServicesScreen() {
     transportSubTab === 'trajets' ? t.typeTransport === 'trajet' : t.typeTransport === 'location'
   );
 
-  const filteredT = applyTransportFilters(transportsFiltered, filtersT);
+  // L2 — masquer les trajets COMPLETS (nb_places_disponibles <= 0) côté cavalier.
+  // Exceptions : (1) les locations ne sont jamais masquées (logique de dispo
+  // différente) ; (2) l'AUTEUR continue de voir sa propre annonce complète
+  // (badge « Mon annonce » + Modifier/Retirer). L'annonce n'est PAS supprimée en base.
+  const transportsVisible = transportsFiltered.filter(t =>
+    !(t.typeTransport === 'trajet' && t.nbPlacesDisponibles <= 0 && t.auteurId !== userStore.id)
+  );
+
+  const filteredT = applyTransportFilters(transportsVisible, filtersT);
   const filteredB = applyBoxFilters(boxes, filtersB);
   const filteredC = applyCoachFilters(coaches, filtersC);
 
