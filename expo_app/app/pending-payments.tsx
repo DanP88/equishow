@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  ActivityIndicator,
+  ActivityIndicator, Modal,
 } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
@@ -9,6 +9,7 @@ import { userStore } from '../data/store';
 import { useMyCourseDemands } from '../hooks/useCourseDemands';
 import { useCoursePayment } from '../hooks/useCoursePayment';
 import { useMyStageReservations } from '../hooks/useStages';
+import { StageReservation } from '../types/service';
 import { useStagePayment } from '../hooks/useStagePayment';
 
 export default function PendingPaymentsScreen() {
@@ -22,12 +23,19 @@ export default function PendingPaymentsScreen() {
   // l'état loading sur les 2 autres résa visibles, donnant l'illusion d'un
   // paiement multi. Bug constaté en prod 2026-05-31 par user.
   const [payingId, setPayingId] = useState<string | null>(null);
+  // Stage en cours de récap avant paiement : la modale montre prix coach +
+  // commission + total à payer AVANT d'ouvrir Stripe (le prix coach seul est
+  // affiché partout ailleurs).
+  const [recapStage, setRecapStage] = useState<StageReservation | null>(null);
 
   const validatedDemands = demands.filter(
     d => d.cavalierUserId === userStore.id && d.statut === 'accepted'
   );
+  // `accepted` = validé coach, à payer. `awaiting_payment` = paiement Stripe
+  // lancé puis abandonné → on garde la card visible pour RELANCER le paiement
+  // (le cron 055 finira par l'expirer en cancelled après 24h si toujours impayé).
   const validatedStages = stageReservations.filter(
-    r => r.cavalierUserId === userStore.id && r.statut === 'accepted'
+    r => r.cavalierUserId === userStore.id && (r.statut === 'accepted' || r.statut === 'awaiting_payment')
   );
   const totalToPay = validatedDemands.length + validatedStages.length;
 
@@ -114,7 +122,7 @@ export default function PendingPaymentsScreen() {
                   <Text style={s.annonceTitle}>🎓 {reservation.stageTitre}</Text>
                 </View>
                 <View style={s.priceBadge}>
-                  <Text style={s.priceText}>{reservation.prixTotal}€</Text>
+                  <Text style={s.priceText}>{reservation.prixSeller}€</Text>
                 </View>
               </View>
 
@@ -124,18 +132,22 @@ export default function PendingPaymentsScreen() {
               </View>
 
               <View style={s.statusBadge}>
-                <Text style={s.statusText}>✅ Validée par le coach</Text>
+                <Text style={s.statusText}>
+                  {reservation.statut === 'awaiting_payment' ? '⏳ Paiement à finaliser' : '✅ Validée par le coach'}
+                </Text>
               </View>
 
               <TouchableOpacity
                 style={[s.btn, s.payBtn]}
-                onPress={() => handlePayStage(reservation)}
+                onPress={() => setRecapStage(reservation)}
                 disabled={!!payingId}
               >
                 {payingId === reservation.id ? (
                   <ActivityIndicator color={Colors.textInverse} />
                 ) : (
-                  <Text style={s.payBtnText}>💳 Payer maintenant</Text>
+                  <Text style={s.payBtnText}>
+                    {reservation.statut === 'awaiting_payment' ? '💳 Reprendre le paiement' : '💳 Payer maintenant'}
+                  </Text>
                 )}
               </TouchableOpacity>
             </View>
@@ -144,11 +156,94 @@ export default function PendingPaymentsScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
+
+      {/* Récap commission AVANT Stripe : prix coach + commission Equishow =
+          total à payer. Seul écran où la commission est visible (partout
+          ailleurs on n'affiche que le prix coach). */}
+      <Modal
+        visible={!!recapStage}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setRecapStage(null)}
+      >
+        <View style={s.modalOverlay}>
+          <View style={s.modalCard}>
+            <Text style={s.modalTitle}>Récapitulatif du paiement</Text>
+            {recapStage && (
+              <>
+                <View style={s.recapRow}>
+                  <Text style={s.recapLabel} numberOfLines={1}>🎓 {recapStage.stageTitre}</Text>
+                  <Text style={s.recapValue}>{recapStage.prixSeller}€</Text>
+                </View>
+                <View style={s.recapRow}>
+                  <Text style={s.recapLabel}>Commission Equishow</Text>
+                  <Text style={s.recapValue}>{Math.round((recapStage.prixTotal - recapStage.prixSeller) * 100) / 100}€</Text>
+                </View>
+                <View style={s.recapDivider} />
+                <View style={s.recapRow}>
+                  <Text style={s.recapTotalLabel}>Total à payer</Text>
+                  <Text style={s.recapTotalValue}>{recapStage.prixTotal}€</Text>
+                </View>
+
+                <TouchableOpacity
+                  style={[s.btn, s.payBtn, { marginTop: Spacing.lg }]}
+                  onPress={() => { const r = recapStage; setRecapStage(null); handlePayStage(r); }}
+                  disabled={!!payingId}
+                >
+                  {payingId === recapStage.id ? (
+                    <ActivityIndicator color={Colors.textInverse} />
+                  ) : (
+                    <Text style={s.payBtnText}>💳 Confirmer et payer</Text>
+                  )}
+                </TouchableOpacity>
+                <TouchableOpacity style={s.modalCancel} onPress={() => setRecapStage(null)}>
+                  <Text style={s.modalCancelText}>Annuler</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.45)',
+    justifyContent: 'center',
+    alignItems: 'center',
+    padding: Spacing.lg,
+  },
+  modalCard: {
+    width: '100%',
+    maxWidth: 420,
+    backgroundColor: Colors.surface,
+    borderRadius: Radius.lg,
+    padding: Spacing.lg,
+    ...Shadow.card,
+  },
+  modalTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.md,
+  },
+  recapRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: Spacing.xs,
+    gap: Spacing.md,
+  },
+  recapLabel: { fontSize: FontSize.sm, color: Colors.textSecondary, flex: 1 },
+  recapValue: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.medium },
+  recapDivider: { height: 1, backgroundColor: Colors.border, marginVertical: Spacing.sm },
+  recapTotalLabel: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  recapTotalValue: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.primary },
+  modalCancel: { paddingVertical: Spacing.md, alignItems: 'center' },
+  modalCancelText: { fontSize: FontSize.sm, color: Colors.textSecondary },
   root: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',

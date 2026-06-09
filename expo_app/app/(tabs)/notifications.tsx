@@ -240,9 +240,10 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoad
         <Text style={s.notificationMessage}>{notification.message}</Text>
       )}
 
-      {/* Montant (si connu) */}
+      {/* Montant (si connu). Stage : prix coach seul, sans « TTC » (la
+          commission n'apparaît qu'à l'étape paiement). Autres types inchangés. */}
       {(notification.donnees?.prixTotal || notification.donnees?.prix) != null && (
-        <Text style={s.montantText}>💰 {notification.donnees?.prixTotal || notification.donnees?.prix}€ TTC</Text>
+        <Text style={s.montantText}>💰 {notification.donnees?.prixTotal || notification.donnees?.prix}€{notification.type === 'stage_reservation' ? '' : ' TTC'}</Text>
       )}
 
       {/* Action buttons */}

@@ -89,7 +89,9 @@ export default function CoachDemandesScreen() {
             stageId: reservation.stageId,
             stageTitre: reservation.stageTitre,
             nombreParticipants: reservation.nombreParticipants,
-            prixTotal: reservation.prixTotal,
+            // Prix coach (seller) uniquement — la commission n'apparaît qu'à
+            // l'étape paiement (modale récap). Jamais le TTC commission incluse.
+            prix: reservation.prixSeller,
           },
         });
         await sendReservationEmail('stage', reservationId);

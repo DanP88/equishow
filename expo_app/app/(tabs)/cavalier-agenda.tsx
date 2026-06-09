@@ -66,6 +66,7 @@ type AgendaItem = {
 function statutStyle(statut: string) {
   if (statut === 'paid') return { label: '● Réservé', bg: '#ECFDF5', border: '#10B981' };
   if (statut === 'accepted') return { label: '● Confirmé', bg: '#ECFDF5', border: '#10B981' };
+  if (statut === 'awaiting_payment') return { label: '● Paiement en cours', bg: '#FFF7ED', border: '#F59E0B' };
   if (statut === 'pending') return { label: '● En attente', bg: '#FFF7ED', border: '#F59E0B' };
   if (statut === 'rejected') return { label: '● Refusé', bg: '#FEE2E2', border: '#EF4444' };
   if (statut === 'cancelled') return { label: '● Annulé', bg: Colors.surfaceVariant, border: '#9CA3AF' };
@@ -384,7 +385,9 @@ export default function CavalierAgendaScreen() {
           sous_titre: r.coachNom,
           dateDebut: stage?.dateDebut ?? r.dateReservation,
           dateFin: stage?.dateFin,
-          montant: r.prixTotal,
+          // Affichage = prix coach (seller), jamais le TTC commission incluse.
+          // La commission n'apparaît que dans la modale récap avant Stripe.
+          montant: r.prixSeller,
           statut: r.statut,
           autrePartieId: r.coachId,
           autrePartieNom: r.coachNom,
@@ -530,8 +533,12 @@ export default function CavalierAgendaScreen() {
                         (cours/stage/box). Sinon le cavalier devait passer par
                         la notif → écran cible. La card agenda devient un
                         2e point d'entrée payment (utile si la notif a été
-                        supprimée). */}
-                    {item.statut === 'accepted' && (item.type === 'cours' || item.type === 'stage' || item.type === 'box_buyer') && (
+                        supprimée).
+                        Stage : visible aussi en `awaiting_payment` → le cavalier
+                        peut RELANCER un paiement Stripe abandonné (la garde
+                        useStagePayment rend la transition idempotente). */}
+                    {((item.statut === 'accepted' && (item.type === 'cours' || item.type === 'stage' || item.type === 'box_buyer'))
+                      || (item.statut === 'awaiting_payment' && item.type === 'stage')) && (
                       <View style={s.actionRow}>
                         <TouchableOpacity
                           style={[s.actionBtn, s.acceptBtn]}
@@ -541,14 +548,16 @@ export default function CavalierAgendaScreen() {
                           }}
                           activeOpacity={0.85}
                         >
-                          <Text style={s.acceptBtnText}>💳 Payer maintenant</Text>
+                          <Text style={s.acceptBtnText}>
+                            {item.statut === 'awaiting_payment' ? '💳 Reprendre le paiement' : '💳 Payer maintenant'}
+                          </Text>
                         </TouchableOpacity>
                       </View>
                     )}
 
                     {/* Montant + Avis */}
                     <View style={s.cardBottom}>
-                      <Text style={s.montant}>{item.montant.toFixed(2)}€ TTC</Text>
+                      <Text style={s.montant}>{item.montant.toFixed(2)}€{item.type === 'stage' ? '' : ' TTC'}</Text>
                       {/* A5 : avis autorisé uniquement après prestation terminée
                           (status='completed', posé par la libération escrow — mig 049),
                           plus sur 'accepted'/'paid'. */}

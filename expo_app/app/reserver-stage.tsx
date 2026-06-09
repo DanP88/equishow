@@ -306,7 +306,7 @@ export default function ReserverStageScreen() {
               {/* Prix total */}
               <View style={s.priceSection}>
                 <Text style={s.priceLabel}>Prix total</Text>
-                <Text style={s.priceValue}>{prixTotal}€ TTC</Text>
+                <Text style={s.priceValue}>{prixTotal}€</Text>
               </View>
 
               {reservationRef ? (

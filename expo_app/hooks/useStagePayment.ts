@@ -4,6 +4,7 @@ import { userStore } from '../data/store';
 import { StageReservation } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createNotification } from './useNotifications';
+import { supabase } from '../lib/supabase';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -15,9 +16,13 @@ const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
  * le coach, puis redirige vers Stripe (window.location sur web pour éviter le
  * blocage popup).
  *
- * Note : la réservation reste `accepted` jusqu'au webhook (`paid`). On n'écrit
- * pas `awaiting_payment` côté stage : statut absent du CHECK de
- * stage_reservations, l'UPDATE échouait silencieusement (audit 2026-06-04).
+ * Au clic « Payer », la réservation passe accepted → awaiting_payment AVANT la
+ * redirection Stripe (aligne Stage sur Box/Transport — escrow mig 062/063 :
+ * awaiting_payment consomme la place, le cron 055 l'expire en cancelled après
+ * 24h d'abandon Stripe). Le webhook posera `paid` à la confirmation. On ne
+ * touche JAMAIS paid/completed/cancelled ici : la garde `.in('status', [...])`
+ * restreint l'écriture aux transitions accepted→awaiting_payment et
+ * awaiting_payment→awaiting_payment (relance idempotente).
  *
  * Pas de header `apikey` : l'Edge Function n'autorise que Content-Type +
  * Authorization en CORS (cf. fix Lot 2 #12 box).
@@ -68,6 +73,20 @@ export function useStagePayment() {
       if (!data.checkoutUrl) {
         Alert.alert('Erreur', 'URL de paiement non disponible: ' + (data.error || 'Unknown error'));
         return;
+      }
+
+      // accepted → awaiting_payment avant la redirection Stripe (mirror box :
+      // pending-box-payments.tsx). Non bloquant : si l'UPDATE échoue, le webhook
+      // posera `paid` indépendamment. La garde `.in('status', [...])` empêche
+      // tout écrasement de paid/completed/cancelled (ne transitionne que depuis
+      // accepted ou awaiting_payment — relance idempotente).
+      const { error: statutErr } = await supabase
+        .from('stage_reservations')
+        .update({ status: 'awaiting_payment', updated_at: new Date().toISOString() })
+        .eq('id', reservation.id)
+        .in('status', ['accepted', 'awaiting_payment']);
+      if (statutErr) {
+        console.warn('[useStagePayment] update awaiting_payment a échoué (non bloquant):', statutErr.message);
       }
 
       // Pas de `prix` ici : ce serait le TTC cavalier (commission incluse) que
