@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   ScrollView,
+  Platform,
 } from 'react-native';
 import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../constants/colors';
@@ -15,6 +16,7 @@ import { getAuthToken } from '../utils/supabaseAuth';
 import supabase from '../lib/supabase';
 import { useScreenTracking } from '../hooks/useScreenTracking';
 import { trackFunnel } from '../lib/analytics';
+import { reservationNumber } from '../utils/reservationNumber';
 
 type ConfirmationStatus = 'confirming' | 'success' | 'error';
 
@@ -55,6 +57,9 @@ export default function CheckoutSuccessScreen() {
   });
   const [status, setStatus] = useState<ConfirmationStatus>('confirming');
   const [payment, setPayment] = useState<PaymentData | null>(null);
+  const [resaNum, setResaNum] = useState<string | null>(null);
+  // Id BRUT de la réservation liée (FK du paiement) → deep-link agenda ?pay=<id>.
+  const [resaId, setResaId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Compteur de retries pour le polling webhook (cf. confirmPayment).
   const attemptRef = useRef(0);
@@ -119,6 +124,24 @@ export default function CheckoutSuccessScreen() {
         setPayment(data);
         setStatus('success');
         trackFunnel('payment', 'payment_success', { session_id: session, type: data.type, amount: data.amount_buyer_ttc });
+        // Numéro de réservation cohérent avec l'agenda : dérivé de l'id de la
+        // réservation liée (pas du paiement) pour afficher le même N° partout.
+        try {
+          const { data: prow } = await supabase
+            .from('payments')
+            .select('course_demand_id, stage_reservation_id, transport_reservation_id, box_reservation_id')
+            .eq('id', data.id)
+            .maybeSingle();
+          // Locator = FK réservation du paiement (les 4 colonnes). On ne RETOMBE
+          // JAMAIS sur l'id du PAIEMENT : un N° dérivé du paiement serait
+          // incohérent avec l'agenda (qui dérive de l'id de la réservation).
+          const resaId = prow?.course_demand_id ?? prow?.stage_reservation_id
+            ?? prow?.transport_reservation_id ?? prow?.box_reservation_id ?? null;
+          // Réservation introuvable (cas legacy sans FK) → pas de N° affiché,
+          // plutôt qu'un faux numéro.
+          setResaId(resaId);
+          setResaNum(resaId ? reservationNumber(data.type, resaId) : null);
+        } catch { /* le N° reste masqué si indisponible */ }
         return;
       }
 
@@ -163,7 +186,6 @@ export default function CheckoutSuccessScreen() {
     <SafeAreaView style={s.root}>
       <ScrollView
         contentContainerStyle={s.scrollContent}
-        scrollEnabled={false}
       >
         {status === 'confirming' && (
           <ConfirmingView />
@@ -172,7 +194,8 @@ export default function CheckoutSuccessScreen() {
         {status === 'success' && payment && (
           <SuccessView
             payment={payment}
-            onPress={handleReturn}
+            resaNum={resaNum}
+            resaId={resaId}
           />
         )}
 
@@ -207,10 +230,11 @@ function ConfirmingView() {
 
 interface SuccessViewProps {
   payment: PaymentData;
-  onPress: () => void;
+  resaNum: string | null;
+  resaId: string | null;
 }
 
-function SuccessView({ payment, onPress }: SuccessViewProps) {
+function SuccessView({ payment, resaNum, resaId }: SuccessViewProps) {
   const formatAmount = (cents: number) => {
     return (cents / 100).toFixed(2).replace('.', ',') + ' €';
   };
@@ -225,6 +249,16 @@ function SuccessView({ payment, onPress }: SuccessViewProps) {
 
       <View style={s.receiptCard}>
         <Text style={s.receiptTitle}>Récapitulatif</Text>
+
+        {resaNum && (
+          <>
+            <View style={s.receiptRow}>
+              <Text style={s.receiptLabel}>N° de réservation</Text>
+              <Text style={s.receiptValueMono}>{resaNum}</Text>
+            </View>
+            <View style={s.receiptDivider} />
+          </>
+        )}
 
         <View style={s.receiptRow}>
           <Text style={s.receiptLabel}>Type</Text>
@@ -281,13 +315,26 @@ function SuccessView({ payment, onPress }: SuccessViewProps) {
         </Text>
       </View>
 
-      <TouchableOpacity
-        style={[s.button, s.buttonPrimary]}
-        onPress={onPress}
-        activeOpacity={0.8}
-      >
-        <Text style={s.buttonText}>Voir mes demandes</Text>
-      </TouchableOpacity>
+      <View style={s.buttonGroup}>
+        <TouchableOpacity
+          style={[s.button, s.buttonPrimary]}
+          onPress={() =>
+            resaId
+              ? router.replace({ pathname: '/(tabs)/cavalier-agenda', params: { pay: resaId } })
+              : router.replace('/(tabs)/cavalier-agenda')
+          }
+          activeOpacity={0.8}
+        >
+          <Text style={s.buttonText}>Voir ma réservation</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[s.button, s.buttonSecondary]}
+          onPress={() => router.replace('/(tabs)/cavalier-agenda')}
+          activeOpacity={0.8}
+        >
+          <Text style={s.buttonTextSecondary}>Retour à l'agenda</Text>
+        </TouchableOpacity>
+      </View>
     </View>
   );
 }
@@ -393,6 +440,13 @@ const s = StyleSheet.create({
     fontSize: FontSize.sm,
     fontWeight: FontWeight.semibold,
     color: Colors.textPrimary,
+  },
+  receiptValueMono: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace',
+    letterSpacing: 0.3,
   },
   receiptLabelTotal: {
     fontSize: FontSize.base,
