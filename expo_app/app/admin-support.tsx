@@ -1,9 +1,9 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, TextInput,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
 import { AuthGuard } from '../components/AuthGuard';
@@ -29,6 +29,24 @@ const STATUS_META: Record<SupportStatus, { label: string; bg: string; fg: string
   resolved: { label: 'Résolu', bg: '#D1FAE5', fg: '#065F46' },
   closed: { label: 'Clos', bg: '#E5E7EB', fg: '#374151' },
 };
+
+// Libellé « nature du problème » (colonne category). Inclut un fallback pour les
+// valeurs legacy (anciens tickets dont category = type d'objet).
+const NATURE_LABEL: Record<string, string> = {
+  paiement: 'Paiement', remboursement: 'Remboursement', prestation: 'Litige prestation',
+  compte: 'Compte', autre: 'Autre',
+  transport: 'Transport', box: 'Box', coaching: 'Coaching', stage: 'Stage',
+};
+
+// Filtres « nature » (client-side, n'impacte pas la requête du hook).
+const NATURE_FILTERS: { value: string; label: string }[] = [
+  { value: 'all', label: 'Toutes' },
+  { value: 'paiement', label: 'Paiement' },
+  { value: 'remboursement', label: 'Remboursement' },
+  { value: 'prestation', label: 'Litige' },
+  { value: 'compte', label: 'Compte' },
+  { value: 'autre', label: 'Autre' },
+];
 
 function requesterName(t: SupportRequest): string {
   const r = t.requester;
@@ -56,7 +74,13 @@ export default function AdminSupportScreen() {
 function AdminSupportContent() {
   useScreenTracking('admin-support');
 
-  const [filter, setFilter] = useState<Filter>('open');
+  // Deep-link notification → ticket : si un id est ciblé, on démarre sur « Tous »
+  // pour le retrouver quel que soit son statut.
+  const { ticket } = useLocalSearchParams<{ ticket?: string }>();
+  const targetTicket = typeof ticket === 'string' ? ticket : '';
+
+  const [filter, setFilter] = useState<Filter>(targetTicket ? 'all' : 'open');
+  const [natureFilter, setNatureFilter] = useState<string>('all');
   const { items, loading, error, refresh, markInProgress, resolve } = useAdminSupportRequests(filter);
 
   const [refreshing, setRefreshing] = useState(false);
@@ -72,7 +96,19 @@ function AdminSupportContent() {
     setRefreshing(false);
   };
 
-  const sorted = useMemo(() => items, [items]);
+  const sorted = useMemo(
+    () => (natureFilter === 'all' ? items : items.filter((t) => t.category === natureFilter)),
+    [items, natureFilter],
+  );
+
+  // Ouvre la fiche du ticket ciblé par le deep-link, une fois la liste chargée.
+  // Robustesse : id absent/introuvable → aucune erreur, écran normal.
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (!targetTicket || deepLinkHandled.current || loading) return;
+    if (items.some((t) => t.id === targetTicket)) setExpandedId(targetTicket);
+    deepLinkHandled.current = true;
+  }, [targetTicket, loading, items]);
 
   async function doMarkInProgress(t: SupportRequest) {
     if (actionLoading) return;
@@ -126,6 +162,20 @@ function AdminSupportContent() {
         ))}
       </View>
 
+      {/* Filtres nature du problème (client-side) */}
+      <View style={[s.filterRow, { paddingTop: 0 }]}>
+        {NATURE_FILTERS.map((f) => (
+          <TouchableOpacity
+            key={f.value}
+            style={[s.natureChip, natureFilter === f.value && s.natureChipActive]}
+            onPress={() => setNatureFilter(f.value)}
+            activeOpacity={0.8}
+          >
+            <Text style={[s.natureText, natureFilter === f.value && s.natureTextActive]}>{f.label}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       <ScrollView
         style={{ flex: 1 }}
         contentContainerStyle={s.content}
@@ -156,14 +206,30 @@ function AdminSupportContent() {
                 </View>
 
                 <Text style={s.subject}>{t.subject}</Text>
+                <View style={s.tagRow}>
+                  <View style={s.natureTag}>
+                    <Text style={s.natureTagText}>{NATURE_LABEL[t.category] ?? t.category}</Text>
+                  </View>
+                  {!!t.reservationType && (
+                    <View style={s.objetTag}>
+                      <Text style={s.objetTagText}>{NATURE_LABEL[t.reservationType] ?? t.reservationType}</Text>
+                    </View>
+                  )}
+                </View>
                 <Text style={s.meta}>
-                  {requesterName(t)} · {t.category}
+                  {requesterName(t)}
                   {t.reservationRef ? ` · ${t.reservationRef}` : ''} · {fmtDate(t.createdAt)}
                 </Text>
 
                 {open && (
                   <View style={s.detail}>
-                    <Text style={s.detailLabel}>Description</Text>
+                    <Text style={s.detailLabel}>Nature du problème</Text>
+                    <Text style={s.detailText}>
+                      {NATURE_LABEL[t.category] ?? t.category}
+                      {t.reservationType ? ` · objet : ${NATURE_LABEL[t.reservationType] ?? t.reservationType}` : ''}
+                    </Text>
+
+                    <Text style={[s.detailLabel, { marginTop: Spacing.md }]}>Description</Text>
                     <Text style={s.detailText}>{t.description}</Text>
 
                     {!!t.resolutionMessage && (
@@ -273,6 +339,18 @@ const s = StyleSheet.create({
   filterChipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   filterText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   filterTextActive: { color: Colors.textInverse },
+  natureChip: {
+    paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs,
+    borderRadius: 999, borderWidth: 1, borderColor: Colors.borderMedium, backgroundColor: Colors.background,
+  },
+  natureChipActive: { backgroundColor: Colors.textPrimary, borderColor: Colors.textPrimary },
+  natureText: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  natureTextActive: { color: Colors.textInverse },
+  tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.xs },
+  natureTag: { backgroundColor: Colors.primaryLight, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
+  natureTagText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary },
+  objetTag: { backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
+  objetTagText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
   content: { padding: Spacing.lg, gap: Spacing.md },
   emptyBox: { padding: Spacing.xl, alignItems: 'center' },
   emptyText: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center' },

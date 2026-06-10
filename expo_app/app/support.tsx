@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal, Linking, ActivityIndicator,
@@ -9,14 +9,16 @@ import { useSupportRequests, SupportRequest, SupportStatus } from '../hooks/useS
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 
-// UI ReservationType ⇄ category DB (CHECK support_requests.category).
-const CATEGORY_BY_RESA_TYPE: Record<ReservationType, string> = {
-  transport: 'transport',
-  box: 'box',
-  coaching: 'coaching',
-  stage: 'stage',
-  autre: 'autre',
-};
+// Nature du problème → colonne `category`. Valeurs LIMITÉES à celles DÉJÀ
+// autorisées par le CHECK existant (aucune migration) : paiement / remboursement
+// / prestation / compte / autre. ('bug' et 'no_show' nécessiteraient une migration.)
+const NATURE_TYPES: { value: string; label: string }[] = [
+  { value: 'paiement', label: 'Paiement' },
+  { value: 'remboursement', label: 'Remboursement' },
+  { value: 'prestation', label: 'Litige prestation' },
+  { value: 'compte', label: 'Compte utilisateur' },
+  { value: 'autre', label: 'Autre' },
+];
 
 type Tab = 'faq' | 'legal' | 'contact' | 'reclamation';
 type ReservationType = 'transport' | 'box' | 'coaching' | 'stage' | 'autre';
@@ -123,10 +125,11 @@ function buildTimeline(t: SupportRequest): { label: string; done: boolean; date:
 export default function SupportScreen() {
   // ?ref=EQ-XXX-XXXXXXXX pré-remplit le formulaire de réclamation (depuis une
   // réservation). La présence de `ref` ouvre directement l'onglet Réclamation.
-  const { tab: tabParam, ref: refParam } = useLocalSearchParams<{ tab?: string; ref?: string }>();
+  const { tab: tabParam, ref: refParam, ticket: ticketParam } = useLocalSearchParams<{ tab?: string; ref?: string; ticket?: string }>();
   const initialRef = typeof refParam === 'string' ? refParam : '';
+  const ticketId = typeof ticketParam === 'string' ? ticketParam : '';
   const [tab, setTab] = useState<Tab>(
-    initialRef ? 'reclamation'
+    ticketId || initialRef ? 'reclamation'
       : VALID_TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'faq'
   );
   const [openFaq, setOpenFaq] = useState<number | null>(null);
@@ -140,6 +143,7 @@ export default function SupportScreen() {
       : initialRef.startsWith('EQ-COURS') ? 'coaching'
       : 'transport'
   );
+  const [nature, setNature] = useState<string>('autre');
   const [objet, setObjet] = useState('');
   const [description, setDescription] = useState('');
   const [claimNumber, setClaimNumber] = useState<string | null>(null);
@@ -156,6 +160,17 @@ export default function SupportScreen() {
     error: ticketsError,
     refresh: refreshTickets,
   } = useSupportRequests();
+
+  // Deep-link notification → ticket : ouvre la fiche du ticket ciblé une fois la
+  // liste chargée. Robustesse : si l'id est absent/introuvable → aucune erreur,
+  // on reste sur l'écran support (onglet Réclamation). Ne s'ouvre qu'une fois.
+  const deepLinkHandled = useRef(false);
+  useEffect(() => {
+    if (!ticketId || deepLinkHandled.current || ticketsLoading) return;
+    const found = myTickets.find((t) => t.id === ticketId);
+    if (found) setSelectedTicket(found);
+    deepLinkHandled.current = true;
+  }, [ticketId, ticketsLoading, myTickets]);
 
   async function submitReclamation() {
     if (!objet.trim() || !description.trim() || submitting) return;
@@ -176,7 +191,7 @@ export default function SupportScreen() {
         user_id: userId,
         reservation_ref: refReservation.trim() || null,
         reservation_type: resaType,
-        category: CATEGORY_BY_RESA_TYPE[resaType] ?? 'autre',
+        category: nature,
         subject: objet.trim(),
         description: description.trim(),
       })
@@ -199,6 +214,7 @@ export default function SupportScreen() {
 
   function resetForm() {
     setRefReservation('');
+    setNature('autre');
     setObjet('');
     setDescription('');
     setClaimNumber(null);
@@ -371,9 +387,9 @@ export default function SupportScreen() {
               />
             </View>
 
-            {/* Type de réservation */}
+            {/* Objet concerné (réservation) */}
             <View style={s.field}>
-              <Text style={s.fieldLabel}>Type de réservation</Text>
+              <Text style={s.fieldLabel}>Objet concerné</Text>
               <View style={s.chipRow}>
                 {RESERVATION_TYPES.map((rt) => (
                   <TouchableOpacity
@@ -384,6 +400,25 @@ export default function SupportScreen() {
                   >
                     <Text style={[s.chipText, resaType === rt.value && s.chipTextActive]}>
                       {rt.label}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </View>
+
+            {/* Nature du problème */}
+            <View style={s.field}>
+              <Text style={s.fieldLabel}>Nature du problème</Text>
+              <View style={s.chipRow}>
+                {NATURE_TYPES.map((nt) => (
+                  <TouchableOpacity
+                    key={nt.value}
+                    style={[s.chip, nature === nt.value && s.chipActive]}
+                    onPress={() => setNature(nt.value)}
+                    activeOpacity={0.8}
+                  >
+                    <Text style={[s.chipText, nature === nt.value && s.chipTextActive]}>
+                      {nt.label}
                     </Text>
                   </TouchableOpacity>
                 ))}

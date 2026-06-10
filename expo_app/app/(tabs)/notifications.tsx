@@ -183,6 +183,18 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoad
     }
   };
 
+  // Deep-link réclamation : ouvre directement le ticket concerné (donnees.support_id).
+  // Fallback sûr sur l'écran support si l'id est absent.
+  const isSupport = notification.type === 'support_request'
+    || notification.type === 'support_ack'
+    || notification.type === 'support_resolved';
+  const handleSupportNavigation = () => {
+    const sid = notification.donnees?.support_id;
+    const base = notification.actionUrl ?? '/support';
+    const sep = base.includes('?') ? '&' : '?';
+    router.push((sid ? `${base}${sep}ticket=${sid}` : base) as any);
+  };
+
   // Couvre cours (course_request), box/transport (reservation_request) et
   // stage (stage_reservation). Sans stage_reservation, la notif "stage
   // acceptée" n'avait aucun CTA pay → cavalier devait aller manuellement sur
@@ -248,6 +260,14 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoad
 
       {/* Action buttons */}
       <View style={s.buttonRow}>
+        {isSupport && (
+          <TouchableOpacity
+            style={[s.actionBtn, s.payBtn]}
+            onPress={handleSupportNavigation}
+          >
+            <Text style={s.payBtnText}>📩 Voir la réclamation</Text>
+          </TouchableOpacity>
+        )}
         {showPaymentButton && (
           <TouchableOpacity
             style={[s.actionBtn, s.payBtn]}

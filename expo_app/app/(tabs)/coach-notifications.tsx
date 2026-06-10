@@ -116,6 +116,17 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
     }
   };
 
+  // Deep-link réclamation : ouvre directement le ticket concerné (donnees.support_id).
+  const isSupport = notification.type === 'support_request'
+    || notification.type === 'support_ack'
+    || notification.type === 'support_resolved';
+  const handleSupportNavigation = () => {
+    const sid = notification.donnees?.support_id;
+    const base = notification.actionUrl ?? '/support';
+    const sep = base.includes('?') ? '&' : '?';
+    router.push((sid ? `${base}${sep}ticket=${sid}` : base) as any);
+  };
+
   const showPaymentButton = notification.status === 'accepted' &&
     (notification.type === 'course_request' || notification.type === 'reservation_request');
 
@@ -186,6 +197,11 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
       )}
 
       <View style={s.buttonRow}>
+        {isSupport && (
+          <TouchableOpacity style={[s.actionBtn, s.payBtn]} onPress={handleSupportNavigation}>
+            <Text style={s.payBtnText}>📩 Voir la réclamation</Text>
+          </TouchableOpacity>
+        )}
         {showPaymentButton && (
           <TouchableOpacity style={[s.actionBtn, s.payBtn]} onPress={handlePaymentNavigation}>
             <Text style={s.payBtnText}>💳 Payer maintenant</Text>

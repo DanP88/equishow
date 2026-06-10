@@ -32,5 +32,7 @@ export interface Notification {
     prixSeller?: number;
     postId?: string;
     convId?: string;
+    support_id?: string;
+    ref?: string;
   };
 }
