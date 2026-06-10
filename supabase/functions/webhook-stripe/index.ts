@@ -149,6 +149,21 @@ async function emailPaymentBothParties(
       typeof payment.amount_buyer_ttc === "number" ? payment.amount_buyer_ttc / 100 : undefined;
     const relatedEntityId = payment[cfg.fk] ? String(payment[cfg.fk]) : null;
 
+    // Parité d'affichage avec send-reservation-email (AUCUN calcul/statut/flux
+    // modifié — uniquement enrichissement du payload email) :
+    //  - N° EQ lisible dérivé de l'id de réservation (même formule),
+    //  - montant NET vendeur (amount_seller_ht, cents → euros),
+    //  - deep-link agenda (appUrl + ctaResaId).
+    const RESA_PREFIX: Record<string, string> = {
+      course: "COURS", stage: "STAGE", transport: "TRANSP", box: "BOX",
+    };
+    const reservationNumber = relatedEntityId
+      ? `EQ-${RESA_PREFIX[module] ?? module.toUpperCase()}-${relatedEntityId.replace(/-/g, "").slice(0, 8).toUpperCase()}`
+      : undefined;
+    const sellerAmountEur =
+      typeof payment.amount_seller_ht === "number" ? payment.amount_seller_ht / 100 : undefined;
+    const appUrl = Deno.env.get("APP_URL") ?? "https://equishow.vercel.app";
+
     const [buyer, seller] = await Promise.all([
       getUserContact(supabase, payment.buyer_id),
       getUserContact(supabase, payment.seller_id),
@@ -159,7 +174,7 @@ async function emailPaymentBothParties(
         supabase, eventType, module: module as EmailModule, role: "buyer",
         idemId: stripeEventId, recipientId: payment.buyer_id, recipientEmail: buyer.email,
         relatedPaymentId: payment.id, relatedEntityId,
-        data: { recipientName: buyer.name, counterpartName: seller.name, entityTitle, lieu, dateLabel, amountEur },
+        data: { recipientName: buyer.name, counterpartName: seller.name, entityTitle, lieu, dateLabel, amountEur, sellerAmountEur, reservationNumber, appUrl, ctaResaId: relatedEntityId ?? undefined },
       });
     }
     if (seller.email) {
@@ -167,7 +182,7 @@ async function emailPaymentBothParties(
         supabase, eventType, module: module as EmailModule, role: "seller",
         idemId: stripeEventId, recipientId: payment.seller_id, recipientEmail: seller.email,
         relatedPaymentId: payment.id, relatedEntityId,
-        data: { recipientName: seller.name, counterpartName: buyer.name, entityTitle, lieu, dateLabel, amountEur },
+        data: { recipientName: seller.name, counterpartName: buyer.name, entityTitle, lieu, dateLabel, amountEur, sellerAmountEur, reservationNumber, appUrl, ctaResaId: relatedEntityId ?? undefined },
       });
     }
   } catch (e) {
