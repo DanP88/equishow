@@ -3,7 +3,7 @@
 // Remplace l'ancien messagesStore in-memory. Realtime + non-lus via
 // conversation_reads (last_read_at par user).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useCallback, useEffect, useId, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
 import { useAutoRefresh } from './useAutoRefresh';
@@ -203,6 +203,13 @@ export function useConversationMessages(conversationId?: string) {
   const channelId = useId();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  // Horodatage (ms) du dernier message connu, dérivé du SERVEUR (messages.created_at).
+  // Sert de plancher à markRead pour neutraliser tout décalage horloge client↔serveur.
+  const lastMsgAtRef = useRef(0);
+  useEffect(() => {
+    const last = messages[messages.length - 1];
+    lastMsgAtRef.current = last ? last.createdAt.getTime() : 0;
+  }, [messages]);
 
   const load = useCallback(async () => {
     if (!conversationId) { setMessages([]); return; }
@@ -239,8 +246,12 @@ export function useConversationMessages(conversationId?: string) {
   // read-marker de l'autre participant.
   const markRead = useCallback(async () => {
     if (!conversationId || !me) return;
+    // Robustesse horloge : on garantit last_read_at >= dernier message (temps
+    // serveur), sinon un client en retard sur l'horloge serveur laisserait la
+    // conv « non lue » (last_message_at > last_read_at) malgré une lecture réelle.
+    const readMs = Math.max(Date.now(), lastMsgAtRef.current + 1);
     const { error } = await supabase.from('conversation_reads')
-      .upsert({ conversation_id: conversationId, user_id: me, last_read_at: new Date().toISOString() },
+      .upsert({ conversation_id: conversationId, user_id: me, last_read_at: new Date(readMs).toISOString() },
         { onConflict: 'conversation_id,user_id' });
     if (error) { console.warn('[markRead] échec conversation_reads:', error.message); return; }
     // conversation_reads écrit + committé → notifier les badges/listes (bus
