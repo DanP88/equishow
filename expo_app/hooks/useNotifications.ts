@@ -14,7 +14,10 @@ type NotificationType =
   | 'message'
   | 'like'
   | 'comment'
-  | 'mention';
+  | 'mention'
+  | 'support_request'
+  | 'support_ack'
+  | 'support_resolved';
 
 type NotificationStatus = 'pending' | 'accepted' | 'rejected' | 'paid';
 

@@ -12,6 +12,7 @@ import { AuthGuard } from '../../components/AuthGuard';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
+import { useOpenSupportCount } from '../../hooks/useSupportRequests';
 import { router } from 'expo-router';
 
 const SERVICE_LABELS: Record<ServiceType, string> = {
@@ -46,6 +47,7 @@ export default function AdminSettingsScreen() {
 function AdminSettingsContent() {
   useScreenTracking('admin-settings');
   const { profile, isLoading, logout } = useAuth();
+  const { count: openSupportCount } = useOpenSupportCount();
   const [loggingOut, setLoggingOut] = useState(false);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -165,6 +167,25 @@ function AdminSettingsContent() {
           <Text style={styles.analyticsBtnTitle}>Litiges</Text>
           <Text style={styles.analyticsBtnSub}>Litiges ouverts · libérer fonds · rembourser acheteur</Text>
         </View>
+        <Text style={styles.analyticsBtnArrow}>›</Text>
+      </TouchableOpacity>
+
+      {/* Support / Réclamations shortcut */}
+      <TouchableOpacity
+        style={styles.analyticsBtn}
+        onPress={() => router.push('/admin-support')}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.analyticsBtnIcon}>📩</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.analyticsBtnTitle}>Réclamations</Text>
+          <Text style={styles.analyticsBtnSub}>Tickets support · prendre en charge · résoudre</Text>
+        </View>
+        {openSupportCount > 0 && (
+          <View style={styles.countBadge}>
+            <Text style={styles.countBadgeText}>{openSupportCount}</Text>
+          </View>
+        )}
         <Text style={styles.analyticsBtnArrow}>›</Text>
       </TouchableOpacity>
 
@@ -320,6 +341,11 @@ const styles = StyleSheet.create({
   analyticsBtnTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.primary },
   analyticsBtnSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   analyticsBtnArrow: { fontSize: 24, color: Colors.primary, fontWeight: FontWeight.bold },
+  countBadge: {
+    minWidth: 24, height: 24, borderRadius: 12, backgroundColor: '#DC2626',
+    alignItems: 'center', justifyContent: 'center', paddingHorizontal: 6,
+  },
+  countBadgeText: { color: '#FFFFFF', fontSize: FontSize.xs, fontWeight: FontWeight.bold },
   logoutBtn: {
     backgroundColor: '#DC2626',
     borderRadius: Radius.lg,

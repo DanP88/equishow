@@ -1,11 +1,21 @@
 import { useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Modal, Linking,
+  TextInput, Modal, Linking, ActivityIndicator,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
+import { supabase } from '../lib/supabase';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
+
+// UI ReservationType ⇄ category DB (CHECK support_requests.category).
+const CATEGORY_BY_RESA_TYPE: Record<ReservationType, string> = {
+  transport: 'transport',
+  box: 'box',
+  coaching: 'coaching',
+  stage: 'stage',
+  autre: 'autre',
+};
 
 type Tab = 'faq' | 'legal' | 'contact' | 'reclamation';
 type ReservationType = 'transport' | 'box' | 'coaching' | 'stage' | 'autre';
@@ -73,15 +83,6 @@ const RESERVATION_TYPES: { value: ReservationType; label: string }[] = [
   { value: 'autre', label: 'Autre' },
 ];
 
-function generateClaimNumber(): string {
-  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
-  let result = '';
-  for (let i = 0; i < 8; i++) {
-    result += chars[Math.floor(Math.random() * chars.length)];
-  }
-  return `EQ-REC-${result}`;
-}
-
 const VALID_TABS: Tab[] = ['faq', 'legal', 'contact', 'reclamation'];
 
 export default function SupportScreen() {
@@ -108,11 +109,44 @@ export default function SupportScreen() {
   const [description, setDescription] = useState('');
   const [claimNumber, setClaimNumber] = useState<string | null>(null);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
-  function submitReclamation() {
-    if (!objet.trim() || !description.trim()) return;
-    const num = generateClaimNumber();
-    setClaimNumber(num);
+  async function submitReclamation() {
+    if (!objet.trim() || !description.trim() || submitting) return;
+    setSubmitting(true);
+    setSubmitError(null);
+
+    const { data: { session } } = await supabase.auth.getSession();
+    const userId = session?.user?.id;
+    if (!userId) {
+      setSubmitting(false);
+      setSubmitError('Vous devez être connecté pour envoyer une réclamation.');
+      return;
+    }
+
+    const { data, error } = await supabase
+      .from('support_requests')
+      .insert({
+        user_id: userId,
+        reservation_ref: refReservation.trim() || null,
+        reservation_type: resaType,
+        category: CATEGORY_BY_RESA_TYPE[resaType] ?? 'autre',
+        subject: objet.trim(),
+        description: description.trim(),
+      })
+      .select('ref')
+      .single();
+
+    setSubmitting(false);
+
+    if (error || !data?.ref) {
+      setSubmitError(error?.message ?? "Échec de l'envoi. Réessayez.");
+      return;
+    }
+
+    // Référence renvoyée par le serveur (autoritative, unique).
+    setClaimNumber(data.ref);
     setShowSuccess(true);
   }
 
@@ -122,6 +156,7 @@ export default function SupportScreen() {
     setDescription('');
     setClaimNumber(null);
     setShowSuccess(false);
+    setSubmitError(null);
   }
 
   return (
@@ -334,13 +369,23 @@ export default function SupportScreen() {
               />
             </View>
 
+            {!!submitError && (
+              <View style={s.errorBox}>
+                <Text style={s.errorText}>{submitError}</Text>
+              </View>
+            )}
+
             <TouchableOpacity
-              style={[s.submitBtn, (!objet.trim() || !description.trim()) && s.submitBtnDisabled]}
+              style={[s.submitBtn, (!objet.trim() || !description.trim() || submitting) && s.submitBtnDisabled]}
               onPress={submitReclamation}
-              disabled={!objet.trim() || !description.trim()}
+              disabled={!objet.trim() || !description.trim() || submitting}
               activeOpacity={0.85}
             >
-              <Text style={s.submitBtnText}>Envoyer la réclamation</Text>
+              {submitting ? (
+                <ActivityIndicator color="#FFFFFF" />
+              ) : (
+                <Text style={s.submitBtnText}>Envoyer la réclamation</Text>
+              )}
             </TouchableOpacity>
           </View>
         )}
@@ -364,7 +409,8 @@ export default function SupportScreen() {
             </View>
 
             <Text style={s.modalNote}>
-              Notre équipe vous répondra sous 24h ouvrées à l'adresse email de votre compte.
+              Notre équipe traitera votre réclamation au plus vite. Vous serez notifié
+              dans l'application dès qu'une réponse sera disponible.
             </Text>
 
             <TouchableOpacity
@@ -453,6 +499,8 @@ const s = StyleSheet.create({
   submitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', ...Shadow.fab, marginTop: Spacing.md },
   submitBtnDisabled: { opacity: 0.4 },
   submitBtnText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
+  errorBox: { backgroundColor: '#FEE2E2', borderLeftWidth: 4, borderLeftColor: '#DC2626', borderRadius: Radius.sm, padding: Spacing.md, marginTop: Spacing.sm },
+  errorText: { color: '#991B1B', fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
 
   // Modal succès
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
