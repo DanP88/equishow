@@ -284,6 +284,11 @@ export interface TransportReservation {
   prixTotalTTC: number;
   statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
   dateCreation: Date;
+  // Date du trajet (jointe depuis l'annonce). Indispensable pour l'agenda : une
+  // annonce « complète » est masquée de la liste, donc on ne peut pas la retrouver
+  // côté front — sans cette jointure la date retombait à tort sur dateCreation.
+  dateTrajet?: Date;
+  dateRetour?: Date;
   // Route pricing snapshot (optionnel — rempli si le calcul a été fait)
   pickupAddress?: string;
   pickupLat?: number;

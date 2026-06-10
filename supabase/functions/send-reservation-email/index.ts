@@ -87,7 +87,21 @@ export async function handler(req: Request): Promise<Response> {
     const entityTitle = (item.title ?? item.stage_titre) as string | undefined;
     const lieu = (item.lieu ?? item.concours_nom) as string | undefined;
     const dateLabel = fmtDate(item.date_debut ?? item.date_trajet ?? item.date_reservation);
-    const amountEur = (item.total_amount_ttc ?? item.price_total_ttc) as number | undefined;
+    // Montant ACHETEUR (TTC, commission incluse) : course=total_amount_ttc,
+    // stage/box=price_total_ttc, transport=prix_total_ttc.
+    const amountEur = (item.total_amount_ttc ?? item.price_total_ttc ?? item.prix_total_ttc) as number | undefined;
+    // Montant NET VENDEUR (HT, sans commission) : symétrique en *_ht.
+    const sellerAmountEur = (item.total_amount_ht ?? item.price_total_ht ?? item.prix_total_ht) as number | undefined;
+
+    // N° de réservation lisible et stable (même format que dans l'app) :
+    // EQ-<TYPE>-XXXXXXXX, dérivé de l'id de la réservation.
+    const RESA_PREFIX: Record<EmailModule, string> = {
+      course: "COURS", stage: "STAGE", transport: "TRANSP", box: "BOX",
+    };
+    const reservationNumber = `EQ-${RESA_PREFIX[module]}-${reservationId.replace(/-/g, "").slice(0, 8).toUpperCase()}`;
+
+    // Base URL de l'app pour le bouton CTA des emails.
+    const appUrl = Deno.env.get("APP_URL") ?? "https://equishow.vercel.app";
 
     // 6) Résoudre les emails des deux parties
     const [buyer, seller] = await Promise.all([
@@ -107,7 +121,7 @@ export async function handler(req: Request): Promise<Response> {
         recipientId: buyerId,
         recipientEmail: buyer.email,
         relatedEntityId: reservationId,
-        data: { recipientName: buyer.name, counterpartName: seller.name, entityTitle, lieu, dateLabel, amountEur },
+        data: { recipientName: buyer.name, counterpartName: seller.name, entityTitle, lieu, dateLabel, amountEur, sellerAmountEur, reservationNumber, appUrl, ctaResaId: reservationId },
       });
       results.buyer = r.status;
     } else {
@@ -123,7 +137,7 @@ export async function handler(req: Request): Promise<Response> {
         recipientId: sellerId,
         recipientEmail: seller.email,
         relatedEntityId: reservationId,
-        data: { recipientName: seller.name, counterpartName: buyer.name, entityTitle, lieu, dateLabel, amountEur },
+        data: { recipientName: seller.name, counterpartName: buyer.name, entityTitle, lieu, dateLabel, amountEur, sellerAmountEur, reservationNumber, appUrl, ctaResaId: reservationId },
       });
       results.seller = r.status;
     } else {

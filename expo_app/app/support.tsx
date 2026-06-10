@@ -13,15 +13,39 @@ type ReservationType = 'transport' | 'box' | 'coaching' | 'stage' | 'autre';
 const FAQ_ITEMS = [
   {
     q: 'Comment faire une réservation ?',
-    a: "Rendez-vous dans l'onglet Services, choisissez un transport, box ou coaching, puis suivez les étapes de réservation. Le paiement est sécurisé via Stripe.",
+    a: "Rendez-vous dans l'onglet Services, choisissez un transport, box ou coaching, puis suivez les étapes. Pour un coaching ou un stage, vous envoyez d'abord une demande : le paiement n'est dû qu'une fois la demande acceptée par le prestataire. Le paiement est sécurisé via Stripe.",
+  },
+  {
+    q: 'Comment fonctionne le paiement et le séquestre ?',
+    a: "Le paiement est traité par Stripe ; vos données bancaires ne transitent jamais par nos serveurs. Votre argent est conservé en séquestre sécurisé : il n'est versé au prestataire qu'une fois la prestation réalisée et validée. La commission Equishow est incluse dans le total affiché au paiement.",
+  },
+  {
+    q: 'Quand le prestataire est-il payé ? Comment valider une prestation ?',
+    a: "Une fois la prestation effectuée, ouvrez la réservation dans votre agenda et appuyez sur « J'ai reçu la prestation — libérer ». Les fonds sont alors versés au prestataire. Si vous ne faites rien, la libération se fait automatiquement après la date de prestation.",
+  },
+  {
+    q: 'Un souci avec une prestation ? (litige)',
+    a: "Depuis la réservation concernée dans votre agenda, appuyez sur « Signaler un problème ». Le versement au prestataire est bloqué le temps qu'un administrateur examine la situation. N'utilisez cette option qu'en cas de réel problème.",
+  },
+  {
+    q: 'Je suis coach / vendeur : comment recevoir mes paiements ?',
+    a: "Dans l'onglet Profil, appuyez sur la ligne « Compte Stripe » puis sur « Gérer / Activer mon compte Stripe ». Vous créez ou complétez votre compte Stripe Connect : c'est lui qui reçoit vos virements. Tant qu'il n'est pas actif, vos gains restent en attente.",
+  },
+  {
+    q: 'Où voir mes gains (coach / vendeur) ?',
+    a: "Profil → ligne « Compte Stripe actif » → « Voir mes paiements ». Vous y voyez « Déjà gagné » (déjà versé sur votre compte Stripe) et « En séquestre » (encaissé mais en attente de validation de la prestation).",
+  },
+  {
+    q: 'Comment fonctionne mon agenda ?',
+    a: "L'onglet Agenda regroupe toutes vos réservations — celles que vous réservez et, si vous êtes coach, les cours/stages que vous animez. Elles sont triées par période (Aujourd'hui, Cette semaine…). Le bandeau de jours en haut permet de filtrer un jour précis, et le bouton « RDV passés » affiche l'historique du plus récent au plus ancien.",
+  },
+  {
+    q: 'Comment laisser un avis ?',
+    a: "Un avis n'est possible qu'une fois la prestation terminée. Le bouton « Laisser un avis » apparaît alors sur la réservation dans votre agenda.",
   },
   {
     q: 'Comment annuler une réservation ?',
     a: "Contactez le support via la section Contact avec votre numéro de réservation. Les conditions d'annulation varient selon le prestataire et le délai avant la prestation.",
-  },
-  {
-    q: 'Comment fonctionne le paiement ?',
-    a: "Le paiement est traité par Stripe, leader mondial du paiement en ligne. Vos données bancaires ne transitent jamais par nos serveurs. Vous payez en ligne et recevez une confirmation par email.",
   },
   {
     q: 'Quels sont les délais de remboursement ?',
@@ -29,7 +53,7 @@ const FAQ_ITEMS = [
   },
   {
     q: 'Comment contacter un prestataire ?',
-    a: "Utilisez la messagerie intégrée dans l'appli (icône bulle de conversation sur la fiche du prestataire) pour échanger directement avec lui avant ou après votre réservation.",
+    a: "Utilisez la messagerie intégrée : l'icône de conversation sur la fiche du prestataire, ou directement depuis une réservation dans votre agenda.",
   },
   {
     q: 'Mon numéro de référence, à quoi ça sert ?',
@@ -61,15 +85,25 @@ function generateClaimNumber(): string {
 const VALID_TABS: Tab[] = ['faq', 'legal', 'contact', 'reclamation'];
 
 export default function SupportScreen() {
-  const { tab: tabParam } = useLocalSearchParams<{ tab?: string }>();
+  // ?ref=EQ-XXX-XXXXXXXX pré-remplit le formulaire de réclamation (depuis une
+  // réservation). La présence de `ref` ouvre directement l'onglet Réclamation.
+  const { tab: tabParam, ref: refParam } = useLocalSearchParams<{ tab?: string; ref?: string }>();
+  const initialRef = typeof refParam === 'string' ? refParam : '';
   const [tab, setTab] = useState<Tab>(
-    VALID_TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'faq'
+    initialRef ? 'reclamation'
+      : VALID_TABS.includes(tabParam as Tab) ? (tabParam as Tab) : 'faq'
   );
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   // Réclamation state
-  const [refReservation, setRefReservation] = useState('');
-  const [resaType, setResaType] = useState<ReservationType>('transport');
+  const [refReservation, setRefReservation] = useState(initialRef);
+  const [resaType, setResaType] = useState<ReservationType>(
+    initialRef.startsWith('EQ-TRANSP') ? 'transport'
+      : initialRef.startsWith('EQ-BOX') ? 'box'
+      : initialRef.startsWith('EQ-STAGE') ? 'stage'
+      : initialRef.startsWith('EQ-COURS') ? 'coaching'
+      : 'transport'
+  );
   const [objet, setObjet] = useState('');
   const [description, setDescription] = useState('');
   const [claimNumber, setClaimNumber] = useState<string | null>(null);

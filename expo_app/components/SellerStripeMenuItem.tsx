@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react';
 import {
-  TouchableOpacity, Text, StyleSheet, View, ActivityIndicator, Alert, Linking,
+  TouchableOpacity, Text, StyleSheet, View, ActivityIndicator, Alert, Linking, Platform,
 } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
 import { supabase } from '../lib/supabase';
 import { useAuth } from '../hooks/useAuth';
 import { getAuthToken } from '../utils/supabaseAuth';
+import { StripeAccountModal } from './StripeAccountModal';
+import { SellerPaymentsModal } from './SellerPaymentsModal';
+import { useMySellerPayments } from '../hooks/useMySellerPayments';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // SellerStripeMenuItem
@@ -33,12 +36,18 @@ interface StripeRow {
   stripe_charges_enabled: boolean | null;
   stripe_payouts_enabled: boolean | null;
   stripe_account_status: string | null;
+  stripe_last_updated: string | null;
 }
 
 export function SellerStripeMenuItem() {
   const { profile } = useAuth();
   const [status, setStatus] = useState<StripeStatus>('loading');
   const [submitting, setSubmitting] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState<string | null>(null);
+  const [modalVisible, setModalVisible] = useState(false);
+  const [paymentsVisible, setPaymentsVisible] = useState(false);
+
+  const sellerPayments = useMySellerPayments();
 
   const userId = profile?.id;
 
@@ -46,10 +55,11 @@ export function SellerStripeMenuItem() {
     if (!userId) { setStatus('error'); return; }
     const { data, error } = await supabase
       .from('users')
-      .select('stripe_account_id, stripe_charges_enabled, stripe_payouts_enabled, stripe_account_status')
+      .select('stripe_account_id, stripe_charges_enabled, stripe_payouts_enabled, stripe_account_status, stripe_last_updated')
       .eq('id', userId)
       .maybeSingle<StripeRow>();
     if (error || !data) { setStatus('error'); return; }
+    setLastUpdated(data.stripe_last_updated ?? null);
     if (!data.stripe_account_id) setStatus('not_linked');
     else if (data.stripe_charges_enabled && data.stripe_payouts_enabled) setStatus('active');
     else setStatus('pending');
@@ -57,11 +67,18 @@ export function SellerStripeMenuItem() {
 
   useEffect(() => { load(); }, [userId]);
 
-  async function handlePress() {
-    if (status === 'active') {
-      Alert.alert('Compte Stripe actif', 'Vous pouvez recevoir des paiements.');
-      return;
-    }
+  function handlePress() {
+    // Tous les états (sauf chargement) ouvrent la modale détaillée.
+    // L'état 'error' reste géré comme avant : on retente le chargement.
+    if (status === 'error') { setStatus('loading'); load(); return; }
+    setModalVisible(true);
+  }
+
+  // Démarre / finalise l'onboarding Stripe Connect Express via l'Edge Function
+  // create-stripe-onboarding-link, puis ouvre l'URL retournée. Logique Stripe
+  // existante inchangée — simplement extraite pour être réutilisée par la modale.
+  async function openStripeOnboarding() {
+    setModalVisible(false);
     setSubmitting(true);
     try {
       const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
@@ -78,6 +95,14 @@ export function SellerStripeMenuItem() {
         Alert.alert('Erreur', data?.error ?? 'Impossible de créer le lien Stripe');
         return;
       }
+      // Web : rediriger l'onglet courant. window.open() après un await est
+      // bloqué par le bloqueur de pop-ups (geste utilisateur déjà consommé par
+      // le fetch) → la redirection same-tab passe toujours. Le return_url Stripe
+      // (APP_URL/stripe-onboarding) ramène l'utilisateur ensuite.
+      if (Platform.OS === 'web') {
+        window.location.assign(data.onboarding_url);
+        return;
+      }
       await Linking.openURL(data.onboarding_url);
       // Quand l'utilisateur revient, l'écran /stripe-onboarding appelle
       // complete-seller-onboarding. On reload ici en best-effort après délai.
@@ -92,21 +117,45 @@ export function SellerStripeMenuItem() {
   const { icon, label, sublabel, labelColor } = decorate(status);
 
   return (
-    <TouchableOpacity
-      style={s.menuBtn}
-      onPress={handlePress}
-      disabled={submitting || status === 'loading'}
-      activeOpacity={0.7}
-    >
-      <Text style={s.menuIcon}>{icon}</Text>
-      <View style={{ flex: 1 }}>
-        <Text style={[s.menuLabel, !!labelColor && { color: labelColor }]}>{label}</Text>
-        {sublabel ? <Text style={s.menuSublabel}>{sublabel}</Text> : null}
-      </View>
-      {submitting || status === 'loading'
-        ? <ActivityIndicator size="small" color={Colors.textTertiary} />
-        : <Text style={s.menuArrow}>›</Text>}
-    </TouchableOpacity>
+    <>
+      <TouchableOpacity
+        style={s.menuBtn}
+        onPress={handlePress}
+        disabled={submitting || status === 'loading'}
+        activeOpacity={0.7}
+      >
+        <Text style={s.menuIcon}>{icon}</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={[s.menuLabel, !!labelColor && { color: labelColor }]}>{label}</Text>
+          {sublabel ? <Text style={s.menuSublabel}>{sublabel}</Text> : null}
+        </View>
+        {submitting || status === 'loading'
+          ? <ActivityIndicator size="small" color={Colors.textTertiary} />
+          : <Text style={s.menuArrow}>›</Text>}
+      </TouchableOpacity>
+
+      <StripeAccountModal
+        visible={modalVisible}
+        state={status === 'active' ? 'active' : 'inactive'}
+        lastUpdated={lastUpdated}
+        onClose={() => setModalVisible(false)}
+        onManage={openStripeOnboarding}
+        onSeePayments={() => {
+          setModalVisible(false);
+          sellerPayments.reload();
+          setPaymentsVisible(true);
+        }}
+      />
+
+      <SellerPaymentsModal
+        visible={paymentsVisible}
+        loading={sellerPayments.loading}
+        error={sellerPayments.error}
+        payments={sellerPayments.payments}
+        summary={sellerPayments.summary}
+        onClose={() => setPaymentsVisible(false)}
+      />
+    </>
   );
 }
 

@@ -1,6 +1,6 @@
-import { useState, useCallback, useEffect } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Modal, TextInput, Alert } from 'react-native';
-import { useFocusEffect, router } from 'expo-router';
+import { useState, useCallback, useEffect, useRef } from 'react';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Modal, TextInput, Alert, Platform } from 'react-native';
+import { useFocusEffect, useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { userStore } from '../../data/store';
@@ -17,6 +17,7 @@ import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
 import { useEscrowActions } from '../../hooks/useEscrowActions';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
+import { reservationNumber } from '../../utils/reservationNumber';
 
 // Libellé + style du statut séquestre (escrow) côté acheteur.
 function escrowBadge(p: { transferState: string; disputeStatus: string | null; releaseBlockedReason: string | null }) {
@@ -49,7 +50,7 @@ function escrowBadge(p: { transferState: string; disputeStatus: string | null; r
 
 type AgendaItem = {
   id: string;
-  type: 'transport_buyer' | 'transport_seller' | 'box_buyer' | 'box_seller' | 'stage' | 'cours';
+  type: 'transport_buyer' | 'transport_seller' | 'box_buyer' | 'box_seller' | 'stage' | 'cours' | 'cours_coach' | 'stage_coach';
   titre: string;
   sous_titre: string;
   dateDebut: Date;
@@ -77,7 +78,7 @@ function statutStyle(statut: string) {
 function typeEmoji(type: AgendaItem['type']) {
   if (type.startsWith('transport')) return '🚐';
   if (type.startsWith('box')) return '🏠';
-  if (type === 'stage') return '📚';
+  if (type.startsWith('stage')) return '📚';
   return '🎓';
 }
 
@@ -86,6 +87,8 @@ function typeLabel(type: AgendaItem['type']) {
   if (type === 'transport_seller') return 'Transport proposé';
   if (type === 'box_buyer') return 'Box réservé';
   if (type === 'box_seller') return 'Box loué';
+  if (type === 'cours_coach') return 'Cours (je coache)';
+  if (type === 'stage_coach') return "Stage (j'anime)";
   if (type === 'stage') return 'Stage';
   return 'Cours';
 }
@@ -94,9 +97,35 @@ function roleOf(type: AgendaItem['type']) {
   if (type === 'transport_seller' || type === 'box_seller') return 'Locataire';
   if (type === 'transport_buyer') return 'Conducteur';
   if (type === 'box_buyer') return 'Propriétaire';
+  if (type === 'cours_coach' || type === 'stage_coach') return 'Cavalier';
   if (type === 'stage' || type === 'cours') return 'Coach';
   return 'Autre partie';
 }
+
+// Couleur de type (timeline B) : transport=sarcelle, box=orange, stage=bleu, cours=violet
+function typeColor(type: AgendaItem['type']) {
+  if (type.startsWith('transport')) return '#0D9488';
+  if (type.startsWith('box')) return '#D97706';
+  if (type.startsWith('stage')) return '#2563EB';
+  return '#7C3AED';
+}
+
+function startOfDay(d: Date) { const x = new Date(d); x.setHours(0, 0, 0, 0); return x; }
+
+// Regroupement par période relative (au lieu d'une date brute par jour)
+function relBucket(date: Date, now: Date) {
+  const diff = Math.round((startOfDay(date).getTime() - startOfDay(now).getTime()) / 86400000);
+  if (diff < 0) return 'Passé';
+  if (diff === 0) return "Aujourd'hui";
+  const leftThisWeek = 6 - ((now.getDay() + 6) % 7); // jours restants jusqu'à dimanche
+  if (diff <= leftThisWeek) return 'Cette semaine';
+  if (diff <= leftThisWeek + 7) return 'La semaine prochaine';
+  if (diff <= leftThisWeek + 28) return 'Ce mois-ci';
+  return 'Plus tard';
+}
+
+const DOW_LABELS = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+function dayKeyOf(d: Date) { return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`; }
 
 function formatDate(d: Date) {
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
@@ -107,7 +136,7 @@ type AvisModal = { destId: string; destNom: string; type: AgendaItem['type']; re
 function avisTypeFromAgenda(t: AgendaItem['type']): AvisType {
   if (t === 'transport_buyer' || t === 'transport_seller') return 'transport';
   if (t === 'box_buyer' || t === 'box_seller') return 'box';
-  if (t === 'stage') return 'stage';
+  if (t === 'stage' || t === 'stage_coach') return 'stage';
   return 'coach';
 }
 
@@ -132,6 +161,38 @@ export default function CavalierAgendaScreen() {
   // window.confirm/alert natifs du navigateur.
   const [escrowConfirm, setEscrowConfirm] = useState<{ kind: 'release' | 'dispute'; paymentId: string } | null>(null);
   const [escrowAlert, setEscrowAlert] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'info' } | null>(null);
+  // B-variante : bandeau semaine + défilement vers le jour choisi
+  const [selectedDay, setSelectedDay] = useState<string | null>(null);
+  const [showPast, setShowPast] = useState(false);
+  const [copiedNum, setCopiedNum] = useState<string | null>(null);
+
+  // Deep-link email « Payer ma réservation » : ?pay=<resaId> → on cible la résa
+  // dans l'agenda (scroll + surlignage), prête à payer. Le surlignage s'estompe
+  // après 6 s. baseId() retire les suffixes d'agenda (_s stage, _coach coach).
+  const { pay: payParam } = useLocalSearchParams<{ pay?: string; type?: string }>();
+  const scrollRef = useRef<ScrollView>(null);
+  const [focusId, setFocusId] = useState<string | null>(null);
+  const baseId = (id: string) =>
+    id.endsWith('_s') ? id.slice(0, -2) : id.endsWith('_coach') ? id.slice(0, -6) : id;
+  useEffect(() => {
+    const p = Array.isArray(payParam) ? payParam[0] : payParam;
+    if (!p) return;
+    setFocusId(p);
+    const t = setTimeout(() => setFocusId(null), 6000);
+    return () => clearTimeout(t);
+  }, [payParam]);
+
+  // Copie le numéro de réservation (web : presse-papier ; natif : retour visuel
+  // seul tant qu'expo-clipboard n'est pas ajouté). Affiche « ✓ Copié » 1,5 s.
+  const copyResa = useCallback(async (num: string) => {
+    try {
+      if (Platform.OS === 'web' && typeof navigator !== 'undefined' && navigator.clipboard) {
+        await navigator.clipboard.writeText(num);
+      }
+    } catch { /* noop */ }
+    setCopiedNum(num);
+    setTimeout(() => setCopiedNum((c) => (c === num ? null : c)), 1500);
+  }, []);
 
   // Les boutons escrow ouvrent une modale de confirmation stylée ; l'appel réseau
   // ne part qu'après confirmation (runEscrowAction).
@@ -290,8 +351,8 @@ export default function CavalierAgendaScreen() {
           type: 'transport_buyer',
           titre: `${r.villeDepart} → ${r.villeArrivee}`,
           sous_titre: `${r.nbPlaces} place(s)`,
-          dateDebut: annonce?.dateTrajet ?? r.dateCreation,
-          dateFin: annonce?.dateRetour ?? undefined,
+          dateDebut: r.dateTrajet ?? annonce?.dateTrajet ?? r.dateCreation,
+          dateFin: r.dateRetour ?? annonce?.dateRetour ?? undefined,
           montant: r.prixTotalTTC,
           statut: r.statut,
           autrePartieId: r.sellerId,
@@ -316,8 +377,8 @@ export default function CavalierAgendaScreen() {
           type: 'transport_seller',
           titre: `${r.villeDepart} → ${r.villeArrivee}`,
           sous_titre: `${r.nbPlaces} place(s)`,
-          dateDebut: annonce?.dateTrajet ?? r.dateCreation,
-          dateFin: annonce?.dateRetour ?? undefined,
+          dateDebut: r.dateTrajet ?? annonce?.dateTrajet ?? r.dateCreation,
+          dateFin: r.dateRetour ?? annonce?.dateRetour ?? undefined,
           montant: r.prixTotalTTC,
           statut: r.statut,
           autrePartieId: r.buyerId,
@@ -419,18 +480,126 @@ export default function CavalierAgendaScreen() {
         });
       });
 
+    // ── Agenda SYNCHRONISÉ multi-rôle : si ce compte est aussi coach, on
+    // ajoute les cours/stages qu'il ANIME (coachId === uid). Ainsi l'onglet
+    // Agenda montre la même chose quel que soit le rôle affiché. On limite aux
+    // statuts engageants (les demandes pending vivent dans l'onglet Demandes).
+    const coachStatuts = ['accepted', 'paid', 'awaiting_payment', 'completed'];
+
+    courseDemands
+      .filter(r => r.coachId === uid && coachStatuts.includes(r.statut))
+      .forEach(r => {
+        all.push({
+          id: r.id + '_coach',
+          type: 'cours_coach',
+          titre: r.annonceTitre,
+          sous_titre: `${r.discipline} · ${r.niveau}`,
+          dateDebut: r.dateDebut,
+          dateFin: r.dateFin,
+          montant: r.prixSeller,
+          statut: r.statut,
+          autrePartieId: r.cavalierUserId,
+          autrePartieNom: r.cavalierNom,
+          autrePartiePseudo: r.cavalierPseudo,
+          autrePartieInitiales: (r.cavalierNom || r.cavalierPseudo || '?').slice(0, 2).toUpperCase(),
+          autrePartieCouleur: r.cavalierCouleur,
+        });
+      });
+
+    stageReservations
+      .filter(r => r.coachId === uid && coachStatuts.includes(r.statut))
+      .forEach(r => {
+        const stage = allStages.find(s => s.id === r.stageId);
+        all.push({
+          id: r.id + '_coach',
+          type: 'stage_coach',
+          titre: r.stageTitre,
+          sous_titre: r.cavalierNom,
+          dateDebut: stage?.dateDebut ?? r.dateReservation,
+          dateFin: stage?.dateFin,
+          montant: r.prixSeller,
+          statut: r.statut,
+          autrePartieId: r.cavalierUserId,
+          autrePartieNom: r.cavalierNom,
+          autrePartiePseudo: r.cavalierPseudo,
+          autrePartieInitiales: (r.cavalierNom || r.cavalierPseudo || '?').slice(0, 2).toUpperCase(),
+          autrePartieCouleur: r.cavalierCouleur,
+        });
+      });
+
     all.sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
     setItems(all);
   }, [tick, transports, transportReservations, boxReservations, stageReservations, allStages, courseDemands, resolveUser]);
 
-  // Grouper par date
-  const byDate = new Map<string, AgendaItem[]>();
-  items.forEach(item => {
-    const raw = item.dateDebut.toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
-    const key = raw.charAt(0).toUpperCase() + raw.slice(1);
-    if (!byDate.has(key)) byDate.set(key, []);
-    byDate.get(key)!.push(item);
+  // ── B-variante : bandeau semaine (scrollable) + timeline par période ──
+  const now = new Date();
+  const todayStart = startOfDay(now).getTime();
+
+  // Vue par défaut : on ne montre QUE l'à-venir (un RDV multi-jours reste tant
+  // que sa date de fin n'est pas dépassée). Les RDV passés restent dans `items`
+  // et ne s'affichent qu'en tapant leur jour dans le bandeau (glisser à gauche).
+  const upcomingItems = items.filter((it) => startOfDay(it.dateFin ?? it.dateDebut).getTime() >= todayStart);
+
+  // Pastilles par jour : couleurs de type uniques (TOUS les RDV, passés inclus,
+  // pour que les jours passés soient repérables dans le bandeau).
+  const dotsByDay = new Map<string, string[]>();
+  items.forEach((it) => {
+    const k = dayKeyOf(it.dateDebut);
+    const arr = dotsByDay.get(k) ?? [];
+    const c = typeColor(it.type);
+    if (!arr.includes(c)) arr.push(c);
+    dotsByDay.set(k, arr);
   });
+
+  // Plage du bandeau : du lundi de la semaine courante jusqu'au dernier RDV à
+  // venir (borné à ~10 semaines). On glisse vers la DROITE pour les suivantes.
+  const stripStart = startOfDay(now);
+  stripStart.setDate(stripStart.getDate() - ((now.getDay() + 6) % 7));
+  let stripEnd = new Date(stripStart); stripEnd.setDate(stripStart.getDate() + 27);
+  if (upcomingItems.length) {
+    const last = startOfDay(upcomingItems[upcomingItems.length - 1].dateDebut);
+    if (last > stripEnd) stripEnd = last;
+  }
+  const maxEnd = new Date(stripStart); maxEnd.setDate(stripStart.getDate() + 70);
+  if (stripEnd > maxEnd) stripEnd = maxEnd;
+  const stripDays: Date[] = [];
+  for (let d = new Date(stripStart); d <= stripEnd; d.setDate(d.getDate() + 1)) stripDays.push(new Date(d));
+
+  // RDV passés : terminés (date de fin < aujourd'hui), du plus récent au plus ancien.
+  const pastItems = items
+    .filter((it) => startOfDay(it.dateFin ?? it.dateDebut).getTime() < todayStart)
+    .sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime());
+
+  // Lignes à plat (vue par défaut) : en-têtes de période + items À VENIR.
+  type AgendaRow =
+    | { kind: 'header'; label: string }
+    | { kind: 'item'; item: AgendaItem; dk: string; firstOfDay: boolean };
+  const rows: AgendaRow[] = [];
+  let lastBucket = '';
+  const seenDays = new Set<string>();
+  upcomingItems.forEach((it) => {
+    const b = relBucket(it.dateDebut, now);
+    if (b !== lastBucket) { rows.push({ kind: 'header', label: b }); lastBucket = b; }
+    const dk = dayKeyOf(it.dateDebut);
+    const firstOfDay = !seenDays.has(dk); seenDays.add(dk);
+    rows.push({ kind: 'item', item: it, dk, firstOfDay });
+  });
+
+  // Filtrage par jour : taper un jour du bandeau n'affiche QUE les réservations
+  // qui COMMENCENT ce jour-là (passé inclus). Re-taper réaffiche la vue à-venir.
+  const dayItems = selectedDay ? items.filter((it) => dayKeyOf(it.dateDebut) === selectedDay) : [];
+  const displayRows: AgendaRow[] = selectedDay
+    ? dayItems.map((it) => ({ kind: 'item', item: it, dk: selectedDay, firstOfDay: false }))
+    : showPast
+    ? pastItems.map((it) => ({ kind: 'item', item: it, dk: dayKeyOf(it.dateDebut), firstOfDay: false }))
+    : rows;
+  const selectedDayLabel = selectedDay
+    ? (() => {
+        const [y, m, d] = selectedDay.split('-').map(Number);
+        const lbl = new Date(y, m - 1, d).toLocaleDateString('fr-FR', { weekday: 'long', day: '2-digit', month: 'long' });
+        return lbl.charAt(0).toUpperCase() + lbl.slice(1);
+      })()
+    : '';
 
   return (
     <SafeAreaView style={s.root}>
@@ -439,7 +608,54 @@ export default function CavalierAgendaScreen() {
         {items.length > 0 && <Text style={s.countBadge}>{items.length}</Text>}
       </View>
 
-      <ScrollView contentContainerStyle={s.container} scrollEnabled>
+      {items.length > 0 && (
+        <View style={s.stripWrap}>
+          <ScrollView
+            horizontal
+            showsHorizontalScrollIndicator={false}
+            contentContainerStyle={s.stripContent}
+          >
+            {stripDays.map((d) => {
+              const k = dayKeyOf(d);
+              const isToday = k === dayKeyOf(now);
+              const isSel = k === selectedDay;
+              const dots = dotsByDay.get(k) ?? [];
+              const isMonday = ((d.getDay() + 6) % 7) === 0;
+              return (
+                <View key={k} style={isMonday ? s.stripWeekSep : undefined}>
+                  <TouchableOpacity
+                    style={[s.dayPill, isToday && s.dayPillToday, isSel && s.dayPillSel]}
+                    onPress={() => { setShowPast(false); setSelectedDay((prev) => (prev === k ? null : k)); }}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={[s.dayDow, isSel && s.dayTextActive]}>{DOW_LABELS[(d.getDay() + 6) % 7]}</Text>
+                    <Text style={[s.dayNum, isSel && s.dayTextActive, isToday && !isSel && s.dayNumToday]}>{d.getDate()}</Text>
+                    <View style={s.dayDots}>
+                      {dots.length === 0
+                        ? <View style={s.dayDotEmpty} />
+                        : dots.slice(0, 3).map((c, i) => (
+                            <View key={i} style={[s.dayDot, { backgroundColor: isSel ? '#fff' : c }]} />
+                          ))}
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </ScrollView>
+          <View style={s.stripBottom}>
+            <Text style={s.stripHint}>glissez → semaines suivantes</Text>
+            <TouchableOpacity
+              style={[s.pastBtn, showPast && s.pastBtnActive]}
+              onPress={() => { setSelectedDay(null); setShowPast((p) => !p); }}
+              activeOpacity={0.8}
+            >
+              <Text style={[s.pastBtnText, showPast && s.pastBtnTextActive]}>🕓 RDV passés</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      <ScrollView ref={scrollRef} contentContainerStyle={s.container} scrollEnabled>
         {items.length === 0 ? (
           <View style={s.empty}>
             <Text style={s.emptyIcon}>📅</Text>
@@ -447,13 +663,51 @@ export default function CavalierAgendaScreen() {
             <Text style={s.emptyText}>Vos réservations de transport, box, stages et cours apparaîtront ici.</Text>
           </View>
         ) : (
-          Array.from(byDate.entries()).map(([dateStr, dateItems]) => (
-            <View key={dateStr}>
-              <Text style={s.dateHeader}>{dateStr}</Text>
-              {dateItems.map(item => {
+          <>
+            {selectedDay && (
+              <View style={s.dayFilterBar}>
+                <Text style={s.dayFilterText}>📅 {selectedDayLabel} · {dayItems.length} rdv</Text>
+                <TouchableOpacity onPress={() => setSelectedDay(null)} activeOpacity={0.7}>
+                  <Text style={s.dayFilterClear}>✕ Tout afficher</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {selectedDay && dayItems.length === 0 && (
+              <Text style={s.dayEmpty}>Aucun rendez-vous ne commence ce jour.</Text>
+            )}
+            {showPast && (
+              <View style={s.dayFilterBar}>
+                <Text style={s.dayFilterText}>🕓 RDV passés · {pastItems.length}</Text>
+                <TouchableOpacity onPress={() => setShowPast(false)} activeOpacity={0.7}>
+                  <Text style={s.dayFilterClear}>✕ Retour</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {showPast && pastItems.length === 0 && (
+              <Text style={s.dayEmpty}>Aucun rendez-vous passé.</Text>
+            )}
+            {displayRows.map((row, idx) => row.kind === 'header' ? (
+            <Text key={`h${idx}`} style={s.dateHeader}>{row.label}</Text>
+          ) : (() => {
+                const item = row.item;
                 const st = statutStyle(item.statut);
+                const col = typeColor(item.type);
+                const resaNum = reservationNumber(item.type, item.id);
+                const isFocus = !!focusId && baseId(item.id) === focusId;
                 return (
-                  <View key={item.id} style={s.card}>
+                  <View
+                    key={item.id}
+                    style={s.tlRow}
+                    onLayout={isFocus ? (e) => {
+                      const y = e.nativeEvent.layout.y;
+                      scrollRef.current?.scrollTo({ y: Math.max(0, y - 90), animated: true });
+                    } : undefined}
+                  >
+                    <View style={s.tlRail}>
+                      <View style={[s.tlDot, { backgroundColor: col }]} />
+                      <View style={s.tlLine} />
+                    </View>
+                    <View style={[s.card, { flex: 1, borderLeftWidth: 4, borderLeftColor: col }, isFocus && s.cardFocus]}>
                     {/* Top : type + statut */}
                     <View style={s.cardTop}>
                       <View style={s.typeTag}>
@@ -555,23 +809,36 @@ export default function CavalierAgendaScreen() {
                       </View>
                     )}
 
-                    {/* Montant + Avis */}
+                    {/* Bas de carte : numéro de réservation cliquable (gauche) en
+                        face du montant (droite). Le N° est dérivé de l'id, stable. */}
                     <View style={s.cardBottom}>
-                      <Text style={s.montant}>{item.montant.toFixed(2)}€{item.type === 'stage' ? '' : ' TTC'}</Text>
-                      {/* A5 : avis autorisé uniquement après prestation terminée
-                          (status='completed', posé par la libération escrow — mig 049),
-                          plus sur 'accepted'/'paid'. */}
-                      {item.statut === 'completed' && (
-                        myAvisRefs.has(item.id) ? (
-                          <View style={s.avisDoneBadge}>
-                            <Text style={s.avisDoneText}>⭐ Avis déposé</Text>
-                          </View>
-                        ) : (
-                          <TouchableOpacity style={s.avisBtn} onPress={() => openAvis(item)}>
-                            <Text style={s.avisBtnText}>⭐ Laisser un avis</Text>
-                          </TouchableOpacity>
-                        )
-                      )}
+                      <TouchableOpacity
+                        onPress={() => copyResa(resaNum)}
+                        onLongPress={() => router.push({ pathname: '/support', params: { tab: 'reclamation', ref: resaNum } } as any)}
+                        delayLongPress={400}
+                        activeOpacity={0.6}
+                        hitSlop={{ top: 8, bottom: 8, left: 4, right: 8 }}
+                      >
+                        <Text style={[s.resaNum, copiedNum === resaNum && s.resaNumCopied]}>
+                          {copiedNum === resaNum ? '✓ Copié' : `N° ${resaNum}`}
+                        </Text>
+                      </TouchableOpacity>
+                      <View style={s.cardBottomRight}>
+                        {/* A5 : avis autorisé uniquement après prestation terminée
+                            (status='completed', posé par la libération escrow — mig 049). */}
+                        {item.statut === 'completed' && item.type !== 'cours_coach' && item.type !== 'stage_coach' && (
+                          myAvisRefs.has(item.id) ? (
+                            <View style={s.avisDoneBadge}>
+                              <Text style={s.avisDoneText}>⭐ Avis déposé</Text>
+                            </View>
+                          ) : (
+                            <TouchableOpacity style={s.avisBtn} onPress={() => openAvis(item)}>
+                              <Text style={s.avisBtnText}>⭐ Laisser un avis</Text>
+                            </TouchableOpacity>
+                          )
+                        )}
+                        <Text style={s.montant}>{item.montant.toFixed(2)}€{item.type === 'stage' ? '' : ' TTC'}</Text>
+                      </View>
                     </View>
 
                     {/* Séquestre (escrow) — acheteur uniquement, si paiement séquestre.
@@ -640,11 +907,12 @@ export default function CavalierAgendaScreen() {
                         </View>
                       );
                     })()}
+                    </View>
                   </View>
                 );
-              })}
-            </View>
-          ))
+              })()
+            )}
+          </>
         )}
         <View style={{ height: 40 }} />
       </ScrollView>
@@ -766,6 +1034,9 @@ const s = StyleSheet.create({
   autrePartiePseudo: { fontSize: FontSize.xs, color: Colors.primary },
   chevronMsg: { fontSize: 20 },
   cardBottom: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
+  cardBottomRight: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  resaNum: { fontSize: 11, color: Colors.textTertiary, fontWeight: FontWeight.semibold, letterSpacing: 0.3, fontFamily: Platform.OS === 'ios' ? 'Menlo' : 'monospace' },
+  resaNumCopied: { color: Colors.success },
   actionRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
   actionBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, alignItems: 'center', borderWidth: 1 },
   rejectBtn: { backgroundColor: Colors.background, borderColor: '#EF4444' },
@@ -802,4 +1073,46 @@ const s = StyleSheet.create({
   cancelText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   submitBtn: { flex: 1, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
   submitText: { color: '#fff', fontWeight: FontWeight.bold },
+
+  // ── Bandeau semaine (B-variante) ──
+  stripWrap: {
+    backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border,
+    paddingTop: Spacing.sm, paddingBottom: 6,
+  },
+  stripContent: { paddingHorizontal: Spacing.md, gap: 6, alignItems: 'flex-start' },
+  stripWeekSep: { borderLeftWidth: 1, borderLeftColor: Colors.border, paddingLeft: 6, marginLeft: 2 },
+  dayPill: {
+    width: 44, alignItems: 'center', paddingVertical: 6, borderRadius: Radius.md,
+    backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border,
+  },
+  dayPillToday: { borderColor: Colors.primary, borderWidth: 1.5 },
+  dayPillSel: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  dayDow: { fontSize: 9, color: Colors.textTertiary, textTransform: 'uppercase', fontWeight: FontWeight.bold },
+  dayNum: { fontSize: 15, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
+  dayNumToday: { color: Colors.primary },
+  dayTextActive: { color: '#fff' },
+  dayDots: { flexDirection: 'row', gap: 2, height: 7, marginTop: 3, alignItems: 'center' },
+  dayDot: { width: 5, height: 5, borderRadius: 3 },
+  dayDotEmpty: { width: 5, height: 5 },
+  stripHint: { fontSize: 10, color: Colors.textTertiary, fontStyle: 'italic' },
+  stripBottom: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: 6, paddingHorizontal: Spacing.md },
+  pastBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: 9, paddingHorizontal: Spacing.lg, borderWidth: 1.5, borderColor: Colors.primary, ...Shadow.card },
+  pastBtnActive: { backgroundColor: Colors.surface, borderColor: Colors.primary },
+  pastBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textInverse },
+  pastBtnTextActive: { color: Colors.primary },
+  dayFilterBar: {
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md,
+    paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, marginBottom: Spacing.sm,
+  },
+  dayFilterText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary, textTransform: 'capitalize' },
+  dayFilterClear: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary },
+  dayEmpty: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', paddingVertical: Spacing.xl },
+
+  // ── Rail timeline (B) ──
+  tlRow: { flexDirection: 'row', alignItems: 'stretch', gap: 6, marginBottom: Spacing.sm },
+  cardFocus: { borderColor: '#0E7C66', borderWidth: 2, backgroundColor: '#F0FAF7', shadowColor: '#0E7C66', shadowOpacity: 0.25, shadowRadius: 10, shadowOffset: { width: 0, height: 4 }, elevation: 5 },
+  tlRail: { width: 14, alignItems: 'center' },
+  tlDot: { width: 12, height: 12, borderRadius: 6, marginTop: 14, borderWidth: 2, borderColor: Colors.background, zIndex: 1 },
+  tlLine: { flex: 1, width: 2, backgroundColor: Colors.border, marginTop: -2 },
 });

@@ -369,6 +369,8 @@ interface TransportReservationRow {
   route_provider: string | null;
   route_snapshot_json: unknown;
   route_pricing_status: string | null;
+  // Jointure annonce (date du trajet) — voir useMyTransportReservations.
+  transport_annonces?: { date_trajet: string | null; date_retour: string | null } | null;
 }
 
 function rowToReservation(r: TransportReservationRow): TransportReservation {
@@ -387,6 +389,8 @@ function rowToReservation(r: TransportReservationRow): TransportReservation {
     prixTotalTTC: r.prix_total_ttc,
     statut: (r.statut ?? 'pending') as TransportReservation['statut'],
     dateCreation: r.date_creation ? new Date(r.date_creation) : new Date(),
+    dateTrajet: r.transport_annonces?.date_trajet ? new Date(r.transport_annonces.date_trajet) : undefined,
+    dateRetour: r.transport_annonces?.date_retour ? new Date(r.transport_annonces.date_retour) : undefined,
     pickupAddress: r.pickup_address ?? undefined,
     pickupLat: r.pickup_lat ?? undefined,
     pickupLng: r.pickup_lng ?? undefined,
@@ -448,7 +452,7 @@ export function useMyTransportReservations() {
     setIsLoading(true);
     const { data, error: qErr } = await supabase
       .from('transport_reservations')
-      .select('*')
+      .select('*, transport_annonces(date_trajet, date_retour)')
       .or(`buyer_id.eq.${profile.id},seller_id.eq.${profile.id}`)
       .order('date_creation', { ascending: false });
     if (qErr) {
