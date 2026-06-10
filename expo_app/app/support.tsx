@@ -103,6 +103,23 @@ function fmtSupportDate(iso: string | null): string {
   } catch { return iso; }
 }
 
+// Libellé lisible du type d'objet concerné (réutilise RESERVATION_TYPES).
+const RESA_TYPE_LABEL: Record<string, string> = Object.fromEntries(
+  RESERVATION_TYPES.map((r) => [r.value, r.label]),
+);
+
+// Timeline dérivée UNIQUEMENT des données réelles (status + dates). Aucun
+// nouveau statut inventé ; aucune fausse date.
+function buildTimeline(t: SupportRequest): { label: string; done: boolean; date: string | null }[] {
+  const handled = t.status === 'in_progress' || t.status === 'resolved' || t.status === 'closed' || !!t.assignedAdmin;
+  const resolved = t.status === 'resolved' || t.status === 'closed';
+  return [
+    { label: 'Réclamation reçue', done: true, date: t.createdAt },
+    { label: 'Prise en charge', done: handled, date: t.status === 'in_progress' ? t.updatedAt : null },
+    { label: 'Résolue', done: resolved, date: t.resolvedAt },
+  ];
+}
+
 export default function SupportScreen() {
   // ?ref=EQ-XXX-XXXXXXXX pré-remplit le formulaire de réclamation (depuis une
   // réservation). La présence de `ref` ouvre directement l'onglet Réclamation.
@@ -129,6 +146,8 @@ export default function SupportScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  // Réclamation sélectionnée pour la fiche détail (réutilise l'objet déjà chargé).
+  const [selectedTicket, setSelectedTicket] = useState<SupportRequest | null>(null);
 
   // Liste « Mes réclamations » (RLS user : ne renvoie que les siennes, triées récent→ancien).
   const {
@@ -443,7 +462,12 @@ export default function SupportScreen() {
                 myTickets.map((t: SupportRequest) => {
                   const meta = SUPPORT_STATUS_META[t.status];
                   return (
-                    <View key={t.id} style={s.claimCard}>
+                    <TouchableOpacity
+                      key={t.id}
+                      style={s.claimCard}
+                      activeOpacity={0.85}
+                      onPress={() => setSelectedTicket(t)}
+                    >
                       <View style={s.claimCardTop}>
                         <Text style={s.claimRef}>{t.ref}</Text>
                         <View style={[s.claimStatusBadge, { backgroundColor: meta.bg }]}>
@@ -454,20 +478,8 @@ export default function SupportScreen() {
                       <Text style={s.claimMeta}>
                         {t.category} · {fmtSupportDate(t.createdAt)}
                       </Text>
-
-                      {t.status === 'resolved' && (
-                        <View style={s.claimResolution}>
-                          <Text style={s.claimResolutionLabel}>
-                            Réponse{t.resolvedAt ? ` · ${fmtSupportDate(t.resolvedAt)}` : ''}
-                          </Text>
-                          <Text style={s.claimResolutionText}>
-                            {t.resolutionMessage?.trim()
-                              ? t.resolutionMessage
-                              : 'Votre réclamation a été traitée par notre équipe.'}
-                          </Text>
-                        </View>
-                      )}
-                    </View>
+                      <Text style={s.claimDetailLink}>Voir le détail ›</Text>
+                    </TouchableOpacity>
                   );
                 })
               )}
@@ -483,31 +495,139 @@ export default function SupportScreen() {
         <View style={s.modalBackdrop}>
           <View style={s.modalCard}>
             <Text style={s.modalIcon}>✅</Text>
-            <Text style={s.modalTitle}>Réclamation envoyée</Text>
+            <Text style={s.modalTitle}>Réclamation enregistrée</Text>
             <Text style={s.modalText}>
-              Votre dossier a été créé avec succès. Conservez ce numéro pour le suivi :
+              Votre réclamation <Text style={s.modalTextStrong}>{claimNumber}</Text> a bien été enregistrée.
             </Text>
 
             <View style={s.claimBadge}>
-              <Text style={s.claimLabel}>N° de dossier</Text>
+              <Text style={s.claimLabel}>Votre référence</Text>
               <Text style={s.claimNumber}>{claimNumber}</Text>
             </View>
 
             <Text style={s.modalNote}>
-              Notre équipe traitera votre réclamation au plus vite. Vous serez notifié
-              dans l'application dès qu'une réponse sera disponible.
+              Conservez cette référence pour le suivi. Notre équipe traitera votre
+              réclamation au plus vite ; vous serez notifié dans l'application dès
+              qu'une réponse sera disponible. Vous la retrouvez ci-dessous dans
+              « Mes réclamations ».
             </Text>
 
             <TouchableOpacity
               style={s.modalBtn}
-              onPress={() => {
-                resetForm();
-                setTab('contact');
-              }}
+              onPress={() => resetForm()}
               activeOpacity={0.85}
             >
               <Text style={s.modalBtnText}>Fermer</Text>
             </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
+
+      {/* Modal détail réclamation */}
+      <Modal
+        visible={!!selectedTicket}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setSelectedTicket(null)}
+      >
+        <View style={s.detailBackdrop}>
+          <View style={s.detailCard}>
+            {selectedTicket && (() => {
+              const meta = SUPPORT_STATUS_META[selectedTicket.status];
+              const hasObjet = !!(selectedTicket.reservationRef || selectedTicket.reservationType);
+              return (
+                <ScrollView contentContainerStyle={s.detailScroll} showsVerticalScrollIndicator={false}>
+                  <View style={s.detailHeaderRow}>
+                    <Text style={s.detailRef}>{selectedTicket.ref}</Text>
+                    <View style={[s.claimStatusBadge, { backgroundColor: meta.bg }]}>
+                      <Text style={[s.claimStatusText, { color: meta.fg }]}>{meta.label}</Text>
+                    </View>
+                  </View>
+
+                  {/* Timeline */}
+                  <View style={s.timeline}>
+                    {buildTimeline(selectedTicket).map((step, i, arr) => (
+                      <View key={step.label} style={s.timelineRow}>
+                        <View style={s.timelineRail}>
+                          <View style={[s.timelineDot, step.done ? s.timelineDotDone : s.timelineDotPending]}>
+                            <Text style={s.timelineDotText}>{step.done ? '✓' : ''}</Text>
+                          </View>
+                          {i < arr.length - 1 && (
+                            <View style={[s.timelineLine, step.done && s.timelineLineDone]} />
+                          )}
+                        </View>
+                        <View style={s.timelineContent}>
+                          <Text style={[s.timelineLabel, !step.done && s.timelineLabelPending]}>{step.label}</Text>
+                          {step.done && !!step.date && (
+                            <Text style={s.timelineDate}>{fmtSupportDate(step.date)}</Text>
+                          )}
+                        </View>
+                      </View>
+                    ))}
+                  </View>
+
+                  {/* Objet concerné (réutilise reservationRef / reservationType) */}
+                  {hasObjet && (
+                    <View style={s.detailBlock}>
+                      <Text style={s.detailLabel}>Objet concerné</Text>
+                      <Text style={s.detailValue}>
+                        {selectedTicket.reservationType
+                          ? (RESA_TYPE_LABEL[selectedTicket.reservationType] ?? selectedTicket.reservationType)
+                          : ''}
+                        {selectedTicket.reservationRef ? ` · ${selectedTicket.reservationRef}` : ''}
+                      </Text>
+                    </View>
+                  )}
+
+                  <View style={s.detailBlock}>
+                    <Text style={s.detailLabel}>Catégorie</Text>
+                    <Text style={s.detailValue}>{selectedTicket.category}</Text>
+                  </View>
+
+                  <View style={s.detailBlock}>
+                    <Text style={s.detailLabel}>Sujet</Text>
+                    <Text style={s.detailValue}>{selectedTicket.subject}</Text>
+                  </View>
+
+                  <View style={s.detailBlock}>
+                    <Text style={s.detailLabel}>Description</Text>
+                    <Text style={s.detailValue}>{selectedTicket.description}</Text>
+                  </View>
+
+                  <View style={s.detailDatesRow}>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.detailLabel}>Créée le</Text>
+                      <Text style={s.detailDateValue}>{fmtSupportDate(selectedTicket.createdAt)}</Text>
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.detailLabel}>Mise à jour</Text>
+                      <Text style={s.detailDateValue}>{fmtSupportDate(selectedTicket.updatedAt)}</Text>
+                    </View>
+                  </View>
+
+                  {(selectedTicket.status === 'resolved' || selectedTicket.status === 'closed') && (
+                    <View style={s.claimResolution}>
+                      <Text style={s.claimResolutionLabel}>
+                        Réponse{selectedTicket.resolvedAt ? ` · ${fmtSupportDate(selectedTicket.resolvedAt)}` : ''}
+                      </Text>
+                      <Text style={s.claimResolutionText}>
+                        {selectedTicket.resolutionMessage?.trim()
+                          ? selectedTicket.resolutionMessage
+                          : 'Votre réclamation a été traitée par notre équipe.'}
+                      </Text>
+                    </View>
+                  )}
+
+                  <TouchableOpacity
+                    style={[s.modalBtn, { marginTop: Spacing.lg }]}
+                    onPress={() => setSelectedTicket(null)}
+                    activeOpacity={0.85}
+                  >
+                    <Text style={s.modalBtnText}>Fermer</Text>
+                  </TouchableOpacity>
+                </ScrollView>
+              );
+            })()}
           </View>
         </View>
       </Modal>
@@ -601,6 +721,33 @@ const s = StyleSheet.create({
   claimResolution: { marginTop: Spacing.sm, backgroundColor: '#ECFDF5', borderRadius: Radius.md, padding: Spacing.md },
   claimResolutionLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#065F46', textTransform: 'uppercase' },
   claimResolutionText: { fontSize: FontSize.sm, color: Colors.textPrimary, marginTop: 4, lineHeight: 20 },
+  claimDetailLink: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold, marginTop: Spacing.xs },
+  modalTextStrong: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  // Détail réclamation (modal)
+  detailBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'flex-end' },
+  detailCard: { backgroundColor: Colors.surface, borderTopLeftRadius: Radius.xl, borderTopRightRadius: Radius.xl, maxHeight: '88%' },
+  detailScroll: { padding: Spacing.xl, gap: Spacing.md },
+  detailHeaderRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  detailRef: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.primary },
+  detailBlock: { gap: 2 },
+  detailLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textSecondary, textTransform: 'uppercase' },
+  detailValue: { fontSize: FontSize.base, color: Colors.textPrimary, lineHeight: 22 },
+  detailDatesRow: { flexDirection: 'row', gap: Spacing.md },
+  detailDateValue: { fontSize: FontSize.sm, color: Colors.textPrimary },
+  // Timeline
+  timeline: { marginVertical: Spacing.sm },
+  timelineRow: { flexDirection: 'row', gap: Spacing.md },
+  timelineRail: { alignItems: 'center', width: 24 },
+  timelineDot: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  timelineDotDone: { backgroundColor: '#10B981' },
+  timelineDotPending: { backgroundColor: Colors.border },
+  timelineDotText: { color: '#FFFFFF', fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  timelineLine: { width: 2, flex: 1, minHeight: 18, backgroundColor: Colors.border },
+  timelineLineDone: { backgroundColor: '#10B981' },
+  timelineContent: { flex: 1, paddingBottom: Spacing.md },
+  timelineLabel: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  timelineLabelPending: { color: Colors.textTertiary, fontWeight: FontWeight.regular },
+  timelineDate: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
 
   // Modal succès
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
