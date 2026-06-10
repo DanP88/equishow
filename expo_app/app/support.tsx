@@ -5,6 +5,7 @@ import {
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import { useSupportRequests, SupportRequest, SupportStatus } from '../hooks/useSupportRequests';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 
@@ -85,6 +86,23 @@ const RESERVATION_TYPES: { value: ReservationType; label: string }[] = [
 
 const VALID_TABS: Tab[] = ['faq', 'legal', 'contact', 'reclamation'];
 
+// Affichage statut réclamation côté cavalier (lecture seule).
+const SUPPORT_STATUS_META: Record<SupportStatus, { label: string; bg: string; fg: string }> = {
+  open: { label: 'Ouverte', bg: '#FEF3C7', fg: '#92400E' },
+  in_progress: { label: 'En cours', bg: '#DBEAFE', fg: '#1E40AF' },
+  resolved: { label: 'Résolue', bg: '#D1FAE5', fg: '#065F46' },
+  closed: { label: 'Close', bg: '#E5E7EB', fg: '#374151' },
+};
+
+function fmtSupportDate(iso: string | null): string {
+  if (!iso) return '';
+  try {
+    return new Date(iso).toLocaleDateString('fr-FR', {
+      day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  } catch { return iso; }
+}
+
 export default function SupportScreen() {
   // ?ref=EQ-XXX-XXXXXXXX pré-remplit le formulaire de réclamation (depuis une
   // réservation). La présence de `ref` ouvre directement l'onglet Réclamation.
@@ -111,6 +129,14 @@ export default function SupportScreen() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+
+  // Liste « Mes réclamations » (RLS user : ne renvoie que les siennes, triées récent→ancien).
+  const {
+    items: myTickets,
+    loading: ticketsLoading,
+    error: ticketsError,
+    refresh: refreshTickets,
+  } = useSupportRequests();
 
   async function submitReclamation() {
     if (!objet.trim() || !description.trim() || submitting) return;
@@ -148,6 +174,8 @@ export default function SupportScreen() {
     // Référence renvoyée par le serveur (autoritative, unique).
     setClaimNumber(data.ref);
     setShowSuccess(true);
+    // Rafraîchit la liste « Mes réclamations » pour y faire apparaître le nouveau ticket.
+    refreshTickets();
   }
 
   function resetForm() {
@@ -387,6 +415,63 @@ export default function SupportScreen() {
                 <Text style={s.submitBtnText}>Envoyer la réclamation</Text>
               )}
             </TouchableOpacity>
+
+            {/* ── Mes réclamations ── */}
+            <View style={s.myClaims}>
+              <View style={s.myClaimsHeader}>
+                <Text style={s.sectionTitle}>Mes réclamations</Text>
+                {!ticketsLoading && (
+                  <TouchableOpacity onPress={() => refreshTickets()} activeOpacity={0.7}>
+                    <Text style={s.refreshLink}>↻ Actualiser</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+
+              {ticketsLoading ? (
+                <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.lg }} />
+              ) : ticketsError ? (
+                <View style={s.errorBox}>
+                  <Text style={s.errorText}>Impossible de charger vos réclamations : {ticketsError}</Text>
+                </View>
+              ) : myTickets.length === 0 ? (
+                <View style={s.claimsEmpty}>
+                  <Text style={s.claimsEmptyText}>
+                    Vous n'avez aucune réclamation pour le moment.
+                  </Text>
+                </View>
+              ) : (
+                myTickets.map((t: SupportRequest) => {
+                  const meta = SUPPORT_STATUS_META[t.status];
+                  return (
+                    <View key={t.id} style={s.claimCard}>
+                      <View style={s.claimCardTop}>
+                        <Text style={s.claimRef}>{t.ref}</Text>
+                        <View style={[s.claimStatusBadge, { backgroundColor: meta.bg }]}>
+                          <Text style={[s.claimStatusText, { color: meta.fg }]}>{meta.label}</Text>
+                        </View>
+                      </View>
+                      <Text style={s.claimSubject}>{t.subject}</Text>
+                      <Text style={s.claimMeta}>
+                        {t.category} · {fmtSupportDate(t.createdAt)}
+                      </Text>
+
+                      {t.status === 'resolved' && (
+                        <View style={s.claimResolution}>
+                          <Text style={s.claimResolutionLabel}>
+                            Réponse{t.resolvedAt ? ` · ${fmtSupportDate(t.resolvedAt)}` : ''}
+                          </Text>
+                          <Text style={s.claimResolutionText}>
+                            {t.resolutionMessage?.trim()
+                              ? t.resolutionMessage
+                              : 'Votre réclamation a été traitée par notre équipe.'}
+                          </Text>
+                        </View>
+                      )}
+                    </View>
+                  );
+                })
+              )}
+            </View>
           </View>
         )}
 
@@ -501,6 +586,21 @@ const s = StyleSheet.create({
   submitBtnText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
   errorBox: { backgroundColor: '#FEE2E2', borderLeftWidth: 4, borderLeftColor: '#DC2626', borderRadius: Radius.sm, padding: Spacing.md, marginTop: Spacing.sm },
   errorText: { color: '#991B1B', fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  myClaims: { marginTop: Spacing.xl, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.lg },
+  myClaimsHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.md },
+  refreshLink: { color: Colors.primary, fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  claimsEmpty: { padding: Spacing.lg, alignItems: 'center' },
+  claimsEmptyText: { color: Colors.textSecondary, fontSize: FontSize.sm, textAlign: 'center' },
+  claimCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md, gap: 4 },
+  claimCardTop: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  claimRef: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary },
+  claimStatusBadge: { paddingHorizontal: Spacing.sm, paddingVertical: 2, borderRadius: 999 },
+  claimStatusText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  claimSubject: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary, marginTop: 2 },
+  claimMeta: { fontSize: FontSize.xs, color: Colors.textTertiary },
+  claimResolution: { marginTop: Spacing.sm, backgroundColor: '#ECFDF5', borderRadius: Radius.md, padding: Spacing.md },
+  claimResolutionLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#065F46', textTransform: 'uppercase' },
+  claimResolutionText: { fontSize: FontSize.sm, color: Colors.textPrimary, marginTop: 4, lineHeight: 20 },
 
   // Modal succès
   modalBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.xl },
