@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert,
 } from 'react-native';
@@ -13,7 +13,7 @@ import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
 import { useOpenSupportCount } from '../../hooks/useSupportRequests';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
 
 const SERVICE_LABELS: Record<ServiceType, string> = {
   trajet: 'Trajets',
@@ -47,7 +47,12 @@ export default function AdminSettingsScreen() {
 function AdminSettingsContent() {
   useScreenTracking('admin-settings');
   const { profile, isLoading, logout } = useAuth();
-  const { count: openSupportCount } = useOpenSupportCount();
+  const { count: openSupportCount, refresh: refreshSupportCount } = useOpenSupportCount();
+  // Le compteur ne se rafraîchissait qu'au montage : après résolution d'un
+  // ticket dans admin-support, le retour sur cet écran laissait le badge figé.
+  // support_requests n'étant pas en publication realtime, on recompte au focus
+  // (même patron que le compteur de notifs dans CustomBottomBar).
+  useFocusEffect(useCallback(() => { refreshSupportCount(); }, [refreshSupportCount]));
   const [loggingOut, setLoggingOut] = useState(false);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
