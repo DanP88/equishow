@@ -93,7 +93,10 @@ async function releaseOne(supabase: any, payment: any, nowMs: number): Promise<s
     .update({
       transfer_state: "releasing",
       release_attempts: (payment.release_attempts ?? 0) + 1,
-      release_trigger: "cron",
+      // DB CHECK payments_release_trigger_check n'autorise que
+      // manual_buyer | auto_cron | admin. Écrire "cron" violait la contrainte →
+      // UPDATE échoué → 0 ligne → skip:not_held_or_in_progress (bug P0 cron).
+      release_trigger: "auto_cron",
     })
     .eq("id", payment.id)
     .eq("transfer_state", "held")
@@ -152,10 +155,30 @@ export async function handler(req: Request): Promise<Response> {
     return json({ error: "unauthorized" }, 401);
   }
 
-  try {
-    const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
-    const nowMs = Date.now();
+  const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY);
+  const nowMs = Date.now();
 
+  // ── Mutex de bail anti-overlap (mig 066) ─────────────────────────────────
+  // Empêche deux runs simultanés/zombies (issus des timeouts pg_net) de traiter
+  // les mêmes paiements. On pose un bail de 10 min ; libéré en fin de run. Le
+  // bail s'auto-expire si un run crash → pas de deadlock. N'altère EN RIEN la
+  // logique held→releasing→released ni l'idempotence Stripe.
+  const LEASE_MS = 10 * 60 * 1000;
+  const token = crypto.randomUUID();
+  const nowIso = new Date(nowMs).toISOString();
+  const { data: leased, error: leaseErr } = await supabase
+    .from("escrow_cron_lock")
+    .update({ locked_until: new Date(nowMs + LEASE_MS).toISOString(), locked_by: token })
+    .eq("id", true)
+    .or(`locked_until.is.null,locked_until.lt.${nowIso}`)
+    .select("id");
+  if (leaseErr) return json({ error: "lock_failed", detail: leaseErr.message }, 500);
+  if (!leased || leased.length === 0) {
+    // Un autre run détient le bail → on ne traite rien (pas une erreur).
+    return json({ ok: true, skipped: "already_running" }, 200);
+  }
+
+  try {
     const settings = await loadEscrowSettings(supabase);
     const hardCapDays = Number(settings["escrow_hard_cap_days"] ?? 14) || 14;
 
@@ -200,6 +223,14 @@ export async function handler(req: Request): Promise<Response> {
   } catch (e) {
     console.error("escrow-cron-release error:", e instanceof Error ? e.message : e);
     return json({ error: "internal" }, 500);
+  } finally {
+    // Relâche le bail UNIQUEMENT si on le détient encore (token), pour ne pas
+    // effacer un bail repris par un autre run après expiration.
+    await supabase
+      .from("escrow_cron_lock")
+      .update({ locked_until: null, locked_by: null })
+      .eq("id", true)
+      .eq("locked_by", token);
   }
 }
 
