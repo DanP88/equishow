@@ -24,7 +24,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '20.x'
           cache: 'npm'
           cache-dependency-path: 'expo_app/package-lock.json'
 
@@ -51,7 +51,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '20.x'
 
       # TODO: restaurer le suite jest complet après réparation de l'infra
       # jest ⇄ Expo SDK 54 (issue #3). Le `npm run test:ci` précédent
@@ -86,7 +86,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '20.x'
           cache: 'npm'
           cache-dependency-path: 'expo_app/package-lock.json'
 
@@ -152,7 +152,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '20.x'
           cache: 'npm'
           cache-dependency-path: 'expo_app/package-lock.json'
 
@@ -160,10 +160,12 @@ jobs:
         working-directory: expo_app
         run: npm ci
 
+      # BLOQUANT : le build web doit réussir pour merger sur main (cf ruleset).
+      # `expo export --platform web` est vérifié vert. Ne PAS remettre
+      # continue-on-error ici sans en mesurer l'impact sur la protection main.
       - name: Build web version
         working-directory: expo_app
         run: npx expo export --platform web
-        continue-on-error: true
 
       - name: Build APK (Android)
         working-directory: expo_app
@@ -195,7 +197,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '20.x'
 
       - name: Deploy to staging environment
         env:
@@ -249,7 +251,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18.x'
+          node-version: '20.x'
 
       - name: Create GitHub Release
         id: create_release
