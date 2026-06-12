@@ -120,15 +120,26 @@ export async function handler(req: Request): Promise<Response> {
     }
 
     // ========================================================================
-    // STEP 2: Verify requester is the buyer (only buyers can request refunds)
+    // STEP 2: Verify requester is the buyer OR an admin (Option A — mig 069).
+    // La logique refund/reversal est caller-agnostique (cf. pré-audit) ; seul ce
+    // gate était buyer-only. metadata[refunded_by] trace déjà le caller réel ;
+    // metadata[refunded_role] distingue buyer/admin pour l'audit.
     // ========================================================================
 
-    if (user.id !== payment.buyer_id) {
+    const isBuyer = user.id === payment.buyer_id;
+    let isAdmin = false;
+    if (!isBuyer) {
+      const { data: callerRow } = await supabase
+        .from("users").select("role").eq("id", user.id).maybeSingle();
+      isAdmin = callerRow?.role === "admin";
+    }
+    if (!isBuyer && !isAdmin) {
       return new Response(
-        JSON.stringify({ error: "Unauthorized: only the buyer can request a refund" }),
+        JSON.stringify({ error: "Unauthorized: only the buyer or an admin can refund this payment" }),
         { status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
+    const refundedRole = isBuyer ? "buyer" : "admin";
 
     // ========================================================================
     // STEP 3: Verify payment can be refunded
@@ -197,6 +208,7 @@ export async function handler(req: Request): Promise<Response> {
       "metadata[payment_id]": body.paymentId,
       "metadata[reason]": reason,
       "metadata[refunded_by]": user.id,
+      "metadata[refunded_role]": refundedRole,
       "metadata[refunded_at]": new Date().toISOString(),
     };
     if (flags.reverse_transfer) refundParams.reverse_transfer = "true";
@@ -228,6 +240,12 @@ export async function handler(req: Request): Promise<Response> {
     if (payment.transfer_state && payment.transfer_state !== "not_applicable") {
       refundUpdate.transfer_state = "reversed";
       refundUpdate.transfer_reversed_at = new Date().toISOString();
+      // Refund effectif → lever tout blocage litige (sinon escrowBadge afficherait
+      // « Litige en cours » au lieu de « ↩️ Remboursé »). La trace du litige reste
+      // dans payment_disputes (resolved_refund). Déclenche aussi trg notif reversed
+      // (mig 069) : acheteur + vendeur informés du remboursement réel.
+      refundUpdate.dispute_status = null;
+      refundUpdate.release_blocked_reason = null;
     }
 
     const { error: updateError } = await supabase
