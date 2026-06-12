@@ -4,6 +4,7 @@ import { userStore } from '../data/store';
 import { CourseDemande } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createNotification } from './useNotifications';
+import { trackFunnel } from '../lib/analytics';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -37,6 +38,12 @@ export function useCoursePayment() {
         Alert.alert('Erreur', 'Session expirée, veuillez vous reconnecter');
         return;
       }
+
+      // Funnel Lot 3 : lancement du checkout Stripe (étape open_checkout).
+      trackFunnel('payment', 'open_checkout', {
+        module: 'course', reservation_id: demand.id,
+        seller_id: demand.coachId, amount: Math.round(demand.prix * 100),
+      });
 
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/create-checkout-session`,

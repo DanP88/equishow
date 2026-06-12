@@ -6,6 +6,7 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { getAuthToken } from '../utils/supabaseAuth';
+import { trackFunnel } from '../lib/analytics';
 
 export default function PaiementBoxScreen() {
   const { reservationId, titre, montant, nbNuits, lieu, dateDebut, dateFin, reference } =
@@ -25,6 +26,13 @@ export default function PaiementBoxScreen() {
       if (!supabaseUrl) throw new Error('Configuration manquante.');
 
       const token = await getAuthToken();
+
+      // Funnel Lot 3 : lancement du checkout Stripe (étape open_checkout).
+      trackFunnel('payment', 'open_checkout', {
+        module: 'box', reservation_id: reservationId,
+        amount: Math.round(parseFloat(montant ?? '0') * 100),
+      });
+
       const resp = await fetch(`${supabaseUrl}/functions/v1/create-checkout-session`, {
         method: 'POST',
         headers: {
