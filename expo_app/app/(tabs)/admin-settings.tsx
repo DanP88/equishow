@@ -64,20 +64,6 @@ function AdminSettingsContent() {
         <Text style={styles.subtitle}>Gestion de la plateforme Equishow</Text>
       </View>
 
-      {/* CSV Import shortcut (déplacé hors de la bottom bar admin) */}
-      <TouchableOpacity
-        style={styles.analyticsBtn}
-        onPress={() => router.push('/(tabs)/import-concours')}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.analyticsBtnIcon}>📋</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.analyticsBtnTitle}>Import CSV concours</Text>
-          <Text style={styles.analyticsBtnSub}>Importer les concours depuis un fichier CSV</Text>
-        </View>
-        <Text style={styles.analyticsBtnArrow}>›</Text>
-      </TouchableOpacity>
-
       {/* Admin Info */}
       <View style={styles.card}>
         <Text style={styles.cardTitle}>Informations Admin</Text>

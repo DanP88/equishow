@@ -49,10 +49,12 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
     { name: 'profil-org', label: 'Profil', emoji: '👤', route: '/(tabs)/profil-org' },
   ],
   admin: [
+    { name: 'import-concours', label: 'CSV Import', emoji: '📋', route: '/(tabs)/import-concours' },
     { name: 'admin-analytics', label: 'Analytics', emoji: '📊', route: '/(tabs)/admin-analytics' },
     { name: 'admin-disputes', label: 'Litiges', emoji: '⚖️', route: '/(tabs)/admin-disputes' },
     { name: 'admin-support', label: 'Réclamations', emoji: '📩', route: '/(tabs)/admin-support' },
     { name: 'admin-commissions', label: 'Commissions', emoji: '💶', route: '/(tabs)/admin-commissions' },
+    { name: 'admin-profil', label: 'Profil', emoji: '👤', route: '/(tabs)/admin-profil' },
   ],
 };
 
