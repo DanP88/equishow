@@ -65,7 +65,7 @@ function AdminDisputesContent() {
   const [refreshing, setRefreshing] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
 
-  const { releasePayment, resolveDispute, loading: actionLoading } = useEscrowActions();
+  const { releasePayment, resolveDispute, refundPayment, loading: actionLoading } = useEscrowActions();
   const [pending, setPending] = useState<PendingAction>(null);
   const [resultAlert, setResultAlert] = useState<{
     title: string; message: string; variant: 'success' | 'error' | 'info';
@@ -166,26 +166,32 @@ function AdminDisputesContent() {
         });
       }
     } else {
-      // kind === 'refund' : marque resolved_refund. process-refund est buyer-only,
-      // donc le remboursement effectif passe par le Dashboard Stripe ou l'acheteur.
-      const r1 = await resolveDispute(dispute.payment_id, 'refund');
+      // kind === 'refund' : remboursement RÉEL via process-refund (admin autorisé,
+      // mig 069). 1) refund Stripe (+ reversal si déjà versé) + clear du blocage
+      // litige côté serveur. 2) seulement SI succès, marquer le litige
+      // resolved_refund (resolved_by/at) pour l'historique. Jamais « remboursé »
+      // si l'Edge a échoué.
+      const r1 = await refundPayment(dispute.payment_id);
       if (!r1.ok) {
         setResultAlert({
-          title: 'Échec',
-          message: `Impossible de résoudre le litige (${r1.code}).`,
+          title: 'Remboursement échoué',
+          message: `Le remboursement n'a pas pu être effectué (${r1.code}). Aucun litige n'a été clôturé. Réessayer, ou traiter via le Dashboard Stripe (charge ${dispute.payment.stripe_charge_id ?? '—'}).`,
           variant: 'error',
         });
         return;
       }
+      const r2 = await resolveDispute(dispute.payment_id, 'refund');
       setResultAlert({
-        title: '↩️ Litige marqué pour remboursement',
-        message: `Décision admin enregistrée. Le remboursement Stripe doit être effectué via le Dashboard Stripe (charge ${dispute.payment.stripe_charge_id ?? '—'}) ou demandé par l'acheteur depuis son agenda.`,
-        variant: 'info',
+        title: '↩️ Remboursement déclenché',
+        message: r2.ok
+          ? "L'acheteur a été remboursé (retour sur carte sous quelques jours). Litige clos."
+          : `Remboursement effectué, mais la clôture du litige a échoué (${r2.code}). À vérifier dans la liste.`,
+        variant: r2.ok ? 'success' : 'info',
       });
     }
 
     await load();
-  }, [pending, resolveDispute, releasePayment, load]);
+  }, [pending, resolveDispute, releasePayment, refundPayment, load]);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -206,8 +212,8 @@ function AdminDisputesContent() {
     }
     return {
       title: 'Rembourser l\'acheteur ?',
-      message: `Le litige sera marqué « à rembourser ». Le remboursement Stripe effectif (${eur} € TTC) reste à effectuer via le Dashboard Stripe ou par l'acheteur depuis son app.`,
-      confirmLabel: 'Oui, marquer',
+      message: `L'acheteur sera remboursé de ${eur} € TTC (retour sur sa carte). Si les fonds avaient déjà été versés au vendeur, le transfert est annulé. Action irréversible.`,
+      confirmLabel: 'Oui, rembourser',
       destructive: true,
     };
   }, [pending]);

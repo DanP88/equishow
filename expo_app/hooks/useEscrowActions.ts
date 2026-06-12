@@ -52,14 +52,31 @@ export function useEscrowActions() {
     }
   }, []);
 
-  const openDispute = useCallback(async (paymentId: string): Promise<EscrowActionResult> => {
+  const openDispute = useCallback(async (
+    paymentId: string,
+    reason?: string,
+  ): Promise<EscrowActionResult> => {
     try {
       setLoading(true);
+      // L'acheteur décrit le problème (mig 069) ; fallback propre si vide.
+      const cleaned = (reason ?? '').trim();
       return await callFn('manage-dispute', {
         payment_id: paymentId,
         action: 'open',
-        reason: 'Problème signalé par l\'acheteur depuis l\'app',
+        reason: cleaned.length > 0 ? cleaned : 'Problème signalé par l\'acheteur depuis l\'app',
       });
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  // Remboursement réel via process-refund (buyer OU admin depuis mig 069).
+  // process-refund attend { paymentId } (camelCase). Renvoie ok/code ; ne
+  // transforme jamais un échec Stripe en succès (l'Edge renvoie un status ≠ 200).
+  const refundPayment = useCallback(async (paymentId: string): Promise<EscrowActionResult> => {
+    try {
+      setLoading(true);
+      return await callFn('process-refund', { paymentId });
     } finally {
       setLoading(false);
     }
@@ -81,5 +98,5 @@ export function useEscrowActions() {
     }
   }, []);
 
-  return { releasePayment, openDispute, resolveDispute, loading };
+  return { releasePayment, openDispute, resolveDispute, refundPayment, loading };
 }

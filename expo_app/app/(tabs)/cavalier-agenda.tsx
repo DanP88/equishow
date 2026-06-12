@@ -161,6 +161,8 @@ export default function CavalierAgendaScreen() {
   // window.confirm/alert natifs du navigateur.
   const [escrowConfirm, setEscrowConfirm] = useState<{ kind: 'release' | 'dispute'; paymentId: string } | null>(null);
   const [escrowAlert, setEscrowAlert] = useState<{ title: string; message: string; variant: 'success' | 'error' | 'info' } | null>(null);
+  // Description libre du problème (mig 069). Saisie dans la modale de litige.
+  const [disputeReason, setDisputeReason] = useState('');
   // B-variante : bandeau semaine + défilement vers le jour choisi
   const [selectedDay, setSelectedDay] = useState<string | null>(null);
   const [showPast, setShowPast] = useState(false);
@@ -203,6 +205,7 @@ export default function CavalierAgendaScreen() {
 
   const onOpenDispute = useCallback((paymentId: string) => {
     if (escrowLoading) return;
+    setDisputeReason('');
     setEscrowConfirm({ kind: 'dispute', paymentId });
   }, [escrowLoading]);
 
@@ -210,10 +213,20 @@ export default function CavalierAgendaScreen() {
   const runEscrowAction = useCallback(async () => {
     if (!escrowConfirm) return;
     const { kind, paymentId } = escrowConfirm;
+    // Litige : exiger une description minimale avant d'envoyer (garde la modale
+    // ouverte si trop court pour ne pas perdre la saisie).
+    if (kind === 'dispute' && disputeReason.trim().length < 10) {
+      setEscrowAlert({
+        title: 'Description requise',
+        message: 'Merci de décrire le problème en quelques mots (10 caractères minimum).',
+        variant: 'error',
+      });
+      return;
+    }
     setEscrowConfirm(null);
     const res = kind === 'release'
       ? await releasePayment(paymentId)
-      : await openDispute(paymentId);
+      : await openDispute(paymentId, disputeReason.trim());
     if (res.ok) {
       reloadEscrow();
       setEscrowAlert(kind === 'release'
@@ -239,7 +252,7 @@ export default function CavalierAgendaScreen() {
                   : `Le litige n’a pas pu être ouvert (${res.code}).`;
       setEscrowAlert({ title: 'Action impossible', message, variant: 'error' });
     }
-  }, [escrowConfirm, releasePayment, openDispute, reloadEscrow]);
+  }, [escrowConfirm, disputeReason, releasePayment, openDispute, reloadEscrow]);
 
   function openAvis(item: AgendaItem) {
     setAvisNote(5);
@@ -964,8 +977,27 @@ export default function CavalierAgendaScreen() {
         visible={!!escrowConfirm}
         title={escrowConfirm?.kind === 'dispute' ? 'Signaler un problème' : 'Libérer le paiement'}
         message={escrowConfirm?.kind === 'dispute'
-          ? "Un litige sera ouvert et le versement au vendeur bloqué, le temps qu'un administrateur vérifie la situation. Continuer ?"
+          ? undefined
           : 'Confirmez-vous avoir bien reçu la prestation ? Les fonds seront versés au vendeur. Cette action est définitive.'}
+        body={escrowConfirm?.kind === 'dispute' ? (
+          <View>
+            <Text style={s.modalSubtitle}>
+              Un litige sera ouvert et le versement au vendeur bloqué, le temps qu'un
+              administrateur vérifie. Décrivez le problème :
+            </Text>
+            <TextInput
+              style={s.commentInput}
+              placeholder="Ex : prestation non réalisée, cheval non conforme…"
+              placeholderTextColor={Colors.textTertiary}
+              value={disputeReason}
+              onChangeText={setDisputeReason}
+              multiline
+              numberOfLines={4}
+              maxLength={500}
+            />
+            <Text style={s.disputeCharCount}>{disputeReason.trim().length}/500</Text>
+          </View>
+        ) : undefined}
         confirmLabel={escrowConfirm?.kind === 'dispute' ? 'Ouvrir un litige' : 'Oui, libérer'}
         destructive={escrowConfirm?.kind === 'dispute'}
         onCancel={() => setEscrowConfirm(null)}
@@ -1068,6 +1100,7 @@ const s = StyleSheet.create({
   starBtn: { padding: 8 },
   starIcon: { fontSize: 28 },
   commentInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.md, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surfaceVariant, height: 90, textAlignVertical: 'top', marginBottom: Spacing.lg },
+  disputeCharCount: { fontSize: FontSize.xs, color: Colors.textTertiary, textAlign: 'right', marginTop: -Spacing.md, marginBottom: Spacing.sm },
   modalActions: { flexDirection: 'row', gap: Spacing.sm, marginTop: 4 },
   cancelBtn: { flex: 1, borderWidth: 1, borderColor: Colors.borderMedium, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center' },
   cancelText: { color: Colors.textSecondary, fontWeight: FontWeight.semibold },
