@@ -1,14 +1,14 @@
 import { useEffect, useState, useCallback } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView,
+  View, Text, ScrollView, StyleSheet,
   TouchableOpacity, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Colors } from '../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../constants/theme';
-import { AuthGuard } from '../components/AuthGuard';
-import { supabase } from '../lib/supabase';
-import { useScreenTracking } from '../hooks/useScreenTracking';
+import { Colors } from '../../constants/colors';
+import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../../constants/theme';
+import { AuthGuard } from '../../components/AuthGuard';
+import { supabase } from '../../lib/supabase';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
 
 interface Kpi7d {
   pageviews_7d: number | null;
@@ -105,14 +105,14 @@ function AdminAnalyticsContent() {
 
   if (loading) {
     return (
-      <SafeAreaView style={styles.root}>
+      <View style={styles.root}>
         <View style={styles.center}><ActivityIndicator color={Colors.primary} size="large" /></View>
-      </SafeAreaView>
+      </View>
     );
   }
 
   return (
-    <SafeAreaView style={styles.root}>
+    <View style={styles.root}>
       <View style={styles.header}>
         <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')} style={styles.backBtn}>
           <Text style={styles.backIcon}>←</Text>
@@ -211,7 +211,7 @@ function AdminAnalyticsContent() {
 
         <View style={{ height: 40 }} />
       </ScrollView>
-    </SafeAreaView>
+    </View>
   );
 }
 

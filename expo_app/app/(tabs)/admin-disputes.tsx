@@ -1,17 +1,17 @@
 import { useEffect, useState, useCallback, useMemo } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView,
+  View, Text, ScrollView, StyleSheet,
   TouchableOpacity, ActivityIndicator, RefreshControl,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Colors } from '../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
-import { AuthGuard } from '../components/AuthGuard';
-import { ConfirmModal } from '../components/ConfirmModal';
-import { AlertModal } from '../components/AlertModal';
-import { supabase } from '../lib/supabase';
-import { useScreenTracking } from '../hooks/useScreenTracking';
-import { useEscrowActions } from '../hooks/useEscrowActions';
+import { Colors } from '../../constants/colors';
+import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
+import { AuthGuard } from '../../components/AuthGuard';
+import { ConfirmModal } from '../../components/ConfirmModal';
+import { AlertModal } from '../../components/AlertModal';
+import { supabase } from '../../lib/supabase';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { useEscrowActions } from '../../hooks/useEscrowActions';
 
 interface UserMini {
   id: string;
@@ -219,7 +219,7 @@ function AdminDisputesContent() {
   }, [pending]);
 
   return (
-    <SafeAreaView style={s.root}>
+    <View style={s.root}>
       <View style={s.header}>
         <TouchableOpacity
           style={s.backBtn}
@@ -337,7 +337,7 @@ function AdminDisputesContent() {
         variant={resultAlert?.variant ?? 'info'}
         onClose={() => setResultAlert(null)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 

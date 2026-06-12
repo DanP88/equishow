@@ -11,6 +11,7 @@ import { userStore } from '../data/store';
 import { useMyCourseDemands } from '../hooks/useCourseDemands';
 import { useMyStageReservations } from '../hooks/useStages';
 import { useUnreadMessagesCount } from '../hooks/useMessaging';
+import { useOpenSupportCount } from '../hooks/useSupportRequests';
 
 export interface TabConfig {
   name: string;
@@ -48,8 +49,11 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
     { name: 'profil-org', label: 'Profil', emoji: '👤', route: '/(tabs)/profil-org' },
   ],
   admin: [
-    { name: 'admin-settings', label: 'Paramètres', emoji: '⚙️', route: '/(tabs)/admin-settings' },
     { name: 'import-concours', label: 'CSV Import', emoji: '📋', route: '/(tabs)/import-concours' },
+    { name: 'admin-analytics', label: 'Analytics', emoji: '📊', route: '/(tabs)/admin-analytics' },
+    { name: 'admin-disputes', label: 'Litiges', emoji: '⚖️', route: '/(tabs)/admin-disputes' },
+    { name: 'admin-support', label: 'Réclamations', emoji: '📩', route: '/(tabs)/admin-support' },
+    { name: 'admin-commissions', label: 'Commissions', emoji: '💶', route: '/(tabs)/admin-commissions' },
     { name: 'admin-profil', label: 'Profil', emoji: '👤', route: '/(tabs)/admin-profil' },
   ],
 };
@@ -68,6 +72,10 @@ export function CustomBottomBar() {
   const [agendaCount, setAgendaCount] = useState(0);
   // Badge messages non lus : source Supabase unique (realtime), tous rôles.
   const msgCount = useUnreadMessagesCount();
+  // Badge réclamations admin : même source que l'ancienne carte (tickets
+  // open + in_progress). support_requests n'étant pas en realtime, on recompte
+  // au focus (cf. updateNotificationCount ci-dessous).
+  const { count: openSupportCount, refresh: refreshSupportCount } = useOpenSupportCount();
 
   // Tous les flux migrés sur Supabase via hooks realtime — plus de store mock.
   const updateNotificationCount = useCallback(() => {
@@ -101,7 +109,10 @@ export function CustomBottomBar() {
   // Refresh notifications count quand on revient
   useFocusEffect(useCallback(() => {
     updateNotificationCount();
-  }, [updateNotificationCount]));
+    // Le compteur de tickets support n'est pas en realtime : on recompte au
+    // focus, uniquement pour l'admin (seul rôle qui affiche ce badge).
+    if (role === 'admin') refreshSupportCount();
+  }, [updateNotificationCount, role, refreshSupportCount]));
 
   // updateNotificationCount est un useCallback qui dépend des reservations/demands.
   // Quand un hook realtime push une mise à jour, leur référence change → cet effet
@@ -128,6 +139,8 @@ export function CustomBottomBar() {
     } else if (role === 'organisateur') {
       if (tab.name === 'org-notifications') return notificationCount;
       if (tab.name === 'org-messages') return msgCount;
+    } else if (role === 'admin') {
+      if (tab.name === 'admin-support') return openSupportCount;
     }
     return 0;
   };
