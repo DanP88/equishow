@@ -1,40 +1,15 @@
-import { useState, useCallback } from 'react';
+import { useState } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView, TextInput, TouchableOpacity, Alert,
+  View, Text, StyleSheet, ScrollView, TouchableOpacity,
 } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { ServiceType, CommissionConfig } from '../../types/service';
-import { useCommissions } from '../../hooks/useCommissions';
-import { savePlatformCommissions } from '../../hooks/usePlatformSettings';
 import { useAuth } from '../../hooks/useAuth';
 import { AuthGuard } from '../../components/AuthGuard';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
-import { useOpenSupportCount } from '../../hooks/useSupportRequests';
-import { router, useFocusEffect } from 'expo-router';
-
-const SERVICE_LABELS: Record<ServiceType, string> = {
-  trajet: 'Trajets',
-  location: 'Location de Van',
-  cours: 'Cours de Coach',
-  box: 'Location de Box',
-};
-
-const SERVICE_DESCRIPTIONS: Record<ServiceType, string> = {
-  trajet: 'Commission sur les trajets classiques',
-  location: 'Commission sur les locations de van',
-  cours: 'Commission sur les cours de coaching',
-  box: 'Commission sur les locations de box',
-};
-
-interface CommissionInput {
-  trajet: string;
-  location: string;
-  cours: string;
-  box: string;
-}
+import { router } from 'expo-router';
 
 export default function AdminSettingsScreen() {
   return (
@@ -47,12 +22,6 @@ export default function AdminSettingsScreen() {
 function AdminSettingsContent() {
   useScreenTracking('admin-settings');
   const { profile, isLoading, logout } = useAuth();
-  const { count: openSupportCount, refresh: refreshSupportCount } = useOpenSupportCount();
-  // Le compteur ne se rafraîchissait qu'au montage : après résolution d'un
-  // ticket dans admin-support, le retour sur cet écran laissait le badge figé.
-  // support_requests n'étant pas en publication realtime, on recompte au focus
-  // (même patron que le compteur de notifs dans CustomBottomBar).
-  useFocusEffect(useCallback(() => { refreshSupportCount(); }, [refreshSupportCount]));
   const [loggingOut, setLoggingOut] = useState(false);
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -74,58 +43,6 @@ function AdminSettingsContent() {
   function handleLogout() {
     setShowLogoutConfirm(true);
   }
-  const commissions = useCommissions();
-  const [commissionInputs, setCommissionInputs] = useState<CommissionInput>({
-    trajet: (commissions.trajet * 100).toFixed(1),
-    location: (commissions.location * 100).toFixed(1),
-    cours: (commissions.cours * 100).toFixed(1),
-    box: (commissions.box * 100).toFixed(1),
-  });
-  const [saveSuccess, setSaveSuccess] = useState(false);
-  const [saving, setSaving] = useState(false);
-
-  const handleCommissionChange = (serviceType: ServiceType, value: string) => {
-    setCommissionInputs(prev => ({
-      ...prev,
-      [serviceType]: value,
-    }));
-  };
-
-  const handleSaveAllCommissions = async () => {
-    const newCommissions: Partial<CommissionConfig> = {};
-    let isValid = true;
-
-    (Object.keys(commissionInputs) as ServiceType[]).forEach((serviceType) => {
-      const value = parseFloat(commissionInputs[serviceType]);
-      if (isNaN(value) || value < 0 || value > 100) {
-        isValid = false;
-      } else {
-        newCommissions[serviceType] = value / 100;
-      }
-    });
-
-    if (!isValid) return;
-
-    setSaving(true);
-    const { error } = await savePlatformCommissions(newCommissions as CommissionConfig);
-    setSaving(false);
-
-    if (error) {
-      Alert.alert('Erreur', `Impossible de sauvegarder : ${error}`);
-    } else {
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2000);
-    }
-  };
-
-  const isValidCommissions = () => {
-    return (Object.keys(commissionInputs) as ServiceType[]).every((serviceType) => {
-      const value = parseFloat(commissionInputs[serviceType]);
-      return !isNaN(value) && value >= 0 && value <= 100;
-    });
-  };
-
-  const serviceTypes: ServiceType[] = ['trajet', 'location', 'cours', 'box'];
 
   if (isLoading) return null;
 
@@ -147,50 +64,17 @@ function AdminSettingsContent() {
         <Text style={styles.subtitle}>Gestion de la plateforme Equishow</Text>
       </View>
 
-      {/* Analytics shortcut */}
+      {/* CSV Import shortcut (déplacé hors de la bottom bar admin) */}
       <TouchableOpacity
         style={styles.analyticsBtn}
-        onPress={() => router.push('/admin-analytics')}
+        onPress={() => router.push('/(tabs)/import-concours')}
         activeOpacity={0.85}
       >
-        <Text style={styles.analyticsBtnIcon}>📊</Text>
+        <Text style={styles.analyticsBtnIcon}>📋</Text>
         <View style={{ flex: 1 }}>
-          <Text style={styles.analyticsBtnTitle}>Analytics</Text>
-          <Text style={styles.analyticsBtnSub}>Comportement utilisateurs · KPIs · funnels · erreurs</Text>
+          <Text style={styles.analyticsBtnTitle}>Import CSV concours</Text>
+          <Text style={styles.analyticsBtnSub}>Importer les concours depuis un fichier CSV</Text>
         </View>
-        <Text style={styles.analyticsBtnArrow}>›</Text>
-      </TouchableOpacity>
-
-      {/* Disputes shortcut */}
-      <TouchableOpacity
-        style={styles.analyticsBtn}
-        onPress={() => router.push('/admin-disputes')}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.analyticsBtnIcon}>⚖️</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.analyticsBtnTitle}>Litiges</Text>
-          <Text style={styles.analyticsBtnSub}>Litiges ouverts · libérer fonds · rembourser acheteur</Text>
-        </View>
-        <Text style={styles.analyticsBtnArrow}>›</Text>
-      </TouchableOpacity>
-
-      {/* Support / Réclamations shortcut */}
-      <TouchableOpacity
-        style={styles.analyticsBtn}
-        onPress={() => router.push('/admin-support')}
-        activeOpacity={0.85}
-      >
-        <Text style={styles.analyticsBtnIcon}>📩</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.analyticsBtnTitle}>Réclamations</Text>
-          <Text style={styles.analyticsBtnSub}>Tickets support · prendre en charge · résoudre</Text>
-        </View>
-        {openSupportCount > 0 && (
-          <View style={styles.countBadge}>
-            <Text style={styles.countBadgeText}>{openSupportCount}</Text>
-          </View>
-        )}
         <Text style={styles.analyticsBtnArrow}>›</Text>
       </TouchableOpacity>
 
@@ -209,60 +93,6 @@ function AdminSettingsContent() {
           <Text style={styles.infoLabel}>Rôle:</Text>
           <Text style={styles.infoValue}>Admin</Text>
         </View>
-      </View>
-
-      {/* Commission Settings */}
-      <View style={styles.card}>
-        <Text style={styles.cardTitle}>Commissions par Type de Service</Text>
-        <Text style={styles.description}>
-          Définissez le pourcentage de commission que la plateforme prend sur chaque type de transaction.
-        </Text>
-
-        <View style={styles.commissionsGrid}>
-          {serviceTypes.map((serviceType) => (
-            <View key={serviceType} style={styles.commissionCard}>
-              <Text style={styles.commissionCardTitle}>{SERVICE_LABELS[serviceType]}</Text>
-              <Text style={styles.commissionCardDesc}>{SERVICE_DESCRIPTIONS[serviceType]}</Text>
-
-              <View style={styles.commissionDisplay}>
-                <Text style={styles.currentLabel}>Commission actuelle:</Text>
-                <Text style={styles.currentValue}>{(commissions[serviceType] * 100).toFixed(1)}%</Text>
-              </View>
-
-              <View style={styles.inputGroup}>
-                <Text style={styles.inputLabel}>Nouvelle commission (%)</Text>
-                <View style={styles.inputContainer}>
-                  <TextInput
-                    style={styles.input}
-                    value={commissionInputs[serviceType]}
-                    onChangeText={(value) => handleCommissionChange(serviceType, value)}
-                    placeholder="5.0"
-                    placeholderTextColor={Colors.textTertiary}
-                    keyboardType="decimal-pad"
-                  />
-                  <Text style={styles.inputSuffix}>%</Text>
-                </View>
-              </View>
-            </View>
-          ))}
-        </View>
-
-        <TouchableOpacity
-          style={[styles.button, (!isValidCommissions() || saving) && styles.buttonDisabled]}
-          onPress={handleSaveAllCommissions}
-          disabled={!isValidCommissions() || saving}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.buttonText}>
-            {saving ? 'Enregistrement...' : 'Enregistrer toutes les commissions'}
-          </Text>
-        </TouchableOpacity>
-
-        {saveSuccess && (
-          <View style={styles.successMessage}>
-            <Text style={styles.successText}>✓ Commissions mises à jour avec succès</Text>
-          </View>
-        )}
       </View>
 
       {/* System Info */}

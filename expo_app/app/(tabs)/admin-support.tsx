@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity,
+  View, Text, ScrollView, StyleSheet, TouchableOpacity,
   ActivityIndicator, RefreshControl, Modal, TextInput,
 } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Colors } from '../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
-import { AuthGuard } from '../components/AuthGuard';
-import { AlertModal } from '../components/AlertModal';
-import { useScreenTracking } from '../hooks/useScreenTracking';
+import { Colors } from '../../constants/colors';
+import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
+import { AuthGuard } from '../../components/AuthGuard';
+import { AlertModal } from '../../components/AlertModal';
+import { useScreenTracking } from '../../hooks/useScreenTracking';
 import {
   useAdminSupportRequests, SupportRequest, SupportStatus,
-} from '../hooks/useSupportRequests';
+} from '../../hooks/useSupportRequests';
 
 type Filter = SupportStatus | 'all';
 
@@ -139,7 +139,7 @@ function AdminSupportContent() {
   }
 
   return (
-    <SafeAreaView style={s.root}>
+    <View style={s.root}>
       <View style={s.header}>
         <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={s.backIcon}>‹</Text>
@@ -314,7 +314,7 @@ function AdminSupportContent() {
         variant={alert?.variant ?? 'info'}
         onClose={() => setAlert(null)}
       />
-    </SafeAreaView>
+    </View>
   );
 }
 
