@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../../const
 import { AuthGuard } from '../../components/AuthGuard';
 import { supabase } from '../../lib/supabase';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { useMarketplaceAnalytics } from '../../hooks/useMarketplaceAnalytics';
 
 interface Kpi7d {
   pageviews_7d: number | null;
@@ -65,6 +66,9 @@ function AdminAnalyticsContent() {
   const [errors, setErrors] = useState<RecentError[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
+  // Lot 2 — Marketplace (vues mig 070, lecture seule, RLS admin via security_invoker).
+  const { data: mkt, error: mktError, refresh: refreshMkt } = useMarketplaceAnalytics();
+
   const load = useCallback(async () => {
     setLoadError(null);
     try {
@@ -101,6 +105,7 @@ function AdminAnalyticsContent() {
   function onRefresh() {
     setRefreshing(true);
     load();
+    refreshMkt();
   }
 
   if (loading) {
@@ -127,6 +132,85 @@ function AdminAnalyticsContent() {
         contentContainerStyle={styles.content}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={Colors.primary} />}
       >
+        {mktError && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>⚠️ Marketplace : {mktError}</Text>
+          </View>
+        )}
+
+        {/* ════════ MARKETPLACE (Lot 2) ════════ */}
+
+        {/* Revenus */}
+        <Text style={styles.blockTitle}>💶 Marketplace</Text>
+        <View style={styles.kpiGrid}>
+          <KpiCard label="GMV net total" value={formatEuros(mkt.revenue?.gmv_net_total_cents)} accent={Colors.success} />
+          <KpiCard label="GMV brut total" value={formatEuros(mkt.revenue?.gmv_brut_total_cents)} />
+          <KpiCard label="GMV net 30j" value={formatEuros(mkt.revenue?.gmv_net_30d_cents)} />
+          <KpiCard label="GMV net 7j" value={formatEuros(mkt.revenue?.gmv_net_7d_cents)} />
+          <KpiCard label="Remboursé total" value={formatEuros(mkt.revenue?.refunded_total_cents)} accent={mkt.revenue?.refunded_total_cents ? Colors.urgent : undefined} />
+          <KpiCard label="Commissions total" value={formatEuros(mkt.revenue?.commissions_total_cents)} accent={Colors.primary} />
+          <KpiCard label="Commissions 30j" value={formatEuros(mkt.revenue?.commissions_30d_cents)} />
+          <KpiCard label="Réservations total" value={String(mkt.reservations?.reservations_total ?? 0)} />
+          <KpiCard label="Réservations 30j" value={String(mkt.reservations?.reservations_30d ?? 0)} />
+        </View>
+
+        {/* Réservations par module */}
+        <Section title="Réservations par module (payées)">
+          {mkt.byType.length === 0 ? (
+            <EmptyHint text="Aucune réservation payée pour l'instant." />
+          ) : (
+            mkt.byType.map((t) => (
+              <Row
+                key={t.type}
+                left={MODULE_LABELS[t.type] ?? t.type}
+                middle={`${t.bookings} payées`}
+                right={`${formatEuros(t.gmv_net_cents)} · ${formatEuros(t.commissions_cents)} comm.`}
+              />
+            ))
+          )}
+        </Section>
+
+        {/* Paiements */}
+        <Text style={styles.blockTitle}>💳 Paiements</Text>
+        <View style={styles.kpiGrid}>
+          <KpiCard label="Paiements réussis" value={String(mkt.payments?.payments_succeeded ?? 0)} accent={Colors.success} />
+          <KpiCard label="Paiements échoués" value={String(mkt.payments?.payments_failed ?? 0)} accent={mkt.payments?.payments_failed ? Colors.urgent : undefined} />
+          <KpiCard label="Taux de réussite" value={formatPct(mkt.payments?.success_rate)} />
+          <KpiCard label="Panier moyen" value={formatEuros(mkt.payments?.avg_basket_cents)} />
+        </View>
+
+        {/* Vendeurs */}
+        <Text style={styles.blockTitle}>🧑‍💼 Vendeurs</Text>
+        <View style={styles.kpiGrid}>
+          <KpiCard label="Vendeurs actifs" value={String(mkt.sellers?.active_sellers ?? 0)} />
+          <KpiCard label="Dont onboardés" value={String(mkt.sellers?.active_onboarded ?? 0)} accent={Colors.success} />
+          <KpiCard label="Dont non onboardés" value={String(mkt.sellers?.active_not_onboarded ?? 0)} accent={mkt.sellers?.active_not_onboarded ? Colors.urgent : undefined} />
+        </View>
+
+        {/* Escrow */}
+        <Text style={styles.blockTitle}>🔒 Escrow (dû vendeur)</Text>
+        <View style={styles.kpiGrid}>
+          <KpiCard label="Séquestré" value={formatEuros(mkt.escrow?.held_seller_cents)} accent={Colors.primary} />
+          <KpiCard label="Libéré" value={formatEuros(mkt.escrow?.released_seller_cents)} accent={Colors.success} />
+          <KpiCard
+            label="En attente de libération"
+            value={formatEuros(mkt.escrow?.pending_release_seller_cents)}
+            accent={mkt.escrow?.pending_release_seller_cents ? Colors.urgent : undefined}
+          />
+        </View>
+
+        {/* Litiges */}
+        <Text style={styles.blockTitle}>⚖️ Litiges</Text>
+        <View style={styles.kpiGrid}>
+          <KpiCard label="Litiges (total)" value={String(mkt.disputes?.disputes_total ?? 0)} />
+          <KpiCard label="Litiges ouverts" value={String(mkt.disputes?.disputes_open ?? 0)} accent={mkt.disputes?.disputes_open ? Colors.urgent : undefined} />
+          <KpiCard label="Taux de litige" value={formatPct(mkt.disputes?.dispute_rate)} />
+          <KpiCard label="Montant concerné" value={formatEuros(mkt.disputes?.disputed_amount_cents)} />
+        </View>
+
+        {/* ════════ COMPORTEMENT (existant) ════════ */}
+        <Text style={styles.blockTitle}>📈 Comportement utilisateurs</Text>
+
         {loadError && (
           <View style={styles.errorBanner}>
             <Text style={styles.errorBannerText}>⚠️ {loadError}</Text>
@@ -249,6 +333,24 @@ function EmptyHint({ text }: { text: string }) {
   return <Text style={styles.emptyHint}>{text}</Text>;
 }
 
+const MODULE_LABELS: Record<string, string> = {
+  box: 'Box',
+  transport: 'Transport',
+  course: 'Coach',
+  stage: 'Stage',
+};
+
+// Montants stockés en CENTIMES dans payments → division par 100 à l'affichage.
+function formatEuros(cents: number | null | undefined): string {
+  if (cents == null) return '—';
+  return (cents / 100).toLocaleString('fr-FR', { maximumFractionDigits: 0 }) + ' €';
+}
+
+function formatPct(ratio: number | null | undefined): string {
+  if (ratio == null) return '—';
+  return (ratio * 100).toLocaleString('fr-FR', { maximumFractionDigits: 1 }) + ' %';
+}
+
 function formatSeconds(s: number): string {
   if (s < 60) return `${Math.round(s)}s`;
   const m = Math.floor(s / 60);
@@ -287,6 +389,8 @@ const styles = StyleSheet.create({
     padding: Spacing.md, borderRadius: Radius.md,
   },
   errorBannerText: { color: Colors.urgent, fontSize: FontSize.sm },
+
+  blockTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: Spacing.sm, paddingHorizontal: Spacing.xs },
 
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   kpiCard: {
