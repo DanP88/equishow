@@ -54,6 +54,7 @@ const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabC
     { name: 'admin-disputes', label: 'Litiges', emoji: '⚖️', route: '/(tabs)/admin-disputes' },
     { name: 'admin-support', label: 'Réclamations', emoji: '📩', route: '/(tabs)/admin-support' },
     { name: 'admin-commissions', label: 'Commissions', emoji: '💶', route: '/(tabs)/admin-commissions' },
+    { name: 'admin-notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/admin-notifications' },
     { name: 'admin-profil', label: 'Profil', emoji: '👤', route: '/(tabs)/admin-profil' },
   ],
 };
@@ -141,6 +142,7 @@ export function CustomBottomBar() {
       if (tab.name === 'org-messages') return msgCount;
     } else if (role === 'admin') {
       if (tab.name === 'admin-support') return openSupportCount;
+      if (tab.name === 'admin-notifications') return notificationCount;
     }
     return 0;
   };
