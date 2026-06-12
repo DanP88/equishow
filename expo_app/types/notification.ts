@@ -1,6 +1,6 @@
 export interface Notification {
   id: string;
-  type: 'stage_reservation' | 'box_reservation' | 'transport_reservation' | 'course_request' | 'reservation_request' | 'message' | 'like' | 'comment' | 'mention' | 'support_request' | 'support_ack' | 'support_resolved';
+  type: 'stage_reservation' | 'box_reservation' | 'transport_reservation' | 'course_request' | 'reservation_request' | 'message' | 'like' | 'comment' | 'mention' | 'support_request' | 'support_ack' | 'support_resolved' | 'trajet_complet' | 'escrow_alert' | 'escrow_prestation_done' | 'escrow_release_soon' | 'dispute_opened' | 'dispute_resolved' | 'seller_onboarded';
   titre: string;
   message: string;
   lu?: boolean;

@@ -17,7 +17,14 @@ type NotificationType =
   | 'mention'
   | 'support_request'
   | 'support_ack'
-  | 'support_resolved';
+  | 'support_resolved'
+  | 'trajet_complet'
+  | 'escrow_alert'
+  | 'escrow_prestation_done'
+  | 'escrow_release_soon'
+  | 'dispute_opened'
+  | 'dispute_resolved'
+  | 'seller_onboarded';
 
 type NotificationStatus = 'pending' | 'accepted' | 'rejected' | 'paid';
 
