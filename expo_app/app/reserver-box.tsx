@@ -44,6 +44,11 @@ export default function ReserverBoxScreen() {
     }
   }, [box, dateReservationDebut]);
 
+  // Funnel Lot 3 : ouverture de l'écran de réservation (étape open_reserve).
+  useEffect(() => {
+    if (id) trackFunnel('payment', 'open_reserve', { module: 'box', listing_id: id });
+  }, [id]);
+
   if (!box) {
     return (
       <SafeAreaView style={s.root}>
@@ -91,7 +96,6 @@ export default function ReserverBoxScreen() {
     if (!dateReservationDebut || !dateReservationFin) return;
     const sellerId = box.auteurId;
     setLoading(true);
-    trackFunnel('payment', 'submit_reserve', { type: 'box', box_id: box.id });
     try {
       const titre = `Box ${box.lieu}`;
       const { data: created, error: createErr } = await createReservation({
@@ -112,6 +116,12 @@ export default function ReserverBoxScreen() {
         setErrorAlert(createErr ?? 'Impossible de créer la réservation.');
         return;
       }
+
+      // Funnel Lot 3 : demande créée (étape submit_reserve, pivot reservation_id).
+      trackFunnel('payment', 'submit_reserve', {
+        module: 'box', listing_id: box.id, reservation_id: created.id,
+        seller_id: sellerId, amount: Math.round(totalAPayer * 100),
+      });
 
       await createNotification({
         destinataireId: sellerId,

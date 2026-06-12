@@ -5,6 +5,7 @@ import { StageReservation } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { createNotification } from './useNotifications';
 import { supabase } from '../lib/supabase';
+import { trackFunnel } from '../lib/analytics';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -44,6 +45,12 @@ export function useStagePayment() {
         Alert.alert('Erreur', 'Session expirée, veuillez vous reconnecter');
         return;
       }
+
+      // Funnel Lot 3 : lancement du checkout Stripe (étape open_checkout).
+      trackFunnel('payment', 'open_checkout', {
+        module: 'stage', reservation_id: reservation.id,
+        seller_id: reservation.coachId, amount: Math.round(reservation.prixTotal * 100),
+      });
 
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/create-checkout-session`,

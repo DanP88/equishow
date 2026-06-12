@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Alert, Modal, ActivityIndicator,
@@ -54,6 +54,11 @@ export default function ReserverTransportScreen() {
   const [routeError, setRouteError] = useState<string | null>(null);
   const [geoLabel, setGeoLabel] = useState<string | null>(null);
   const geoCoords = useRef<{ lat: number; lng: number } | null>(null);
+
+  // Funnel Lot 3 : ouverture de l'écran de réservation (étape open_reserve).
+  useEffect(() => {
+    if (id) trackFunnel('payment', 'open_reserve', { module: 'transport', listing_id: id });
+  }, [id]);
 
   if (!transport) {
     return (
@@ -262,8 +267,6 @@ export default function ReserverTransportScreen() {
 
     const titre = `Transport ${transport.villeDepart} → ${transport.villeArrivee}`;
 
-    trackFunnel('payment', 'submit_reserve', { type: 'transport', transport_id: transport.id });
-
     const { data: created, error: createErr } = await createReservation({
       transportId: transport.id,
       sellerId: transport.auteurId,
@@ -284,6 +287,14 @@ export default function ReserverTransportScreen() {
       showErr('Erreur', createErr ?? 'Impossible de créer la réservation.');
       return;
     }
+
+    // Funnel Lot 3 : demande créée (étape submit_reserve, pivot reservation_id).
+    // On lit l'objet `created` (non-null ici) plutôt que `transport` pour ne pas
+    // étendre les warnings TS « transport possibly undefined » préexistants.
+    trackFunnel('payment', 'submit_reserve', {
+      module: 'transport', listing_id: created.transportId, reservation_id: created.id,
+      seller_id: created.sellerId, amount: Math.round(totalAPayer * 100),
+    });
 
     const transportRef = `EQ-TRP-${created.id.replace(/[^A-Z0-9]/gi, '').substring(0, 8).toUpperCase()}`;
 

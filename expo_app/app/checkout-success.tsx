@@ -123,9 +123,9 @@ export default function CheckoutSuccessScreen() {
       if (data.payment_status === 'succeeded') {
         setPayment(data);
         setStatus('success');
-        trackFunnel('payment', 'payment_success', { session_id: session, type: data.type, amount: data.amount_buyer_ttc });
         // Numéro de réservation cohérent avec l'agenda : dérivé de l'id de la
         // réservation liée (pas du paiement) pour afficher le même N° partout.
+        let resaIdResolved: string | null = null;
         try {
           const { data: prow } = await supabase
             .from('payments')
@@ -135,13 +135,20 @@ export default function CheckoutSuccessScreen() {
           // Locator = FK réservation du paiement (les 4 colonnes). On ne RETOMBE
           // JAMAIS sur l'id du PAIEMENT : un N° dérivé du paiement serait
           // incohérent avec l'agenda (qui dérive de l'id de la réservation).
-          const resaId = prow?.course_demand_id ?? prow?.stage_reservation_id
+          resaIdResolved = prow?.course_demand_id ?? prow?.stage_reservation_id
             ?? prow?.transport_reservation_id ?? prow?.box_reservation_id ?? null;
           // Réservation introuvable (cas legacy sans FK) → pas de N° affiché,
           // plutôt qu'un faux numéro.
-          setResaId(resaId);
-          setResaNum(resaId ? reservationNumber(data.type, resaId) : null);
+          setResaId(resaIdResolved);
+          setResaNum(resaIdResolved ? reservationNumber(data.type, resaIdResolved) : null);
         } catch { /* le N° reste masqué si indisponible */ }
+        // Funnel Lot 3 : terminal payment_success, enrichi du pivot reservation_id
+        // (indispensable pour relier un paiement DIFFÉRÉ coach/stage à sa demande,
+        // car il a lieu dans une autre session que submit_reserve).
+        trackFunnel('payment', 'payment_success', {
+          session_id: session, module: data.type, amount: data.amount_buyer_ttc,
+          payment_id: data.id, reservation_id: resaIdResolved,
+        });
         return;
       }
 
@@ -161,7 +168,7 @@ export default function CheckoutSuccessScreen() {
 
       setStatus('error');
       setError('Le paiement n\'a pas abouti (timeout webhook). Si vous avez été débité, votre paiement a réussi côté Stripe — la confirmation arrivera dans quelques minutes via email. Vous pouvez aussi vérifier votre agenda.');
-      trackFunnel('payment', 'payment_error', { session_id: session, reason: 'not_succeeded_after_retries' });
+      trackFunnel('payment', 'payment_error', { session_id: session, module: data.type, reason: 'not_succeeded_after_retries' });
     } catch (err) {
       console.error('Payment confirmation error:', err);
       setStatus('error');

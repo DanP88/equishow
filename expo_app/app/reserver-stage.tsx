@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal, ActivityIndicator,
@@ -11,6 +11,7 @@ import { useStage } from '../hooks/useStages';
 import { useAuth } from '../hooks/useAuth';
 import { createNotification } from '../hooks/useNotifications';
 import { AlertModal } from '../components/AlertModal';
+import { trackFunnel } from '../lib/analytics';
 
 export default function ReserverStageScreen() {
   const { stageId } = useLocalSearchParams<{ stageId: string }>();
@@ -26,6 +27,11 @@ export default function ReserverStageScreen() {
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const showErr = (title: string, msg: string) => setAlertState({ title, message: msg, variant: 'error' });
+
+  // Funnel Lot 3 : ouverture de l'écran de réservation (étape open_reserve).
+  useEffect(() => {
+    if (stageId) trackFunnel('payment', 'open_reserve', { module: 'stage', listing_id: stageId });
+  }, [stageId]);
 
   if (stageLoading && !stage) {
     return (
@@ -125,6 +131,13 @@ export default function ReserverStageScreen() {
         showErr('Erreur', 'Impossible de créer la réservation.');
         return;
       }
+
+      // Funnel Lot 3 : réservation stage créée (étape submit_reserve, pivot reservation_id).
+      // Flux différé : le paiement viendra APRÈS acceptation du coach (autre session).
+      trackFunnel('payment', 'submit_reserve', {
+        module: 'stage', listing_id: stage.id, reservation_id: reservation.id,
+        seller_id: stage.auteurId, amount: Math.round(prixTotal * 100),
+      });
 
       const reference = `EQ-STG-${reservation.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
       setReservationRef(reference);

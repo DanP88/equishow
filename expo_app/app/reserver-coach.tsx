@@ -15,6 +15,7 @@ import { getAuthToken } from '../utils/supabaseAuth';
 import { supabase } from '../lib/supabase';
 import { AlertModal } from '../components/AlertModal';
 import { toLocalDateString } from '../utils/dateFormat';
+import { trackFunnel } from '../lib/analytics';
 
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
 
@@ -30,7 +31,7 @@ function generateDatesInRange(startDate: Date, endDate: Date): Date[] {
 }
 
 export default function ReserverCoachScreen() {
-  const { annonceId } = useLocalSearchParams<{ annonceId: string }>();
+  const { annonceId, coachId } = useLocalSearchParams<{ annonceId: string; coachId: string }>();
   const { annonce, isLoading: annonceLoading } = useCoachAnnonce(annonceId);
   const commissionCours = useCommission('cours');
 
@@ -51,6 +52,12 @@ export default function ReserverCoachScreen() {
       setNiveau(annonce.niveau);
     }
   }, [annonce]);
+
+  // Funnel Lot 3 : ouverture de l'écran de réservation (étape open_reserve).
+  useEffect(() => {
+    const lid = annonceId ?? coachId;
+    if (lid) trackFunnel('payment', 'open_reserve', { module: 'course', listing_id: lid });
+  }, [annonceId, coachId]);
 
   if (annonceLoading && !annonce) {
     return <SafeAreaView style={s.root}><View style={s.errorContainer}><Text style={s.errorText}>Chargement…</Text></View></SafeAreaView>;
@@ -150,6 +157,13 @@ export default function ReserverCoachScreen() {
         showErr('Erreur', 'Impossible de créer la demande.');
         return;
       }
+
+      // Funnel Lot 3 : demande coach créée (étape submit_reserve, pivot reservation_id).
+      // Flux différé : le paiement viendra APRÈS acceptation du coach (autre session).
+      trackFunnel('payment', 'submit_reserve', {
+        module: 'course', listing_id: annonce.id, reservation_id: demand.id,
+        seller_id: annonce.auteurId, amount: Math.round(prixTTCTotal * 100),
+      });
 
       const reference = `EQ-CSH-${demand.id.replace(/-/g, '').substring(0, 8).toUpperCase()}`;
       setReservationRef(reference);

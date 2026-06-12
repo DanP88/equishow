@@ -10,6 +10,7 @@ import { AuthGuard } from '../../components/AuthGuard';
 import { supabase } from '../../lib/supabase';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { useMarketplaceAnalytics } from '../../hooks/useMarketplaceAnalytics';
+import { useFunnelAnalytics } from '../../hooks/useFunnelAnalytics';
 
 interface Kpi7d {
   pageviews_7d: number | null;
@@ -30,12 +31,6 @@ interface TopCta {
   action: string;
   clicks: number;
   unique_users: number;
-}
-interface FunnelStep {
-  action: string;
-  steps: number;
-  unique_users: number;
-  unique_sessions: number;
 }
 interface RecentError {
   id: string;
@@ -62,35 +57,34 @@ function AdminAnalyticsContent() {
   const [active, setActive] = useState<number>(0);
   const [topScreens, setTopScreens] = useState<TopScreen[]>([]);
   const [topCtas, setTopCtas] = useState<TopCta[]>([]);
-  const [funnel, setFunnel] = useState<FunnelStep[]>([]);
   const [errors, setErrors] = useState<RecentError[]>([]);
   const [loadError, setLoadError] = useState<string | null>(null);
 
   // Lot 2 — Marketplace (vues mig 070, lecture seule, RLS admin via security_invoker).
   const { data: mkt, error: mktError, refresh: refreshMkt } = useMarketplaceAnalytics();
+  // Lot 3 — Funnel de conversion (vues mig 071). Filtre module côté client.
+  const { overview: funnelOverview, byModule: funnelByModule, error: funnelError, refresh: refreshFunnel } = useFunnelAnalytics();
+  const [funnelModule, setFunnelModule] = useState<'all' | 'box' | 'transport' | 'course' | 'stage'>('all');
 
   const load = useCallback(async () => {
     setLoadError(null);
     try {
-      const [kpiRes, activeRes, screensRes, ctasRes, funnelRes, errorsRes] = await Promise.all([
+      const [kpiRes, activeRes, screensRes, ctasRes, errorsRes] = await Promise.all([
         supabase.from('v_analytics_kpi_7d').select('*').maybeSingle(),
         supabase.from('v_analytics_active_sessions').select('active_sessions_1h').maybeSingle(),
         supabase.from('v_analytics_top_screens').select('*').limit(15),
         supabase.from('v_analytics_top_ctas').select('*').limit(15),
-        supabase.from('v_analytics_funnel_payment').select('*'),
         supabase.from('v_analytics_recent_errors').select('*'),
       ]);
       if (kpiRes.error) throw kpiRes.error;
       if (activeRes.error) throw activeRes.error;
       if (screensRes.error) throw screensRes.error;
       if (ctasRes.error) throw ctasRes.error;
-      if (funnelRes.error) throw funnelRes.error;
       if (errorsRes.error) throw errorsRes.error;
       setKpi(kpiRes.data as Kpi7d | null);
       setActive((activeRes.data as { active_sessions_1h: number } | null)?.active_sessions_1h ?? 0);
       setTopScreens((screensRes.data ?? []) as TopScreen[]);
       setTopCtas((ctasRes.data ?? []) as TopCta[]);
-      setFunnel((funnelRes.data ?? []) as FunnelStep[]);
       setErrors((errorsRes.data ?? []) as RecentError[]);
     } catch (e) {
       setLoadError(e instanceof Error ? e.message : 'Erreur chargement analytics');
@@ -106,7 +100,15 @@ function AdminAnalyticsContent() {
     setRefreshing(true);
     load();
     refreshMkt();
+    refreshFunnel();
   }
+
+  // Funnel affiché : "Tous" = overview ; sinon lignes du module sélectionné.
+  const funnelRows = funnelModule === 'all'
+    ? funnelOverview
+    : funnelByModule.filter((r) => r.module === funnelModule);
+  const funnelFirstVolume = funnelRows.length > 0 ? funnelRows[0].volume : 0;
+  const funnelErrorCount = funnelRows.find((r) => r.step === 'payment_success')?.payment_error_count ?? 0;
 
   if (loading) {
     return (
@@ -263,21 +265,52 @@ function AdminAnalyticsContent() {
           )}
         </Section>
 
-        {/* Funnel paiement */}
-        <Section title="Funnel paiement (30j)">
-          {funnel.length === 0 ? (
-            <EmptyHint text="Aucune étape funnel enregistrée." />
-          ) : (
-            funnel.map((f) => (
-              <Row
-                key={f.action}
-                left={prettyFunnelStep(f.action)}
-                middle={`${f.unique_users} users`}
-                right={`${f.steps} actions · ${f.unique_sessions} sessions`}
-              />
-            ))
-          )}
-        </Section>
+        {/* 🪜 Funnel de conversion (Lot 3, mig 071) */}
+        <Text style={styles.blockTitle}>🪜 Funnel de conversion (30j)</Text>
+        {funnelError && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>⚠️ Funnel : {funnelError}</Text>
+          </View>
+        )}
+        {/* Filtre module */}
+        <View style={styles.funnelFilterRow}>
+          {([['all', 'Tous'], ['box', 'Box'], ['transport', 'Transport'], ['course', 'Coach'], ['stage', 'Stage']] as const).map(([val, label]) => (
+            <TouchableOpacity
+              key={val}
+              style={[styles.funnelChip, funnelModule === val && styles.funnelChipActive]}
+              onPress={() => setFunnelModule(val)}
+              activeOpacity={0.8}
+            >
+              <Text style={[styles.funnelChipText, funnelModule === val && styles.funnelChipTextActive]}>{label}</Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.section}>
+          <Text style={styles.funnelHint}>Haut (annonce → demande) = sessions·annonces · Bas (demande → payé) = réservations · pivot reservation_id</Text>
+          <View style={styles.sectionBody}>
+            {funnelRows.length === 0 || funnelFirstVolume === 0 ? (
+              <EmptyHint text="Aucune donnée funnel pour ce module (générée par les nouveaux parcours instrumentés)." />
+            ) : (
+              <>
+                {funnelRows.map((f) => (
+                  <FunnelRow
+                    key={f.step}
+                    step={f.step}
+                    volume={f.volume}
+                    passage={f.passage_rate}
+                    dropOff={f.drop_off}
+                    widthPct={funnelFirstVolume > 0 ? Math.max(4, Math.round((f.volume / funnelFirstVolume) * 100)) : 0}
+                  />
+                ))}
+                {funnelErrorCount > 0 && (
+                  <View style={styles.funnelErrorRow}>
+                    <Text style={styles.funnelErrorText}>❌ Erreurs paiement : {funnelErrorCount}</Text>
+                  </View>
+                )}
+              </>
+            )}
+          </View>
+        </View>
 
         {/* Erreurs récentes */}
         <Section title="Erreurs récentes">
@@ -358,16 +391,42 @@ function formatSeconds(s: number): string {
   return rest === 0 ? `${m}min` : `${m}min ${rest}s`;
 }
 
-function prettyFunnelStep(action: string): string {
-  switch (action) {
-    case 'open_listing':   return '1. Ouvrir annonce';
-    case 'open_reserve':   return '2. Ouvrir réservation';
-    case 'submit_reserve': return '3. Valider réservation';
-    case 'open_checkout':  return '4. Aller au paiement';
-    case 'payment_success':return '5. ✅ Paiement réussi';
-    case 'payment_error':  return '❌ Erreur paiement';
-    default: return action;
+function funnelStepLabel(step: string): string {
+  switch (step) {
+    case 'open_listing':    return '1. Annonce ouverte';
+    case 'open_reserve':    return '2. Écran réservation';
+    case 'submit_reserve':  return '3. Demande envoyée';
+    case 'open_checkout':   return '4. Paiement lancé';
+    case 'payment_success': return '5. ✅ Payé';
+    default: return step;
   }
+}
+
+function FunnelRow({ step, volume, passage, dropOff, widthPct }: {
+  step: string; volume: number; passage: number | null; dropOff: number | null; widthPct: number;
+}) {
+  const dropHigh = dropOff != null && dropOff >= 0.5;
+  return (
+    <View style={styles.funnelRow}>
+      <View style={styles.funnelRowHeader}>
+        <Text style={styles.funnelStepLabel} numberOfLines={1}>{funnelStepLabel(step)}</Text>
+        <Text style={styles.funnelVolume}>{volume}</Text>
+      </View>
+      <View style={styles.funnelBarTrack}>
+        <View style={[styles.funnelBarFill, { width: `${widthPct}%` }]} />
+      </View>
+      <View style={styles.funnelRowFooter}>
+        <Text style={styles.funnelRate}>
+          {passage == null ? 'point d\'entrée' : `passage ${(passage * 100).toFixed(1)} %`}
+        </Text>
+        {dropOff != null && (
+          <Text style={[styles.funnelDrop, dropHigh && styles.funnelDropHigh]}>
+            abandon {(dropOff * 100).toFixed(1)} %
+          </Text>
+        )}
+      </View>
+    </View>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -391,6 +450,26 @@ const styles = StyleSheet.create({
   errorBannerText: { color: Colors.urgent, fontSize: FontSize.sm },
 
   blockTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: Spacing.sm, paddingHorizontal: Spacing.xs },
+
+  // Funnel de conversion (Lot 3)
+  funnelFilterRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },
+  funnelChip: { paddingVertical: Spacing.xs, paddingHorizontal: Spacing.md, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
+  funnelChipActive: { backgroundColor: Colors.primaryLight, borderColor: Colors.primary },
+  funnelChipText: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  funnelChipTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
+  funnelHint: { fontSize: FontSize.xs, color: Colors.textTertiary, paddingHorizontal: Spacing.xs, fontStyle: 'italic' },
+  funnelRow: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.sm, gap: 4 },
+  funnelRowHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  funnelStepLabel: { flex: 1, fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
+  funnelVolume: { fontSize: FontSize.base, color: Colors.textPrimary, fontWeight: FontWeight.extrabold },
+  funnelBarTrack: { height: 10, borderRadius: 5, backgroundColor: Colors.border, overflow: 'hidden' },
+  funnelBarFill: { height: 10, borderRadius: 5, backgroundColor: Colors.primary },
+  funnelRowFooter: { flexDirection: 'row', justifyContent: 'space-between' },
+  funnelRate: { fontSize: FontSize.xs, color: Colors.textSecondary },
+  funnelDrop: { fontSize: FontSize.xs, color: Colors.textTertiary },
+  funnelDropHigh: { color: Colors.urgent, fontWeight: FontWeight.bold },
+  funnelErrorRow: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, marginTop: Spacing.xs },
+  funnelErrorText: { fontSize: FontSize.sm, color: Colors.urgent, fontWeight: FontWeight.semibold },
 
   kpiGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   kpiCard: {

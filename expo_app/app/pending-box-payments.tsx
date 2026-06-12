@@ -12,6 +12,7 @@ import { useMyBoxReservations } from '../hooks/useBoxes';
 import { createNotification } from '../hooks/useNotifications';
 import { BoxReservation } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
+import { trackFunnel } from '../lib/analytics';
 
 const SUPABASE_URL = process.env.EXPO_PUBLIC_SUPABASE_URL;
 const SUPABASE_ANON_KEY = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY;
@@ -40,6 +41,12 @@ export default function PendingBoxPaymentsScreen() {
         Alert.alert('Erreur', 'Session expirée, veuillez vous reconnecter');
         return;
       }
+
+      // Funnel Lot 3 : lancement du checkout Stripe différé depuis la liste pending (open_checkout).
+      trackFunnel('payment', 'open_checkout', {
+        module: 'box', reservation_id: reservation.id,
+        seller_id: reservation.sellerId, amount: Math.round(reservation.prixTotalTTC * 100),
+      });
 
       const response = await fetch(
         `${SUPABASE_URL}/functions/v1/create-checkout-session`,

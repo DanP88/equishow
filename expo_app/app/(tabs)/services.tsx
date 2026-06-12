@@ -18,6 +18,7 @@ import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { trackFunnel } from '../../lib/analytics';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
 import { getPlanLimits } from '../../lib/planLimits';
@@ -986,7 +987,10 @@ function TransportCard({ item, onCancel, onModify }: {
             <TouchableOpacity
               style={[s.ctaBtn, (item.typeTransport === 'trajet' && left === 0) && s.ctaBtnDisabled]}
               disabled={item.typeTransport === 'trajet' && left === 0}
-              onPress={() => router.push(`/reserver-transport?id=${item.id}` as any)}
+              onPress={() => {
+                trackFunnel('payment', 'open_listing', { module: 'transport', listing_id: item.id, seller_id: item.auteurId });
+                router.push(`/reserver-transport?id=${item.id}` as any);
+              }}
             >
               <Text style={s.ctaText}>{item.typeTransport === 'trajet' ? (left > 0 ? 'Réserver' : 'Complet') : 'Louer'}</Text>
             </TouchableOpacity>
@@ -1049,7 +1053,10 @@ function BoxCard({ item, onCancel, onModify }: {
             <TouchableOpacity style={s.msgContactBtn} onPress={() => router.push({ pathname: '/messagerie', params: { otherId: item.auteurId, otherNom: item.auteurNom, otherPseudo: item.auteurPseudo, otherInitiales: item.auteurInitiales, otherCouleur: item.auteurCouleur, annonceType: 'box', sujet: '📦 Box' } } as any)}>
               <Text style={s.msgContactText}>💬</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={[s.ctaBtn, left === 0 && s.ctaBtnDisabled]} disabled={left === 0} onPress={() => router.push(`/reserver-box?id=${item.id}` as any)}>
+            <TouchableOpacity style={[s.ctaBtn, left === 0 && s.ctaBtnDisabled]} disabled={left === 0} onPress={() => {
+              trackFunnel('payment', 'open_listing', { module: 'box', listing_id: item.id, seller_id: item.auteurId });
+              router.push(`/reserver-box?id=${item.id}` as any);
+            }}>
               <Text style={s.ctaText}>{left > 0 ? 'Réserver' : 'Complet'}</Text>
             </TouchableOpacity>
           </View>
@@ -1138,7 +1145,10 @@ function CoachCard({ item, onModify }: { item: CoachProfil; onModify?: () => voi
           <TouchableOpacity
             style={[s.ctaBtn, { flex: 2 }, !item.disponible && s.ctaBtnDisabled]}
             disabled={!item.disponible}
-            onPress={() => router.push(`/reserver-coach?coachId=${item.id}` as any)}
+            onPress={() => {
+              trackFunnel('payment', 'open_listing', { module: 'course', listing_id: item.id, seller_id: item.id });
+              router.push(`/reserver-coach?coachId=${item.id}` as any);
+            }}
           >
             <Text style={s.ctaText}>{item.disponible ? 'Réserver une séance' : 'Indisponible'}</Text>
           </TouchableOpacity>
@@ -1224,7 +1234,10 @@ function CoachAnnonceCard({ item, onCancel }: { item: CoachAnnonce; onCancel?: (
           </TouchableOpacity>
           <TouchableOpacity
             style={[s.ctaBtn, { flex: 1 }]}
-            onPress={() => router.push(`/reserver-coach?annonceId=${item.id}` as any)}
+            onPress={() => {
+              trackFunnel('payment', 'open_listing', { module: 'course', listing_id: item.id, seller_id: item.auteurId });
+              router.push(`/reserver-coach?annonceId=${item.id}` as any);
+            }}
           >
             <Text style={s.ctaText}>Réserver</Text>
           </TouchableOpacity>
@@ -1312,7 +1325,10 @@ function StageCard({ item }: { item: CoachStage }) {
         <TouchableOpacity
           style={[s.ctaBtn, { flex: 1 }, left === 0 && s.ctaBtnDisabled]}
           disabled={left === 0}
-          onPress={() => router.push(`/reserver-stage?stageId=${item.id}` as any)}
+          onPress={() => {
+            trackFunnel('payment', 'open_listing', { module: 'stage', listing_id: item.id, seller_id: item.auteurId });
+            router.push(`/reserver-stage?stageId=${item.id}` as any);
+          }}
         >
           <Text style={s.ctaText}>{left > 0 ? 'S\'inscrire' : 'Complet'}</Text>
         </TouchableOpacity>
