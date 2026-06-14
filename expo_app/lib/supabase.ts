@@ -177,32 +177,32 @@ export const signUp = async (
     if (authError) throw authError;
     if (!user) throw new Error('No user returned from signup');
 
-    // Upsert (pas INSERT) : le trigger a probablement déjà créé la row minimale ;
-    // on enrichit avec pseudo/avatar_color/plan que le trigger ne set pas. ON
-    // CONFLICT (id) DO UPDATE garantit l'idempotence côté front et le merge avec
-    // ce que le trigger a posé.
-    const { error: dbError } = await supabase
-      .from('users')
-      .upsert(
-        {
-          id: user.id,
-          email,
-          prenom: userData.prenom || '',
-          nom: userData.nom || '',
-          pseudo: userData.pseudo || '',
-          role: safeRole,
-          plan: 'Gratuit',
-          avatar_color: userData.avatar_color,
-        },
-        { onConflict: 'id' },
-      );
+    // P0 fix : NE PLUS écrire dans public.users depuis le front au signup.
+    // Quand la confirmation email est active, auth.signUp() ne renvoie aucune
+    // session → le client reste en rôle `anon`, qui n'a que le GRANT SELECT sur
+    // public.users (mig 019). Un INSERT/UPDATE (.upsert) tournait donc en
+    // `anon` → « permission denied for table users » (échec GRANT, pas RLS),
+    // remonté en throw alors que le compte était bel et bien créé.
+    // La row public.users est désormais provisionnée UNIQUEMENT par le trigger
+    // handle_new_user_v2 (SECURITY DEFINER, mig 045) à partir des metadata
+    // prenom/nom/role passées ci-dessus. On se contente d'une relecture NON
+    // bloquante ; si elle échoue (anon ne peut pas lire la row d'autrui via
+    // users_select_self sans session), on retourne un profil fallback local.
+    const { data: profileData } = await getUserProfile(user.id);
 
-    if (dbError) throw dbError;
-
-    const { data: profileData, error: profileError } = await getUserProfile(user.id);
-    if (profileError) throw profileError;
-
-    return { user: profileData, error: null };
+    return {
+      user: profileData ?? ({
+        id: user.id,
+        email,
+        prenom: userData.prenom || '',
+        nom: userData.nom || '',
+        pseudo: userData.pseudo || '',
+        role: safeRole,
+        plan: 'Gratuit',
+        avatar_color: userData.avatar_color,
+      } as User),
+      error: null,
+    };
   } catch (err: unknown) {
     console.error('❌ Sign up error:', err);
     const error = err instanceof AppError
