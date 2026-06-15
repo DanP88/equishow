@@ -180,6 +180,7 @@ export interface CoachAnnonce {
   places: number;
   placesDisponibles: number;
   concours?: string;
+  concoursId?: string;
   region?: string;
   disponibilites?: Disponibilite[];
 }

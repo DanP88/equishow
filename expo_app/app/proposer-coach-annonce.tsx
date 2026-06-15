@@ -12,21 +12,12 @@ import { userStore, concoursStore } from '../data/store';
 import { Disponibilite, prixTTC as calculatePrixTTC, getTVAMontant } from '../types/service';
 import { useCommission } from '../hooks/useCommissions';
 import { useCoachAnnonce, useMyCoachAnnonces } from '../hooks/useCoachAnnonces';
+import { useConcoursList } from '../hooks/useConcours';
 import { supabase } from '../lib/supabase';
 import { toLocalDateString } from '../utils/dateFormat';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const NIVEAUX = ['Poney', 'Club', 'Amateur', 'Pro'];
-
-function getConcoursList() {
-  return concoursStore.list
-    .filter(c => c.statut !== 'brouillon')
-    .map((c) => ({
-      id: c.id,
-      label: `${c.nom} — ${c.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · ${c.lieu}`,
-      value: c.nom,
-    }));
-}
 
 function getNext7Days() {
   const days = [];
@@ -80,6 +71,9 @@ export default function ProposerCoachAnnonceScreen() {
   const { annonce: annonceToEdit } = useCoachAnnonce(editAnnonceId);
   const isEditing = !!annonceToEdit;
 
+  // Liste RÉELLE des concours (table public.concours, 074) pour le menu déroulant.
+  const { concours: concoursReels } = useConcoursList();
+
   // Charger le concours si fourni en paramètre
   const preSelectedConcours = concoursId ? concoursStore.list.find(c => c.id === concoursId) : null;
 
@@ -95,6 +89,9 @@ export default function ProposerCoachAnnonceScreen() {
   const [niveau, setNiveau] = useState(annonceToEdit ? annonceToEdit.niveau : '');
   const [concours, setConcours] = useState(
     annonceToEdit ? (annonceToEdit.concours || '') : preSelectedConcours ? preSelectedConcours.nom : ''
+  );
+  const [selectedConcoursId, setSelectedConcoursId] = useState<string | undefined>(
+    annonceToEdit ? annonceToEdit.concoursId : undefined
   );
   const [dateDebut, setDateDebut] = useState<Date | undefined>(
     annonceToEdit ? annonceToEdit.dateDebut : preSelectedConcours ? preSelectedConcours.dateDebut : undefined
@@ -168,6 +165,7 @@ export default function ProposerCoachAnnonceScreen() {
           prix_heure_ht: tarifAStocker,
           prix_heure_ttc: tarifAStocker,
           concours_nom: concours || null,
+          concours_id: selectedConcoursId ?? null,
           region: type === 'regulier' ? userStore.region : null,
         })
         .eq('id', annonceToEdit.id);
@@ -190,6 +188,7 @@ export default function ProposerCoachAnnonceScreen() {
       prixHeureHT: tarifAStocker,
       places: 999,
       concours: concours || undefined,
+      concoursId: selectedConcoursId || undefined,
       region: type === 'regulier' ? userStore.region : undefined,
     }).then(({ error }) => {
       if (error) console.error('[proposer-coach-annonce] createAnnonce failed (bg):', error);
@@ -266,20 +265,23 @@ export default function ProposerCoachAnnonceScreen() {
               <TouchableOpacity activeOpacity={1} style={c.sheet}>
                 <Text style={c.title}>Concours associé</Text>
                 <ScrollView style={c.list} showsVerticalScrollIndicator={false}>
-                  <TouchableOpacity style={c.item} onPress={() => { setConcours(''); setOpenConcours(false); }}>
+                  <TouchableOpacity style={c.item} onPress={() => { setConcours(''); setSelectedConcoursId(undefined); setOpenConcours(false); }}>
                     <Text style={[c.itemText, { color: Colors.textTertiary, fontStyle: 'italic' }]}>— Aucun concours</Text>
                   </TouchableOpacity>
-                  {getConcoursList().map((opt) => (
+                  {concoursReels.length === 0 && (
+                    <Text style={[c.itemSub, { padding: Spacing.md }]}>Aucun concours disponible pour le moment.</Text>
+                  )}
+                  {concoursReels.map((opt) => (
                     <TouchableOpacity
                       key={opt.id}
-                      style={[c.item, concours === opt.value && c.itemActive]}
-                      onPress={() => { setConcours(opt.value); setOpenConcours(false); }}
+                      style={[c.item, selectedConcoursId === opt.id && c.itemActive]}
+                      onPress={() => { setConcours(opt.nom); setSelectedConcoursId(opt.id); setOpenConcours(false); }}
                     >
                       <View style={{ flex: 1 }}>
-                        <Text style={[c.itemText, concours === opt.value && c.itemTextActive]}>{opt.value}</Text>
-                        <Text style={c.itemSub}>{opt.label.split(' — ')[1]}</Text>
+                        <Text style={[c.itemText, selectedConcoursId === opt.id && c.itemTextActive]}>{opt.nom}</Text>
+                        <Text style={c.itemSub}>{[opt.dateLabel, opt.lieu].filter(Boolean).join(' · ')}</Text>
                       </View>
-                      {concours === opt.value && <Text style={c.check}>✓</Text>}
+                      {selectedConcoursId === opt.id && <Text style={c.check}>✓</Text>}
                     </TouchableOpacity>
                   ))}
                 </ScrollView>

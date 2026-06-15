@@ -33,6 +33,7 @@ interface CoachAnnonceRow {
   prix_heure_ht: number;
   prix_heure_ttc: number;
   concours_nom: string | null;
+  concours_id: string | null;
   region: string | null;
   created_at: string;
   updated_at: string;
@@ -69,6 +70,7 @@ function rowToAnnonce(r: CoachAnnonceRow): CoachAnnonce {
     places: r.places ?? 0,
     placesDisponibles: r.places_disponibles ?? 0,
     concours: r.concours_nom ?? undefined,
+    concoursId: r.concours_id ?? undefined,
     region: r.region ?? undefined,
   };
 }
@@ -84,6 +86,7 @@ interface AnnonceCreateInput {
   prixHeureHT: number;
   places: number;
   concours?: string;
+  concoursId?: string;
   region?: string;
 }
 
@@ -256,6 +259,7 @@ export function useMyCoachAnnonces() {
       places: input.places,
       placesDisponibles: input.places,
       concours: input.concours ?? undefined,
+      concoursId: input.concoursId ?? undefined,
       region: input.region ?? undefined,
     };
     setList((curr) => [optimistic, ...curr]);
@@ -278,6 +282,7 @@ export function useMyCoachAnnonces() {
         places: input.places,
         places_disponibles: input.places,
         concours_nom: input.concours ?? null,
+        concours_id: input.concoursId ?? null,
         region: input.region ?? null,
       })
       .select('*')
