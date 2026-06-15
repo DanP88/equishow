@@ -113,7 +113,7 @@ export default function ServicesScreen() {
   useScreenTracking('services');
   const params = useLocalSearchParams<{ tab?: string; subTab?: string; concours?: string }>();
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur';
-  const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'transport');
+  const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'box');
   const [transportSubTab, setTransportSubTab] = useState<TransportSubTab>((params.subTab as TransportSubTab) ?? 'trajets');
   const [coachTab, setCoachTab] = useState<CoachTab>('concours');
   const { transports, isLoading: transportsLoading } = useTransportAnnonces();
@@ -258,7 +258,7 @@ export default function ServicesScreen() {
       <View style={s.header}>
         <View>
           <Text style={s.headerTitle}>Services</Text>
-          <Text style={s.headerSub}>Transport · Box · Coaching</Text>
+          <Text style={s.headerSub}>Box · Transport · Coaching</Text>
         </View>
         <View style={s.headerRight}>
           <TouchableOpacity
@@ -299,8 +299,8 @@ export default function ServicesScreen() {
 
       {/* Tabs */}
       <View style={s.tabBar}>
-        <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
         <TabBtn label="Box" count={filteredB.length} loading={boxesLoading} active={tab === 'box'} locked={boxLocked} onPress={() => handleTabPress('box')} />
+        <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
         <TabBtn label="Coachs" count={filteredCoachAnnonces.length + filteredCoaches.length} loading={coachAnnoncesLoading || coachesLoading} active={tab === 'coach'} onPress={() => handleTabPress('coach')} />
       </View>
 
