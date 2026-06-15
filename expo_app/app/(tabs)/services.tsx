@@ -279,6 +279,16 @@ export default function ServicesScreen() {
         <Text style={s.stripeText}>Paiements sécurisés via Stripe — commission 5%</Text>
       </View>
 
+      {/* PROTOTYPE — Concours = contexte (jamais obligatoire). Bannière additive. */}
+      <TouchableOpacity style={s.protoConcoursBanner} activeOpacity={0.85} onPress={() => router.push('/proto/concours-list' as any)}>
+        <Text style={s.protoConcoursIcon}>🏆</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.protoConcoursTitle}>Je prépare un concours</Text>
+          <Text style={s.protoConcoursSub}>Box, transport & coach pour ton déplacement</Text>
+        </View>
+        <View style={s.protoConcoursCta}><Text style={s.protoConcoursCtaTxt}>Voir →</Text></View>
+      </TouchableOpacity>
+
       {/* Tabs */}
       <View style={s.tabBar}>
         <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
@@ -1358,6 +1368,14 @@ const s = StyleSheet.create({
   stripeBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs, backgroundColor: Colors.surfaceVariant, borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.border },
   stripeIcon: { fontSize: 11 },
   stripeText: { fontSize: 10, color: Colors.textTertiary },
+
+  // PROTOTYPE — bannière concours (additive)
+  protoConcoursBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
+  protoConcoursIcon: { fontSize: 24 },
+  protoConcoursTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.primaryDark },
+  protoConcoursSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  protoConcoursCta: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 6 },
+  protoConcoursCtaTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   tabBar: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.lg, paddingBottom: Spacing.sm },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: Spacing.sm, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
