@@ -2,11 +2,34 @@ import { useCallback } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { userStore } from '../../data/store';
+import { userStore, supabase } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
 import { sendReservationEmail } from '../../utils/sendReservationEmail';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
+
+// Supprime la notif « 🎓 Nouvelle demande … » (pending) du coach une fois la
+// demande traitée (acceptée/refusée) — sinon elle reste affichée « En attente ».
+// La clé jsonb (annonceId / stageId) identifie UNIQUEMENT la notif de demande :
+// les notifs de paiement utilisent courseDemandId / stageReservationId.
+async function clearPendingRequestNotif(
+  coachId: string,
+  type: 'course_request' | 'stage_reservation',
+  key: 'annonceId' | 'stageId',
+  value: string,
+) {
+  try {
+    await supabase
+      .from('notifications')
+      .delete()
+      .eq('destinataire_id', coachId)
+      .eq('type', type)
+      .eq('status', 'pending')
+      .filter(`donnees->>${key}`, 'eq', value);
+  } catch (e) {
+    console.warn('clear pending request notif failed (non bloquant):', e);
+  }
+}
 
 export default function CoachDemandesScreen() {
   const { demands: courseDemandes, updateStatus: updateCourseStatus } = useMyCourseDemands();
@@ -26,6 +49,7 @@ export default function CoachDemandesScreen() {
     // coach voit le succès sans attendre la notif + l'email (2-4 s cumulés).
     // Notif + email lancés en arrière-plan, log silencieux si échec.
     Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
+    void clearPendingRequestNotif(userStore.id, 'course_request', 'annonceId', demande.annonceId);
     void (async () => {
       try {
         await createNotification({
@@ -55,6 +79,7 @@ export default function CoachDemandesScreen() {
     const { error } = await updateCourseStatus(demandeId, 'rejected');
     if (error) { Alert.alert('Erreur', error); return; }
 
+    void clearPendingRequestNotif(userStore.id, 'course_request', 'annonceId', demande.annonceId);
     await createNotification({
       destinataireId: demande.cavalierUserId,
       type: 'course_request',
@@ -76,6 +101,7 @@ export default function CoachDemandesScreen() {
 
     // Feedback immédiat (cf. handleAcceptCourse). Évite ~2-4 s d'attente.
     Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
+    void clearPendingRequestNotif(userStore.id, 'stage_reservation', 'stageId', reservation.stageId);
     void (async () => {
       try {
         await createNotification({
@@ -107,6 +133,7 @@ export default function CoachDemandesScreen() {
     const { error } = await updateStageStatus(reservationId, 'rejected');
     if (error) { Alert.alert('Erreur', error); return; }
 
+    void clearPendingRequestNotif(userStore.id, 'stage_reservation', 'stageId', reservation.stageId);
     await createNotification({
       destinataireId: reservation.cavalierUserId,
       type: 'stage_reservation',
