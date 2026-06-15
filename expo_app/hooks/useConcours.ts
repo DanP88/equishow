@@ -232,6 +232,46 @@ export function useConcoursCounts(id?: string) {
   return { counts, isLoading, reload: load };
 }
 
+// ── useConcoursMyReservations — ce que LE cavalier a déjà réservé ici ──────────
+// Sert au cross-sell « Mon déplacement » : après un paiement on revient sur la
+// fiche pour montrer les modules réservés (✓) et pousser les manquants.
+// Réservation → annonce → concours_id via embed PostgREST (FK existantes).
+// Coach = course_demands OU stage_reservations. Exclut cancelled/rejected.
+export interface ConcoursMyReservations { box: boolean; transport: boolean; coach: boolean }
+
+export function useConcoursMyReservations(concoursId?: string) {
+  const { profile } = useAuth();
+  const userId = profile?.id;
+  const [mine, setMine] = useState<ConcoursMyReservations>({ box: false, transport: false, coach: false });
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!concoursId || !userId) { setMine({ box: false, transport: false, coach: false }); setIsLoading(false); return; }
+    setIsLoading(true);
+    const exclude = '(cancelled,rejected)';
+    const [box, transport, course, stage] = await Promise.all([
+      supabase.from('box_reservations').select('id, box_annonces!inner(concours_id)', { count: 'exact', head: true })
+        .eq('buyer_id', userId).eq('box_annonces.concours_id', concoursId).not('status', 'in', exclude),
+      supabase.from('transport_reservations').select('id, transport_annonces!inner(concours_id)', { count: 'exact', head: true })
+        .eq('buyer_id', userId).eq('transport_annonces.concours_id', concoursId).not('status', 'in', exclude),
+      supabase.from('course_demands').select('id, coach_annonces!inner(concours_id)', { count: 'exact', head: true })
+        .eq('cavalier_id', userId).eq('coach_annonces.concours_id', concoursId).not('status', 'in', exclude),
+      supabase.from('stage_reservations').select('id, stages!inner(concours_id)', { count: 'exact', head: true })
+        .eq('cavalier_id', userId).eq('stages.concours_id', concoursId).not('status', 'in', exclude),
+    ]);
+    // Si une colonne/table manque (074 non appliquée), on reste à false (pas de crash).
+    setMine({
+      box: (box.count ?? 0) > 0,
+      transport: (transport.count ?? 0) > 0,
+      coach: (course.count ?? 0) > 0 || (stage.count ?? 0) > 0,
+    });
+    setIsLoading(false);
+  }, [concoursId, userId]);
+
+  useEffect(() => { load(); }, [load]);
+  return { mine, isLoading, reload: load };
+}
+
 // ── useConcoursFollow — Suivre / Désuivre (LOT 2A) ────────────────────────────
 // Table public.concours_followers (075). Tolère son absence (075 non appliquée) :
 // l'action est alors un no-op silencieux + warn dev, l'UI ne casse pas.

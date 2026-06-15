@@ -2,7 +2,7 @@ import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Act
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { useConcours, useConcoursCounts, useConcoursFollow } from '../../hooks/useConcours';
+import { useConcours, useConcoursCounts, useConcoursFollow, useConcoursMyReservations } from '../../hooks/useConcours';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 
 /**
@@ -16,6 +16,7 @@ export default function ConcoursFicheScreen() {
   useScreenTracking('concours-fiche');
   const { concours, isLoading } = useConcours(id);
   const { counts } = useConcoursCounts(id);
+  const { mine } = useConcoursMyReservations(id);
   const { isFollowing, toggle, canFollow } = useConcoursFollow(id);
 
   if (isLoading) {
@@ -35,12 +36,18 @@ export default function ConcoursFicheScreen() {
   const goServices = (tab: 'transport' | 'box' | 'coach') =>
     router.push({ pathname: '/(tabs)/services', params: { tab, concours: concours.nom } } as any);
 
-  const services: { key: 'box' | 'transport' | 'coach'; tab: 'box' | 'transport' | 'coach'; icon: string; label: string; count: number }[] = [
-    { key: 'box', tab: 'box', icon: '📦', label: 'Box', count: counts.box },
-    { key: 'transport', tab: 'transport', icon: '🚐', label: 'Transport', count: counts.transport },
-    { key: 'coach', tab: 'coach', icon: '🎓', label: 'Coachs présents', count: counts.coach },
+  const services: { key: 'box' | 'transport' | 'coach'; tab: 'box' | 'transport' | 'coach'; icon: string; label: string; count: number; reserved: boolean }[] = [
+    { key: 'box', tab: 'box', icon: '📦', label: 'Box', count: counts.box, reserved: mine.box },
+    { key: 'transport', tab: 'transport', icon: '🚐', label: 'Transport', count: counts.transport, reserved: mine.transport },
+    { key: 'coach', tab: 'coach', icon: '🎓', label: 'Coachs présents', count: counts.coach, reserved: mine.coach },
   ];
   const totalOffers = counts.box + counts.transport + counts.coach;
+
+  // Cross-sell « Mon déplacement » : ce qui est déjà réservé vs ce qu'il reste à
+  // réserver (modules ayant des offres dispo). Affiché après un retour de paiement.
+  const reservedLabels = services.filter((sv) => sv.reserved).map((sv) => sv.label);
+  const remainingLabels = services.filter((sv) => !sv.reserved && sv.count > 0).map((sv) => sv.label);
+  const anyReserved = reservedLabels.length > 0;
 
   return (
     <SafeAreaView style={s.root}>
@@ -70,17 +77,28 @@ export default function ConcoursFicheScreen() {
           </>
         )}
 
-        <Text style={s.sectionTitle}>Organise ton déplacement</Text>
+        <Text style={s.sectionTitle}>{anyReserved ? 'Mon déplacement' : 'Organise ton déplacement'}</Text>
+        {anyReserved && (
+          <View style={s.nudge}>
+            <Text style={s.nudgeTxt}>
+              {remainingLabels.length > 0
+                ? `✅ ${reservedLabels.join(', ')} réservé${reservedLabels.length > 1 ? 's' : ''} — pense aussi à ${remainingLabels.join(' et ')} pour ce concours.`
+                : '🎉 Ton déplacement est complet pour ce concours !'}
+            </Text>
+          </View>
+        )}
         <View style={s.servicesCard}>
           {services.map((sv) => (
             <TouchableOpacity key={sv.key} style={s.serviceRow} activeOpacity={0.8} onPress={() => goServices(sv.tab)}>
               <Text style={s.serviceIcon}>{sv.icon}</Text>
               <Text style={s.serviceLabel}>{sv.label}</Text>
               <View style={{ flex: 1 }} />
-              {/* Compteur affiché UNIQUEMENT si > 0 (anti cold-start) */}
-              {sv.count > 0 && (
+              {/* Réservé par moi → ✓ vert (cross-sell). Sinon compteur si > 0. */}
+              {sv.reserved ? (
+                <View style={s.reservedPill}><Text style={s.reservedTxt}>✓ Réservé</Text></View>
+              ) : sv.count > 0 ? (
                 <View style={s.countPill}><Text style={s.countDot}>🟢</Text><Text style={s.countTxt}>{sv.count}</Text></View>
-              )}
+              ) : null}
               <Text style={s.chev}>›</Text>
             </TouchableOpacity>
           ))}
@@ -133,6 +151,10 @@ const s = StyleSheet.create({
   countPill: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: Colors.successBg, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
   countDot: { fontSize: 9 },
   countTxt: { fontSize: FontSize.xs, color: Colors.success, fontWeight: FontWeight.bold },
+  reservedPill: { backgroundColor: Colors.success, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 2 },
+  reservedTxt: { fontSize: FontSize.xs, color: Colors.textInverse, fontWeight: FontWeight.bold },
+  nudge: { backgroundColor: Colors.primaryLight, borderWidth: 1, borderColor: Colors.primaryBorder, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.sm },
+  nudgeTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
   chev: { fontSize: 22, color: Colors.textTertiary },
   coldStart: { backgroundColor: Colors.goldBg, borderWidth: 1, borderColor: Colors.goldBorder, borderRadius: Radius.md, padding: Spacing.lg, marginTop: Spacing.md },
   coldTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.gold, marginBottom: 4 },
