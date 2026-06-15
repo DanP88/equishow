@@ -111,7 +111,7 @@ function applyCoachFilters(list: CoachProfil[], f: FiltersCoach) {
 
 export default function ServicesScreen() {
   useScreenTracking('services');
-  const params = useLocalSearchParams<{ tab?: string; subTab?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; subTab?: string; concours?: string }>();
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur';
   const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'transport');
   const [transportSubTab, setTransportSubTab] = useState<TransportSubTab>((params.subTab as TransportSubTab) ?? 'trajets');
@@ -176,7 +176,15 @@ export default function ServicesScreen() {
   useFocusEffect(useCallback(() => {
     if (params.tab) setTab(params.tab as Tab);
     if (params.subTab) setTransportSubTab(params.subTab as TransportSubTab);
-  }, [params.tab, params.subTab]));
+    // LOT 1 — pré-filtrage par concours (nom) depuis la fiche concours.
+    // Le filtre Services matche le champ texte `concours` existant → non régressif.
+    if (params.concours) {
+      const c = params.concours as string;
+      setFiltersT((f) => ({ ...f, concours: c }));
+      setFiltersB((f) => ({ ...f, concours: c }));
+      setFiltersC((f) => ({ ...f, concours: c }));
+    }
+  }, [params.tab, params.subTab, params.concours]));
 
   function handleCancelTransport(id: string) { setPendingCancel({ kind: 'transport', id }); }
   function handleCancelBox(id: string)       { setPendingCancel({ kind: 'box', id }); }
@@ -279,8 +287,8 @@ export default function ServicesScreen() {
         <Text style={s.stripeText}>Paiements sécurisés via Stripe — commission 5%</Text>
       </View>
 
-      {/* PROTOTYPE — Concours = contexte (jamais obligatoire). Bannière additive. */}
-      <TouchableOpacity style={s.protoConcoursBanner} activeOpacity={0.85} onPress={() => router.push('/proto/concours-list' as any)}>
+      {/* LOT 1 — Concours = contexte (jamais obligatoire). Bannière additive → hub prod. */}
+      <TouchableOpacity style={s.protoConcoursBanner} activeOpacity={0.85} onPress={() => router.push('/(tabs)/concours-hub' as any)}>
         <Text style={s.protoConcoursIcon}>🏆</Text>
         <View style={{ flex: 1 }}>
           <Text style={s.protoConcoursTitle}>Je prépare un concours</Text>
