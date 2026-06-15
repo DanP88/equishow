@@ -1,9 +1,8 @@
-import { useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Linking } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { useConcours, useConcoursCounts } from '../../hooks/useConcours';
+import { useConcours, useConcoursCounts, useConcoursFollow } from '../../hooks/useConcours';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 
 /**
@@ -17,7 +16,7 @@ export default function ConcoursFicheScreen() {
   useScreenTracking('concours-fiche');
   const { concours, isLoading } = useConcours(id);
   const { counts } = useConcoursCounts(id);
-  const [followed, setFollowed] = useState(false); // followers réels = LOT 2
+  const { isFollowing, toggle, canFollow } = useConcoursFollow(id);
 
   if (isLoading) {
     return <SafeAreaView style={s.root}><View style={s.loader}><ActivityIndicator size="large" color={Colors.primary} /></View></SafeAreaView>;
@@ -57,7 +56,10 @@ export default function ConcoursFicheScreen() {
         <Text style={s.nom}>🏆 {concours.nom}</Text>
         {!!concours.dateLabel && <Text style={s.meta}>📅 {concours.dateLabel}</Text>}
         {!!concours.lieu && <Text style={s.meta}>📍 {concours.lieu}</Text>}
-        {!!concours.numero_ffe && <Text style={s.metaDim}>N° FFE {concours.numero_ffe}</Text>}
+        <Text style={s.metaDim}>
+          {concours.numero_ffe ? `N° FFE ${concours.numero_ffe}` : ''}
+          {concours.followers_count > 0 ? `${concours.numero_ffe ? ' · ' : ''}⭐ ${concours.followers_count} suivent` : ''}
+        </Text>
 
         {!!concours.lien_ffe && (
           <>
@@ -91,8 +93,15 @@ export default function ConcoursFicheScreen() {
           </View>
         )}
 
-        <TouchableOpacity style={[s.followBtn, followed && s.followBtnOn]} activeOpacity={0.85} onPress={() => setFollowed((v) => !v)}>
-          <Text style={[s.followTxt, followed && s.followTxtOn]}>{followed ? '⭐ Concours suivi ✓' : '⭐ Suivre ce concours'}</Text>
+        <TouchableOpacity
+          style={[s.followBtn, isFollowing && s.followBtnOn, !canFollow && s.followBtnDisabled]}
+          activeOpacity={0.85}
+          disabled={!canFollow}
+          onPress={toggle}
+        >
+          <Text style={[s.followTxt, isFollowing && s.followTxtOn]}>
+            {!canFollow ? '⭐ Connecte-toi pour suivre' : isFollowing ? '⭐ Concours suivi ✓' : '⭐ Suivre ce concours'}
+          </Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -130,6 +139,7 @@ const s = StyleSheet.create({
   coldTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
   followBtn: { backgroundColor: Colors.primaryLight, borderWidth: 1.5, borderColor: Colors.primaryBorder, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.lg },
   followBtnOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  followBtnDisabled: { opacity: 0.5 },
   followTxt: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.base },
   followTxtOn: { color: Colors.textInverse },
 });

@@ -16,6 +16,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
+import { useAuth } from './useAuth';
 import { PROTO_CONCOURS, ProtoConcours } from '../data/mockProto';
 
 // Forme normalisée consommée par les écrans (indépendante du shim mock/DB).
@@ -31,6 +32,7 @@ export interface ConcoursHub {
   type_concours: string | null; // discipline
   lien_ffe: string | null;
   etat: string | null;
+  followers_count: number;       // LOT 2B — dénormalisé (075). 0 si colonne/table absente.
 }
 
 export interface ConcoursCounts {
@@ -39,7 +41,7 @@ export interface ConcoursCounts {
   coach: number;
 }
 
-// Row brut de la table public.concours (post-074)
+// Row brut de la table public.concours (post-074 ; followers_count post-075)
 interface ConcoursRow {
   id: string;
   numero_ffe: string | null;
@@ -51,6 +53,7 @@ interface ConcoursRow {
   type_concours: string | null;
   lien_ffe: string | null;
   etat: string | null;
+  followers_count?: number | null; // absent tant que 075 non appliquée
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -81,6 +84,7 @@ function rowToHub(r: ConcoursRow): ConcoursHub {
     type_concours: r.type_concours,
     lien_ffe: r.lien_ffe,
     etat: r.etat,
+    followers_count: r.followers_count ?? 0, // absent (075 non appliquée) → 0
   };
 }
 
@@ -98,13 +102,23 @@ function protoToHub(p: ProtoConcours): ConcoursHub {
     type_concours: p.discipline,
     lien_ffe: p.lienFFE,
     etat: 'ouvert',
+    followers_count: p.followers,
   };
 }
 
-// Détecte "table absente" (074 non appliquée) → autorise le fallback mock.
+// Détecte "table OU colonne absente" (074/075 non appliquées) → fallback mock.
+// PostgREST ne renvoie pas le code Postgres brut :
+//   - table absente   → code PGRST205, msg "Could not find the table ... in the schema cache"
+//   - colonne absente → code 42703,    msg "column ... does not exist"
+//   - (Postgres direct → 42P01 "relation ... does not exist")
 function isMissingTable(error: any): boolean {
   if (!error) return false;
-  return error.code === '42P01' || /does not exist|relation .* does not exist/i.test(error.message ?? '');
+  const code = error.code ?? '';
+  const msg = error.message ?? '';
+  return (
+    code === 'PGRST205' || code === '42P01' || code === '42703' ||
+    /does not exist|could not find the table|schema cache/i.test(msg)
+  );
 }
 
 const MOCK_HUBS = PROTO_CONCOURS.map(protoToHub);
@@ -121,9 +135,11 @@ export function useConcoursList() {
 
   const load = useCallback(async () => {
     setIsLoading(true);
+    // select('*') : ramène followers_count si 075 appliquée, sinon colonne absente
+    // → rowToHub applique `?? 0`. Évite l'erreur "column does not exist".
     const { data, error } = await supabase
       .from('concours')
-      .select('id,numero_ffe,nom,date_debut,date_fin,lieu,departement,type_concours,lien_ffe,etat')
+      .select('*')
       .order('date_debut', { ascending: true });
 
     if (error) {
@@ -161,7 +177,7 @@ export function useConcours(id?: string) {
     setIsLoading(true);
     const { data, error } = await supabase
       .from('concours')
-      .select('id,numero_ffe,nom,date_debut,date_fin,lieu,departement,type_concours,lien_ffe,etat')
+      .select('*')
       .eq('id', id)
       .maybeSingle();
 
@@ -186,12 +202,17 @@ export function useConcoursCounts(id?: string) {
     if (!id) { setIsLoading(false); return; }
     setIsLoading(true);
 
-    // 3 COUNT read-only sur concours_id (head:true => pas de payload, juste count).
-    const q = (table: string) =>
-      supabase.from(table).select('id', { count: 'exact', head: true }).eq('concours_id', id);
-
+    // COUNT read-only par concours_id (head:true => pas de payload, juste count).
+    // LOT 2B : box/transport filtrés sur la dispo réelle ; coach = présence (statut
+    // confirmé = LOT 3). Si concours_id absent (074 non appliquée), l'erreur
+    // "column does not exist" déclenche le fallback mock plus bas.
     const [box, transport, coach] = await Promise.all([
-      q('box_annonces'), q('transport_annonces'), q('coach_annonces'),
+      supabase.from('box_annonces').select('id', { count: 'exact', head: true })
+        .eq('concours_id', id).gt('nb_boxes_disponibles', 0),
+      supabase.from('transport_annonces').select('id', { count: 'exact', head: true })
+        .eq('concours_id', id).gt('nb_places_disponibles', 0),
+      supabase.from('coach_annonces').select('id', { count: 'exact', head: true })
+        .eq('concours_id', id),
     ]);
 
     if (isMissingTable(box.error) || isMissingTable(transport.error) || isMissingTable(coach.error)) {
@@ -209,4 +230,61 @@ export function useConcoursCounts(id?: string) {
 
   useEffect(() => { load(); }, [load]);
   return { counts, isLoading, reload: load };
+}
+
+// ── useConcoursFollow — Suivre / Désuivre (LOT 2A) ────────────────────────────
+// Table public.concours_followers (075). Tolère son absence (075 non appliquée) :
+// l'action est alors un no-op silencieux + warn dev, l'UI ne casse pas.
+export function useConcoursFollow(concoursId?: string) {
+  const { profile } = useAuth();
+  const [isFollowing, setIsFollowing] = useState(false);
+  const [isReady, setIsReady] = useState(false);  // false tant que l'état initial n'est pas lu
+  const [available, setAvailable] = useState(true); // false si table 075 absente
+
+  const userId = profile?.id;
+
+  const load = useCallback(async () => {
+    if (!concoursId || !userId) { setIsReady(true); return; }
+    const { data, error } = await supabase
+      .from('concours_followers')
+      .select('user_id')
+      .eq('concours_id', concoursId)
+      .eq('user_id', userId)
+      .maybeSingle();
+    if (error) {
+      if (isMissingTable(error)) setAvailable(false); // 075 non appliquée
+      setIsFollowing(false);
+    } else {
+      setIsFollowing(!!data);
+    }
+    setIsReady(true);
+  }, [concoursId, userId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  const toggle = useCallback(async () => {
+    if (!concoursId || !userId) return;
+    const next = !isFollowing;
+    setIsFollowing(next); // optimiste
+    try {
+      if (next) {
+        const { error } = await supabase
+          .from('concours_followers')
+          .insert({ concours_id: concoursId, user_id: userId });
+        if (error && !/duplicate key|already exists/i.test(error.message ?? '')) throw error;
+      } else {
+        const { error } = await supabase
+          .from('concours_followers')
+          .delete()
+          .eq('concours_id', concoursId)
+          .eq('user_id', userId);
+        if (error) throw error;
+      }
+    } catch (e: any) {
+      if (isMissingTable(e)) { setAvailable(false); if (__DEV__) console.warn('[follow] table 075 absente'); }
+      else { setIsFollowing(!next); if (__DEV__) console.warn('[follow] échec:', e?.message ?? e); }
+    }
+  }, [concoursId, userId, isFollowing]);
+
+  return { isFollowing, toggle, isReady, available, canFollow: !!userId };
 }

@@ -60,6 +60,9 @@ export default function ConcoursHubScreen() {
                   {!!c.dateLabel && <Text style={s.meta}>📅 {c.dateLabel}</Text>}
                   {!!c.lieu && <Text style={s.meta}>📍 {c.lieu}</Text>}
                   <View style={s.footer}>
+                    {c.followers_count > 0
+                      ? <Text style={s.followers}>⭐ {c.followers_count} suivent</Text>
+                      : <View />}
                     <View style={s.voirBtn}><Text style={s.voirTxt}>Voir →</Text></View>
                   </View>
                 </View>
@@ -93,7 +96,8 @@ const s = StyleSheet.create({
   body: { padding: Spacing.lg },
   nom: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: 6 },
   meta: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: 2 },
-  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-end', marginTop: Spacing.md },
+  footer: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginTop: Spacing.md },
+  followers: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   voirBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm },
   voirTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
 });
