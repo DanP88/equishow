@@ -94,6 +94,20 @@ function AdminSettingsContent() {
         </View>
       </View>
 
+      {/* Revue des revendications de concours (LOT Organisateur P0) */}
+      <TouchableOpacity
+        style={styles.analyticsBtn}
+        onPress={() => router.push('/admin-concours-claims')}
+        activeOpacity={0.85}
+      >
+        <Text style={styles.analyticsBtnIcon}>🏆</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.analyticsBtnTitle}>Revendications de concours</Text>
+          <Text style={styles.analyticsBtnSub}>Valider / refuser les demandes des organisateurs</Text>
+        </View>
+        <Text style={styles.analyticsBtnArrow}>→</Text>
+      </TouchableOpacity>
+
       {/* Logout */}
       <TouchableOpacity
         style={[styles.logoutBtn, loggingOut && { opacity: 0.6 }]}

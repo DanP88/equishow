@@ -4,6 +4,7 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { useConcours, useConcoursCounts, useConcoursFollow, useConcoursMyReservations } from '../../hooks/useConcours';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { trackCta } from '../../lib/analytics';
 
 /**
  * LOT 1 — Fiche concours (hub). Compteurs RÉELS masqués si 0 (anti cold-start).
@@ -13,7 +14,9 @@ import { useScreenTracking } from '../../hooks/useScreenTracking';
  */
 export default function ConcoursFicheScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  useScreenTracking('concours-fiche');
+  // metadata.concours_id : indispensable pour attribuer la vue au concours dans
+  // le Radar organisateur (fn_org_concours_radar lit metadata->>'concours_id').
+  useScreenTracking('concours-fiche', { concours_id: id });
   const { concours, isLoading } = useConcours(id);
   const { counts } = useConcoursCounts(id);
   const { mine } = useConcoursMyReservations(id);
@@ -70,7 +73,7 @@ export default function ConcoursFicheScreen() {
 
         {!!concours.lien_ffe && (
           <>
-            <TouchableOpacity style={s.ffeBtn} activeOpacity={0.85} onPress={() => Linking.openURL(concours.lien_ffe!)}>
+            <TouchableOpacity style={s.ffeBtn} activeOpacity={0.85} onPress={() => { trackCta('concours-fiche', 'click_ffe', { concours_id: id }); Linking.openURL(concours.lien_ffe!); }}>
               <Text style={s.ffeTxt}>🔗 S'inscrire sur la FFE  ↗</Text>
             </TouchableOpacity>
             <Text style={s.ffeNote}>Les inscriptions restent sur la FFE. Equishow t'aide à organiser le déplacement.</Text>

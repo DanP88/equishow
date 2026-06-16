@@ -1,0 +1,113 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// useConcoursClaims — LOT Organisateur P0 (mig 076).
+// Revendication d'un concours par un organisateur, validée par un admin.
+// Ownership = ligne `concours_claims` status='approved' (cf. 076).
+// RLS : insert own / select own+admin / update admin. Aucune écriture sur
+// concours.organisateur_id (décision lot : ownership 100% dans concours_claims).
+// ─────────────────────────────────────────────────────────────────────────────
+
+import { useCallback, useEffect, useState } from 'react';
+import { supabase } from '../lib/supabase';
+import { useAuth } from './useAuth';
+
+export type ClaimStatus = 'pending' | 'approved' | 'rejected';
+
+export interface ConcoursClaim {
+  id: string;
+  concoursId: string;
+  organisateurId: string;
+  status: ClaimStatus;
+  justification: string | null;
+  organisateurNom: string | null;
+  concoursNom: string | null;
+  createdAt: string;
+  reviewedAt: string | null;
+}
+
+function rowToClaim(r: any): ConcoursClaim {
+  return {
+    id: r.id,
+    concoursId: r.concours_id,
+    organisateurId: r.organisateur_id,
+    status: r.status,
+    justification: r.justification ?? null,
+    organisateurNom: r.organisateur_nom ?? null,
+    concoursNom: r.concours_nom ?? null,
+    createdAt: r.created_at,
+    reviewedAt: r.reviewed_at ?? null,
+  };
+}
+
+// Revendications de l'organisateur courant (tous statuts).
+export function useMyConcoursClaims() {
+  const { profile } = useAuth();
+  const userId = profile?.id;
+  const [claims, setClaims] = useState<ConcoursClaim[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!userId) { setClaims([]); setIsLoading(false); return; }
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('concours_claims')
+      .select('*')
+      .eq('organisateur_id', userId)
+      .order('created_at', { ascending: false });
+    if (!error && data) setClaims(data.map(rowToClaim));
+    setIsLoading(false);
+  }, [userId]);
+
+  useEffect(() => { load(); }, [load]);
+  return { claims, isLoading, reload: load };
+}
+
+// Soumission d'une revendication (snapshots nom org + nom concours pour l'admin).
+export async function submitConcoursClaim(input: {
+  concoursId: string;
+  concoursNom?: string | null;
+  justification?: string | null;
+  organisateurNom?: string | null;
+}): Promise<{ error: string | null }> {
+  const { data: auth } = await supabase.auth.getUser();
+  const uid = auth.user?.id;
+  if (!uid) return { error: 'Non authentifié' };
+  const { error } = await supabase.from('concours_claims').insert({
+    concours_id: input.concoursId,
+    organisateur_id: uid,
+    status: 'pending',
+    justification: input.justification ?? null,
+    organisateur_nom: input.organisateurNom ?? null,
+    concours_nom: input.concoursNom ?? null,
+  });
+  return { error: error?.message ?? null };
+}
+
+// Vue admin : toutes les revendications + action de revue (approve/reject).
+export function useAdminConcoursClaims() {
+  const [claims, setClaims] = useState<ConcoursClaim[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('concours_claims')
+      .select('*')
+      .order('created_at', { ascending: false });
+    if (!error && data) setClaims(data.map(rowToClaim));
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+
+  const review = useCallback(async (id: string, status: 'approved' | 'rejected'): Promise<{ error: string | null }> => {
+    const { data: auth } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from('concours_claims')
+      .update({ status, reviewed_by: auth.user?.id ?? null })
+      .eq('id', id);
+    if (!error) await load();
+    return { error: error?.message ?? null };
+  }, [load]);
+
+  return { claims, isLoading, reload: load, review };
+}
