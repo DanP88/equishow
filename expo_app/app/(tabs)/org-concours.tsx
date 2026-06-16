@@ -11,7 +11,8 @@ export default function OrgConcoursScreen() {
   const [concours, setConcours] = useState(concoursStore.list.filter(c => c.organisateurId === userStore.id));
   // LOT P0 — concours réels revendiqués (claims). Additif : ne remplace pas le mock.
   const { claims, reload: reloadClaims } = useMyConcoursClaims();
-  const revendiques = claims.filter(c => c.status !== 'rejected');
+  // PART 3 — l'organisateur voit TOUS les statuts (en attente / approuvé / refusé).
+  const revendiques = claims;
 
   useFocusEffect(useCallback(() => {
     setConcours(concoursStore.list.filter(c => c.organisateurId === userStore.id));
@@ -43,11 +44,31 @@ export default function OrgConcoursScreen() {
           <Text style={s.createArrow}>→</Text>
         </TouchableOpacity>
 
+        {/* PART 4 — Démo locale : visualiser le Radar même sans migration 076. */}
+        {__DEV__ && (
+          <TouchableOpacity
+            style={s.demoBtn}
+            activeOpacity={0.85}
+            onPress={() => router.push({ pathname: '/org-radar', params: { concoursId: 'demo', nom: 'CSO de Deauville' } } as any)}
+          >
+            <Text style={s.createIcon}>🧪</Text>
+            <View style={{ flex: 1 }}>
+              <Text style={s.claimTitle}>Voir un exemple de Radar</Text>
+              <Text style={s.createHint}>Mode démonstration (local) — données d'exemple</Text>
+            </View>
+            <Text style={s.createArrow}>→</Text>
+          </TouchableOpacity>
+        )}
+
         {revendiques.length > 0 && (
           <View style={s.claimsSection}>
             <Text style={s.claimsTitle}>Mes concours revendiqués</Text>
             {revendiques.map((c) => {
               const approved = c.status === 'approved';
+              const meta =
+                c.status === 'approved' ? { label: '✅ Approuvé · 📊 Voir le Radar de demande', bg: '#ECFDF5', fg: '#10B981' }
+                : c.status === 'rejected' ? { label: '❌ Refusé', bg: '#FEE2E2', fg: '#EF4444' }
+                : { label: '⏳ En attente de validation', bg: '#FFF7ED', fg: '#F59E0B' };
               return (
                 <TouchableOpacity
                   key={c.id}
@@ -57,7 +78,9 @@ export default function OrgConcoursScreen() {
                 >
                   <View style={{ flex: 1 }}>
                     <Text style={s.claimName} numberOfLines={1}>{c.concoursNom ?? c.concoursId}</Text>
-                    <Text style={s.claimStatus}>{approved ? '📊 Voir le Radar de demande' : '⏳ En attente de validation'}</Text>
+                    <View style={[s.claimBadge, { backgroundColor: meta.bg }]}>
+                      <Text style={[s.claimBadgeTxt, { color: meta.fg }]}>{meta.label}</Text>
+                    </View>
                   </View>
                   {approved && <Text style={s.createArrow}>→</Text>}
                 </TouchableOpacity>
@@ -122,6 +145,9 @@ const s = StyleSheet.create({
   claimCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md, ...Shadow.card },
   claimName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   claimStatus: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  claimBadge: { alignSelf: 'flex-start', borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3, marginTop: 6 },
+  claimBadgeTxt: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
+  demoBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: '#FCD34D', gap: Spacing.md },
   concoursCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.card },
   concoursHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: Spacing.sm },
   concoursName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, flex: 1 },

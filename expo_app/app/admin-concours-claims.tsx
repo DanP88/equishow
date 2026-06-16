@@ -93,8 +93,12 @@ function ClaimCard({ claim, busy, onApprove, onReject }: {
         <View style={[s.badge, { backgroundColor: badge.bg }]}><Text style={[s.badgeTxt, { color: badge.fg }]}>{badge.txt}</Text></View>
       </View>
       <Text style={s.cardOrg}>👤 {claim.organisateurNom ?? claim.organisateurId}</Text>
-      {!!claim.justification && <Text style={s.cardJustif}>« {claim.justification} »</Text>}
-      <Text style={s.cardDate}>Demandé le {new Date(claim.createdAt).toLocaleDateString('fr-FR')}</Text>
+      <Text style={s.cardJustifLabel}>Justification :</Text>
+      <Text style={s.cardJustif}>{claim.justification ? `« ${claim.justification} »` : '— Aucune justification fournie —'}</Text>
+      <Text style={s.cardDate}>Demandé le {new Date(claim.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</Text>
+      {!!claim.reviewedAt && (
+        <Text style={s.cardDate}>Revue le {new Date(claim.reviewedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</Text>
+      )}
 
       {claim.status === 'pending' && onApprove && onReject && (
         <View style={s.actions}>
@@ -126,7 +130,8 @@ const s = StyleSheet.create({
   badge: { borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
   badgeTxt: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
   cardOrg: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: 2 },
-  cardJustif: { fontSize: FontSize.sm, color: Colors.textPrimary, fontStyle: 'italic', marginVertical: Spacing.xs },
+  cardJustifLabel: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.sm },
+  cardJustif: { fontSize: FontSize.sm, color: Colors.textPrimary, fontStyle: 'italic', marginTop: 2, marginBottom: Spacing.xs },
   cardDate: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   btn: { flex: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm + 2, alignItems: 'center' },

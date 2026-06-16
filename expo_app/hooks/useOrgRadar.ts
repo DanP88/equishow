@@ -37,23 +37,71 @@ export interface OrgRadar {
   };
 }
 
+// ── Mode démonstration (LOCAL UNIQUEMENT) ────────────────────────────────────
+// Permet de visualiser le rendu complet du Radar AVANT toute application DB
+// (mig 076 non déployée). Données d'exemple réalistes, jamais affichées en prod
+// sur un vrai concours : no-fake-KPI préservé (cf. déclenchement plus bas).
+export const DEMO_CONCOURS_ID = 'demo';
+
+const DEMO_RADAR: OrgRadar = {
+  days: 30,
+  visibility: {
+    views: 247,
+    views_prev: 180,
+    unique_visitors: 96,
+    unique_visitors_masked: false,
+    ffe_clicks: 18,
+  },
+  interest: { followers: 38, followers_new: 12, followers_masked: false },
+  engagement: { cavaliers_engaged: 7, masked: false },
+  funnel: {
+    views: 247,
+    followers: 38,
+    reservations: 7,
+    views_to_followers: 38 / 247,
+    followers_to_reservations: 7 / 38,
+    views_to_reservations: 7 / 247,
+  },
+};
+
+// La fonction/table 076 n'existe pas encore → la RPC renvoie une erreur
+// « does not exist » (PGRST202 fonction absente, 42883, 42P01, PGRST205…).
+const isMissingRpc = (msg: string) =>
+  /does not exist|could not find|PGRST202|PGRST205|42883|42P01|schema cache/i.test(msg);
+
 export function useOrgRadar(concoursId?: string, days = 30) {
   const [radar, setRadar] = useState<OrgRadar | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isDemo, setIsDemo] = useState(false);
 
   const load = useCallback(async () => {
     if (!concoursId) { setRadar(null); setIsLoading(false); return; }
     setIsLoading(true);
     setError(null);
+
+    // Démo explicite (bouton « Voir un exemple », local seulement) → mock direct.
+    if (concoursId === DEMO_CONCOURS_ID) {
+      setRadar(DEMO_RADAR); setIsDemo(true); setIsLoading(false);
+      return;
+    }
+
+    setIsDemo(false);
     const { data, error } = await supabase.rpc('fn_org_concours_radar', {
       p_concours_id: concoursId,
       p_days: days,
     });
     if (error) {
-      // 42501 = not_authorized (pas propriétaire du concours)
-      setError(/not_authorized|42501/i.test(error.message) ? 'not_authorized' : error.message);
-      setRadar(null);
+      // 42501 = not_authorized (pas propriétaire du concours) → toujours respecté.
+      if (/not_authorized|42501/i.test(error.message)) {
+        setError('not_authorized'); setRadar(null);
+      } else if (__DEV__ && isMissingRpc(error.message)) {
+        // DEV uniquement : 076 pas appliquée → fallback démo pour visualiser le rendu.
+        // En prod (__DEV__=false) on ne fabrique JAMAIS de KPI : vraie erreur affichée.
+        setRadar(DEMO_RADAR); setIsDemo(true);
+      } else {
+        setError(error.message); setRadar(null);
+      }
     } else {
       setRadar(data as OrgRadar);
     }
@@ -61,5 +109,5 @@ export function useOrgRadar(concoursId?: string, days = 30) {
   }, [concoursId, days]);
 
   useEffect(() => { load(); }, [load]);
-  return { radar, isLoading, error, reload: load };
+  return { radar, isLoading, error, isDemo, reload: load };
 }

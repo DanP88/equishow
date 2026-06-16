@@ -9,6 +9,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAuth } from './useAuth';
+import { createNotification } from './useNotifications';
 
 export type ClaimStatus = 'pending' | 'approved' | 'rejected';
 
@@ -101,13 +102,41 @@ export function useAdminConcoursClaims() {
 
   const review = useCallback(async (id: string, status: 'approved' | 'rejected'): Promise<{ error: string | null }> => {
     const { data: auth } = await supabase.auth.getUser();
+    const claim = claims.find((c) => c.id === id);
     const { error } = await supabase
       .from('concours_claims')
       .update({ status, reviewed_by: auth.user?.id ?? null })
       .eq('id', id);
-    if (!error) await load();
-    return { error: error?.message ?? null };
-  }, [load]);
+    if (error) return { error: error.message };
+
+    // PART 2 — notifier l'organisateur (réutilise le système notif existant ;
+    // type 'reservation_request' = type plein déjà autorisé par notifications_type_check,
+    // SANS status donc rendu titre/message seul). Best-effort : n'échoue jamais la revue.
+    if (claim) {
+      const nom = claim.concoursNom ?? 'concours';
+      const notif = status === 'approved'
+        ? {
+            titre: '🏆 Revendication approuvée',
+            message: `Votre revendication du concours « ${nom} » a été approuvée.\nLe Radar de demande est maintenant disponible.`,
+          }
+        : {
+            titre: '❌ Revendication refusée',
+            message: `Votre revendication du concours « ${nom} » n'a pas été approuvée.`,
+          };
+      const { error: nErr } = await createNotification({
+        destinataireId: claim.organisateurId,
+        type: 'reservation_request',
+        titre: notif.titre,
+        message: notif.message,
+        actionUrl: '/(tabs)/org-concours',
+        donnees: { concours_id: claim.concoursId, claim_id: claim.id, kind: 'concours_claim_review' },
+      });
+      if (nErr) console.warn('[claim-notif] notification non envoyée:', nErr);
+    }
+
+    await load();
+    return { error: null };
+  }, [load, claims]);
 
   return { claims, isLoading, reload: load, review };
 }

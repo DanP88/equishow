@@ -20,7 +20,7 @@ const maskedNum = (v: number | null) => (v == null ? '< 5' : String(v));
 export default function OrgRadarScreen() {
   const { concoursId, nom } = useLocalSearchParams<{ concoursId?: string; nom?: string }>();
   useScreenTracking('org-radar');
-  const { radar, isLoading, error, reload } = useOrgRadar(concoursId, 30);
+  const { radar, isLoading, error, isDemo, reload } = useOrgRadar(concoursId, 30);
 
   return (
     <SafeAreaView style={s.root}>
@@ -48,7 +48,22 @@ export default function OrgRadarScreen() {
         </View>
       ) : radar ? (
         <ScrollView contentContainerStyle={s.list}>
+          {isDemo && (
+            <View style={s.demo}>
+              <Text style={s.demoTxt}>🧪 Mode démonstration — données d'exemple (la base n'est pas encore branchée). Aucun chiffre réel.</Text>
+            </View>
+          )}
           <Text style={s.period}>30 derniers jours · activité observée dans Equishow</Text>
+
+          {/* Phrase de synthèse — formulée sur l'activité Equishow, jamais sur la FFE.
+              Respecte le masquage RGPD (< 5 → « moins de 5 »). */}
+          <View style={s.synth}>
+            <Text style={s.synthHead}>{interestHeadline(radar.visibility.views, radar.visibility.views_prev)}</Text>
+            <Text style={s.synthBody}>
+              {countPeople(radar.interest.followers, radar.interest.followers_masked)} suivent le concours
+              {' '}et {countPlain(radar.engagement.cavaliers_engaged, radar.engagement.masked)} préparent activement leur venue.
+            </Text>
+          </View>
 
           {/* KPI principal — Préparations détectées (signal le plus fiable) */}
           <View style={s.hero}>
@@ -98,6 +113,24 @@ export default function OrgRadarScreen() {
             <Text style={s.note}>Vues → réservations : {pct(radar.funnel.views_to_reservations)}</Text>
           </Section>
 
+          {/* Tendance observée — synthèse des évolutions (données réelles uniquement) */}
+          <Section title="📈 Tendance observée">
+            <Row label="Évolution des vues" value={trend(radar.visibility.views, radar.visibility.views_prev) ?? 'Donnée bientôt disponible'} />
+            <Row label="Nouveaux followers (30j)" value={`+${radar.interest.followers_new}`} />
+            <Row label="Clics vers la FFE" value={String(radar.visibility.ffe_clicks)} />
+          </Section>
+
+          {/* Alertes logistiques — carte informative désactivée (aucun calcul) */}
+          <View style={s.section}>
+            <View style={s.sectionHead}>
+              <Text style={s.sectionTitle}>🚨 Alertes logistiques</Text>
+              <Text style={s.soon}>BIENTÔT</Text>
+            </View>
+            <View style={[s.card, s.cardDisabled]}>
+              <Text style={s.alertTxt}>Equishow pourra signaler les besoins en box, transport ou coach lorsque la demande observée dépasse l'offre disponible.</Text>
+            </View>
+          </View>
+
           <View style={s.rgpd}>
             <Text style={s.rgpdTxt}>🔒 Données agrégées et anonymisées. Les indicateurs de moins de 5 personnes sont masqués (RGPD). Aucune information individuelle n'est exposée.</Text>
           </View>
@@ -114,6 +147,22 @@ function trend(cur: number, prev: number): string | undefined {
   const delta = Math.round(((cur - prev) / prev) * 100);
   if (delta === 0) return '→ stable';
   return delta > 0 ? `↑ +${delta}% vs période préc.` : `↓ ${delta}% vs période préc.`;
+}
+
+// Phrase d'accroche basée UNIQUEMENT sur l'évolution des vues observées (Equishow).
+function interestHeadline(views: number, prev: number): string {
+  if (prev <= 0) return "L'intérêt autour de votre concours se construit.";
+  if (views > prev) return "L'intérêt autour de votre concours est en hausse.";
+  if (views < prev) return "L'intérêt autour de votre concours est plus calme ces 30 derniers jours.";
+  return "L'intérêt autour de votre concours est stable.";
+}
+
+// Masquage RGPD < 5 : « moins de 5 cavaliers » au lieu d'un compteur exact.
+function countPeople(n: number, masked: boolean): string {
+  return masked ? 'moins de 5 cavaliers' : `${n} cavaliers`;
+}
+function countPlain(n: number | null, masked: boolean): string {
+  return masked || n == null ? 'moins de 5' : String(n);
 }
 
 function Section({ title, level, children }: { title: string; level?: string; children: React.ReactNode }) {
@@ -164,6 +213,8 @@ const s = StyleSheet.create({
   retry: { marginTop: Spacing.md, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg },
   retryTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold },
   list: { padding: Spacing.lg, paddingBottom: 100 },
+  demo: { backgroundColor: '#FEF3C7', borderRadius: Radius.md, borderWidth: 1, borderColor: '#FCD34D', padding: Spacing.md, marginBottom: Spacing.md },
+  demoTxt: { fontSize: FontSize.xs, color: '#92400E', lineHeight: 17, fontWeight: FontWeight.semibold },
   period: { fontSize: FontSize.xs, color: Colors.textTertiary, marginBottom: Spacing.md },
   hero: { backgroundColor: Colors.primary, borderRadius: Radius.lg, padding: Spacing.lg, marginBottom: Spacing.md, ...Shadow.card },
   heroValue: { fontSize: 40, fontWeight: FontWeight.extrabold, color: Colors.textInverse },
@@ -171,8 +222,14 @@ const s = StyleSheet.create({
   heroHint: { fontSize: FontSize.xs, color: Colors.textInverse, opacity: 0.85, marginTop: Spacing.sm, lineHeight: 17 },
   help: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.lg },
   helpTxt: { fontSize: FontSize.xs, color: Colors.textSecondary, lineHeight: 17 },
+  synth: { backgroundColor: Colors.primaryLight, borderRadius: Radius.md, padding: Spacing.md, marginBottom: Spacing.md, borderWidth: 1, borderColor: Colors.primaryBorder },
+  synthHead: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary },
+  synthBody: { fontSize: FontSize.sm, color: Colors.textPrimary, marginTop: 4, lineHeight: 19 },
   section: { marginBottom: Spacing.lg },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: Spacing.sm },
+  soon: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, letterSpacing: 0.5 },
+  cardDisabled: { opacity: 0.6, padding: Spacing.lg },
+  alertTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
   sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   sectionLevel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase' },
   card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', ...Shadow.card },
