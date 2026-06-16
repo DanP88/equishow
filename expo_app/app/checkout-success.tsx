@@ -60,6 +60,8 @@ export default function CheckoutSuccessScreen() {
   const [resaNum, setResaNum] = useState<string | null>(null);
   // Id BRUT de la réservation liée (FK du paiement) → deep-link agenda ?pay=<id>.
   const [resaId, setResaId] = useState<string | null>(null);
+  // Concours de rattachement de l'annonce réservée (074) → retour au hub concours.
+  const [concoursId, setConcoursId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   // Compteur de retries pour le polling webhook (cf. confirmPayment).
   const attemptRef = useRef(0);
@@ -141,6 +143,38 @@ export default function CheckoutSuccessScreen() {
           // plutôt qu'un faux numéro.
           setResaId(resaIdResolved);
           setResaNum(resaIdResolved ? reservationNumber(data.type, resaIdResolved) : null);
+
+          // Concours de rattachement : réservation → annonce → concours_id (074).
+          // Si l'annonce réservée est liée à un concours, on proposera « Retour
+          // au concours ». Lecture best-effort : silencieuse si indisponible.
+          const resolveConcoursId = async (): Promise<string | null> => {
+            if (data.type === 'course' && prow?.course_demand_id) {
+              const { data: d } = await supabase.from('course_demands').select('annonce_id').eq('id', prow.course_demand_id).maybeSingle();
+              if (!d?.annonce_id) return null;
+              const { data: a } = await supabase.from('coach_annonces').select('concours_id').eq('id', d.annonce_id).maybeSingle();
+              return (a as any)?.concours_id ?? null;
+            }
+            if (data.type === 'stage' && prow?.stage_reservation_id) {
+              const { data: r } = await supabase.from('stage_reservations').select('stage_id').eq('id', prow.stage_reservation_id).maybeSingle();
+              if (!r?.stage_id) return null;
+              const { data: a } = await supabase.from('stages').select('concours_id').eq('id', r.stage_id).maybeSingle();
+              return (a as any)?.concours_id ?? null;
+            }
+            if (data.type === 'box' && prow?.box_reservation_id) {
+              const { data: r } = await supabase.from('box_reservations').select('box_id').eq('id', prow.box_reservation_id).maybeSingle();
+              if (!r?.box_id) return null;
+              const { data: a } = await supabase.from('box_annonces').select('concours_id').eq('id', r.box_id).maybeSingle();
+              return (a as any)?.concours_id ?? null;
+            }
+            if (data.type === 'transport' && prow?.transport_reservation_id) {
+              const { data: r } = await supabase.from('transport_reservations').select('transport_id').eq('id', prow.transport_reservation_id).maybeSingle();
+              if (!r?.transport_id) return null;
+              const { data: a } = await supabase.from('transport_annonces').select('concours_id').eq('id', r.transport_id).maybeSingle();
+              return (a as any)?.concours_id ?? null;
+            }
+            return null;
+          };
+          try { setConcoursId(await resolveConcoursId()); } catch { /* bouton concours masqué */ }
         } catch { /* le N° reste masqué si indisponible */ }
         // Funnel Lot 3 : terminal payment_success, enrichi du pivot reservation_id
         // (indispensable pour relier un paiement DIFFÉRÉ coach/stage à sa demande,
@@ -203,6 +237,7 @@ export default function CheckoutSuccessScreen() {
             payment={payment}
             resaNum={resaNum}
             resaId={resaId}
+            concoursId={concoursId}
           />
         )}
 
@@ -239,9 +274,10 @@ interface SuccessViewProps {
   payment: PaymentData;
   resaNum: string | null;
   resaId: string | null;
+  concoursId: string | null;
 }
 
-function SuccessView({ payment, resaNum, resaId }: SuccessViewProps) {
+function SuccessView({ payment, resaNum, resaId, concoursId }: SuccessViewProps) {
   const formatAmount = (cents: number) => {
     return (cents / 100).toFixed(2).replace('.', ',') + ' €';
   };
@@ -323,8 +359,17 @@ function SuccessView({ payment, resaNum, resaId }: SuccessViewProps) {
       </View>
 
       <View style={s.buttonGroup}>
+        {concoursId && (
+          <TouchableOpacity
+            style={[s.button, s.buttonPrimary]}
+            onPress={() => router.replace(`/concours/${concoursId}` as any)}
+            activeOpacity={0.8}
+          >
+            <Text style={s.buttonText}>🏆 Retour au concours</Text>
+          </TouchableOpacity>
+        )}
         <TouchableOpacity
-          style={[s.button, s.buttonPrimary]}
+          style={[s.button, concoursId ? s.buttonSecondary : s.buttonPrimary]}
           onPress={() =>
             resaId
               ? router.replace({ pathname: '/(tabs)/cavalier-agenda', params: { pay: resaId } })
@@ -332,15 +377,17 @@ function SuccessView({ payment, resaNum, resaId }: SuccessViewProps) {
           }
           activeOpacity={0.8}
         >
-          <Text style={s.buttonText}>Voir ma réservation</Text>
+          <Text style={concoursId ? s.buttonTextSecondary : s.buttonText}>Voir ma réservation</Text>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[s.button, s.buttonSecondary]}
-          onPress={() => router.replace('/(tabs)/cavalier-agenda')}
-          activeOpacity={0.8}
-        >
-          <Text style={s.buttonTextSecondary}>Retour à l'agenda</Text>
-        </TouchableOpacity>
+        {!concoursId && (
+          <TouchableOpacity
+            style={[s.button, s.buttonSecondary]}
+            onPress={() => router.replace('/(tabs)/cavalier-agenda')}
+            activeOpacity={0.8}
+          >
+            <Text style={s.buttonTextSecondary}>Retour à l'agenda</Text>
+          </TouchableOpacity>
+        )}
       </View>
     </View>
   );

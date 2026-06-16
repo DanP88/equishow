@@ -6,7 +6,42 @@ import {
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { concoursCsvStore } from '../../data/store';
+import { supabase } from '../../lib/supabase';
 import { ConcoursCSV, ImportBatch, ImportError } from '../../types/concours';
+
+// LOT 1 — Persistance des concours importés vers la table public.concours
+// (upsert sur numero_ffe = idempotent au ré-import). Tolère l'absence de table
+// (migration 074 non encore appliquée) : log only, le store mock reste la source
+// de visualisation tant que 074 n'est pas en place.
+async function persistConcoursToDb(rows: ConcoursCSV[]) {
+  const payload = rows
+    .filter((r) => r.numero_concours) // skip lignes sans numéro (clé d'upsert)
+    .map((r) => ({
+      numero_ffe: r.numero_concours,
+      nom: r.nom_concours,
+      date_debut: r.date_debut,
+      date_fin: r.date_fin,
+      date_cloture: r.date_cloture,
+      lieu: r.lieu,
+      adresse: r.adresse,
+      departement: r.departement,
+      type_concours: r.type_concours,
+      cre: r.cre,
+      organisateur_terrain: r.organisateur_terrain,
+      organisateur_financier: r.organisateur_financier,
+      liste_epreuves: r.liste_epreuves,
+      etat: r.etat,
+      source_import: 'csv',
+      import_batch_id: r.import_batch_id,
+    }));
+  if (payload.length === 0) return;
+  try {
+    const { error } = await supabase.from('concours').upsert(payload, { onConflict: 'numero_ffe' });
+    if (error) console.warn('[import-concours] upsert concours échoué (074 appliquée ?):', error.message);
+  } catch (e: any) {
+    console.warn('[import-concours] persistance concours indisponible:', e?.message ?? e);
+  }
+}
 
 // ── CSV Parser ──────────────────────────────────────────────────────────────
 
@@ -312,6 +347,9 @@ export default function ImportConcoursScreen() {
 
     concoursCsvStore.list.push(...parseResult.valid);
     concoursCsvStore.batches.unshift(batch);
+
+    // LOT 1 — persistance DB (idempotent, non bloquant pour le flux mock existant).
+    void persistConcoursToDb(parseResult.valid);
 
     parseResult.errors.forEach((e, idx) => {
       concoursCsvStore.errors.push({

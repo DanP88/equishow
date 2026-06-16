@@ -14,9 +14,10 @@ import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
 import { useCoursePayment } from '../../hooks/useCoursePayment';
 import { Notification } from '../../types/notification';
+import { userStore, supabase } from '../../data/store';
 
 export default function NotificationsScreen() {
-  const { profile } = useAuth();
+  const { profile, refetchProfile } = useAuth();
   const { notifications, unreadCount: totalUnread, markAsRead, markAllAsRead, removeNotification } = useNotifications();
   const { reservations: transportReservations } = useMyTransportReservations();
   const { reservations: boxReservations } = useMyBoxReservations();
@@ -25,6 +26,7 @@ export default function NotificationsScreen() {
   const { payCourse, loading: payLoading } = useCoursePayment();
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
+  const [switchingRole, setSwitchingRole] = useState(false);
 
   // Filtrer pour ne montrer que les notifications du cavalier actuel (hors messages).
   const myNotifications = notifications.filter((n) => n.type !== 'message');
@@ -89,6 +91,47 @@ export default function NotificationsScreen() {
     setDeleteNotifId(null);
   }
 
+  // Bascule cavalier → coach pour valider une demande coach/stage entrante.
+  // Réutilise le même chemin que compte-type.tsx (RPC change_user_role +
+  // applyRemoteProfile). Le rôle EST changé en DB ; l'écran d'acceptation
+  // (coach-demandes) n'existe que sur la barre coach.
+  async function switchToCoachToValidate() {
+    if (switchingRole) return;
+    if (userStore.role === 'coach') {
+      router.replace('/(tabs)/coach-demandes' as any);
+      return;
+    }
+    setSwitchingRole(true);
+    const { error: rpcError } = await supabase.rpc('change_user_role', { p_new_role: 'coach' });
+    if (rpcError) {
+      setSwitchingRole(false);
+      Alert.alert('Changement de rôle refusé', rpcError.message ?? 'Réessayez plus tard.');
+      return;
+    }
+    try {
+      const remoteProfile = await refetchProfile();
+      if (remoteProfile) {
+        userStore.applyRemoteProfile({
+          id: remoteProfile.id,
+          prenom: remoteProfile.prenom,
+          nom: remoteProfile.nom,
+          email: remoteProfile.email,
+          role: remoteProfile.role,
+          region: (remoteProfile as any).region ?? null,
+          disciplines: (remoteProfile as any).disciplines ?? [],
+          plan: (remoteProfile as any).plan ?? null,
+        });
+      } else {
+        userStore.role = 'coach';
+      }
+    } catch (e) {
+      console.error('[notifications] sync profil après switch coach échoué (rôle déjà changé):', e);
+      userStore.role = 'coach';
+    }
+    setSwitchingRole(false);
+    router.replace('/(tabs)/coach-demandes' as any);
+  }
+
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
@@ -134,6 +177,8 @@ export default function NotificationsScreen() {
                 onDelete={() => handleDelete(notif.id)}
                 onPay={payableDemand ? () => payCourse(payableDemand) : undefined}
                 payLoading={payLoading}
+                onSwitchToCoach={switchToCoachToValidate}
+                switchingRole={switchingRole}
               />
             );
           })
@@ -174,9 +219,12 @@ interface NotificationCardProps {
   /** Paiement direct (Stripe) si la demande est retrouvée ; sinon undefined → navigation. */
   onPay?: () => void;
   payLoading?: boolean;
+  /** Bascule cavalier → coach pour valider une demande coach/stage entrante. */
+  onSwitchToCoach?: () => void;
+  switchingRole?: boolean;
 }
 
-function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoading }: NotificationCardProps) {
+function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoading, onSwitchToCoach, switchingRole }: NotificationCardProps) {
   const handlePaymentNavigation = () => {
     if (notification.actionUrl) {
       router.push(notification.actionUrl);
@@ -203,6 +251,12 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoad
     (notification.type === 'course_request'
       || notification.type === 'reservation_request'
       || notification.type === 'stage_reservation');
+
+  // Demande coach/stage ENTRANTE (statut pending) = la notif arrive au coach
+  // propriétaire de l'annonce. Comme l'écran d'acceptation (coach-demandes)
+  // n'existe que sur la barre coach, on propose un CTA qui bascule le rôle.
+  const isIncomingCoachDemand = notification.status === 'pending' &&
+    (notification.type === 'course_request' || notification.type === 'stage_reservation');
 
   const isCommunity = notification.type === 'like' || notification.type === 'comment';
 
@@ -266,6 +320,19 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoad
             onPress={handleSupportNavigation}
           >
             <Text style={s.payBtnText}>📩 Voir la réclamation</Text>
+          </TouchableOpacity>
+        )}
+        {isIncomingCoachDemand && onSwitchToCoach && (
+          <TouchableOpacity
+            style={[s.actionBtn, s.coachBtn]}
+            onPress={onSwitchToCoach}
+            disabled={!!switchingRole}
+          >
+            {switchingRole ? (
+              <ActivityIndicator color={Colors.textInverse} />
+            ) : (
+              <Text style={s.payBtnText}>🎓 Passer en compte coach pour valider</Text>
+            )}
           </TouchableOpacity>
         )}
         {showPaymentButton && (
@@ -338,6 +405,7 @@ const s = StyleSheet.create({
   actionBtnDeleteText: { fontWeight: FontWeight.semibold, fontSize: FontSize.xs, color: Colors.danger },
   buttonRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   payBtn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  coachBtn: { backgroundColor: '#7C3AED', borderColor: '#7C3AED', flexBasis: '100%' },
   payBtnText: { fontWeight: FontWeight.semibold, fontSize: FontSize.sm, color: Colors.textInverse },
   deleteBtn: { backgroundColor: '#FEE2E2', borderColor: '#FEC2C2' },
   deleteBtnText: { fontWeight: FontWeight.semibold, fontSize: FontSize.sm, color: '#DC2626' },

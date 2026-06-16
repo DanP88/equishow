@@ -52,6 +52,17 @@ export default function CoachConcoursScreen() {
         </View>
       </View>
 
+      {/* Entrée générique : créer une annonce en choisissant le concours dans
+          le menu déroulant (table concours réelle). Sans concoursId → le form
+          affiche le sélecteur de concours au lieu du champ verrouillé. */}
+      <TouchableOpacity
+        style={s.newAnnonceBtn}
+        onPress={() => router.push('/proposer-coach-annonce' as any)}
+        activeOpacity={0.85}
+      >
+        <Text style={s.newAnnonceBtnText}>➕ Nouvelle annonce</Text>
+      </TouchableOpacity>
+
       <ScrollView contentContainerStyle={s.container}>
         {tab === 'disponibles' ? (
           // Onglet Concours disponibles
@@ -189,6 +200,8 @@ const s = StyleSheet.create({
   createBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.primaryLight, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.primaryBorder, gap: Spacing.md, justifyContent: 'space-between' },
   createBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.primary, flex: 1 },
   createArrow: { fontSize: 18, color: Colors.primary, fontWeight: FontWeight.bold },
+  newAnnonceBtn: { marginHorizontal: Spacing.lg, marginTop: Spacing.md, backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center' },
+  newAnnonceBtnText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textInverse },
   actionButtons: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   actionBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, alignItems: 'center' },
   actionBtnEdit: { backgroundColor: Colors.primaryLight, borderWidth: 1, borderColor: Colors.primary },

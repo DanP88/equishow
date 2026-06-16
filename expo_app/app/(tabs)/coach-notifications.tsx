@@ -7,14 +7,40 @@ import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { useNotifications } from '../../hooks/useNotifications';
+import { useMyCourseDemands } from '../../hooks/useCourseDemands';
+import { useMyStageReservations } from '../../hooks/useStages';
+import { userStore } from '../../data/store';
 import { Notification } from '../../types/notification';
 
 export default function CoachNotificationsScreen() {
   const { notifications, unreadCount: totalUnread, markAsRead, markAllAsRead, removeNotification } = useNotifications();
+  const { demands: courseDemands } = useMyCourseDemands();
+  const { reservations: stageReservations } = useMyStageReservations();
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
-  const myNotifications = notifications.filter((n) => n.type !== 'message');
+  // Filtre auto-cicatrisant : une notif « 🎓 Nouvelle demande … » (pending)
+  // est masquée dès que la demande sous-jacente n'est PLUS en attente
+  // (acceptée / payée / refusée). Évite la notif fantôme même pour les notifs
+  // créées avant ce correctif, ou si l'accept s'est fait ailleurs.
+  // NB : les notifs « 💳 Paiement en cours » portent courseDemandId /
+  // stageReservationId (pas annonceId / stageId) → non concernées par ce filtre.
+  const myNotifications = notifications.filter((n) => {
+    if (n.type === 'message') return false;
+    if (n.status === 'pending' && n.type === 'course_request' && n.donnees?.annonceId) {
+      const stillPending = courseDemands.some(
+        (d) => d.coachId === userStore.id && d.annonceId === n.donnees?.annonceId && d.statut === 'pending',
+      );
+      if (!stillPending) return false;
+    }
+    if (n.status === 'pending' && n.type === 'stage_reservation' && n.donnees?.stageId) {
+      const stillPending = stageReservations.some(
+        (r) => r.coachId === userStore.id && r.stageId === n.donnees?.stageId && r.statut === 'pending',
+      );
+      if (!stillPending) return false;
+    }
+    return true;
+  });
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
 
   useEffect(() => {
@@ -127,8 +153,13 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
     router.push((sid ? `${base}${sep}ticket=${sid}` : base) as any);
   };
 
-  const showPaymentButton = notification.status === 'accepted' &&
-    (notification.type === 'course_request' || notification.type === 'reservation_request');
+  // Le coach n'est JAMAIS le payeur. Pour une demande acceptée/payée, on propose
+  // de CONSULTER la réservation (agenda coach), pas de « Payer maintenant »
+  // (qui est l'action côté cavalier/acheteur).
+  const showViewReservationButton = (notification.status === 'accepted' || notification.status === 'paid') &&
+    (notification.type === 'course_request'
+      || notification.type === 'reservation_request'
+      || notification.type === 'stage_reservation');
 
   // CTA "Voir la demande" pour le coach quand une nouvelle demande pending
   // arrive : sinon la notif est dead-end (aucun moyen de naviguer vers
@@ -202,9 +233,9 @@ function NotificationCard({ notification, onMarkAsRead, onDelete }: Notification
             <Text style={s.payBtnText}>📩 Voir la réclamation</Text>
           </TouchableOpacity>
         )}
-        {showPaymentButton && (
-          <TouchableOpacity style={[s.actionBtn, s.payBtn]} onPress={handlePaymentNavigation}>
-            <Text style={s.payBtnText}>💳 Payer maintenant</Text>
+        {showViewReservationButton && (
+          <TouchableOpacity style={[s.actionBtn, s.payBtn]} onPress={() => router.push('/(tabs)/coach-agenda' as any)}>
+            <Text style={s.payBtnText}>📅 Voir la réservation</Text>
           </TouchableOpacity>
         )}
         {showViewDemandButton && (

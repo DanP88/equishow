@@ -111,9 +111,9 @@ function applyCoachFilters(list: CoachProfil[], f: FiltersCoach) {
 
 export default function ServicesScreen() {
   useScreenTracking('services');
-  const params = useLocalSearchParams<{ tab?: string; subTab?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; subTab?: string; concours?: string }>();
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur';
-  const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'transport');
+  const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'box');
   const [transportSubTab, setTransportSubTab] = useState<TransportSubTab>((params.subTab as TransportSubTab) ?? 'trajets');
   const [coachTab, setCoachTab] = useState<CoachTab>('concours');
   const { transports, isLoading: transportsLoading } = useTransportAnnonces();
@@ -176,7 +176,15 @@ export default function ServicesScreen() {
   useFocusEffect(useCallback(() => {
     if (params.tab) setTab(params.tab as Tab);
     if (params.subTab) setTransportSubTab(params.subTab as TransportSubTab);
-  }, [params.tab, params.subTab]));
+    // LOT 1 — pré-filtrage par concours (nom) depuis la fiche concours.
+    // Le filtre Services matche le champ texte `concours` existant → non régressif.
+    if (params.concours) {
+      const c = params.concours as string;
+      setFiltersT((f) => ({ ...f, concours: c }));
+      setFiltersB((f) => ({ ...f, concours: c }));
+      setFiltersC((f) => ({ ...f, concours: c }));
+    }
+  }, [params.tab, params.subTab, params.concours]));
 
   function handleCancelTransport(id: string) { setPendingCancel({ kind: 'transport', id }); }
   function handleCancelBox(id: string)       { setPendingCancel({ kind: 'box', id }); }
@@ -250,7 +258,7 @@ export default function ServicesScreen() {
       <View style={s.header}>
         <View>
           <Text style={s.headerTitle}>Services</Text>
-          <Text style={s.headerSub}>Transport · Box · Coaching</Text>
+          <Text style={s.headerSub}>Box · Transport · Coaching</Text>
         </View>
         <View style={s.headerRight}>
           <TouchableOpacity
@@ -279,10 +287,20 @@ export default function ServicesScreen() {
         <Text style={s.stripeText}>Paiements sécurisés via Stripe — commission 5%</Text>
       </View>
 
+      {/* LOT 1 — Concours = contexte (jamais obligatoire). Bannière additive → hub prod. */}
+      <TouchableOpacity style={s.protoConcoursBanner} activeOpacity={0.85} onPress={() => router.push('/(tabs)/concours-hub' as any)}>
+        <Text style={s.protoConcoursIcon}>🏆</Text>
+        <View style={{ flex: 1 }}>
+          <Text style={s.protoConcoursTitle}>Je prépare un concours</Text>
+          <Text style={s.protoConcoursSub}>Box, transport & coach pour ton déplacement</Text>
+        </View>
+        <View style={s.protoConcoursCta}><Text style={s.protoConcoursCtaTxt}>Voir →</Text></View>
+      </TouchableOpacity>
+
       {/* Tabs */}
       <View style={s.tabBar}>
-        <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
         <TabBtn label="Box" count={filteredB.length} loading={boxesLoading} active={tab === 'box'} locked={boxLocked} onPress={() => handleTabPress('box')} />
+        <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
         <TabBtn label="Coachs" count={filteredCoachAnnonces.length + filteredCoaches.length} loading={coachAnnoncesLoading || coachesLoading} active={tab === 'coach'} onPress={() => handleTabPress('coach')} />
       </View>
 
@@ -1358,6 +1376,14 @@ const s = StyleSheet.create({
   stripeBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.xs, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs, backgroundColor: Colors.surfaceVariant, borderTopWidth: 1, borderBottomWidth: 1, borderColor: Colors.border },
   stripeIcon: { fontSize: 11 },
   stripeText: { fontSize: 10, color: Colors.textTertiary },
+
+  // PROTOTYPE — bannière concours (additive)
+  protoConcoursBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
+  protoConcoursIcon: { fontSize: 24 },
+  protoConcoursTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.primaryDark },
+  protoConcoursSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
+  protoConcoursCta: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 6 },
+  protoConcoursCtaTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   tabBar: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.lg, paddingBottom: Spacing.sm },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: Spacing.sm, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
