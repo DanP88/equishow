@@ -15,6 +15,7 @@ import { useScreenTracking } from '../hooks/useScreenTracking';
 import { trackFunnel } from '../lib/analytics';
 import { ConfirmModal } from '../components/ConfirmModal';
 import { AlertModal } from '../components/AlertModal';
+import { ChevalPicker } from '../components/ChevalPicker';
 
 export default function ReserverBoxScreen() {
   useScreenTracking('reserver-box');
@@ -30,6 +31,7 @@ export default function ReserverBoxScreen() {
   const [dateReservationDebut, setDateReservationDebut] = useState<Date | undefined>(undefined);
   const [dateReservationFin, setDateReservationFin] = useState<Date | undefined>(undefined);
   const [message, setMessage] = useState('');
+  const [chevalId, setChevalId] = useState<string | null>(null);
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -110,6 +112,7 @@ export default function ReserverBoxScreen() {
         prixTotalHT: sousTotal,
         commissionPlateform: commissionMontant,
         prixTotalTTC: totalAPayer,
+        chevalId,
       });
 
       if (createErr || !created) {
@@ -199,6 +202,11 @@ export default function ReserverBoxScreen() {
               <DateButton label="Date de fin" value={dateReservationFin} onPress={() => setShowDateFin(true)} />
             </View>
           </View>
+        </View>
+
+        {/* Cheval concerné (optionnel) */}
+        <View style={s.field}>
+          <ChevalPicker value={chevalId} onChange={(id) => setChevalId(id)} />
         </View>
 
         {/* Message */}

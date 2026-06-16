@@ -434,6 +434,7 @@ export interface CreateTransportReservationInput {
   routeProvider?: string;
   routeSnapshotJson?: unknown;
   routePricingStatus?: 'pending' | 'calculated' | 'skipped';
+  chevalId?: string | null;
 }
 
 // ── Hook : réservations transport pour le user courant (buyer + seller) ────
@@ -516,6 +517,7 @@ export function useMyTransportReservations() {
           route_provider: input.routeProvider ?? null,
           route_snapshot_json: input.routeSnapshotJson ?? null,
           route_pricing_status: input.routePricingStatus ?? null,
+          cheval_id: input.chevalId ?? null,
         })
         .select('*')
         .single();

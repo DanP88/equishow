@@ -14,6 +14,7 @@ import { useCommission } from '../hooks/useCommissions';
 import { getAuthToken } from '../utils/supabaseAuth';
 import { supabase } from '../lib/supabase';
 import { AlertModal } from '../components/AlertModal';
+import { ChevalPicker } from '../components/ChevalPicker';
 import { toLocalDateString } from '../utils/dateFormat';
 import { trackFunnel } from '../lib/analytics';
 
@@ -39,6 +40,7 @@ export default function ReserverCoachScreen() {
   const [discipline, setDiscipline] = useState('');
   const [niveau, setNiveau] = useState('');
   const [cheval, setCheval] = useState('');
+  const [chevalId, setChevalId] = useState<string | null>(null);
   const [message, setMessage] = useState('');
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [reservationRef, setReservationRef] = useState<string>('');
@@ -140,6 +142,7 @@ export default function ReserverCoachScreen() {
           discipline,
           level: niveau,
           horse_name: cheval.trim(),
+          cheval_id: chevalId,
           message: message.trim(),
           date_debut: toLocalDateString(dateDebut),
           date_fin: toLocalDateString(dateFin),
@@ -276,7 +279,13 @@ export default function ReserverCoachScreen() {
           )}
         </View>
 
-        {/* Cheval */}
+        {/* Cheval : sélection parmi mes chevaux (préremplit le nom) + champ libre */}
+        <View style={s.field}>
+          <ChevalPicker
+            value={chevalId}
+            onChange={(id, nom) => { setChevalId(id); if (nom) setCheval(nom); }}
+          />
+        </View>
         <View style={s.field}>
           <Text style={s.fieldLabel}>Cheval / Poney *</Text>
           <TextInput
