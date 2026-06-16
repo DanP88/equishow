@@ -5,6 +5,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 import { useConcours, useConcoursCounts, useConcoursFollow, useConcoursMyReservations } from '../../hooks/useConcours';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { trackCta } from '../../lib/analytics';
+import { ConcoursWeatherCard } from '../../components/ConcoursWeatherCard';
 
 /**
  * LOT 1 — Fiche concours (hub). Compteurs RÉELS masqués si 0 (anti cold-start).
@@ -79,6 +80,9 @@ export default function ConcoursFicheScreen() {
             <Text style={s.ffeNote}>Les inscriptions restent sur la FFE. Equishow t'aide à organiser le déplacement.</Text>
           </>
         )}
+
+        {/* Météo V1 (Open-Meteo) — isolée, ne casse pas la fiche en cas d'échec. */}
+        <ConcoursWeatherCard concours={concours} />
 
         <Text style={s.sectionTitle}>{anyReserved ? 'Mon déplacement' : 'Organise ton déplacement'}</Text>
         {anyReserved && (
