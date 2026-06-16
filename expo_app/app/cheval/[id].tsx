@@ -7,6 +7,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../../constants/theme';
 import { useCheval } from '../../hooks/useChevaux';
+import { useChevalReservations } from '../../hooks/useChevalReservations';
 import { createNotification } from '../../hooks/useNotifications';
 import { useAuth } from '../../hooks/useAuth';
 import { pickImageFromLibrary, uploadChevalPhoto, deleteChevalPhoto } from '../../lib/photoUpload';
@@ -544,6 +545,7 @@ export default function ChevalDetailScreen() {
   const { id, new: isNew } = useLocalSearchParams<{ id: string; new?: string }>();
   const { profile } = useAuth();
   const { cheval, isLoading, update, remove } = useCheval(id);
+  const { items: chevalReservations } = useChevalReservations(id);
   const [showEdit, setShowEdit] = useState(isNew === 'true');
   const [editSection, setEditSection] = useState<EditSection>('identite');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -756,6 +758,24 @@ export default function ChevalDetailScreen() {
           )}
         </Section>
 
+        {/* Réservations Equishow liées à ce cheval (078) — sous Sport & Travail */}
+        {chevalReservations.length > 0 && (
+          <Section title="Réservations & concours" icon="🎫">
+            {chevalReservations.map((r) => (
+              <View key={`${r.module}-${r.id}`} style={styles.resaItem}>
+                <Text style={styles.resaIcon}>{r.icon}</Text>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.resaTitle} numberOfLines={1}>{r.concoursNom ?? r.title}</Text>
+                  <Text style={styles.resaSub} numberOfLines={1}>
+                    {r.concoursNom ? `${r.title} · ` : ''}{r.date ? new Date(`${r.date}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}
+                  </Text>
+                </View>
+                {!!r.status && <Text style={styles.resaStatus}>{r.status}</Text>}
+              </View>
+            ))}
+          </Section>
+        )}
+
         {/* Concours à venir */}
         {cheval.concours.length > 0 && (
           <Section title="Concours à venir" icon="📅">
@@ -963,6 +983,11 @@ const styles = StyleSheet.create({
   santeRowDate: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.primary },
   disciplineChip: { paddingHorizontal: Spacing.sm, paddingVertical: Spacing.xs + 1, borderRadius: Radius.sm, borderWidth: 1 },
   disciplineText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  resaItem: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  resaIcon: { fontSize: 20, width: 26, textAlign: 'center' },
+  resaTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  resaSub: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
+  resaStatus: { fontSize: FontSize.xs, color: Colors.textSecondary, textTransform: 'capitalize' },
   concoursItem: { paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   concoursNom: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   concoursInfo: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },

@@ -15,6 +15,7 @@ import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { AlertModal } from '../components/AlertModal';
 import { useScreenTracking } from '../hooks/useScreenTracking';
 import { trackFunnel } from '../lib/analytics';
+import { ChevalPicker } from '../components/ChevalPicker';
 
 const ROUTE_PRICING_ENABLED = process.env.EXPO_PUBLIC_ENABLE_ROUTE_PRICING === 'true';
 
@@ -40,6 +41,7 @@ export default function ReserverTransportScreen() {
 
   const [nbPlaces, setNbPlaces] = useState(1);
   const [message, setMessage] = useState('');
+  const [chevalId, setChevalId] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
@@ -280,6 +282,7 @@ export default function ReserverTransportScreen() {
       // Aligné box : ce qui part en DB = total réellement facturé (sous-total + commission).
       // L'Edge function le lit pour facturer Stripe → même montant que l'app.
       prixTotalTTC: totalAPayer,
+      chevalId,
       ...routeSnapshot,
     });
 
@@ -587,6 +590,11 @@ export default function ReserverTransportScreen() {
             )}
           </View>
         )}
+
+        {/* Cheval concerné (optionnel) */}
+        <View style={s.field}>
+          <ChevalPicker value={chevalId} onChange={(id) => setChevalId(id)} />
+        </View>
 
         {/* Message */}
         <View style={s.field}>

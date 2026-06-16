@@ -11,6 +11,7 @@ import { useStage } from '../hooks/useStages';
 import { useAuth } from '../hooks/useAuth';
 import { createNotification } from '../hooks/useNotifications';
 import { AlertModal } from '../components/AlertModal';
+import { ChevalPicker } from '../components/ChevalPicker';
 import { trackFunnel } from '../lib/analytics';
 
 export default function ReserverStageScreen() {
@@ -21,6 +22,7 @@ export default function ReserverStageScreen() {
   const [showDetailsModal, setShowDetailsModal] = useState(true);
   const [nombreParticipants, setNombreParticipants] = useState('1');
   const [message, setMessage] = useState('');
+  const [chevalId, setChevalId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [reservationRef, setReservationRef] = useState<string | null>(null);
   const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
@@ -122,6 +124,7 @@ export default function ReserverStageScreen() {
           platform_commission: 0,
           price_total_ttc: placeholderTtc,
           message: message.trim() || null,
+          cheval_id: chevalId,
           status: 'pending',
         })
         .select('id')
@@ -300,6 +303,11 @@ export default function ReserverStageScreen() {
                     <Text style={s.plusBtnText}>+</Text>
                   </TouchableOpacity>
                 </View>
+              </View>
+
+              {/* Cheval concerné (optionnel) */}
+              <View style={s.messageSection}>
+                <ChevalPicker value={chevalId} onChange={(id) => setChevalId(id)} />
               </View>
 
               {/* Message optionnel */}

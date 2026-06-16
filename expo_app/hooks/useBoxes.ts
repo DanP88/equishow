@@ -331,6 +331,7 @@ export interface CreateBoxReservationInput {
   prixTotalHT: number;
   commissionPlateform: number;
   prixTotalTTC: number;
+  chevalId?: string | null;
 }
 
 // ── Hook : réservations box pour le user courant (buyer + seller) ──────────
@@ -389,6 +390,7 @@ export function useMyBoxReservations() {
           price_total_ht: input.prixTotalHT,
           platform_commission: input.commissionPlateform,
           price_total_ttc: input.prixTotalTTC,
+          cheval_id: input.chevalId ?? null,
           status: 'pending',
         })
         .select('*')
