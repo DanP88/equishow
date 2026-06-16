@@ -62,6 +62,23 @@ export function useMyConcoursClaims() {
   return { claims, isLoading, reload: load };
 }
 
+// Compteur des revendications en attente (badge admin). concours_claims n'est
+// pas en realtime → le recompte se fait au focus (cf. admin-settings).
+export function useOpenConcoursClaimsCount() {
+  const [count, setCount] = useState(0);
+
+  const reload = useCallback(async () => {
+    const { count: c, error } = await supabase
+      .from('concours_claims')
+      .select('id', { count: 'exact', head: true })
+      .eq('status', 'pending');
+    if (!error) setCount(c ?? 0);
+  }, []);
+
+  useEffect(() => { reload(); }, [reload]);
+  return { count, reload };
+}
+
 // Soumission d'une revendication (snapshots nom org + nom concours pour l'admin).
 export async function submitConcoursClaim(input: {
   concoursId: string;

@@ -93,14 +93,20 @@ function ClaimCard({ claim, busy, onApprove, onReject }: {
         <View style={[s.badge, { backgroundColor: badge.bg }]}><Text style={[s.badgeTxt, { color: badge.fg }]}>{badge.txt}</Text></View>
       </View>
       <Text style={s.cardOrg}>👤 {claim.organisateurNom ?? claim.organisateurId}</Text>
-      <Text style={s.cardJustifLabel}>Justification :</Text>
-      <Text style={s.cardJustif}>{claim.justification ? `« ${claim.justification} »` : '— Aucune justification fournie —'}</Text>
+
+      <Text style={s.verifLabel}>Éléments de vérification</Text>
+      <View style={s.verifBox}>
+        <Text style={s.verifTxt}>{claim.justification?.trim() ? claim.justification.trim() : '— Aucun élément fourni —'}</Text>
+      </View>
+
       <Text style={s.cardDate}>Demandé le {new Date(claim.createdAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</Text>
       {!!claim.reviewedAt && (
         <Text style={s.cardDate}>Revue le {new Date(claim.reviewedAt).toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' })}</Text>
       )}
 
       {claim.status === 'pending' && onApprove && onReject && (
+        <View>
+          <Text style={s.verifWarn}>⚠️ Vérifiez que le demandeur représente bien l'organisation officielle du concours avant d'approuver.</Text>
         <View style={s.actions}>
           <TouchableOpacity style={[s.btn, s.reject]} disabled={busy} onPress={onReject}>
             <Text style={s.rejectTxt}>Refuser</Text>
@@ -108,6 +114,7 @@ function ClaimCard({ claim, busy, onApprove, onReject }: {
           <TouchableOpacity style={[s.btn, s.approve]} disabled={busy} onPress={onApprove}>
             {busy ? <ActivityIndicator color={Colors.textInverse} /> : <Text style={s.approveTxt}>Approuver</Text>}
           </TouchableOpacity>
+        </View>
         </View>
       )}
     </View>
@@ -130,8 +137,10 @@ const s = StyleSheet.create({
   badge: { borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
   badgeTxt: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
   cardOrg: { fontSize: FontSize.sm, color: Colors.textSecondary, marginBottom: 2 },
-  cardJustifLabel: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.sm },
-  cardJustif: { fontSize: FontSize.sm, color: Colors.textPrimary, fontStyle: 'italic', marginTop: 2, marginBottom: Spacing.xs },
+  verifLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', marginTop: Spacing.sm },
+  verifBox: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, padding: Spacing.md, marginTop: 4, marginBottom: Spacing.xs },
+  verifTxt: { fontSize: FontSize.sm, color: Colors.textPrimary, lineHeight: 19 },
+  verifWarn: { fontSize: FontSize.xs, color: '#B45309', lineHeight: 16, marginTop: Spacing.sm, marginBottom: Spacing.xs },
   cardDate: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
   actions: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.md },
   btn: { flex: 1, borderRadius: Radius.md, paddingVertical: Spacing.sm + 2, alignItems: 'center' },

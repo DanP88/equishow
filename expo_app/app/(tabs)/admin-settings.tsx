@@ -9,7 +9,9 @@ import { AuthGuard } from '../../components/AuthGuard';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
-import { router } from 'expo-router';
+import { router, useFocusEffect } from 'expo-router';
+import { useCallback } from 'react';
+import { useOpenConcoursClaimsCount } from '../../hooks/useConcoursClaims';
 
 export default function AdminSettingsScreen() {
   return (
@@ -23,6 +25,9 @@ function AdminSettingsContent() {
   useScreenTracking('admin-settings');
   const { profile, isLoading, logout } = useAuth();
   const [loggingOut, setLoggingOut] = useState(false);
+  // Badge « Revendications de concours · N » (pending). Recompte au focus.
+  const { count: pendingClaims, reload: reloadClaims } = useOpenConcoursClaimsCount();
+  useFocusEffect(useCallback(() => { reloadClaims(); }, [reloadClaims]));
 
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [logoutError, setLogoutError] = useState<string | null>(null);
@@ -102,7 +107,12 @@ function AdminSettingsContent() {
       >
         <Text style={styles.analyticsBtnIcon}>🏆</Text>
         <View style={{ flex: 1 }}>
-          <Text style={styles.analyticsBtnTitle}>Revendications de concours</Text>
+          <View style={styles.titleRow}>
+            <Text style={styles.analyticsBtnTitle}>Revendications de concours</Text>
+            {pendingClaims > 0 && (
+              <View style={styles.countBadge}><Text style={styles.countBadgeText}>{pendingClaims}</Text></View>
+            )}
+          </View>
           <Text style={styles.analyticsBtnSub}>Valider / refuser les demandes des organisateurs</Text>
         </View>
         <Text style={styles.analyticsBtnArrow}>→</Text>
@@ -173,6 +183,7 @@ const styles = StyleSheet.create({
     borderColor: Colors.primaryBorder,
   },
   analyticsBtnIcon: { fontSize: 28 },
+  titleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   analyticsBtnTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.primary },
   analyticsBtnSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
   analyticsBtnArrow: { fontSize: 24, color: Colors.primary, fontWeight: FontWeight.bold },
