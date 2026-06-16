@@ -71,6 +71,15 @@ function fmtDateLabel(debut: string | null, fin: string | null): string {
   }
 }
 
+// Lien FFE officiel. La colonne `lien_ffe` n'existe pas en base (seul `numero_ffe`
+// est importé) → on dérive l'URL canonique FFE depuis le numéro. Sans ce calcul,
+// le bouton FFE de la fiche ne s'affichait jamais → l'analytics `click_ffe`
+// (déjà câblée) n'émettait jamais → KPI « Clics FFE » figé à 0.
+function ffeUrl(numeroFfe: string | null | undefined): string | null {
+  const n = numeroFfe?.trim();
+  return n ? `https://ffecompet.ffe.com/concours/${n}` : null;
+}
+
 function rowToHub(r: ConcoursRow): ConcoursHub {
   return {
     id: r.id,
@@ -82,7 +91,7 @@ function rowToHub(r: ConcoursRow): ConcoursHub {
     lieu: r.lieu,
     departement: r.departement,
     type_concours: r.type_concours,
-    lien_ffe: r.lien_ffe,
+    lien_ffe: r.lien_ffe ?? ffeUrl(r.numero_ffe),
     etat: r.etat,
     followers_count: r.followers_count ?? 0, // absent (075 non appliquée) → 0
   };
@@ -100,7 +109,7 @@ function protoToHub(p: ProtoConcours): ConcoursHub {
     lieu: p.lieu,
     departement: p.departement,
     type_concours: p.discipline,
-    lien_ffe: p.lienFFE,
+    lien_ffe: p.lienFFE ?? ffeUrl(p.numeroFFE),
     etat: 'ouvert',
     followers_count: p.followers,
   };
