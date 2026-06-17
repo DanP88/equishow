@@ -42,7 +42,7 @@ export default function ConcoursHubScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.back}><Text style={s.backTxt}>←</Text></TouchableOpacity>
+        <TouchableOpacity onPress={() => { if (router.canGoBack()) router.back(); else router.replace('/(tabs)/services' as any); }} style={s.back}><Text style={s.backTxt}>←</Text></TouchableOpacity>
         <View style={{ flex: 1 }}>
           <Text style={s.title}>🏆 Concours</Text>
           <Text style={s.sub}>Prépare ton déplacement</Text>
