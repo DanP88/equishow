@@ -24,6 +24,13 @@ export default function ConcoursFicheScreen() {
   const { mine } = useConcoursMyReservations(id);
   const { isFollowing, toggle, canFollow } = useConcoursFollow(id);
 
+  // Retour fiable : en deep-link direct (URL /concours/[id]) il n'y a aucun
+  // historique → router.back() est un no-op. Fallback vers le hub concours.
+  const goBack = () => {
+    if (router.canGoBack()) router.back();
+    else router.replace('/(tabs)/concours-hub' as any);
+  };
+
   if (isLoading) {
     return <SafeAreaView style={s.root}><View style={s.loader}><ActivityIndicator size="large" color={Colors.primary} /></View></SafeAreaView>;
   }
@@ -31,7 +38,7 @@ export default function ConcoursFicheScreen() {
     return (
       <SafeAreaView style={s.root}>
         <View style={s.header}>
-          <TouchableOpacity onPress={() => router.back()} style={s.back}><Text style={s.backTxt}>←</Text></TouchableOpacity>
+          <TouchableOpacity onPress={goBack} style={s.back}><Text style={s.backTxt}>←</Text></TouchableOpacity>
           <Text style={s.title}>Concours introuvable</Text>
         </View>
       </SafeAreaView>
@@ -57,7 +64,7 @@ export default function ConcoursFicheScreen() {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <TouchableOpacity onPress={() => router.back()} style={s.back}><Text style={s.backTxt}>←</Text></TouchableOpacity>
+        <TouchableOpacity onPress={goBack} style={s.back}><Text style={s.backTxt}>←</Text></TouchableOpacity>
         <Text style={s.title} numberOfLines={1}>{concours.nom}</Text>
       </View>
 
