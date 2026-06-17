@@ -93,8 +93,17 @@ export function useChevalReservations(chevalId?: string) {
       }),
     ]);
 
-    // Tri : par date desc si dispo, sinon stable.
-    out.sort((a, b) => (b.date ?? '').localeCompare(a.date ?? ''));
+    // Tri : concours À VENIR d'abord (date la plus proche en premier = ASC),
+    // puis concours PASSÉS (le plus récemment passé en premier = DESC).
+    // Les réservations sans concours associé sont reléguées en fin.
+    out.sort((a, b) => {
+      if (!!a.concoursId !== !!b.concoursId) return a.concoursId ? -1 : 1;
+      if (!a.concoursId) return 0;
+      if (a.concoursPast !== b.concoursPast) return a.concoursPast ? 1 : -1;
+      const ka = a.concoursDateFin ?? '';
+      const kb = b.concoursDateFin ?? '';
+      return a.concoursPast ? kb.localeCompare(ka) : ka.localeCompare(kb);
+    });
     setItems(out);
     setIsLoading(false);
   }, [chevalId]);
