@@ -13,7 +13,7 @@ import { ConcoursCSV, ImportBatch, ImportError } from '../../types/concours';
 // (upsert sur numero_ffe = idempotent au ré-import). Tolère l'absence de table
 // (migration 074 non encore appliquée) : log only, le store mock reste la source
 // de visualisation tant que 074 n'est pas en place.
-async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: number; error: string | null }> {
+async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: number; doublonsBase: number; error: string | null }> {
   const payload = rows
     .filter((r) => r.numero_concours) // skip lignes sans numéro (clé d'upsert)
     .map((r) => ({
@@ -34,22 +34,33 @@ async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: numb
       source_import: 'csv',
       import_batch_id: r.import_batch_id,
     }));
-  if (payload.length === 0) return { written: 0, error: null };
+  if (payload.length === 0) return { written: 0, doublonsBase: 0, error: null };
   try {
-    // .select('id') → on récupère les lignes réellement écrites pour compter.
+    // Dédup contre la BASE : quels numero_ffe existent déjà ?
+    const numeros = payload.map((p) => p.numero_ffe).filter(Boolean) as string[];
+    const { data: existing, error: exErr } = await supabase
+      .from('concours').select('numero_ffe').in('numero_ffe', numeros);
+    if (exErr) {
+      console.warn('[import-concours] lecture doublons base échouée:', exErr.message);
+      return { written: 0, doublonsBase: 0, error: exErr.message };
+    }
+    const existingSet = new Set((existing ?? []).map((e: any) => e.numero_ffe));
+    const doublonsBase = payload.filter((p) => existingSet.has(p.numero_ffe)).length;
+
+    // Upsert (insère les nouveaux, met à jour les existants).
     const { data, error } = await supabase
-      .from('concours')
-      .upsert(payload, { onConflict: 'numero_ffe' })
-      .select('id');
+      .from('concours').upsert(payload, { onConflict: 'numero_ffe' }).select('numero_ffe');
     if (error) {
       console.warn('[import-concours] upsert concours échoué:', error.message);
-      return { written: 0, error: error.message };
+      return { written: 0, doublonsBase: 0, error: error.message };
     }
-    return { written: data?.length ?? 0, error: null };
+    const affected = data?.length ?? 0;
+    // écrits en base = nouveaux insérés (affectés − déjà présents).
+    return { written: Math.max(affected - doublonsBase, 0), doublonsBase, error: null };
   } catch (e: any) {
     const msg = e?.message ?? String(e);
     console.warn('[import-concours] persistance concours indisponible:', msg);
-    return { written: 0, error: msg };
+    return { written: 0, doublonsBase: 0, error: msg };
   }
 }
 
@@ -211,8 +222,10 @@ interface ParseResult {
 function processCSVRows(
   rows: Record<string, string>[],
   batchId: string,
-  existingNumeros: Set<string>
 ): ParseResult {
+  // Dédoublonnage UNIQUEMENT intra-fichier ici. La déduplication contre la BASE
+  // (numero_ffe déjà présents) est faite au moment de l'écriture (persistConcoursToDb),
+  // pour ne pas dépendre du store mémoire (qui pouvait être pollué par un import raté).
   const result: ParseResult = { valid: [], errors: [], skipped: 0 };
   const seenInBatch = new Set<string>();
 
@@ -248,8 +261,8 @@ function processCSVRows(
 
     const numero = mapped.numero_concours || buildNomConcours(mapped);
 
-    // Duplicate check
-    if (existingNumeros.has(numero) || seenInBatch.has(numero)) {
+    // Doublon intra-fichier (même numéro répété dans le CSV) → skip.
+    if (seenInBatch.has(numero)) {
       result.skipped++;
       return;
     }
@@ -292,7 +305,7 @@ export default function ImportConcoursScreen() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [imported, setImported] = useState(false);
-  const [dbResult, setDbResult] = useState<{ written: number; error: string | null } | null>(null);
+  const [dbResult, setDbResult] = useState<{ written: number; doublonsBase: number; error: string | null } | null>(null);
   const [tick, setTick] = useState(0);
 
   function refresh() { setTick(t => t + 1); }
@@ -320,11 +333,7 @@ export default function ImportConcoursScreen() {
         setHeaders(hdrs);
 
         const batchId = `batch_${Date.now()}`;
-        const existingNumeros = new Set(
-          concoursCsvStore.list.map(c => c.numero_concours || c.nom_concours)
-        );
-
-        const result = processCSVRows(rows, batchId, existingNumeros);
+        const result = processCSVRows(rows, batchId);
         setParseResult(result);
         setLoading(false);
         setViewMode('preview');
@@ -357,23 +366,25 @@ export default function ImportConcoursScreen() {
       skipped_count: parseResult.skipped,
     };
 
-    concoursCsvStore.list.push(...parseResult.valid);
-    concoursCsvStore.batches.unshift(batch);
-
-    parseResult.errors.forEach((e, idx) => {
-      concoursCsvStore.errors.push({
-        id: `err_${batchId}_${idx}`,
-        batch_id: batchId,
-        row_number: e.row,
-        raw_data: e.data,
-        error_message: e.message,
-      });
-    });
-
-    // Persistance DB RÉELLE : on attend le résultat et on remonte le vrai nombre
-    // écrit + l'erreur Supabase éventuelle (plus de faux « terminé »).
+    // Persistance DB RÉELLE d'abord : on ne touche au store mémoire QUE si l'écriture réussit.
     const res = await persistConcoursToDb(parseResult.valid);
     setDbResult(res);
+
+    if (!res.error) {
+      // Succès : on reflète dans le store + l'historique (sinon, on ne pollue rien).
+      concoursCsvStore.list.push(...parseResult.valid);
+      concoursCsvStore.batches.unshift(batch);
+      parseResult.errors.forEach((e, idx) => {
+        concoursCsvStore.errors.push({
+          id: `err_${batchId}_${idx}`,
+          batch_id: batchId,
+          row_number: e.row,
+          raw_data: e.data,
+          error_message: e.message,
+        });
+      });
+    }
+
     setLoading(false);
     setImported(true);
     refresh();
@@ -385,6 +396,21 @@ export default function ImportConcoursScreen() {
     setHeaders([]);
     setParseResult(null);
     setImported(false);
+  }
+
+  // Vide le cache d'import en mémoire (store mock + historique + erreurs). Sert au
+  // diagnostic : le dédoublonnage réel se fait désormais contre la BASE, mais ce
+  // cache alimente l'historique/aperçu local et peut rester pollué par d'anciens essais.
+  function handleClearImportCache() {
+    concoursCsvStore.list.length = 0;
+    concoursCsvStore.batches.length = 0;
+    concoursCsvStore.errors.length = 0;
+    setParseResult(null);
+    setImported(false);
+    setDbResult(null);
+    setFilename('');
+    setHeaders([]);
+    refresh();
   }
 
   const batches = concoursCsvStore.batches;
@@ -505,7 +531,8 @@ export default function ImportConcoursScreen() {
               </View>
             )}
 
-            {/* Import result banner — reflète le RÉEL écrit en base (pas un faux succès) */}
+            {/* Import result banner — reflète le RÉEL écrit en base (pas un faux succès).
+                Compteurs séparés : écrits en base · doublons base · erreurs. */}
             {imported && dbResult && (
               dbResult.error ? (
                 <View style={[s.successBanner, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
@@ -514,16 +541,10 @@ export default function ImportConcoursScreen() {
                   </Text>
                   <Text style={{ color: '#B91C1C', fontSize: 12, marginTop: 4 }}>{dbResult.error}</Text>
                 </View>
-              ) : dbResult.written < parseResult.valid.length ? (
-                <View style={[s.successBanner, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
-                  <Text style={[s.successText, { color: '#92400E' }]}>
-                    ⚠️ {dbResult.written} / {parseResult.valid.length} concours enregistrés en base.
-                  </Text>
-                </View>
               ) : (
-                <View style={s.successBanner}>
-                  <Text style={s.successText}>
-                    ✅ {dbResult.written} concours enregistrés en base avec succès !
+                <View style={[s.successBanner, dbResult.written === 0 && { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
+                  <Text style={[s.successText, dbResult.written === 0 && { color: '#92400E' }]}>
+                    ✅ {dbResult.written} écrits en base · ⏭ {dbResult.doublonsBase} doublons (déjà en base) · ⚠️ {parseResult.errors.length} erreurs
                   </Text>
                 </View>
               )
@@ -631,14 +652,19 @@ export default function ImportConcoursScreen() {
               ))
             )}
 
-            {/* Total imported */}
+            {/* Total imported (cache local mémoire) */}
             {concoursCsvStore.list.length > 0 && (
               <View style={s.totalCard}>
                 <Text style={s.totalText}>
-                  📊 Total : {concoursCsvStore.list.length} concours en base
+                  📊 Cache local : {concoursCsvStore.list.length} concours
                 </Text>
               </View>
             )}
+
+            {/* Diagnostic : vider le cache d'import en mémoire */}
+            <TouchableOpacity style={s.clearCacheBtn} onPress={handleClearImportCache} activeOpacity={0.85}>
+              <Text style={s.clearCacheTxt}>🧹 Vider le cache import concours</Text>
+            </TouchableOpacity>
           </>
         )}
       </ScrollView>
@@ -650,6 +676,8 @@ export default function ImportConcoursScreen() {
 
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
+  clearCacheBtn: { marginTop: 16, alignSelf: 'center', backgroundColor: '#FEE2E2', borderWidth: 1, borderColor: '#FCA5A5', borderRadius: 10, paddingVertical: 10, paddingHorizontal: 16 },
+  clearCacheTxt: { color: '#B91C1C', fontWeight: '700', fontSize: 13 },
 
   header: {
     padding: Spacing.lg,
