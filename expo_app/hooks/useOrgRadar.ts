@@ -27,6 +27,13 @@ export interface OrgRadar {
     cavaliers_engaged: number | null;
     masked: boolean;
   };
+  // LOT 2 (PR2) — clics modules sur la fiche concours (sans historique).
+  module_clicks: {
+    box: number;
+    transport: number;
+    coach: number;
+    total: number;
+  };
   // LOT 2 — réservations par module + total + cavaliers distincts.
   reservations: {
     box: number;
@@ -47,6 +54,7 @@ export interface OrgRadar {
   funnel: {
     views: number;
     followers: number;
+    module_clicks: number;
     reservations: number;
     reservations_total: number;
     paid: number;
@@ -72,6 +80,7 @@ const DEMO_RADAR: OrgRadar = {
     ffe_clicks: 18,
   },
   interest: { followers: 38, followers_new: 12, followers_masked: false },
+  module_clicks: { box: 60, transport: 42, coach: 18, total: 120 },
   engagement: { cavaliers_engaged: 7, masked: false },
   reservations: {
     box: 5, transport: 4, coach: 2, stage: 1, total: 12,
@@ -83,6 +92,7 @@ const DEMO_RADAR: OrgRadar = {
   funnel: {
     views: 247,
     followers: 38,
+    module_clicks: 120,
     reservations: 7,
     reservations_total: 12,
     paid: 9,

@@ -105,6 +105,15 @@ export default function OrgRadarScreen() {
             <Text style={s.note}>Réservation d'un service (box, transport, coach, stage) lié au concours. Démontre une préparation active de la venue — pas une inscription FFE.</Text>
           </Section>
 
+          {/* LOT 2 (PR2) — Clics modules sur la fiche */}
+          <Section title="👆 Clics sur les services" level="Signal moyen">
+            <Row label="Box" value={String(radar.module_clicks.box)} />
+            <Row label="Transport" value={String(radar.module_clicks.transport)} />
+            <Row label="Coach" value={String(radar.module_clicks.coach)} />
+            <Row label="Total clics services" value={String(radar.module_clicks.total)} />
+            <Text style={s.note}>Le cavalier ouvre un module (box, transport, coach) depuis la fiche. Comptabilisé depuis l'activation — pas d'historique antérieur.</Text>
+          </Section>
+
           {/* LOT 2 — Réservations générées par module */}
           <Section title="📦 Réservations générées" level="Signal très fort">
             <Row label="Box" value={String(radar.reservations.box)} />
@@ -128,6 +137,7 @@ export default function OrgRadarScreen() {
           <Section title="🔻 Parcours observé">
             <FunnelRow step="Vues" value={radar.funnel.views} rate={null} />
             <FunnelRow step="Suivis" value={radar.funnel.followers} rate={pct(radar.funnel.views_to_followers)} />
+            <FunnelRow step="Clics services" value={radar.funnel.module_clicks} rate={null} />
             <FunnelRow step="Cavaliers (distincts)" value={radar.funnel.reservations} rate={pct(radar.funnel.followers_to_reservations)} />
             <FunnelRow step="Réservations (total)" value={radar.funnel.reservations_total} rate={null} />
             <FunnelRow step="Paiements" value={radar.funnel.paid} rate={null} />
