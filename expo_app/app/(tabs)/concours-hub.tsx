@@ -1,3 +1,4 @@
+import { useMemo, useState } from 'react';
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -13,9 +14,30 @@ const DISC_COLORS: Record<string, string> = {
  * LOT 1 — Liste concours (hub découverte). Source = table public.concours
  * (hook useConcoursList, fallback mock en __DEV__ tant que 074 non appliquée).
  */
+// Concours passé = date de fin (ou début) antérieure à aujourd'hui.
+function isPastConcours(c: { date_fin: string | null; date_debut: string | null }): boolean {
+  const d = c.date_fin ?? c.date_debut;
+  if (!d) return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return new Date(`${d}T00:00:00`) < today;
+}
+
 export default function ConcoursHubScreen() {
   useScreenTracking('concours-hub');
   const { concours, isLoading, usingMock } = useConcoursList();
+  const [tab, setTab] = useState<'avenir' | 'passes'>('avenir');
+
+  const { avenir, passes } = useMemo(() => {
+    const av: typeof concours = [];
+    const pa: typeof concours = [];
+    for (const c of concours) (isPastConcours(c) ? pa : av).push(c);
+    // À venir : date la plus proche d'abord (liste déjà triée date_debut ASC).
+    // Passés : le plus récent passé d'abord (ordre inverse).
+    pa.reverse();
+    return { avenir: av, passes: pa };
+  }, [concours]);
+
+  const shown = tab === 'passes' ? passes : avenir;
 
   return (
     <SafeAreaView style={s.root}>
@@ -33,6 +55,18 @@ export default function ConcoursHubScreen() {
         </View>
       )}
 
+      {/* Onglets À venir / Concours passés */}
+      {!isLoading && concours.length > 0 && (
+        <View style={s.tabs}>
+          <TouchableOpacity style={[s.tab, tab === 'avenir' && s.tabActive]} onPress={() => setTab('avenir')} activeOpacity={0.8}>
+            <Text style={[s.tabTxt, tab === 'avenir' && s.tabTxtActive]}>À venir ({avenir.length})</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={[s.tab, tab === 'passes' && s.tabActive]} onPress={() => setTab('passes')} activeOpacity={0.8}>
+            <Text style={[s.tabTxt, tab === 'passes' && s.tabTxtActive]}>Concours passés ({passes.length})</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {isLoading ? (
         <View style={s.loader}><ActivityIndicator size="large" color={Colors.primary} /></View>
       ) : concours.length === 0 ? (
@@ -41,9 +75,15 @@ export default function ConcoursHubScreen() {
           <Text style={s.emptyTitle}>Aucun concours pour l'instant</Text>
           <Text style={s.emptyTxt}>Les concours importés depuis la FFE apparaîtront ici.</Text>
         </View>
+      ) : shown.length === 0 ? (
+        <View style={s.empty}>
+          <Text style={s.emptyIcon}>{tab === 'passes' ? '🕓' : '🏆'}</Text>
+          <Text style={s.emptyTitle}>{tab === 'passes' ? 'Aucun concours passé' : 'Aucun concours à venir'}</Text>
+          <Text style={s.emptyTxt}>{tab === 'passes' ? 'Les concours terminés apparaîtront ici.' : 'Les prochains concours apparaîtront ici.'}</Text>
+        </View>
       ) : (
         <ScrollView contentContainerStyle={s.list}>
-          {concours.map((c) => {
+          {shown.map((c) => {
             const color = DISC_COLORS[c.type_concours ?? ''] ?? Colors.primary;
             return (
               <TouchableOpacity
@@ -82,6 +122,11 @@ const s = StyleSheet.create({
   backTxt: { fontSize: 20, color: Colors.textPrimary },
   title: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
+  tabs: { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  tab: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, alignItems: 'center', backgroundColor: Colors.surfaceVariant, borderWidth: 1, borderColor: Colors.border },
+  tabActive: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder },
+  tabTxt: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
+  tabTxtActive: { color: Colors.primary, fontWeight: FontWeight.bold },
   mockBanner: { backgroundColor: Colors.warningBg, borderBottomWidth: 1, borderBottomColor: Colors.warningBorder, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.xs },
   mockTxt: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.semibold },
   loader: { flex: 1, alignItems: 'center', justifyContent: 'center' },
