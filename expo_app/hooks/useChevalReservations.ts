@@ -15,14 +15,15 @@ export interface ChevalReservation {
   title: string;
   status: string | null;
   date: string | null;        // YYYY-MM-DD
+  concoursId: string | null;
   concoursNom: string | null;
 }
 
-const firstConcoursNom = (annonce: any): string | null => {
+const firstConcours = (annonce: any): { id: string | null; nom: string | null } => {
   const a = Array.isArray(annonce) ? annonce[0] : annonce;
   const c = a?.concours;
   const cc = Array.isArray(c) ? c[0] : c;
-  return cc?.nom ?? null;
+  return { id: cc?.id ?? null, nom: cc?.nom ?? null };
 };
 
 export function useChevalReservations(chevalId?: string) {
@@ -40,48 +41,49 @@ export function useChevalReservations(chevalId?: string) {
       safe(async () => {
         const { data } = await supabase
           .from('box_reservations')
-          .select('id, title, status, date_debut, box_annonces(concours(nom))')
+          .select('id, title, status, date_debut, box_annonces(concours(id, nom))')
           .eq('cheval_id', chevalId);
-        (data ?? []).forEach((r: any) => out.push({
+        (data ?? []).forEach((r: any) => { const c = firstConcours(r.box_annonces); out.push({
           id: r.id, module: 'box', icon: '📦', title: r.title ?? 'Box',
-          status: r.status ?? null, date: r.date_debut ?? null, concoursNom: firstConcoursNom(r.box_annonces),
-        }));
+          status: r.status ?? null, date: r.date_debut ?? null, concoursId: c.id, concoursNom: c.nom,
+        }); });
       }),
       safe(async () => {
         const { data } = await supabase
           .from('transport_reservations')
-          .select('id, titre, statut, transport_annonces(type_transport, concours(nom))')
+          .select('id, titre, statut, transport_annonces(type_transport, concours(id, nom))')
           .eq('cheval_id', chevalId);
         (data ?? []).forEach((r: any) => {
           const a = Array.isArray(r.transport_annonces) ? r.transport_annonces[0] : r.transport_annonces;
           const isTrajet = a?.type_transport === 'trajet';
+          const c = firstConcours(r.transport_annonces);
           out.push({
             id: r.id, module: 'transport',
             icon: isTrajet ? '🚐' : '🚚',
             title: isTrajet ? 'Trajet' : 'Van seul',
-            status: r.statut ?? null, date: null, concoursNom: firstConcoursNom(r.transport_annonces),
+            status: r.statut ?? null, date: null, concoursId: c.id, concoursNom: c.nom,
           });
         });
       }),
       safe(async () => {
         const { data } = await supabase
           .from('course_demands')
-          .select('id, title, status, date_debut, coach_annonces(concours(nom))')
+          .select('id, title, status, date_debut, coach_annonces(concours(id, nom))')
           .eq('cheval_id', chevalId);
-        (data ?? []).forEach((r: any) => out.push({
+        (data ?? []).forEach((r: any) => { const c = firstConcours(r.coach_annonces); out.push({
           id: r.id, module: 'coach', icon: '🎓', title: r.title ?? 'Cours',
-          status: r.status ?? null, date: r.date_debut ?? null, concoursNom: firstConcoursNom(r.coach_annonces),
-        }));
+          status: r.status ?? null, date: r.date_debut ?? null, concoursId: c.id, concoursNom: c.nom,
+        }); });
       }),
       safe(async () => {
         const { data } = await supabase
           .from('stage_reservations')
-          .select('id, title, status, stages(concours(nom))')
+          .select('id, title, status, stages(concours(id, nom))')
           .eq('cheval_id', chevalId);
-        (data ?? []).forEach((r: any) => out.push({
+        (data ?? []).forEach((r: any) => { const c = firstConcours(r.stages); out.push({
           id: r.id, module: 'stage', icon: '🏕️', title: r.title ?? 'Stage',
-          status: r.status ?? null, date: null, concoursNom: firstConcoursNom(r.stages),
-        }));
+          status: r.status ?? null, date: null, concoursId: c.id, concoursNom: c.nom,
+        }); });
       }),
     ]);
 
