@@ -6,6 +6,7 @@ import { useConcours, useConcoursCounts, useConcoursFollow, useConcoursMyReserva
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { trackCta } from '../../lib/analytics';
 import { ConcoursWeatherCard } from '../../components/ConcoursWeatherCard';
+import { ConcoursEpreuvesCard } from '../../components/ConcoursEpreuvesCard';
 
 /**
  * LOT 1 — Fiche concours (hub). Compteurs RÉELS masqués si 0 (anti cold-start).
@@ -83,6 +84,9 @@ export default function ConcoursFicheScreen() {
 
         {/* Météo V1 (Open-Meteo) — isolée, ne casse pas la fiche en cas d'échec. */}
         <ConcoursWeatherCard concours={concours} />
+
+        {/* Épreuves importées (CSV FFE) — lecture seule, masquée si rien d'importé. */}
+        <ConcoursEpreuvesCard concoursId={id} listeEpreuves={concours.liste_epreuves} />
 
         <Text style={s.sectionTitle}>{anyReserved ? 'Mon déplacement' : 'Organise ton déplacement'}</Text>
         {anyReserved && (

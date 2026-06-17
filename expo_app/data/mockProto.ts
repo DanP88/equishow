@@ -25,6 +25,7 @@ export interface ProtoConcours {
   nbBoxes: number;
   nbTransports: number;
   nbCoachs: number;
+  epreuves?: string[];   // brut FFE (test parser en dev) — vide par défaut
 }
 
 // 🏆 3 concours de démonstration
@@ -62,6 +63,10 @@ export const PROTO_CONCOURS: ProtoConcours[] = [
     nbBoxes: 3,
     nbTransports: 2,
     nbCoachs: 5,
+    // Chaîne FFE brute réelle (1 seul élément) — exerce le parser en dev.
+    epreuves: [
+      'SO Pro202614002 : Prix des As Jeunes Etape 1 (1,30 m)[A], Prix des As Jeunes Etape 2 (1,35 m)[A], Chpt des As Junior Etape 1 (1,40 m), Chpt des As Junior Etape 2 (1,40 m), Championnat des As Junior, Prix des As Jeunes Finale (1,35 m)[A], Chpt des As Junior Finale (1,40 m) SO Amateur202614002 : Coupe des As Jeune Etape 1 (1,10 m), Coupe des As Jeune Etape 2 (1,15 m), Chpt des As Cadet Etape 1 (1,25 m)[P], Chpt des As Cadet Etape 2 (1,30 m)[P], Championnat des As Cadet[P], Amateur 2 Grand Prix (1,05 m) SO Préparatoire202614002 : Préparatoire (1,05 m)[P][A][C], Préparatoire (1,00 m)[P][A][C]',
+    ],
   },
   {
     id: 'p-lyon',

@@ -33,6 +33,7 @@ export interface ConcoursHub {
   lien_ffe: string | null;
   etat: string | null;
   followers_count: number;       // LOT 2B — dénormalisé (075). 0 si colonne/table absente.
+  liste_epreuves: string[];      // 074 — épreuves importées (CSV FFE). [] si absent.
 }
 
 export interface ConcoursCounts {
@@ -54,6 +55,7 @@ interface ConcoursRow {
   lien_ffe: string | null;
   etat: string | null;
   followers_count?: number | null; // absent tant que 075 non appliquée
+  liste_epreuves?: string[] | null; // 074 — text[] (vide si non importé)
 }
 
 // ── helpers ───────────────────────────────────────────────────────────────────
@@ -94,6 +96,7 @@ function rowToHub(r: ConcoursRow): ConcoursHub {
     lien_ffe: r.lien_ffe ?? ffeUrl(r.numero_ffe),
     etat: r.etat,
     followers_count: r.followers_count ?? 0, // absent (075 non appliquée) → 0
+    liste_epreuves: r.liste_epreuves ?? [],
   };
 }
 
@@ -112,6 +115,7 @@ function protoToHub(p: ProtoConcours): ConcoursHub {
     lien_ffe: p.lienFFE ?? ffeUrl(p.numeroFFE),
     etat: 'ouvert',
     followers_count: p.followers,
+    liste_epreuves: p.epreuves ?? [],
   };
 }
 
