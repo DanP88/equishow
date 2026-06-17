@@ -30,7 +30,12 @@ const HEIGHT_RE = /\s*\((\d+[.,]\d+)\s*m\)\s*$/;
  * Découpe + nettoie `liste_epreuves` (tableau OU chaîne longue) en libellés unitaires.
  * - séparateurs : « ; », saut de ligne, et virgule SAUF si décimale (ex « 1,05 »)
  * - retire en-têtes catégorie FFE + tags [P][A][C]
- * - normalise espaces doubles, trim, retire vides, dédoublonne (exact)
+ * - normalise espaces doubles, trim, retire vides
+ *
+ * NB : on NE dédoublonne PAS. La FFE liste régulièrement deux fois un même libellé
+ * (ex « Amateur 2 Spéciale au chrono (1,05 m) ») = épreuves distinctes courues sur
+ * des sessions/jours différents. Dédoublonner les ferait disparaître à tort
+ * (HARAS DE MADINE 202655009 : 47 épreuves réelles → 29 si dédup exact).
  */
 export function parseEpreuves(raw: string[] | string | null | undefined): string[] {
   if (!raw) return [];
@@ -42,19 +47,11 @@ export function parseEpreuves(raw: string[] | string | null | undefined): string
     .replace(FFE_CATEGORY_RE, '\n') // en-têtes catégorie → frontière
     .replace(FFE_TAG_RE, '');       // tags [P][A][C]
 
-  const parts = cleaned
+  return cleaned
     // « ; », saut de ligne, OU virgule non suivie d'un chiffre (préserve « 1,05 »)
     .split(/[;\n]|,(?!\s*\d)/)
     .map((s) => s.replace(/\s+/g, ' ').trim())
     .filter(Boolean);
-
-  // Dédoublonnage exact en préservant l'ordre.
-  const seen = new Set<string>();
-  const out: string[] = [];
-  for (const p of parts) {
-    if (!seen.has(p)) { seen.add(p); out.push(p); }
-  }
-  return out;
 }
 
 /** Nombre d'épreuves détectées (après nettoyage). */

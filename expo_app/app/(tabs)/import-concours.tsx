@@ -7,6 +7,8 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { concoursCsvStore } from '../../data/store';
 import { supabase } from '../../lib/supabase';
+import { parseCSV } from '../../lib/csv';
+import { parseEpreuves } from '../../lib/epreuves';
 import { ConcoursCSV, ImportBatch, ImportError } from '../../types/concours';
 
 // LOT 1 — Persistance des concours importés vers la table public.concours
@@ -65,73 +67,8 @@ async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: numb
 }
 
 // ── CSV Parser ──────────────────────────────────────────────────────────────
-
-function parseCSVText(text: string): { headers: string[]; rows: Record<string, string>[] } {
-  // Normalize line endings
-  const normalized = text.replace(/\r\n/g, '\n').replace(/\r/g, '\n');
-
-  // Split into raw lines, handling quoted newlines
-  const rawLines: string[] = [];
-  let current = '';
-  let inQuotes = false;
-
-  for (let i = 0; i < normalized.length; i++) {
-    const ch = normalized[i];
-    if (ch === '"') {
-      if (inQuotes && normalized[i + 1] === '"') {
-        current += '"';
-        i++;
-      } else {
-        inQuotes = !inQuotes;
-      }
-    } else if (ch === '\n' && !inQuotes) {
-      rawLines.push(current);
-      current = '';
-    } else {
-      current += ch;
-    }
-  }
-  if (current.trim()) rawLines.push(current);
-
-  // Parse each line into fields
-  function parseLine(line: string): string[] {
-    const fields: string[] = [];
-    let field = '';
-    let inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') {
-        if (inQ && line[i + 1] === '"') { field += '"'; i++; }
-        else inQ = !inQ;
-      } else if (ch === ',' && !inQ) {
-        fields.push(field.trim());
-        field = '';
-      } else {
-        field += ch;
-      }
-    }
-    fields.push(field.trim());
-    return fields;
-  }
-
-  const nonEmpty = rawLines.filter(l => l.trim() !== '');
-  if (nonEmpty.length === 0) return { headers: [], rows: [] };
-
-  const headers = parseLine(nonEmpty[0]).map(h => h.trim());
-  const rows: Record<string, string>[] = [];
-
-  for (let i = 1; i < nonEmpty.length; i++) {
-    const fields = parseLine(nonEmpty[i]);
-    if (fields.every(f => f === '')) continue;
-    const row: Record<string, string> = {};
-    headers.forEach((h, idx) => {
-      row[h] = (fields[idx] ?? '').trim();
-    });
-    rows.push(row);
-  }
-
-  return { headers, rows };
-}
+// Parseur RFC 4180 single-pass extrait dans lib/csv.ts (gère guillemets, virgules
+// internes « 1,05 », newlines internes, "" échappés, BOM). Voir lib/csv.ts.
 
 // ── Column mapping (FFE format + demo format) ───────────────────────────────
 
@@ -189,14 +126,6 @@ function mapRow(raw: Record<string, string>): ConcoursCSVRaw {
     if (field) (mapped as any)[field] = value || undefined;
   }
   return mapped;
-}
-
-function parseEpreuves(raw: string | undefined): string[] {
-  if (!raw) return [];
-  return raw
-    .split(/[;\n]/)
-    .map(e => e.trim())
-    .filter(Boolean);
 }
 
 function isValidDate(s: string | undefined): boolean {
@@ -329,7 +258,7 @@ export default function ImportConcoursScreen() {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target?.result as string;
-        const { headers: hdrs, rows } = parseCSVText(text);
+        const { headers: hdrs, rows } = parseCSV(text);
         setHeaders(hdrs);
 
         const batchId = `batch_${Date.now()}`;
