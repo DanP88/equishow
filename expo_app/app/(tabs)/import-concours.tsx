@@ -13,7 +13,7 @@ import { ConcoursCSV, ImportBatch, ImportError } from '../../types/concours';
 // (upsert sur numero_ffe = idempotent au ré-import). Tolère l'absence de table
 // (migration 074 non encore appliquée) : log only, le store mock reste la source
 // de visualisation tant que 074 n'est pas en place.
-async function persistConcoursToDb(rows: ConcoursCSV[]) {
+async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: number; error: string | null }> {
   const payload = rows
     .filter((r) => r.numero_concours) // skip lignes sans numéro (clé d'upsert)
     .map((r) => ({
@@ -34,12 +34,22 @@ async function persistConcoursToDb(rows: ConcoursCSV[]) {
       source_import: 'csv',
       import_batch_id: r.import_batch_id,
     }));
-  if (payload.length === 0) return;
+  if (payload.length === 0) return { written: 0, error: null };
   try {
-    const { error } = await supabase.from('concours').upsert(payload, { onConflict: 'numero_ffe' });
-    if (error) console.warn('[import-concours] upsert concours échoué (074 appliquée ?):', error.message);
+    // .select('id') → on récupère les lignes réellement écrites pour compter.
+    const { data, error } = await supabase
+      .from('concours')
+      .upsert(payload, { onConflict: 'numero_ffe' })
+      .select('id');
+    if (error) {
+      console.warn('[import-concours] upsert concours échoué:', error.message);
+      return { written: 0, error: error.message };
+    }
+    return { written: data?.length ?? 0, error: null };
   } catch (e: any) {
-    console.warn('[import-concours] persistance concours indisponible:', e?.message ?? e);
+    const msg = e?.message ?? String(e);
+    console.warn('[import-concours] persistance concours indisponible:', msg);
+    return { written: 0, error: msg };
   }
 }
 
@@ -282,6 +292,7 @@ export default function ImportConcoursScreen() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [imported, setImported] = useState(false);
+  const [dbResult, setDbResult] = useState<{ written: number; error: string | null } | null>(null);
   const [tick, setTick] = useState(0);
 
   function refresh() { setTick(t => t + 1); }
@@ -330,9 +341,10 @@ export default function ImportConcoursScreen() {
     input.click();
   }
 
-  function handleImport() {
+  async function handleImport() {
     if (!parseResult || parseResult.valid.length === 0) return;
     setLoading(true);
+    setDbResult(null);
 
     const batchId = parseResult.valid[0].import_batch_id!;
     const batch: ImportBatch = {
@@ -348,9 +360,6 @@ export default function ImportConcoursScreen() {
     concoursCsvStore.list.push(...parseResult.valid);
     concoursCsvStore.batches.unshift(batch);
 
-    // LOT 1 — persistance DB (idempotent, non bloquant pour le flux mock existant).
-    void persistConcoursToDb(parseResult.valid);
-
     parseResult.errors.forEach((e, idx) => {
       concoursCsvStore.errors.push({
         id: `err_${batchId}_${idx}`,
@@ -361,11 +370,13 @@ export default function ImportConcoursScreen() {
       });
     });
 
-    setTimeout(() => {
-      setLoading(false);
-      setImported(true);
-      refresh();
-    }, 400);
+    // Persistance DB RÉELLE : on attend le résultat et on remonte le vrai nombre
+    // écrit + l'erreur Supabase éventuelle (plus de faux « terminé »).
+    const res = await persistConcoursToDb(parseResult.valid);
+    setDbResult(res);
+    setLoading(false);
+    setImported(true);
+    refresh();
   }
 
   function handleReset() {
@@ -494,13 +505,28 @@ export default function ImportConcoursScreen() {
               </View>
             )}
 
-            {/* Import success banner */}
-            {imported && (
-              <View style={s.successBanner}>
-                <Text style={s.successText}>
-                  ✅ {parseResult.valid.length} concours importés avec succès !
-                </Text>
-              </View>
+            {/* Import result banner — reflète le RÉEL écrit en base (pas un faux succès) */}
+            {imported && dbResult && (
+              dbResult.error ? (
+                <View style={[s.successBanner, { backgroundColor: '#FEE2E2', borderColor: '#FCA5A5' }]}>
+                  <Text style={[s.successText, { color: '#B91C1C' }]}>
+                    ❌ Échec de l'enregistrement en base : 0 concours écrit.
+                  </Text>
+                  <Text style={{ color: '#B91C1C', fontSize: 12, marginTop: 4 }}>{dbResult.error}</Text>
+                </View>
+              ) : dbResult.written < parseResult.valid.length ? (
+                <View style={[s.successBanner, { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
+                  <Text style={[s.successText, { color: '#92400E' }]}>
+                    ⚠️ {dbResult.written} / {parseResult.valid.length} concours enregistrés en base.
+                  </Text>
+                </View>
+              ) : (
+                <View style={s.successBanner}>
+                  <Text style={s.successText}>
+                    ✅ {dbResult.written} concours enregistrés en base avec succès !
+                  </Text>
+                </View>
+              )
             )}
 
             {/* Preview list */}
