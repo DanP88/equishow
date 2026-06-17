@@ -762,7 +762,13 @@ export default function ChevalDetailScreen() {
         {chevalReservations.length > 0 && (
           <Section title="Réservations & concours" icon="🎫">
             {chevalReservations.map((r) => (
-              <View key={`${r.module}-${r.id}`} style={styles.resaItem}>
+              <TouchableOpacity
+                key={`${r.module}-${r.id}`}
+                style={styles.resaItem}
+                activeOpacity={r.concoursId ? 0.7 : 1}
+                disabled={!r.concoursId}
+                onPress={() => r.concoursId && router.push({ pathname: '/concours/[id]', params: { id: r.concoursId } } as any)}
+              >
                 <Text style={styles.resaIcon}>{r.icon}</Text>
                 <View style={{ flex: 1 }}>
                   <Text style={styles.resaTitle} numberOfLines={1}>{r.concoursNom ?? r.title}</Text>
@@ -771,8 +777,12 @@ export default function ChevalDetailScreen() {
                   </Text>
                 </View>
                 {!!r.status && <Text style={styles.resaStatus}>{r.status}</Text>}
-              </View>
+                {!!r.concoursId && <Text style={styles.resaChev}>›</Text>}
+              </TouchableOpacity>
             ))}
+            {chevalReservations.some((r) => r.concoursId) && (
+              <Text style={styles.resaHint}>Touchez un concours pour voir la météo, vos réservations et les infos du déplacement.</Text>
+            )}
           </Section>
         )}
 
@@ -988,6 +998,8 @@ const styles = StyleSheet.create({
   resaTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   resaSub: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
   resaStatus: { fontSize: FontSize.xs, color: Colors.textSecondary, textTransform: 'capitalize' },
+  resaChev: { fontSize: 22, color: Colors.primary, marginLeft: Spacing.sm },
+  resaHint: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.sm, fontStyle: 'italic' },
   concoursItem: { paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   concoursNom: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   concoursInfo: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
