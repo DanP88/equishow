@@ -29,7 +29,8 @@ export interface ConcoursHub {
   dateLabel: string;
   lieu: string | null;
   departement: string | null;
-  type_concours: string | null; // discipline
+  type_concours: string | null; // discipline brute (souvent 'nan' à l'import FFE)
+  cre: string | null;            // région (CRE) — sert au filtre découverte
   lien_ffe: string | null;
   etat: string | null;
   followers_count: number;       // LOT 2B — dénormalisé (075). 0 si colonne/table absente.
@@ -52,6 +53,7 @@ interface ConcoursRow {
   lieu: string | null;
   departement: string | null;
   type_concours: string | null;
+  cre: string | null;
   lien_ffe: string | null;
   etat: string | null;
   followers_count?: number | null; // absent tant que 075 non appliquée
@@ -93,6 +95,7 @@ function rowToHub(r: ConcoursRow): ConcoursHub {
     lieu: r.lieu,
     departement: r.departement,
     type_concours: r.type_concours,
+    cre: r.cre,
     lien_ffe: r.lien_ffe ?? ffeUrl(r.numero_ffe),
     etat: r.etat,
     followers_count: r.followers_count ?? 0, // absent (075 non appliquée) → 0
@@ -112,6 +115,7 @@ function protoToHub(p: ProtoConcours): ConcoursHub {
     lieu: p.lieu,
     departement: p.departement,
     type_concours: p.discipline,
+    cre: null,
     lien_ffe: p.lienFFE ?? ffeUrl(p.numeroFFE),
     etat: 'ouvert',
     followers_count: p.followers,
