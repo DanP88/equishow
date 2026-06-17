@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal,
@@ -100,6 +100,22 @@ export default function ProposerCoachAnnonceScreen() {
     annonceToEdit ? annonceToEdit.dateFin : preSelectedConcours ? preSelectedConcours.dateFin : undefined
   );
   const [prixHeure, setPrixHeure] = useState(annonceToEdit ? annonceToEdit.prixHeure.toString() : '');
+
+  // Deep-link « Créer une annonce » depuis Services : le concoursId fourni est
+  // désormais un id RÉEL de la table public.concours (plus le mock concoursStore).
+  // On hydrate la présélection (nom + concours_id FK) dès que la liste DB est
+  // chargée — une seule fois, hors édition, et seulement si non déjà sélectionné.
+  const hydratedFromDb = useRef(false);
+  useEffect(() => {
+    if (annonceToEdit || hydratedFromDb.current || !concoursId) return;
+    const match = concoursReels.find((c) => c.id === concoursId);
+    if (!match) return;
+    hydratedFromDb.current = true;
+    setType('concours');
+    setConcours(match.nom);
+    setSelectedConcoursId(match.id);
+  }, [concoursId, concoursReels, annonceToEdit]);
+
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
   const [openConcours, setOpenConcours] = useState(false);

@@ -6,7 +6,9 @@ import {
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { userStore, concoursStore } from '../../data/store';
+import { userStore } from '../../data/store';
+import { useConcoursList } from '../../hooks/useConcours';
+import { countEpreuves } from '../../lib/epreuves';
 import { useTransportAnnonces, useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useBoxAnnonces, useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useCoachAnnonces, useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
@@ -14,7 +16,6 @@ import { useUnreadMessagesCount } from '../../hooks/useMessaging';
 import { useStages } from '../../hooks/useStages';
 import { useCoachProfiles } from '../../hooks/useCoachProfiles';
 import { useAvisStats } from '../../hooks/useAvis';
-import { getUserById } from '../../data/mockUsers';
 import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
@@ -124,6 +125,10 @@ export default function ServicesScreen() {
   const { deleteAnnonce: deleteCoachAnnonce } = useMyCoachAnnonces();
   const { stages } = useStages();
   const { coaches, isLoading: coachesLoading } = useCoachProfiles();
+  // Concours = table public.concours (DB, plus de mock concoursStore). Sert au coach
+  // pour rattacher une annonce à un concours réel (concours_id FK valide) + ouvrir
+  // la fiche concours DB (épreuves importées). Filtré « à venir » côté rendu.
+  const { concours: dbConcours } = useConcoursList();
 
   const [filtersT, setFiltersT] = useState<FiltersTransport>(DEFAULT_FT);
   const [filtersB, setFiltersB] = useState<FiltersBox>(DEFAULT_FB);
@@ -368,59 +373,59 @@ export default function ServicesScreen() {
               <>
                 <BannerAdd icon="🎓" text="Vous êtes coach ?" hint="Proposez vos services" cta="Ajouter un profil" route="/proposer-coach" />
 
-                {/* Concours disponibles */}
-                {concoursStore.list.length > 0 && (
-                  <>
-                    <Text style={s.sectionTitle}>🏆 Concours disponibles</Text>
-                    {concoursStore.list
-                      .filter(c => c.statut !== 'brouillon')
-                      .map((concours) => (
-                        <View key={concours.id} style={s.concoursCard}>
-                          <View style={s.concoursInfo}>
-                            <Text style={s.concoursName}>{concours.nom}</Text>
-                            <Text style={s.concoursDate}>
-                              📅 {concours.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · {concours.lieu}
-                            </Text>
-                            {concours.disciplines && concours.disciplines.length > 0 && (
-                              <Text style={s.concoursDetail}>
-                                🎯 {concours.disciplines.join(', ')}
-                              </Text>
-                            )}
-                            {concours.epreuves && concours.epreuves.length > 0 && (
-                              <Text style={s.concoursDetail}>
-                                Épreuves: {concours.epreuves.join(', ')}
-                              </Text>
-                            )}
-                            {concours.typesCavaliers && concours.typesCavaliers.length > 0 && (
-                              <Text style={s.concoursDetail}>
-                                Niveaux: {concours.typesCavaliers.join(', ')}
-                              </Text>
-                            )}
-                          </View>
-                          <View style={{ flexDirection: 'row', gap: 8, marginTop: 8 }}>
+                {/* Concours disponibles — source DB (public.concours), « à venir » seulement.
+                    Le coach rattache son annonce à un concours réel (concours_id FK) et
+                    peut ouvrir la fiche concours DB (épreuves importées). */}
+                {(() => {
+                  const today0 = new Date(); today0.setHours(0, 0, 0, 0);
+                  const dispo = dbConcours.filter((c) => {
+                    const d = c.date_fin ?? c.date_debut;
+                    return !d || new Date(`${d}T00:00:00`) >= today0;
+                  });
+                  if (dispo.length === 0) return null;
+                  return (
+                    <>
+                      <Text style={s.sectionTitle}>🏆 Concours disponibles</Text>
+                      {dispo.map((concours) => {
+                        const nbEpreuves = countEpreuves(concours.liste_epreuves);
+                        return (
+                          <View key={concours.id} style={s.concoursCard}>
                             <TouchableOpacity
-                              style={[s.concoursCreateBtn, { flex: 1 }]}
-                              onPress={() => router.push(`/proposer-coach-annonce?concoursId=${concours.id}` as any)}
+                              style={s.concoursInfo}
+                              activeOpacity={0.7}
+                              onPress={() => router.push(`/concours/${concours.id}` as any)}
                             >
-                              <Text style={s.concoursCreateBtnText}>Créer une annonce</Text>
+                              <Text style={s.concoursName}>{concours.nom}</Text>
+                              <Text style={s.concoursDate}>
+                                📅 {concours.dateLabel}{concours.lieu ? ` · ${concours.lieu}` : ''}
+                              </Text>
+                              {!!concours.type_concours && (
+                                <Text style={s.concoursDetail}>🎯 {concours.type_concours}</Text>
+                              )}
+                              {nbEpreuves > 0 && (
+                                <Text style={s.concoursDetail}>🏆 {nbEpreuves} épreuve{nbEpreuves > 1 ? 's' : ''}</Text>
+                              )}
                             </TouchableOpacity>
-                            {(() => {
-                              const org = getUserById(concours.organisateurId);
-                              if (!org) return null;
-                              return (
-                                <TouchableOpacity
-                                  style={[s.concoursCreateBtn, { flex: 1, backgroundColor: '#EFF6FF', borderColor: '#93C5FD' }]}
-                                  onPress={() => router.push({ pathname: '/messagerie', params: { otherId: org.id, otherNom: org.prenom + ' ' + org.nom, otherPseudo: org.pseudo, otherCouleur: org.avatarColor, otherInitiales: org.initiales, sujet: `🏆 ${concours.nom}` } } as any)}
-                                >
-                                  <Text style={[s.concoursCreateBtnText, { color: '#1D4ED8' }]}>💬 Contacter</Text>
-                                </TouchableOpacity>
-                              );
-                            })()}
+                            <View style={{ gap: 8 }}>
+                              <TouchableOpacity
+                                style={s.concoursCreateBtn}
+                                onPress={() => router.push(`/proposer-coach-annonce?concoursId=${concours.id}` as any)}
+                              >
+                                <Text style={s.concoursCreateBtnText}>Créer une annonce</Text>
+                              </TouchableOpacity>
+                              <TouchableOpacity
+                                style={[s.concoursCreateBtn, { backgroundColor: '#EFF6FF', borderColor: '#93C5FD', borderWidth: 1 }]}
+                                onPress={() => router.push(`/concours/${concours.id}` as any)}
+                              >
+                                <Text style={[s.concoursCreateBtnText, { color: '#1D4ED8' }]}>Voir le concours</Text>
+                              </TouchableOpacity>
+                            </View>
                           </View>
-                        </View>
-                      ))}
-                  </>
-                )}
+                        );
+                      })}
+                    </>
+                  );
+                })()}
               </>
             )}
 
