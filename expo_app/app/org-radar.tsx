@@ -105,12 +105,33 @@ export default function OrgRadarScreen() {
             <Text style={s.note}>Réservation d'un service (box, transport, coach, stage) lié au concours. Démontre une préparation active de la venue — pas une inscription FFE.</Text>
           </Section>
 
+          {/* LOT 2 — Réservations générées par module */}
+          <Section title="📦 Réservations générées" level="Signal très fort">
+            <Row label="Box" value={String(radar.reservations.box)} />
+            <Row label="Transport" value={String(radar.reservations.transport)} />
+            <Row label="Coach" value={String(radar.reservations.coach)} />
+            <Row label="Stage" value={String(radar.reservations.stage)} />
+            <Row label="Réservations totales" value={String(radar.reservations.total)} />
+            <Row label="Cavaliers distincts" value={maskedNum(radar.reservations.cavaliers_distinct)} masked={radar.reservations.cavaliers_distinct_masked} />
+            <Text style={s.note}>Réservations de services liées au concours, par module. « Cavaliers distincts » = personnes uniques (masqué &lt; 5).</Text>
+          </Section>
+
+          {/* LOT 2 — Chiffre d'affaires généré dans l'écosystème */}
+          <Section title="💶 Chiffre d'affaires généré">
+            <Row label="Volume d'affaires (GMV)" value={eur(radar.revenue.gmv_eur)} masked={radar.revenue.masked} />
+            <Row label="Commissions plateforme" value={eur(radar.revenue.commission_eur)} masked={radar.revenue.masked} />
+            <Row label="Réservations payées" value={String(radar.revenue.paid_reservations)} />
+            <Text style={s.note}>GMV = montant total payé par les cavaliers pour ce concours. Masqué tant que moins de 5 paiements (RGPD).</Text>
+          </Section>
+
           {/* Funnel — chemin observé dans Equishow */}
           <Section title="🔻 Parcours observé">
             <FunnelRow step="Vues" value={radar.funnel.views} rate={null} />
             <FunnelRow step="Suivis" value={radar.funnel.followers} rate={pct(radar.funnel.views_to_followers)} />
-            <FunnelRow step="Réservations" value={radar.funnel.reservations} rate={pct(radar.funnel.followers_to_reservations)} />
-            <Text style={s.note}>Vues → réservations : {pct(radar.funnel.views_to_reservations)}</Text>
+            <FunnelRow step="Cavaliers (distincts)" value={radar.funnel.reservations} rate={pct(radar.funnel.followers_to_reservations)} />
+            <FunnelRow step="Réservations (total)" value={radar.funnel.reservations_total} rate={null} />
+            <FunnelRow step="Paiements" value={radar.funnel.paid} rate={null} />
+            <Text style={s.note}>Vues → cavaliers engagés : {pct(radar.funnel.views_to_reservations)}</Text>
           </Section>
 
           {/* Tendance observée — synthèse des évolutions (données réelles uniquement) */}
@@ -163,6 +184,11 @@ function countPeople(n: number, masked: boolean): string {
 }
 function countPlain(n: number | null, masked: boolean): string {
   return masked || n == null ? 'moins de 5' : String(n);
+}
+// LOT 2 — montant € (null = masqué RGPD < 5 paiements → tiret).
+function eur(n: number | null): string {
+  if (n == null) return '—';
+  return `${n.toLocaleString('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
 }
 
 function Section({ title, level, children }: { title: string; level?: string; children: React.ReactNode }) {

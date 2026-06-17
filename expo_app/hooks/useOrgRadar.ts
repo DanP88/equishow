@@ -27,10 +27,29 @@ export interface OrgRadar {
     cavaliers_engaged: number | null;
     masked: boolean;
   };
+  // LOT 2 — réservations par module + total + cavaliers distincts.
+  reservations: {
+    box: number;
+    transport: number;
+    coach: number;
+    stage: number;
+    total: number;
+    cavaliers_distinct: number | null;
+    cavaliers_distinct_masked: boolean;
+  };
+  // LOT 2 — CA généré (GMV + commissions), masqué si < 5 paiements.
+  revenue: {
+    gmv_eur: number | null;
+    commission_eur: number | null;
+    paid_reservations: number;
+    masked: boolean;
+  };
   funnel: {
     views: number;
     followers: number;
     reservations: number;
+    reservations_total: number;
+    paid: number;
     views_to_followers: number | null;
     followers_to_reservations: number | null;
     views_to_reservations: number | null;
@@ -54,10 +73,19 @@ const DEMO_RADAR: OrgRadar = {
   },
   interest: { followers: 38, followers_new: 12, followers_masked: false },
   engagement: { cavaliers_engaged: 7, masked: false },
+  reservations: {
+    box: 5, transport: 4, coach: 2, stage: 1, total: 12,
+    cavaliers_distinct: 7, cavaliers_distinct_masked: false,
+  },
+  revenue: {
+    gmv_eur: 3480, commission_eur: 174, paid_reservations: 9, masked: false,
+  },
   funnel: {
     views: 247,
     followers: 38,
     reservations: 7,
+    reservations_total: 12,
+    paid: 9,
     views_to_followers: 38 / 247,
     followers_to_reservations: 7 / 38,
     views_to_reservations: 7 / 247,
