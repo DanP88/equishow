@@ -94,3 +94,13 @@ describe('parseEpreuves — comptage affiché', () => {
     expect(parseEpreuves(epreuves)).toEqual(epreuves);
   });
 });
+
+describe('parseEpreuves — en-tête catégorie multi-discipline (SO/DR/CSO…)', () => {
+  test('strip DR (dressage), pas seulement SO', () => {
+    const dr = 'DR Pro202618005 : Pro 2 A, As Jeune Elite - Grand Prix, As Jeune Elite - Equipe';
+    const e = parseEpreuves(dr);
+    expect(e).toEqual(['Pro 2 A', 'As Jeune Elite - Grand Prix', 'As Jeune Elite - Equipe']);
+    // Aucune épreuve ne doit garder le numéro de concours ni le « : » d'en-tête.
+    for (const lbl of e) expect(lbl).not.toMatch(/\d{4,}\s*:/);
+  });
+});
