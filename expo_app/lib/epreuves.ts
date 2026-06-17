@@ -14,10 +14,12 @@
 // On gère les deux : on rejoint le tableau puis on redécoupe robustement.
 // ─────────────────────────────────────────────────────────────────────────────
 
-// En-tête de catégorie FFE collé au numéro de concours : "SO Amateur202614002 : ".
-// (catégorie = un seul token suivi d'au moins 4 chiffres puis « : »). NE matche PAS
-// les noms d'épreuves « SO Cycle Jeunes Poneys 6 ans C » (pas de num+« : »).
-const FFE_CATEGORY_RE = /\bSO\s+[^\s:]*?\d{4,}\s*:\s*/g;
+// En-tête de catégorie FFE collé au numéro de concours : "SO Amateur202614002 : ",
+// "DR Pro202618005 : ", "CSO Préparatoire… : "… Le code discipline (SO/DR/CSO/CCE/
+// Hunter…) varie → on matche tout préfixe = 1 code MAJUSCULE court + un token +
+// au moins 4 chiffres puis « : ». NE matche PAS les noms d'épreuves « SO Cycle
+// Jeunes Poneys 6 ans C » (pas de num+« : »). L'ancre forte = `\d{4,}\s*:`.
+const FFE_CATEGORY_RE = /\b[A-Z]{2,4}\s+[^\s:]*?\d{4,}\s*:\s*/g;
 
 // Tags FFE entre crochets : [P] [A] [C] (poney/amateur/club, etc.).
 const FFE_TAG_RE = /\[[A-Za-z]\]/g;

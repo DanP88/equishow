@@ -14,7 +14,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { parseEpreuves, formatEpreuve } from '../lib/epreuves';
 import { trackCta } from '../lib/analytics';
 
-const PREVIEW_COUNT = 10;
+const PREVIEW_COUNT = 3;
 
 interface Props {
   concoursId?: string;
