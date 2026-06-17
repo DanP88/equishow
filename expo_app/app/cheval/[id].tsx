@@ -7,7 +7,7 @@ import { useLocalSearchParams, router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow, CommonStyles } from '../../constants/theme';
 import { useCheval } from '../../hooks/useChevaux';
-import { useChevalReservations } from '../../hooks/useChevalReservations';
+import { useChevalConcours } from '../../hooks/useChevalReservations';
 import { createNotification } from '../../hooks/useNotifications';
 import { useAuth } from '../../hooks/useAuth';
 import { pickImageFromLibrary, uploadChevalPhoto, deleteChevalPhoto } from '../../lib/photoUpload';
@@ -534,6 +534,7 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose,
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
+const MODULE_ICON: Record<'box' | 'transport' | 'coach' | 'stage', string> = { box: '📦', transport: '🚐', coach: '🎓', stage: '🏕️' };
 // Statut de réservation en français (la DB stocke des valeurs anglaises).
 function statusLabelFr(s: string) {
   return ({
@@ -553,7 +554,7 @@ export default function ChevalDetailScreen() {
   const { id, new: isNew } = useLocalSearchParams<{ id: string; new?: string }>();
   const { profile } = useAuth();
   const { cheval, isLoading, update, remove } = useCheval(id);
-  const { items: chevalReservations } = useChevalReservations(id);
+  const { items: chevalConcours } = useChevalConcours(id);
   const [showEdit, setShowEdit] = useState(isNew === 'true');
   const [editSection, setEditSection] = useState<EditSection>('identite');
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -766,34 +767,53 @@ export default function ChevalDetailScreen() {
           )}
         </Section>
 
-        {/* Réservations Equishow liées à ce cheval (078) — sous Sport & Travail */}
-        {chevalReservations.length > 0 && (
+        {/* Réservations & concours liés à ce cheval (078) — sous Sport & Travail.
+            Regroupé par concours : ce qui est réservé + ce qui reste disponible. */}
+        {chevalConcours.length > 0 && (
           <Section title="Réservations & concours" icon="🎫">
-            {chevalReservations.map((r) => (
-              <TouchableOpacity
-                key={`${r.module}-${r.id}`}
-                style={styles.resaItem}
-                activeOpacity={r.concoursId ? 0.7 : 1}
-                disabled={!r.concoursId}
-                onPress={() => r.concoursId && router.push({ pathname: '/concours/[id]', params: { id: r.concoursId } } as any)}
-              >
-                <Text style={styles.resaIcon}>{r.icon}</Text>
-                <View style={{ flex: 1 }}>
+            {chevalConcours.map((g) => {
+              // Modules dispo non encore réservés sur ce concours → bulles vertes.
+              const reservedModules = new Set(g.reserved.map((rv) => rv.module));
+              const dispo = (['box', 'transport', 'coach', 'stage'] as const)
+                .filter((m) => (g.available[m] ?? 0) > 0 && !reservedModules.has(m));
+              const dispoLabel = { box: 'Box', transport: 'Transport', coach: 'Coach', stage: 'Stage' } as const;
+              return (
+                <TouchableOpacity
+                  key={g.key}
+                  style={styles.concBlock}
+                  activeOpacity={g.concoursId ? 0.7 : 1}
+                  disabled={!g.concoursId}
+                  onPress={() => g.concoursId && router.push({ pathname: '/concours/[id]', params: { id: g.concoursId } } as any)}
+                >
                   <View style={styles.resaTitleRow}>
-                    <Text style={styles.resaTitle} numberOfLines={1}>{r.concoursNom ?? r.title}</Text>
-                    {r.concoursPast && (
-                      <View style={styles.passeBadge}><Text style={styles.passeBadgeTxt}>Concours passé</Text></View>
-                    )}
+                    <Text style={styles.resaTitle} numberOfLines={1}>{g.concoursNom ?? 'Réservation'}</Text>
+                    {g.past && <View style={styles.passeBadge}><Text style={styles.passeBadgeTxt}>Concours passé</Text></View>}
+                    {!!g.concoursId && <Text style={styles.resaChev}>›</Text>}
                   </View>
-                  <Text style={styles.resaSub} numberOfLines={1}>
-                    {r.concoursNom ? `${r.title} · ` : ''}{r.date ? new Date(`${r.date}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}
-                  </Text>
-                </View>
-                {!!r.status && <Text style={styles.resaStatus}>{statusLabelFr(r.status)}</Text>}
-                {!!r.concoursId && <Text style={styles.resaChev}>›</Text>}
-              </TouchableOpacity>
-            ))}
-            {chevalReservations.some((r) => r.concoursId) && (
+
+                  {/* Ce qui est réservé */}
+                  {g.reserved.map((rv, i) => (
+                    <View key={i} style={styles.resaLine}>
+                      <Text style={styles.resaLineIcon}>{rv.icon}</Text>
+                      <Text style={styles.resaLineLabel} numberOfLines={1}>{rv.label}</Text>
+                      {!!rv.status && <Text style={styles.resaLineStatus}>{statusLabelFr(rv.status)}</Text>}
+                    </View>
+                  ))}
+
+                  {/* Cross-sell : autres services disponibles (bulles vertes) */}
+                  {dispo.length > 0 && (
+                    <View style={styles.dispoRow}>
+                      {dispo.map((m) => (
+                        <View key={m} style={styles.dispoPill}>
+                          <Text style={styles.dispoTxt}>{MODULE_ICON[m]} {dispoLabel[m]} disponible</Text>
+                        </View>
+                      ))}
+                    </View>
+                  )}
+                </TouchableOpacity>
+              );
+            })}
+            {chevalConcours.some((g) => g.concoursId) && (
               <Text style={styles.resaHint}>Touchez un concours pour voir la météo, vos réservations et les infos du déplacement.</Text>
             )}
           </Section>
@@ -1015,6 +1035,14 @@ const styles = StyleSheet.create({
   resaTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
   passeBadge: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: Colors.border },
   passeBadgeTxt: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
+  concBlock: { paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  resaLine: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: Spacing.xs },
+  resaLineIcon: { fontSize: 16, width: 22, textAlign: 'center' },
+  resaLineLabel: { flex: 1, fontSize: FontSize.sm, color: Colors.textPrimary },
+  resaLineStatus: { fontSize: FontSize.xs, color: Colors.textSecondary },
+  dispoRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs, marginTop: Spacing.sm },
+  dispoPill: { backgroundColor: Colors.successBg, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 3, borderWidth: 1, borderColor: Colors.successBorder },
+  dispoTxt: { fontSize: FontSize.xs, color: Colors.success, fontWeight: FontWeight.semibold },
   resaHint: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.sm, fontStyle: 'italic' },
   concoursItem: { paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   concoursNom: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
