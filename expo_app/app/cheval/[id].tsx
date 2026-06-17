@@ -534,6 +534,14 @@ function EditModal({ cheval, section: initSection = 'identite', onSave, onClose,
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function capitalize(s: string) { return s.charAt(0).toUpperCase() + s.slice(1); }
+// Statut de réservation en français (la DB stocke des valeurs anglaises).
+function statusLabelFr(s: string) {
+  return ({
+    pending: 'En attente', accepted: 'Accepté', awaiting_payment: 'À payer',
+    paid: 'Payé', completed: 'Terminé', cancelled: 'Annulé',
+    rejected: 'Refusé', expired: 'Expiré', payment_expired: 'Paiement expiré',
+  } as Record<string, string>)[s] ?? capitalize(s);
+}
 function transportLabel(k: string) { return { calme: 'Calme', stresse: 'Stressé', chargementDifficile: 'Chargement difficile' }[k] ?? k; }
 function transportKey(l: string) { return { 'Calme': 'calme', 'Stressé': 'stresse', 'Chargement difficile': 'chargementDifficile' }[l] ?? ''; }
 function sociabiliteLabel(k: string) { return { okCongeneres: 'Sociable — se mélange bien', dominant: 'Dominant', solitaire: 'Solitaire', pasSolo: 'N\'aimes pas être seul', autre: 'Variable selon congénères' }[k] ?? k; }
@@ -771,12 +779,17 @@ export default function ChevalDetailScreen() {
               >
                 <Text style={styles.resaIcon}>{r.icon}</Text>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.resaTitle} numberOfLines={1}>{r.concoursNom ?? r.title}</Text>
+                  <View style={styles.resaTitleRow}>
+                    <Text style={styles.resaTitle} numberOfLines={1}>{r.concoursNom ?? r.title}</Text>
+                    {r.concoursPast && (
+                      <View style={styles.passeBadge}><Text style={styles.passeBadgeTxt}>Concours passé</Text></View>
+                    )}
+                  </View>
                   <Text style={styles.resaSub} numberOfLines={1}>
                     {r.concoursNom ? `${r.title} · ` : ''}{r.date ? new Date(`${r.date}T00:00:00`).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' }) : ''}
                   </Text>
                 </View>
-                {!!r.status && <Text style={styles.resaStatus}>{r.status}</Text>}
+                {!!r.status && <Text style={styles.resaStatus}>{statusLabelFr(r.status)}</Text>}
                 {!!r.concoursId && <Text style={styles.resaChev}>›</Text>}
               </TouchableOpacity>
             ))}
@@ -997,8 +1010,11 @@ const styles = StyleSheet.create({
   resaIcon: { fontSize: 20, width: 26, textAlign: 'center' },
   resaTitle: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   resaSub: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
-  resaStatus: { fontSize: FontSize.xs, color: Colors.textSecondary, textTransform: 'capitalize' },
+  resaStatus: { fontSize: FontSize.xs, color: Colors.textSecondary },
   resaChev: { fontSize: 22, color: Colors.primary, marginLeft: Spacing.sm },
+  resaTitleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flexWrap: 'wrap' },
+  passeBadge: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 2, borderWidth: 1, borderColor: Colors.border },
+  passeBadgeTxt: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   resaHint: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.sm, fontStyle: 'italic' },
   concoursItem: { paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   concoursNom: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
