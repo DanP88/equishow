@@ -1,21 +1,21 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Modal } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { useCallback } from 'react';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { concoursStore, userStore } from '../../data/store';
 import { useMyConcoursClaims } from '../../hooks/useConcoursClaims';
 
 export default function OrgConcoursScreen() {
-  const [concours, setConcours] = useState(concoursStore.list.filter(c => c.organisateurId === userStore.id));
-  // LOT P0 — concours réels revendiqués (claims). Additif : ne remplace pas le mock.
+  // LOT 1 Org V2 — fin des concours mock : on n'affiche QUE les concours réels
+  // revendiqués (claims). « Créer un concours » oriente d'abord vers la
+  // revendication (anti-doublon), aucune écriture mock dans concoursStore.
   const { claims, reload: reloadClaims } = useMyConcoursClaims();
-  // PART 3 — l'organisateur voit TOUS les statuts (en attente / approuvé / refusé).
+  // L'organisateur voit TOUS les statuts (en attente / approuvé / refusé).
   const revendiques = claims;
+  const [showCreateModal, setShowCreateModal] = useState(false);
 
   useFocusEffect(useCallback(() => {
-    setConcours(concoursStore.list.filter(c => c.organisateurId === userStore.id));
     reloadClaims();
   }, [reloadClaims]));
   return (
@@ -25,7 +25,7 @@ export default function OrgConcoursScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.container}>
-        <TouchableOpacity style={s.createBtn} onPress={() => router.push('/creer-concours')} activeOpacity={0.85}>
+        <TouchableOpacity style={s.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.85}>
           <Text style={s.createIcon}>🏆</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.createTitle}>Créer un concours</Text>
@@ -66,65 +66,71 @@ export default function OrgConcoursScreen() {
             {revendiques.map((c) => {
               const approved = c.status === 'approved';
               const meta =
-                c.status === 'approved' ? { label: '✅ Approuvé · 📊 Voir le Radar de demande', bg: '#ECFDF5', fg: '#10B981' }
+                c.status === 'approved' ? { label: '✅ Approuvé', bg: '#ECFDF5', fg: '#10B981' }
                 : c.status === 'rejected' ? { label: '❌ Refusé', bg: '#FEE2E2', fg: '#EF4444' }
                 : { label: '⏳ En attente de validation', bg: '#FFF7ED', fg: '#F59E0B' };
               return (
-                <TouchableOpacity
-                  key={c.id}
-                  style={s.claimCard}
-                  activeOpacity={approved ? 0.8 : 1}
-                  onPress={() => approved && router.push({ pathname: '/org-radar', params: { concoursId: c.concoursId, nom: c.concoursNom ?? '' } } as any)}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={s.claimName} numberOfLines={1}>{c.concoursNom ?? c.concoursId}</Text>
-                    <View style={[s.claimBadge, { backgroundColor: meta.bg }]}>
-                      <Text style={[s.claimBadgeTxt, { color: meta.fg }]}>{meta.label}</Text>
-                    </View>
+                <View key={c.id} style={s.claimCard}>
+                  <Text style={s.claimName} numberOfLines={1}>{c.concoursNom ?? c.concoursId}</Text>
+                  <View style={[s.claimBadge, { backgroundColor: meta.bg }]}>
+                    <Text style={[s.claimBadgeTxt, { color: meta.fg }]}>{meta.label}</Text>
                   </View>
-                  {approved && <Text style={s.createArrow}>→</Text>}
-                </TouchableOpacity>
+                  {approved ? (
+                    <TouchableOpacity
+                      style={s.radarBtn}
+                      activeOpacity={0.85}
+                      onPress={() => router.push({ pathname: '/org-radar', params: { concoursId: c.concoursId, nom: c.concoursNom ?? '' } } as any)}
+                    >
+                      <Text style={s.radarBtnTxt}>📊 Voir le Radar</Text>
+                    </TouchableOpacity>
+                  ) : (
+                    <Text style={s.radarHint}>📊 Radar disponible après validation</Text>
+                  )}
+                </View>
               );
             })}
           </View>
         )}
 
-        {concours.length === 0 ? (
-          <Text style={s.emptyText}>Aucun concours créé pour le moment</Text>
-        ) : (
-          concours.map((c) => {
-            const dateStr = `${c.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}-${c.dateFin.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
-            return (
-              <TouchableOpacity key={c.id} style={s.concoursCard} activeOpacity={0.8}>
-                <View style={s.concoursHeader}>
-                  <Text style={s.concoursName}>{c.nom}</Text>
-                  <View style={[s.statutBadge, { backgroundColor: c.statut === 'ouvert' ? Colors.successBg : Colors.surfaceVariant }]}>
-                    <Text style={[s.statutText, { color: c.statut === 'ouvert' ? Colors.success : Colors.textSecondary }]}>
-                      {c.statut === 'ouvert' ? '● Ouvert' : '○ Brouillon'}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={s.concoursDate}>📅 {dateStr} — {c.lieu}</Text>
-                <Text style={s.concoursDetail}>{c.disciplines.join(', ')} • {c.typesCavaliers.join(', ')}</Text>
-                <View style={s.concoursStats}>
-                  <StatBadge label="Inscrits" value={`${c.nbInscrits}/${c.nbPlaces}`} />
-                  {c.prix && <StatBadge label="Prix" value={`${c.prix}€`} />}
-                </View>
-              </TouchableOpacity>
-            );
-          })
+        {revendiques.length === 0 && (
+          <Text style={s.emptyText}>
+            Aucun concours revendiqué pour l'instant. Revendique ton concours FFE pour accéder à ton Radar de demande.
+          </Text>
         )}
       </ScrollView>
-    </SafeAreaView>
-  );
-}
 
-function StatBadge({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={s.statBadge}>
-      <Text style={s.statLabel}>{label}</Text>
-      <Text style={s.statValue}>{value}</Text>
-    </View>
+      {/* Modale anti-doublon : oriente d'abord vers la revendication d'un concours
+          FFE déjà importé. La création manuelle est volontairement désactivée
+          (à venir) — aucune écriture mock dans concoursStore. */}
+      <Modal visible={showCreateModal} transparent animationType="fade" onRequestClose={() => setShowCreateModal(false)}>
+        <TouchableOpacity style={s.backdrop} activeOpacity={1} onPress={() => setShowCreateModal(false)}>
+          <TouchableOpacity activeOpacity={1} style={s.sheet}>
+            <Text style={s.modalIcon}>🏆</Text>
+            <Text style={s.modalTitle}>Vérifie avant de créer</Text>
+            <Text style={s.modalMsg}>
+              Avant de créer un nouveau concours, vérifiez d'abord s'il existe déjà dans Equishow. De nombreux concours FFE sont déjà importés.
+            </Text>
+
+            <TouchableOpacity
+              style={s.modalPrimary}
+              activeOpacity={0.85}
+              onPress={() => { setShowCreateModal(false); router.push('/org-revendiquer' as any); }}
+            >
+              <Text style={s.modalPrimaryTxt}>🔍 Rechercher / revendiquer un concours existant</Text>
+            </TouchableOpacity>
+
+            <View style={s.modalSecondary}>
+              <Text style={s.modalSecondaryTxt}>➕ Créer un nouveau concours</Text>
+              <Text style={s.modalSoon}>Bientôt disponible</Text>
+            </View>
+
+            <TouchableOpacity onPress={() => setShowCreateModal(false)} activeOpacity={0.7}>
+              <Text style={s.modalCancel}>Fermer</Text>
+            </TouchableOpacity>
+          </TouchableOpacity>
+        </TouchableOpacity>
+      </Modal>
+    </SafeAreaView>
   );
 }
 
@@ -159,5 +165,21 @@ const s = StyleSheet.create({
   statBadge: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   statLabel: { fontSize: FontSize.xs, color: Colors.textTertiary },
   statValue: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  emptyText: { fontSize: FontSize.sm, color: Colors.textTertiary, textAlign: 'center', marginTop: Spacing.xl },
+  emptyText: { fontSize: FontSize.sm, color: Colors.textTertiary, textAlign: 'center', marginTop: Spacing.xl, lineHeight: 20 },
+
+  radarBtn: { marginTop: Spacing.sm, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.sm + 2, alignItems: 'center' },
+  radarBtnTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  radarHint: { marginTop: Spacing.sm, fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
+
+  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: Spacing.lg },
+  sheet: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xl, gap: Spacing.md, alignItems: 'stretch' },
+  modalIcon: { fontSize: 36, textAlign: 'center' },
+  modalTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, textAlign: 'center' },
+  modalMsg: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 20 },
+  modalPrimary: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md, paddingHorizontal: Spacing.md, alignItems: 'center', marginTop: Spacing.sm },
+  modalPrimaryTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm, textAlign: 'center' },
+  modalSecondary: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.lg, paddingVertical: Spacing.md, alignItems: 'center', opacity: 0.7 },
+  modalSecondaryTxt: { color: Colors.textTertiary, fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
+  modalSoon: { color: Colors.textTertiary, fontSize: FontSize.xs, fontStyle: 'italic', marginTop: 2 },
+  modalCancel: { color: Colors.textSecondary, fontWeight: FontWeight.semibold, fontSize: FontSize.sm, textAlign: 'center', paddingVertical: Spacing.sm },
 });
