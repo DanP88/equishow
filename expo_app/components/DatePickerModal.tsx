@@ -152,9 +152,12 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
   );
 }
 
-export function formatDate(d?: Date): string {
+export function formatDate(d?: Date | string | number | null): string {
   if (!d) return '';
-  return d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+  // Robuste : les dates issues du JSON Supabase arrivent en string, pas en Date.
+  const date = d instanceof Date ? d : new Date(d);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
 export function DateButton({ label, value, onPress }: {

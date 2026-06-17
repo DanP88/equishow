@@ -782,7 +782,7 @@ export default function ChevalDetailScreen() {
             {cheval.concours.map((c) => (
               <View key={c.id} style={styles.concoursItem}>
                 <Text style={styles.concoursNom}>{c.nom}</Text>
-                <Text style={styles.concoursInfo}>{c.date.toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long' })} · {c.lieu}</Text>
+                <Text style={styles.concoursInfo}>{new Date(c.date).toLocaleDateString('fr-FR', { weekday: 'short', day: 'numeric', month: 'long' })} · {c.lieu}</Text>
                 {c.numEngagement && <Text style={styles.engagement}>Dossard #{c.numEngagement}</Text>}
               </View>
             ))}

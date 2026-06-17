@@ -50,12 +50,18 @@ export function useChevalReservations(chevalId?: string) {
       safe(async () => {
         const { data } = await supabase
           .from('transport_reservations')
-          .select('id, titre, statut, transport_annonces(concours(nom))')
+          .select('id, titre, statut, transport_annonces(type_transport, concours(nom))')
           .eq('cheval_id', chevalId);
-        (data ?? []).forEach((r: any) => out.push({
-          id: r.id, module: 'transport', icon: '🚐', title: r.titre ?? 'Transport',
-          status: r.statut ?? null, date: null, concoursNom: firstConcoursNom(r.transport_annonces),
-        }));
+        (data ?? []).forEach((r: any) => {
+          const a = Array.isArray(r.transport_annonces) ? r.transport_annonces[0] : r.transport_annonces;
+          const isTrajet = a?.type_transport === 'trajet';
+          out.push({
+            id: r.id, module: 'transport',
+            icon: isTrajet ? '🚐' : '🚚',
+            title: isTrajet ? 'Trajet' : 'Van seul',
+            status: r.statut ?? null, date: null, concoursNom: firstConcoursNom(r.transport_annonces),
+          });
+        });
       }),
       safe(async () => {
         const { data } = await supabase
