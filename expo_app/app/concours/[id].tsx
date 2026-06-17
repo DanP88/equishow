@@ -45,8 +45,13 @@ export default function ConcoursFicheScreen() {
     );
   }
 
-  const goServices = (tab: 'transport' | 'box' | 'coach') =>
+  const goServices = (tab: 'transport' | 'box' | 'coach') => {
+    // LOT 2 — tracking clic module (alimente le Radar organisateur, KPI clics).
+    // event_type='cta_click' + action dédiée (même convention que click_ffe ;
+    // le CHECK user_events.event_type interdit un type custom). Pas d'historique.
+    trackCta('concours-fiche', `concours_click_${tab}`, { concours_id: id });
     router.push({ pathname: '/(tabs)/services', params: { tab, concours: concours.nom } } as any);
+  };
 
   const services: { key: 'box' | 'transport' | 'coach'; tab: 'box' | 'transport' | 'coach'; icon: string; label: string; count: number; reserved: boolean }[] = [
     { key: 'box', tab: 'box', icon: '📦', label: 'Box', count: counts.box, reserved: mine.box },
