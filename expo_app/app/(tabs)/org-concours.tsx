@@ -25,21 +25,21 @@ export default function OrgConcoursScreen() {
       </View>
 
       <ScrollView contentContainerStyle={s.container}>
-        <TouchableOpacity style={s.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.85}>
-          <Text style={s.createIcon}>🏆</Text>
-          <View style={{ flex: 1 }}>
-            <Text style={s.createTitle}>Créer un concours</Text>
-            <Text style={s.createHint}>Remplissez tous les détails de votre concours</Text>
-          </View>
-          <Text style={s.createArrow}>→</Text>
-        </TouchableOpacity>
-
-        {/* LOT P0 — Revendiquer un concours FFE existant + Radar de demande */}
+        {/* LOT P0 — Revendiquer un concours FFE existant + Radar de demande (action prioritaire) */}
         <TouchableOpacity style={s.claimBtn} onPress={() => router.push('/org-revendiquer' as any)} activeOpacity={0.85}>
           <Text style={s.createIcon}>📡</Text>
           <View style={{ flex: 1 }}>
             <Text style={s.claimTitle}>Revendiquer un concours</Text>
             <Text style={s.createHint}>Accède au Radar de demande de ton concours</Text>
+          </View>
+          <Text style={s.createArrow}>→</Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity style={s.createBtn} onPress={() => setShowCreateModal(true)} activeOpacity={0.85}>
+          <Text style={s.createIcon}>🏆</Text>
+          <View style={{ flex: 1 }}>
+            <Text style={s.createTitle}>Créer un concours</Text>
+            <Text style={s.createHint}>Remplissez tous les détails de votre concours</Text>
           </View>
           <Text style={s.createArrow}>→</Text>
         </TouchableOpacity>
@@ -148,10 +148,10 @@ const s = StyleSheet.create({
   claimTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   claimsSection: { gap: Spacing.sm },
   claimsTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginTop: Spacing.sm },
-  claimCard: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, gap: Spacing.md, ...Shadow.card },
+  claimCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, gap: Spacing.sm, ...Shadow.card },
   claimName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   claimStatus: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  claimBadge: { alignSelf: 'flex-start', borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 3, marginTop: 6 },
+  claimBadge: { alignSelf: 'flex-start', borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
   claimBadgeTxt: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold },
   demoBtn: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: '#FCD34D', gap: Spacing.md },
   concoursCard: { backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.card },
@@ -167,8 +167,8 @@ const s = StyleSheet.create({
   statValue: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   emptyText: { fontSize: FontSize.sm, color: Colors.textTertiary, textAlign: 'center', marginTop: Spacing.xl, lineHeight: 20 },
 
-  radarBtn: { marginTop: Spacing.sm, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.sm + 2, alignItems: 'center' },
-  radarBtnTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  radarBtn: { marginTop: Spacing.xs, backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md, paddingHorizontal: Spacing.md, alignItems: 'center', justifyContent: 'center', alignSelf: 'stretch', ...Shadow.card },
+  radarBtnTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm, textAlign: 'center' },
   radarHint: { marginTop: Spacing.sm, fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
 
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'center', padding: Spacing.lg },
