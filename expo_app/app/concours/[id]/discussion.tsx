@@ -18,7 +18,11 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../../constant
 import { useScreenTracking } from '../../../hooks/useScreenTracking';
 import { trackCta } from '../../../lib/analytics';
 import { useConcoursDiscussion, ConcoursMessage } from '../../../hooks/useConcoursDiscussion';
-import { useConcours } from '../../../hooks/useConcours';
+import { useConcours, useConcoursList, ConcoursHub } from '../../../hooks/useConcours';
+import {
+  parseConcoursMentions, serializeConcoursMentions, activeMentionQuery, replaceActiveMention,
+  ConcoursMentionRef,
+} from '../../../lib/mentions';
 
 // ── Tags métier LOT 2 (valeurs alignées sur le CHECK topic de la mig 083) ──────
 type TagKey = 'transport' | 'box' | 'coach' | 'stage';
@@ -78,9 +82,32 @@ export default function ConcoursDiscussionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   useScreenTracking('concours-discussion', { concours_id: id });
   const { concours } = useConcours(id);
+  const { concours: allConcours } = useConcoursList(); // source autocomplétion @mention
   const { messages, isLoading, sending, send, softDelete, markRead, canDelete, canPost } = useConcoursDiscussion(id);
   const [draft, setDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<ConcoursMessage | null>(null);
+  // Mentions @concours : libellés saisis en clair + leur concours_id, sérialisés
+  // en jetons à l'envoi (cf. lib/mentions).
+  const [mentions, setMentions] = useState<ConcoursMentionRef[]>([]);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+
+  // Suggestions d'autocomplétion : concours dont le nom contient la requête.
+  const mentionSuggestions = useMemo<ConcoursHub[]>(() => {
+    if (mentionQuery === null) return [];
+    const q = mentionQuery.toLowerCase();
+    return allConcours.filter((c) => c.nom.toLowerCase().includes(q)).slice(0, 6);
+  }, [mentionQuery, allConcours]);
+
+  const onChangeDraft = (t: string) => {
+    setDraft(t);
+    setMentionQuery(activeMentionQuery(t)); // null si pas de @requête active en fin
+  };
+
+  const selectMention = (c: ConcoursHub) => {
+    setDraft((d) => replaceActiveMention(d, c.nom));
+    setMentions((prev) => (prev.some((m) => m.concoursId === c.id) ? prev : [...prev, { label: c.nom, concoursId: c.id }]));
+    setMentionQuery(null);
+  };
 
   // Résolution du message parent pour la citation (réponse 1 niveau).
   const byId = useMemo(() => {
@@ -112,9 +139,11 @@ export default function ConcoursDiscussionScreen() {
     if (!text || sending) return;
     // Tag implicite : détecté automatiquement depuis le texte (plus de chips).
     const detected = detectTopic(text);
+    // Mentions @concours : « @Nom » saisis → jetons @[Nom](concours:id) persistés.
+    const payload = serializeConcoursMentions(text, mentions);
     const parentId = replyingTo?.id ?? null;
-    setDraft(''); setReplyingTo(null);
-    const { error } = await send(text, detected, parentId);
+    setDraft(''); setReplyingTo(null); setMentions([]); setMentionQuery(null);
+    const { error } = await send(payload, detected, parentId);
     if (error) {
       setDraft(text); // restaure en cas d'échec
       if (Platform.OS === 'web') window.alert("Échec de l'envoi. Réessaie.");
@@ -184,7 +213,21 @@ export default function ConcoursDiscussionScreen() {
                     {m.is_deleted ? (
                       <Text style={s.deleted}>Message supprimé</Text>
                     ) : (
-                      <Text style={s.contenu}>{m.contenu}</Text>
+                      <Text style={s.contenu}>
+                        {parseConcoursMentions(m.contenu).map((seg, i) =>
+                          seg.type === 'text' ? (
+                            <Text key={i}>{seg.value}</Text>
+                          ) : (
+                            <Text
+                              key={i}
+                              style={s.mention}
+                              onPress={() => router.push(`/concours/${seg.concoursId}` as any)}
+                            >
+                              @{seg.label}
+                            </Text>
+                          ),
+                        )}
+                      </Text>
                     )}
 
                     {/* CTA de conversion selon le tag → écran Services pré-filtré. */}
@@ -229,6 +272,27 @@ export default function ConcoursDiscussionScreen() {
               </Text>
             )}
 
+            {/* Autocomplétion @mention concours (source : table concours). */}
+            {mentionQuery !== null && mentionSuggestions.length > 0 && (
+              <View style={s.mentionBox}>
+                {mentionSuggestions.map((c) => (
+                  <TouchableOpacity
+                    key={c.id}
+                    style={s.mentionRow}
+                    activeOpacity={0.8}
+                    onPress={() => selectMention(c)}
+                  >
+                    <Text style={s.mentionRowName} numberOfLines={1}>🏆 {c.nom}</Text>
+                    {(c.dateLabel || c.lieu) && (
+                      <Text style={s.mentionRowMeta} numberOfLines={1}>
+                        {[c.dateLabel, c.lieu].filter(Boolean).join(' · ')}
+                      </Text>
+                    )}
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
             {/* Bandeau « en réponse à … » (annulable). */}
             {replyingTo && (
               <View style={s.replyingBar}>
@@ -245,7 +309,7 @@ export default function ConcoursDiscussionScreen() {
               <TextInput
                 style={s.input}
                 value={draft}
-                onChangeText={setDraft}
+                onChangeText={onChangeDraft}
                 placeholder={replyingTo ? 'Écrire une réponse…' : 'Écrire un message…'}
                 placeholderTextColor={Colors.textTertiary}
                 multiline
@@ -305,6 +369,11 @@ const s = StyleSheet.create({
   composerWrap: { borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
   safety: { fontSize: FontSize.xs, color: Colors.textTertiary, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, lineHeight: 16 },
   hint: { fontSize: FontSize.xs, color: Colors.textTertiary, paddingHorizontal: Spacing.md, paddingTop: 2, lineHeight: 16 },
+  mention: { color: Colors.primary, fontWeight: FontWeight.semibold },
+  mentionBox: { marginHorizontal: Spacing.md, marginTop: Spacing.sm, backgroundColor: Colors.background, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, overflow: 'hidden' },
+  mentionRow: { paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  mentionRowName: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  mentionRowMeta: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
   replyingBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, marginHorizontal: Spacing.md, marginTop: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   replyingTxt: { flex: 1, fontSize: FontSize.xs, color: Colors.textSecondary },
   replyingClose: { fontSize: FontSize.base, color: Colors.textTertiary, fontWeight: FontWeight.bold },
