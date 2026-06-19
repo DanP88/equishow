@@ -22,12 +22,21 @@ import { useConcours } from '../../../hooks/useConcours';
 
 // ── Tags métier LOT 2 (valeurs alignées sur le CHECK topic de la mig 083) ──────
 type TagKey = 'transport' | 'box' | 'coach' | 'stage';
-const TAGS: { key: TagKey; label: string }[] = [
-  { key: 'transport', label: '🚐 Transport' },
-  { key: 'box', label: '📦 Box' },
-  { key: 'coach', label: '🎓 Coach' },
-  { key: 'stage', label: '📚 Stage' },
-];
+const TAG_KEYWORDS: TagKey[] = ['transport', 'box', 'coach', 'stage'];
+
+// Détection AUTOMATIQUE du tag depuis le texte (plus de chips). Le 1er hashtag
+// connu gagne. Insensible à la casse, robuste à la ponctuation (\w s'arrête au
+// signe). Hashtags inconnus ignorés. Aucun hashtag connu → null (= général).
+//   "Je cherche un #Transport." → 'transport' · "#box et #transport" → 'box'
+function detectTopic(text: string): TagKey | null {
+  const re = /#(\w+)/g;
+  let m: RegExpExecArray | null;
+  while ((m = re.exec(text)) !== null) {
+    const w = m[1].toLowerCase();
+    if ((TAG_KEYWORDS as string[]).includes(w)) return w as TagKey;
+  }
+  return null;
+}
 
 // CTA de conversion : chaque tag pointe vers l'écran Services existant, pré-filtré
 // par le NOM du concours (le filtre Services matche le champ texte `concours`).
@@ -71,7 +80,6 @@ export default function ConcoursDiscussionScreen() {
   const { concours } = useConcours(id);
   const { messages, isLoading, sending, send, softDelete, markRead, canDelete, canPost } = useConcoursDiscussion(id);
   const [draft, setDraft] = useState('');
-  const [tag, setTag] = useState<TagKey | null>(null);
   const [replyingTo, setReplyingTo] = useState<ConcoursMessage | null>(null);
 
   // Résolution du message parent pour la citation (réponse 1 niveau).
@@ -102,12 +110,13 @@ export default function ConcoursDiscussionScreen() {
   const onSend = async () => {
     const text = draft.trim();
     if (!text || sending) return;
-    const sentTag = tag;
+    // Tag implicite : détecté automatiquement depuis le texte (plus de chips).
+    const detected = detectTopic(text);
     const parentId = replyingTo?.id ?? null;
-    setDraft(''); setTag(null); setReplyingTo(null);
-    const { error } = await send(text, sentTag, parentId);
+    setDraft(''); setReplyingTo(null);
+    const { error } = await send(text, detected, parentId);
     if (error) {
-      setDraft(text); setTag(sentTag); // restaure en cas d'échec
+      setDraft(text); // restaure en cas d'échec
       if (Platform.OS === 'web') window.alert("Échec de l'envoi. Réessaie.");
       else Alert.alert('Échec', "Le message n'a pas pu être envoyé.");
     }
@@ -225,23 +234,6 @@ export default function ConcoursDiscussionScreen() {
               </View>
             )}
 
-            {/* Chips de tag : 1 tag par message (toggle). */}
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
-              {TAGS.map((t) => {
-                const active = tag === t.key;
-                return (
-                  <TouchableOpacity
-                    key={t.key}
-                    style={[s.chip, active && s.chipActive]}
-                    activeOpacity={0.8}
-                    onPress={() => setTag(active ? null : t.key)}
-                  >
-                    <Text style={[s.chipTxt, active && s.chipTxtActive]}>{t.label}</Text>
-                  </TouchableOpacity>
-                );
-              })}
-            </ScrollView>
-
             <View style={s.composer}>
               <TextInput
                 style={s.input}
@@ -308,11 +300,6 @@ const s = StyleSheet.create({
   replyingBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, marginHorizontal: Spacing.md, marginTop: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   replyingTxt: { flex: 1, fontSize: FontSize.xs, color: Colors.textSecondary },
   replyingClose: { fontSize: FontSize.base, color: Colors.textTertiary, fontWeight: FontWeight.bold },
-  chips: { gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm },
-  chip: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, backgroundColor: Colors.background },
-  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  chipTxtActive: { color: Colors.textInverse },
   composer: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm, padding: Spacing.md, backgroundColor: Colors.surface },
   input: { flex: 1, maxHeight: 120, minHeight: 40, backgroundColor: Colors.background, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: FontSize.base, color: Colors.textPrimary },
   sendBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, alignItems: 'center', justifyContent: 'center' },
