@@ -180,7 +180,11 @@ export default function ServicesScreen() {
   // manuel ici. On lit juste les params URL.
   useFocusEffect(useCallback(() => {
     if (params.tab) setTab(params.tab as Tab);
-    if (params.subTab) setTransportSubTab(params.subTab as TransportSubTab);
+    // subTab pilote le sous-onglet transport (trajets/van) OU le sous-onglet coach
+    // (stages). On n'affecte chaque état que pour une valeur qui le concerne →
+    // non régressif. LOT 2 : CTA #stage du fil concours → tab=coach&subTab=stages.
+    if (params.subTab === 'trajets' || params.subTab === 'van') setTransportSubTab(params.subTab);
+    if (params.tab === 'coach' && params.subTab === 'stages') setCoachTab('stages');
     // LOT 1 — pré-filtrage par concours (nom) depuis la fiche concours.
     // Le filtre Services matche le champ texte `concours` existant → non régressif.
     if (params.concours) {

@@ -29,12 +29,13 @@ export interface ConcoursMessage {
   auteur_role: string | null;
   contenu: string;
   topic: string | null;
+  parent_id: string | null;
   is_deleted: boolean;
   created_at: string;
 }
 
 const SELECT_COLS =
-  'id,concours_id,auteur_id,auteur_pseudo,auteur_initiales,auteur_couleur,auteur_role,contenu,topic,is_deleted,created_at';
+  'id,concours_id,auteur_id,auteur_pseudo,auteur_initiales,auteur_couleur,auteur_role,contenu,topic,parent_id,is_deleted,created_at';
 
 // ── Résumé léger pour l'entrée fiche : total messages + non-lus ──────────────
 export function useConcoursThread(concoursId?: string) {
@@ -120,14 +121,16 @@ export function useConcoursDiscussion(concoursId?: string) {
   }, [concoursId, me]);
 
   // Poste un message. auteur_* rempli serveur (trigger) ; on n'envoie que l'id.
+  // LOT 2 : topic (tag métier) + parentId (réponse 1 niveau). La notif de réponse
+  // est gérée serveur (trigger 083) dès que parent_id est renseigné.
   const send = useCallback(
-    async (contenu: string, topic?: string | null) => {
+    async (contenu: string, topic?: string | null, parentId?: string | null) => {
       const text = contenu.trim();
       if (!concoursId || !me || !text) return { error: 'invalid' as const };
       setSending(true);
       const { error } = await supabase
         .from('concours_messages')
-        .insert({ concours_id: concoursId, auteur_id: me, contenu: text, topic: topic ?? null });
+        .insert({ concours_id: concoursId, auteur_id: me, contenu: text, topic: topic ?? null, parent_id: parentId ?? null });
       setSending(false);
       if (error) return { error: error.message };
       await load();
