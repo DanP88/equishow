@@ -1,12 +1,13 @@
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Linking } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
-import { Colors } from '../../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { useConcours, useConcoursCounts, useConcoursFollow, useConcoursMyReservations } from '../../hooks/useConcours';
-import { useScreenTracking } from '../../hooks/useScreenTracking';
-import { trackCta } from '../../lib/analytics';
-import { ConcoursWeatherCard } from '../../components/ConcoursWeatherCard';
-import { ConcoursEpreuvesCard } from '../../components/ConcoursEpreuvesCard';
+import { Colors } from '../../../constants/colors';
+import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../../constants/theme';
+import { useConcours, useConcoursCounts, useConcoursFollow, useConcoursMyReservations } from '../../../hooks/useConcours';
+import { useScreenTracking } from '../../../hooks/useScreenTracking';
+import { trackCta } from '../../../lib/analytics';
+import { ConcoursWeatherCard } from '../../../components/ConcoursWeatherCard';
+import { ConcoursEpreuvesCard } from '../../../components/ConcoursEpreuvesCard';
+import { ConcoursDiscussionEntry } from '../../../components/ConcoursDiscussionEntry';
 
 /**
  * LOT 1 — Fiche concours (hub). Compteurs RÉELS masqués si 0 (anti cold-start).
@@ -126,6 +127,9 @@ export default function ConcoursFicheScreen() {
             </TouchableOpacity>
           ))}
         </View>
+
+        {/* Discussion publique du concours (LOT 1) — entrée unique après services. */}
+        <ConcoursDiscussionEntry concoursId={id} />
 
         {totalOffers === 0 && (
           <View style={s.coldStart}>
