@@ -222,6 +222,13 @@ export default function ConcoursDiscussionScreen() {
               🔒 Réserve via Equishow : paiement sécurisé, suivi dans l'app, visible par l'organisateur.
             </Text>
 
+            {/* Aide hashtags : découvrabilité de la catégorisation (hors mode réponse). */}
+            {!replyingTo && (
+              <Text style={s.hint}>
+                💡 Astuce : utilisez #transport, #box, #coach ou #stage
+              </Text>
+            )}
+
             {/* Bandeau « en réponse à … » (annulable). */}
             {replyingTo && (
               <View style={s.replyingBar}>
@@ -297,6 +304,7 @@ const s = StyleSheet.create({
   delBtn: { fontSize: FontSize.xs, color: Colors.danger, fontWeight: FontWeight.semibold },
   composerWrap: { borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
   safety: { fontSize: FontSize.xs, color: Colors.textTertiary, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, lineHeight: 16 },
+  hint: { fontSize: FontSize.xs, color: Colors.textTertiary, paddingHorizontal: Spacing.md, paddingTop: 2, lineHeight: 16 },
   replyingBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, marginHorizontal: Spacing.md, marginTop: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
   replyingTxt: { flex: 1, fontSize: FontSize.xs, color: Colors.textSecondary },
   replyingClose: { fontSize: FontSize.base, color: Colors.textTertiary, fontWeight: FontWeight.bold },
