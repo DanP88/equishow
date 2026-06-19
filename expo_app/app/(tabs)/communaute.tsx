@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal, KeyboardAvoidingView, Platform, Linking, Alert,
@@ -6,13 +6,41 @@ import {
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
-import { userStore, concoursCsvStore, concoursStore, CommunautePost } from '../../data/store';
+import { userStore, concoursStore, CommunautePost } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
 import { getUserById } from '../../data/mockUsers';
 import { ConcoursCSV } from '../../types/concours';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { useCommunautePosts } from '../../hooks/useCommunautePosts';
+import { useConcoursList, ConcoursHub } from '../../hooks/useConcours';
 import { UserBadge } from '../../components/UserBadge';
+
+// Adaptateur DB → forme attendue par la carte/modale « Info concours ».
+// L'onglet lisait `concoursCsvStore` (mock seedé à 100) : on bascule sur la
+// vraie table `concours` (useConcoursList) pour afficher TOUS les concours
+// importés. La carte et ConcoursDetail consomment ConcoursCSV → on mappe.
+function hubToCsv(c: ConcoursHub): ConcoursCSV {
+  return {
+    id: c.id,
+    nom_concours: c.nom,
+    date_debut: c.date_debut,
+    date_fin: c.date_fin,
+    date_cloture: null,
+    organisateur_terrain: null,
+    organisateur_financier: null,
+    lieu: c.lieu,
+    type_concours: c.type_concours,
+    departement: c.departement,
+    cre: c.cre,
+    numero_concours: c.numero_ffe,
+    etat: c.etat,
+    liste_epreuves: c.liste_epreuves,
+    adresse: null,
+    source_import: 'csv',
+    import_batch_id: null,
+    created_at: '',
+  };
+}
 
 function timeAgo(date: Date): string {
   const diff = Date.now() - date.getTime();
@@ -37,7 +65,8 @@ export default function CommunauteScreen() {
   const [newText, setNewText] = useState('');
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
-  const [concoursList, setConcoursList] = useState([...concoursCsvStore.list]);
+  const { concours: dbConcours, reload: reloadConcours } = useConcoursList();
+  const concoursList = useMemo<ConcoursCSV[]>(() => dbConcours.map(hubToCsv), [dbConcours]);
   const [concoursSearch, setConcoursSearch] = useState('');
   const [selectedConcours, setSelectedConcours] = useState<ConcoursCSV | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('date_asc');
@@ -48,8 +77,8 @@ export default function CommunauteScreen() {
 
   useFocusEffect(
     useCallback(() => {
-      setConcoursList([...concoursCsvStore.list]);
-    }, [])
+      reloadConcours();
+    }, [reloadConcours])
   );
 
   async function toggleLike(postId: string) {
