@@ -19,6 +19,15 @@ import { UserBadge } from '../../components/UserBadge';
 // L'onglet lisait `concoursCsvStore` (mock seedé à 100) : on bascule sur la
 // vraie table `concours` (useConcoursList) pour afficher TOUS les concours
 // importés. La carte et ConcoursDetail consomment ConcoursCSV → on mappe.
+// Concours passé = date de fin (ou début) antérieure à aujourd'hui.
+// (même règle que le hub concours pour cohérence)
+function isPastConcours(c: { date_fin: string | null; date_debut: string | null }): boolean {
+  const d = c.date_fin ?? c.date_debut;
+  if (!d) return false;
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  return new Date(`${d}T00:00:00`) < today;
+}
+
 function hubToCsv(c: ConcoursHub): ConcoursCSV {
   return {
     id: c.id,
@@ -70,6 +79,7 @@ export default function CommunauteScreen() {
   const [concoursSearch, setConcoursSearch] = useState('');
   const [selectedConcours, setSelectedConcours] = useState<ConcoursCSV | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('date_asc');
+  const [timeTab, setTimeTab] = useState<'avenir' | 'passes'>('avenir');
   const [filterRegion, setFilterRegion] = useState('');
   const [filterEpreuve, setFilterEpreuve] = useState('');
   const [filterType, setFilterType] = useState('');
@@ -263,10 +273,33 @@ export default function CommunauteScreen() {
         if (sortMode === 'date_desc') filtered = [...filtered].sort((a, b) => (b.date_debut ?? '').localeCompare(a.date_debut ?? ''));
         if (sortMode === 'region_asc') filtered = [...filtered].sort((a, b) => (a.cre ?? '').localeCompare(b.cre ?? ''));
 
+        // Découpage À venir / Passés (sur la liste déjà filtrée+triée)
+        const avenir = filtered.filter(c => !isPastConcours(c));
+        const passes = filtered.filter(c => isPastConcours(c));
+        const shown = timeTab === 'avenir' ? avenir : passes;
+
         const hasFilters = filterRegion || filterEpreuve || filterType || sortMode !== 'date_asc';
 
         return (
           <>
+            {/* Onglets À venir / Passés (compteurs sur la liste filtrée) */}
+            <View style={styles.timeTabs}>
+              <TouchableOpacity
+                style={[styles.timeTab, timeTab === 'avenir' && styles.timeTabActive]}
+                onPress={() => setTimeTab('avenir')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.timeTabTxt, timeTab === 'avenir' && styles.timeTabTxtActive]}>À venir ({avenir.length})</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.timeTab, timeTab === 'passes' && styles.timeTabActive]}
+                onPress={() => setTimeTab('passes')}
+                activeOpacity={0.8}
+              >
+                <Text style={[styles.timeTabTxt, timeTab === 'passes' && styles.timeTabTxtActive]}>Passés ({passes.length})</Text>
+              </TouchableOpacity>
+            </View>
+
             {/* Barre recherche + bouton filtres */}
             <View style={styles.csvSearchRow}>
               <Text style={styles.csvSearchIcon}>🔍</Text>
@@ -396,12 +429,14 @@ export default function CommunauteScreen() {
               ) : (
                 <>
                   <Text style={styles.csvCount}>
-                    {filtered.length} concours{concoursSearch || hasFilters ? ' trouvés' : ' disponibles'}
+                    {shown.length} concours {timeTab === 'avenir' ? 'à venir' : 'passés'}{concoursSearch || hasFilters ? ' (filtrés)' : ''}
                   </Text>
-                  {filtered.length === 0 && (
-                    <Text style={styles.csvNoResult}>Aucun résultat pour ces filtres</Text>
+                  {shown.length === 0 && (
+                    <Text style={styles.csvNoResult}>
+                      {timeTab === 'avenir' ? 'Aucun concours à venir' : 'Aucun concours passé'}{concoursSearch || hasFilters ? ' pour ces filtres' : ''}
+                    </Text>
                   )}
-                  {filtered.map((c) => (
+                  {shown.map((c) => (
                     <TouchableOpacity key={c.id} style={styles.csvCard} onPress={() => setSelectedConcours(c)} activeOpacity={0.85}>
                       <View style={styles.csvCardTop}>
                         <View style={styles.csvCardTitleRow}>
@@ -771,6 +806,11 @@ const styles = StyleSheet.create({
   mainTabBadgeTextActive: { color: Colors.primary },
 
   // CSV Concours
+  timeTabs: { flexDirection: 'row', gap: Spacing.sm, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  timeTab: { flex: 1, paddingVertical: Spacing.sm, borderRadius: Radius.md, alignItems: 'center', backgroundColor: Colors.surfaceVariant, borderWidth: 1, borderColor: Colors.border },
+  timeTabActive: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder },
+  timeTabTxt: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
+  timeTabTxtActive: { color: Colors.primary, fontWeight: FontWeight.bold },
   csvSearchRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm, gap: Spacing.sm },
   csvSearchIcon: { fontSize: 14, color: Colors.textTertiary },
   csvSearchInput: { flex: 1, paddingVertical: Spacing.sm, fontSize: FontSize.base, color: Colors.textPrimary },
