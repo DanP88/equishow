@@ -1,7 +1,7 @@
 import { useState, useCallback, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Modal, KeyboardAvoidingView, Platform, Linking, Alert,
+  TextInput, Modal, KeyboardAvoidingView, Platform, Linking, Alert, ActivityIndicator,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -13,6 +13,7 @@ import { ConcoursCSV } from '../../types/concours';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { useCommunautePosts } from '../../hooks/useCommunautePosts';
 import { useConcoursList, ConcoursHub } from '../../hooks/useConcours';
+import { useConcoursDiscussionsFeed } from '../../hooks/useConcoursDiscussion';
 import { UserBadge } from '../../components/UserBadge';
 
 // Adaptateur DB → forme attendue par la carte/modale « Info concours ».
@@ -63,7 +64,7 @@ function getUserInitiales(): string {
   return (userStore.prenom.charAt(0) + userStore.nom.charAt(0)).toUpperCase();
 }
 
-type MainTab = 'communaute' | 'concours' | 'contact-concours';
+type MainTab = 'communaute' | 'concours' | 'contact-concours' | 'discussions';
 type SortMode = 'date_asc' | 'date_desc' | 'region_asc';
 
 export default function CommunauteScreen() {
@@ -76,6 +77,8 @@ export default function CommunauteScreen() {
   const [commentText, setCommentText] = useState('');
   const { concours: dbConcours, reload: reloadConcours } = useConcoursList();
   const concoursList = useMemo<ConcoursCSV[]>(() => dbConcours.map(hubToCsv), [dbConcours]);
+  // LOT 2 — découvrabilité : concours ayant une discussion active (concours_messages).
+  const { items: discussionsFeed, isLoading: discussionsLoading, reload: reloadDiscussions } = useConcoursDiscussionsFeed();
   const [concoursSearch, setConcoursSearch] = useState('');
   const [selectedConcours, setSelectedConcours] = useState<ConcoursCSV | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('date_asc');
@@ -191,6 +194,22 @@ export default function CommunauteScreen() {
               📬 Contact concours
             </Text>
           </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.mainTabBtn, mainTab === 'discussions' && styles.mainTabBtnActive]}
+            onPress={() => setMainTab('discussions')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.mainTabLabel, mainTab === 'discussions' && styles.mainTabLabelActive]}>
+              💬 Discussions
+            </Text>
+            {discussionsFeed.length > 0 && (
+              <View style={[styles.mainTabBadge, mainTab === 'discussions' && styles.mainTabBadgeActive]}>
+                <Text style={[styles.mainTabBadgeText, mainTab === 'discussions' && styles.mainTabBadgeTextActive]}>
+                  {discussionsFeed.length}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -244,6 +263,39 @@ export default function CommunauteScreen() {
           </ScrollView>
         );
       })()}
+
+      {/* ── ONGLET DISCUSSIONS CONCOURS ──────────────────────────── */}
+      {mainTab === 'discussions' && (
+        <ScrollView contentContainerStyle={styles.contactList}>
+          <Text style={styles.contactSectionTitle}>💬 Discussions concours</Text>
+          {discussionsLoading && discussionsFeed.length === 0 ? (
+            <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.xl }} />
+          ) : discussionsFeed.length === 0 ? (
+            <View style={styles.contactEmpty}>
+              <Text style={styles.contactEmptyIcon}>💬</Text>
+              <Text style={styles.contactEmptyText}>
+                Aucune discussion pour le moment. Ouvre un concours et lance la conversation.
+              </Text>
+            </View>
+          ) : (
+            discussionsFeed.map((d) => (
+              <TouchableOpacity
+                key={d.concours_id}
+                style={styles.contactCard}
+                activeOpacity={0.85}
+                onPress={() => router.push(`/concours/${d.concours_id}/discussion` as any)}
+              >
+                <Text style={styles.contactName}>🏆 {d.nom}</Text>
+                <Text style={styles.contactMeta}>
+                  💬 {d.messageCount} message{d.messageCount > 1 ? 's' : ''}
+                  {d.isRecent ? '  ·  🟢 activité récente' : ''}
+                </Text>
+                <Text style={styles.discussionOpen}>Ouvrir la discussion →</Text>
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+      )}
 
       {/* ── ONGLET INFO CONCOURS ─────────────────────────────────── */}
       {mainTab === 'concours' && (() => {
@@ -791,6 +843,7 @@ const styles = StyleSheet.create({
   contactCard: { ...CommonStyles.card, padding: Spacing.lg, gap: 4 },
   contactName: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.xs },
   contactMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  discussionOpen: { marginTop: Spacing.sm, fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.primary },
   contactBtn: { marginTop: Spacing.sm, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Radius.md, backgroundColor: '#EFF6FF', borderWidth: 1, borderColor: '#93C5FD', alignItems: 'center' },
   contactBtnText: { color: '#1D4ED8', fontWeight: FontWeight.semibold, fontSize: FontSize.sm },
   contactEmpty: { alignItems: 'center', justifyContent: 'center', padding: Spacing.xxl, gap: Spacing.md },

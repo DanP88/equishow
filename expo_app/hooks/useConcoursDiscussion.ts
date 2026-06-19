@@ -29,12 +29,13 @@ export interface ConcoursMessage {
   auteur_role: string | null;
   contenu: string;
   topic: string | null;
+  parent_id: string | null;
   is_deleted: boolean;
   created_at: string;
 }
 
 const SELECT_COLS =
-  'id,concours_id,auteur_id,auteur_pseudo,auteur_initiales,auteur_couleur,auteur_role,contenu,topic,is_deleted,created_at';
+  'id,concours_id,auteur_id,auteur_pseudo,auteur_initiales,auteur_couleur,auteur_role,contenu,topic,parent_id,is_deleted,created_at';
 
 // ── Résumé léger pour l'entrée fiche : total messages + non-lus ──────────────
 export function useConcoursThread(concoursId?: string) {
@@ -75,6 +76,65 @@ export function useConcoursThread(concoursId?: string) {
   }, [concoursId, channelId, load]);
 
   return { total, unread, reload: load };
+}
+
+// ── Feed découvrabilité : concours ayant une discussion (Communauté) ──────────
+// Réutilise concours_messages + l'embed FK concours(nom). AUCUNE nouvelle table.
+// Agrégation client-side sur une fenêtre des messages récents (volume faible) :
+// par concours → nombre de messages (dans la fenêtre) + date du dernier + flag
+// « activité récente » (< 72h). Trié par activité décroissante.
+export interface ConcoursDiscussionSummary {
+  concours_id: string;
+  nom: string;
+  messageCount: number;
+  lastAt: string;
+  isRecent: boolean;
+}
+
+const RECENT_WINDOW_MS = 72 * 60 * 60 * 1000;
+
+export function useConcoursDiscussionsFeed() {
+  const [items, setItems] = useState<ConcoursDiscussionSummary[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('concours_messages')
+      .select('concours_id, created_at, concours:concours_id(nom)')
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: false })
+      .limit(500);
+
+    if (error || !data) { setItems([]); setIsLoading(false); return; }
+
+    const map = new Map<string, { nom: string; count: number; last: string }>();
+    for (const row of data as any[]) {
+      const id = row.concours_id as string;
+      if (!id) continue;
+      const nom = row.concours?.nom ?? 'Concours';
+      const cur = map.get(id);
+      if (cur) { cur.count += 1; if (row.created_at > cur.last) cur.last = row.created_at; }
+      else map.set(id, { nom, count: 1, last: row.created_at });
+    }
+
+    const now = Date.now();
+    const list: ConcoursDiscussionSummary[] = [...map.entries()]
+      .map(([concours_id, v]) => ({
+        concours_id,
+        nom: v.nom,
+        messageCount: v.count,
+        lastAt: v.last,
+        isRecent: now - new Date(v.last).getTime() < RECENT_WINDOW_MS,
+      }))
+      .sort((a, b) => (a.lastAt < b.lastAt ? 1 : -1));
+
+    setItems(list);
+    setIsLoading(false);
+  }, []);
+
+  useEffect(() => { load(); }, [load]);
+  return { items, isLoading, reload: load };
 }
 
 // ── Fil complet (écran dédié) ───────────────────────────────────────────────
@@ -120,14 +180,16 @@ export function useConcoursDiscussion(concoursId?: string) {
   }, [concoursId, me]);
 
   // Poste un message. auteur_* rempli serveur (trigger) ; on n'envoie que l'id.
+  // LOT 2 : topic (tag métier) + parentId (réponse 1 niveau). La notif de réponse
+  // est gérée serveur (trigger 083) dès que parent_id est renseigné.
   const send = useCallback(
-    async (contenu: string, topic?: string | null) => {
+    async (contenu: string, topic?: string | null, parentId?: string | null) => {
       const text = contenu.trim();
       if (!concoursId || !me || !text) return { error: 'invalid' as const };
       setSending(true);
       const { error } = await supabase
         .from('concours_messages')
-        .insert({ concours_id: concoursId, auteur_id: me, contenu: text, topic: topic ?? null });
+        .insert({ concours_id: concoursId, auteur_id: me, contenu: text, topic: topic ?? null, parent_id: parentId ?? null });
       setSending(false);
       if (error) return { error: error.message };
       await load();

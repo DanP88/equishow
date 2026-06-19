@@ -1,11 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// /concours/[id]/discussion — fil public LOT 1 (Option C).
-// Lecture publique, écriture par tout utilisateur connecté. Soft delete (auteur,
-// org propriétaire, admin via RLS 082). Realtime. Marque lu à l'ouverture.
-// Identité = pseudo + couleur + initiales uniquement (pas de nom/club/niveau).
+// /concours/[id]/discussion — fil public concours.
+// LOT 1 : lecture publique, écriture connectée, soft delete (auteur·org·admin),
+//   realtime, marque lu à l'ouverture, identité = pseudo+couleur+initiales.
+// LOT 2 P1 : tags métier (#transport/#box/#coach/#stage) → CTA de conversion vers
+//   les écrans Services existants ; réponses 1 niveau (parent_id) avec citation ;
+//   garde-fou business discret. Notif de réponse = serveur (trigger 083).
 // ─────────────────────────────────────────────────────────────────────────────
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TextInput, TouchableOpacity, StyleSheet, SafeAreaView,
   ActivityIndicator, KeyboardAvoidingView, Platform, Alert,
@@ -14,7 +16,34 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../../constants/theme';
 import { useScreenTracking } from '../../../hooks/useScreenTracking';
+import { trackCta } from '../../../lib/analytics';
 import { useConcoursDiscussion, ConcoursMessage } from '../../../hooks/useConcoursDiscussion';
+import { useConcours } from '../../../hooks/useConcours';
+
+// ── Tags métier LOT 2 (valeurs alignées sur le CHECK topic de la mig 083) ──────
+type TagKey = 'transport' | 'box' | 'coach' | 'stage';
+const TAGS: { key: TagKey; label: string }[] = [
+  { key: 'transport', label: '🚐 Transport' },
+  { key: 'box', label: '📦 Box' },
+  { key: 'coach', label: '🎓 Coach' },
+  { key: 'stage', label: '📚 Stage' },
+];
+
+// CTA de conversion : chaque tag pointe vers l'écran Services existant, pré-filtré
+// par le NOM du concours (le filtre Services matche le champ texte `concours`).
+// #stage → onglet coach + sous-onglet stages (services lit params.subTab).
+const CTA: Record<TagKey, { label: string; tab: 'transport' | 'box' | 'coach'; subTab?: 'stages' }> = {
+  transport: { label: 'Voir les transports disponibles', tab: 'transport' },
+  box: { label: 'Voir les boxes disponibles', tab: 'box' },
+  coach: { label: 'Voir les coachs disponibles', tab: 'coach' },
+  stage: { label: 'Voir les stages disponibles', tab: 'coach', subTab: 'stages' },
+};
+
+const TAG_LABEL: Record<TagKey, string> = {
+  transport: '🚐 Transport', box: '📦 Box', coach: '🎓 Coach', stage: '📚 Stage',
+};
+const isTagKey = (t: string | null): t is TagKey =>
+  t === 'transport' || t === 'box' || t === 'coach' || t === 'stage';
 
 function timeLabel(iso: string): string {
   const d = new Date(iso);
@@ -31,11 +60,26 @@ function roleBadge(role: string | null): string | null {
   return null;
 }
 
+function excerpt(s: string, n = 90): string {
+  const t = (s || '').trim();
+  return t.length > n ? `${t.slice(0, n)}…` : t;
+}
+
 export default function ConcoursDiscussionScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   useScreenTracking('concours-discussion', { concours_id: id });
+  const { concours } = useConcours(id);
   const { messages, isLoading, sending, send, softDelete, markRead, canDelete, canPost } = useConcoursDiscussion(id);
   const [draft, setDraft] = useState('');
+  const [tag, setTag] = useState<TagKey | null>(null);
+  const [replyingTo, setReplyingTo] = useState<ConcoursMessage | null>(null);
+
+  // Résolution du message parent pour la citation (réponse 1 niveau).
+  const byId = useMemo(() => {
+    const m = new Map<string, ConcoursMessage>();
+    messages.forEach((x) => m.set(x.id, x));
+    return m;
+  }, [messages]);
 
   // Marque le fil lu à l'ouverture (remet le badge non-lu à 0).
   useEffect(() => { markRead(); }, [markRead]);
@@ -45,13 +89,25 @@ export default function ConcoursDiscussionScreen() {
     else router.replace(`/concours/${id}` as any);
   };
 
+  // CTA de conversion : ouvre Services pré-filtré sur ce concours pour le module.
+  const goServices = (key: TagKey) => {
+    const c = CTA[key];
+    trackCta('concours-discussion', `concours_disc_cta_${key}`, { concours_id: id });
+    router.push({
+      pathname: '/(tabs)/services',
+      params: { tab: c.tab, ...(c.subTab ? { subTab: c.subTab } : {}), concours: concours?.nom ?? '' },
+    } as any);
+  };
+
   const onSend = async () => {
     const text = draft.trim();
     if (!text || sending) return;
-    setDraft('');
-    const { error } = await send(text);
+    const sentTag = tag;
+    const parentId = replyingTo?.id ?? null;
+    setDraft(''); setTag(null); setReplyingTo(null);
+    const { error } = await send(text, sentTag, parentId);
     if (error) {
-      setDraft(text); // restaure en cas d'échec
+      setDraft(text); setTag(sentTag); // restaure en cas d'échec
       if (Platform.OS === 'web') window.alert("Échec de l'envoi. Réessaie.");
       else Alert.alert('Échec', "Le message n'a pas pu être envoyé.");
     }
@@ -85,6 +141,8 @@ export default function ConcoursDiscussionScreen() {
           ) : (
             messages.map((m) => {
               const badge = roleBadge(m.auteur_role);
+              const parent = m.parent_id ? byId.get(m.parent_id) : undefined;
+              const tagKey = isTagKey(m.topic) ? m.topic : null;
               return (
                 <View key={m.id} style={s.msgRow}>
                   <View style={[s.avatar, { backgroundColor: m.auteur_couleur || Colors.primary }]}>
@@ -96,15 +154,50 @@ export default function ConcoursDiscussionScreen() {
                       {!!badge && <View style={s.roleBadge}><Text style={s.roleBadgeTxt}>{badge}</Text></View>}
                       <Text style={s.time}>{timeLabel(m.created_at)}</Text>
                     </View>
+
+                    {/* Citation du message parent (réponse 1 niveau). */}
+                    {!!m.parent_id && (
+                      <View style={s.quote}>
+                        <Text style={s.quoteAuthor} numberOfLines={1}>
+                          ↳ {parent ? (parent.auteur_pseudo || 'Cavalier') : 'Message'}
+                        </Text>
+                        <Text style={s.quoteTxt} numberOfLines={2}>
+                          {!parent ? "Message d'origine indisponible" : parent.is_deleted ? 'Message supprimé' : excerpt(parent.contenu)}
+                        </Text>
+                      </View>
+                    )}
+
+                    {/* Tag métier visible. */}
+                    {tagKey && !m.is_deleted && (
+                      <View style={s.tagPill}><Text style={s.tagPillTxt}>{TAG_LABEL[tagKey]}</Text></View>
+                    )}
+
                     {m.is_deleted ? (
                       <Text style={s.deleted}>Message supprimé</Text>
                     ) : (
                       <Text style={s.contenu}>{m.contenu}</Text>
                     )}
-                    {canDelete(m) && (
-                      <TouchableOpacity onPress={() => onDelete(m)} hitSlop={8}>
-                        <Text style={s.delBtn}>Supprimer</Text>
+
+                    {/* CTA de conversion selon le tag → écran Services pré-filtré. */}
+                    {tagKey && !m.is_deleted && (
+                      <TouchableOpacity style={s.ctaBtn} activeOpacity={0.85} onPress={() => goServices(tagKey)}>
+                        <Text style={s.ctaTxt}>{CTA[tagKey].label}  →</Text>
                       </TouchableOpacity>
+                    )}
+
+                    {!m.is_deleted && (
+                      <View style={s.msgActions}>
+                        {canPost && (
+                          <TouchableOpacity onPress={() => setReplyingTo(m)} hitSlop={8}>
+                            <Text style={s.replyBtn}>Répondre</Text>
+                          </TouchableOpacity>
+                        )}
+                        {canDelete(m) && (
+                          <TouchableOpacity onPress={() => onDelete(m)} hitSlop={8}>
+                            <Text style={s.delBtn}>Supprimer</Text>
+                          </TouchableOpacity>
+                        )}
+                      </View>
                     )}
                   </View>
                 </View>
@@ -114,24 +207,60 @@ export default function ConcoursDiscussionScreen() {
         </ScrollView>
 
         {canPost ? (
-          <View style={s.composer}>
-            <TextInput
-              style={s.input}
-              value={draft}
-              onChangeText={setDraft}
-              placeholder="Écrire un message…"
-              placeholderTextColor={Colors.textTertiary}
-              multiline
-              maxLength={2000}
-            />
-            <TouchableOpacity
-              style={[s.sendBtn, (!draft.trim() || sending) && s.sendBtnOff]}
-              activeOpacity={0.85}
-              disabled={!draft.trim() || sending}
-              onPress={onSend}
-            >
-              <Text style={s.sendTxt}>{sending ? '…' : 'Envoyer'}</Text>
-            </TouchableOpacity>
+          <View style={s.composerWrap}>
+            {/* Garde-fou business discret : inciter à rester sur la plateforme. */}
+            <Text style={s.safety}>
+              🔒 Réserve via Equishow : paiement sécurisé, suivi dans l'app, visible par l'organisateur.
+            </Text>
+
+            {/* Bandeau « en réponse à … » (annulable). */}
+            {replyingTo && (
+              <View style={s.replyingBar}>
+                <Text style={s.replyingTxt} numberOfLines={1}>
+                  ↳ En réponse à {replyingTo.auteur_pseudo || 'Cavalier'} : {excerpt(replyingTo.contenu, 50)}
+                </Text>
+                <TouchableOpacity onPress={() => setReplyingTo(null)} hitSlop={8}>
+                  <Text style={s.replyingClose}>✕</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+
+            {/* Chips de tag : 1 tag par message (toggle). */}
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.chips}>
+              {TAGS.map((t) => {
+                const active = tag === t.key;
+                return (
+                  <TouchableOpacity
+                    key={t.key}
+                    style={[s.chip, active && s.chipActive]}
+                    activeOpacity={0.8}
+                    onPress={() => setTag(active ? null : t.key)}
+                  >
+                    <Text style={[s.chipTxt, active && s.chipTxtActive]}>{t.label}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+
+            <View style={s.composer}>
+              <TextInput
+                style={s.input}
+                value={draft}
+                onChangeText={setDraft}
+                placeholder={replyingTo ? 'Écrire une réponse…' : 'Écrire un message…'}
+                placeholderTextColor={Colors.textTertiary}
+                multiline
+                maxLength={2000}
+              />
+              <TouchableOpacity
+                style={[s.sendBtn, (!draft.trim() || sending) && s.sendBtnOff]}
+                activeOpacity={0.85}
+                disabled={!draft.trim() || sending}
+                onPress={onSend}
+              >
+                <Text style={s.sendTxt}>{sending ? '…' : 'Envoyer'}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         ) : (
           <View style={s.composer}>
@@ -162,10 +291,29 @@ const s = StyleSheet.create({
   roleBadge: { backgroundColor: Colors.primaryLight, borderRadius: Radius.xs, paddingHorizontal: 6, paddingVertical: 1 },
   roleBadgeTxt: { fontSize: 10, color: Colors.primary, fontWeight: FontWeight.bold },
   time: { fontSize: FontSize.xs, color: Colors.textTertiary, marginLeft: 'auto' },
+  quote: { borderLeftWidth: 3, borderLeftColor: Colors.primaryBorder, backgroundColor: Colors.surfaceVariant, borderRadius: Radius.xs, paddingHorizontal: Spacing.sm, paddingVertical: 4, marginBottom: 4 },
+  quoteAuthor: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold },
+  quoteTxt: { fontSize: FontSize.xs, color: Colors.textSecondary, fontStyle: 'italic' },
+  tagPill: { alignSelf: 'flex-start', backgroundColor: Colors.goldBg, borderRadius: Radius.xs, paddingHorizontal: 8, paddingVertical: 2, marginBottom: 4 },
+  tagPillTxt: { fontSize: FontSize.xs, color: Colors.gold, fontWeight: FontWeight.bold },
   contenu: { fontSize: FontSize.base, color: Colors.textPrimary, lineHeight: 20 },
   deleted: { fontSize: FontSize.sm, color: Colors.textTertiary, fontStyle: 'italic' },
-  delBtn: { fontSize: FontSize.xs, color: Colors.danger, fontWeight: FontWeight.semibold, marginTop: 4 },
-  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm, padding: Spacing.md, borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
+  ctaBtn: { alignSelf: 'flex-start', marginTop: 6, backgroundColor: Colors.primaryLight, borderWidth: 1, borderColor: Colors.primaryBorder, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  ctaTxt: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  msgActions: { flexDirection: 'row', gap: Spacing.lg, marginTop: 4 },
+  replyBtn: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.semibold },
+  delBtn: { fontSize: FontSize.xs, color: Colors.danger, fontWeight: FontWeight.semibold },
+  composerWrap: { borderTopWidth: 1, borderTopColor: Colors.border, backgroundColor: Colors.surface },
+  safety: { fontSize: FontSize.xs, color: Colors.textTertiary, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm, lineHeight: 16 },
+  replyingBar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surfaceVariant, borderRadius: Radius.sm, marginHorizontal: Spacing.md, marginTop: Spacing.sm, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  replyingTxt: { flex: 1, fontSize: FontSize.xs, color: Colors.textSecondary },
+  replyingClose: { fontSize: FontSize.base, color: Colors.textTertiary, fontWeight: FontWeight.bold },
+  chips: { gap: Spacing.sm, paddingHorizontal: Spacing.md, paddingTop: Spacing.sm },
+  chip: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.lg, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs, backgroundColor: Colors.background },
+  chipActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  chipTxtActive: { color: Colors.textInverse },
+  composer: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm, padding: Spacing.md, backgroundColor: Colors.surface },
   input: { flex: 1, maxHeight: 120, minHeight: 40, backgroundColor: Colors.background, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: FontSize.base, color: Colors.textPrimary },
   sendBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, alignItems: 'center', justifyContent: 'center' },
   sendBtnOff: { opacity: 0.4 },
