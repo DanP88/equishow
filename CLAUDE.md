@@ -111,7 +111,7 @@ Détail complet : `docs/incidents.md`.
 
 # Technical Debt
 
-- **P0** — Stripe `sk_live` à confirmer · domaine Resend `equishow.app` non vérifié (~50 % emails échouent) · onboarding vendeur live · porter fix F1 surbooking sur **Box** (vérifier 062/Stage d'abord).
+- **P0** — Stripe `sk_live` à confirmer · domaine Resend `equishow.app` non vérifié (~50 % emails échouent) · onboarding vendeur live.
 - **P1** — brancher 7 écrans concours mock→DB · discussions LOT2 (fil participants, @user, push, notif mention).
 - **P2** — 18 erreurs TS (surtout `reserver-transport.tsx`) · KPI notifications/rétention · location van (dates/cautions R4/CR6).
 - **P3** — push mobile EAS · 23 fichiers parasites untracked · ~30 branches locales mortes.

@@ -18,7 +18,7 @@
 - *Symptôme* : places jamais décrémentées + place fantôme au remboursement.
 - *Cause* : parcours `pending→paid` saute `accepted` ; F1 ne consommait qu'au `pending→accepted`.
 - *Correction* : `fn_availability_transport` symétrique sur S={accepted,awaiting_payment,paid,completed} + backfill (060b).
-- *Prévention* : raisonner en **ensemble de statuts consommants**, pas en transition unique. ⚠️ Stage couvert (062) ; **Box à vérifier**.
+- *Prévention* : raisonner en **ensemble de statuts consommants**, pas en transition unique. Stage et Box couverts par la migration 062, avec logique symétrique inspirée du patron 060.
 
 ## 2026-06-17 — Import concours CSV écrivait 0 ligne (mig 079)
 - *Symptôme* : import « terminé » mais 0 concours.
