@@ -3,6 +3,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Modal, TextInput, Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
@@ -117,6 +118,10 @@ export default function ServicesScreen() {
   const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'box');
   const [transportSubTab, setTransportSubTab] = useState<TransportSubTab>((params.subTab as TransportSubTab) ?? 'trajets');
   const [coachTab, setCoachTab] = useState<CoachTab>('concours');
+  // Option 3 — bascule de l'écran : « Par concours » (entrée concours-first, défaut)
+  // vs « Tous les services » (vue marketplace classique à onglets). Non destructif :
+  // le mode « tous » conserve exactement le parcours Box/Transport/Coach existant.
+  const [viewMode, setViewMode] = useState<'concours' | 'tous'>('concours');
   const { transports, isLoading: transportsLoading } = useTransportAnnonces();
   const { deleteAnnonce: deleteTransportAnnonce } = useMyTransportAnnonces();
   const { boxes, isLoading: boxesLoading } = useBoxAnnonces();
@@ -237,9 +242,14 @@ export default function ServicesScreen() {
   const filteredB = applyBoxFilters(boxes, filtersB);
   const filteredC = applyCoachFilters(coaches, filtersC);
 
-  const concoursTransport = unique(transports.map((t) => t.concours ?? ''));
-  const concoursBoxes = unique(boxes.map((b) => b.concours ?? ''));
-  const concoursCoaches = unique(coachAnnonces.map((ca) => ca.concours ?? '').filter(Boolean));
+  // Liste complète des concours pour les filtres : tous les concours de la table
+  // public.concours (dbConcours) + ceux référencés par les annonces existantes.
+  // Avant : seuls les concours présents sur les annonces apparaissaient (liste
+  // partielle). On unionne avec la liste DB pour offrir TOUS les concours dispo.
+  const dbConcoursNames = (dbConcours ?? []).map((c) => c.nom).filter(Boolean);
+  const concoursTransport = unique([...dbConcoursNames, ...transports.map((t) => t.concours ?? '')].filter(Boolean));
+  const concoursBoxes = unique([...dbConcoursNames, ...boxes.map((b) => b.concours ?? '')].filter(Boolean));
+  const concoursCoaches = unique([...dbConcoursNames, ...coachAnnonces.map((ca) => ca.concours ?? '')].filter(Boolean));
   const disciplinesCoachs = unique(coaches.flatMap((c) => c.disciplines));
   const niveauxCoachs = unique(coaches.flatMap((c) => c.niveaux));
 
@@ -290,22 +300,71 @@ export default function ServicesScreen() {
         </View>
       </View>
 
-      {/* Stripe */}
-      <View style={s.stripeBar}>
-        <Text style={s.stripeIcon}>🔒</Text>
-        <Text style={s.stripeText}>Paiements sécurisés via Stripe — commission 5%</Text>
+      {/* Option 3 — bascule Par concours / Tous les services */}
+      <View style={s.modeToggle}>
+        <TouchableOpacity activeOpacity={0.85} onPress={() => setViewMode('concours')} style={[s.modeBtn, viewMode === 'concours' && s.modeBtnOn]}>
+          <Text style={[s.modeTxt, viewMode === 'concours' && s.modeTxtOn]}>🏆 Par concours</Text>
+        </TouchableOpacity>
+        <TouchableOpacity activeOpacity={0.85} onPress={() => setViewMode('tous')} style={[s.modeBtn, viewMode === 'tous' && s.modeBtnOn]}>
+          <Text style={[s.modeTxt, viewMode === 'tous' && s.modeTxtOn]}>Tous les services</Text>
+        </TouchableOpacity>
       </View>
 
-      {/* LOT 1 — Concours = contexte (jamais obligatoire). Bannière additive → hub prod. */}
-      <TouchableOpacity style={s.protoConcoursBanner} activeOpacity={0.85} onPress={() => router.push('/(tabs)/concours-hub' as any)}>
-        <Text style={s.protoConcoursIcon}>🏆</Text>
-        <View style={{ flex: 1 }}>
-          <Text style={s.protoConcoursTitle}>Je prépare un concours</Text>
-          <Text style={s.protoConcoursSub}>Box, transport & coach pour ton déplacement</Text>
-        </View>
-        <View style={s.protoConcoursCta}><Text style={s.protoConcoursCtaTxt}>Voir →</Text></View>
-      </TouchableOpacity>
+      {/* MODE « PAR CONCOURS » — entrée concours-first (jamais obligatoire : bouton bascule) */}
+      {viewMode === 'concours' && (
+        <ScrollView contentContainerStyle={s.list} showsVerticalScrollIndicator={false}>
+          <TouchableOpacity activeOpacity={0.9} onPress={() => router.push('/(tabs)/concours-hub' as any)} style={s.protoConcoursBanner}>
+            <LinearGradient colors={['#FB923C', '#EA580C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.protoConcoursGrad}>
+              <Text style={s.protoConcoursKick}>POUR QUEL CONCOURS ?</Text>
+              <Text style={s.protoConcoursTitle}>Je prépare mon concours</Text>
+              <Text style={s.protoConcoursSub}>Box, transport & coach réunis autour de votre concours.</Text>
+            </LinearGradient>
+          </TouchableOpacity>
 
+          <Text style={s.concoursListLbl}>VOS CONCOURS À VENIR</Text>
+          {dbConcours.length === 0 ? (
+            <View style={s.concoursEmpty}>
+              <Text style={s.concoursEmptyIcon}>🏆</Text>
+              <Text style={s.concoursEmptyTxt}>Aucun concours pour le moment.</Text>
+              <TouchableOpacity onPress={() => setViewMode('tous')}><Text style={s.concoursEscapeTxt}>Parcourir tous les services →</Text></TouchableOpacity>
+            </View>
+          ) : (
+            <>
+              {dbConcours.map((c) => (
+                <TouchableOpacity
+                  key={c.id}
+                  activeOpacity={0.85}
+                  style={s.concoursRow}
+                  onPress={() => {
+                    // Sélection d'un concours → pré-filtre les 3 modules + bascule en vue services.
+                    setFiltersB((f) => ({ ...f, concours: c.nom }));
+                    setFiltersT((f) => ({ ...f, concours: c.nom }));
+                    setFiltersC((f) => ({ ...f, concours: c.nom }));
+                    setTab('box');
+                    setViewMode('tous');
+                  }}
+                >
+                  <View style={s.concoursBar} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.concoursRowName}>🏆 {c.nom}</Text>
+                    <Text style={s.concoursMeta}>
+                      {c.dateLabel}{c.departement ? ` · ${c.departement}` : ''}{c.lieu ? ` · ${c.lieu}` : ''}
+                    </Text>
+                  </View>
+                  <Text style={s.concoursArrow}>›</Text>
+                </TouchableOpacity>
+              ))}
+              <TouchableOpacity onPress={() => setViewMode('tous')} style={s.concoursEscape}>
+                <Text style={s.concoursEscapeTxt}>ou parcourir tous les services →</Text>
+              </TouchableOpacity>
+            </>
+          )}
+        </ScrollView>
+      )}
+
+      {/* MODE « TOUS LES SERVICES » — vue marketplace classique (inchangée) */}
+      {viewMode === 'tous' && (
+      <>
       {/* Tabs */}
       <View style={s.tabBar}>
         <TabBtn label="Box" count={filteredB.length} loading={boxesLoading} active={tab === 'box'} locked={boxLocked} onPress={() => handleTabPress('box')} />
@@ -340,7 +399,7 @@ export default function ServicesScreen() {
           <>
             <BannerAdd
               icon="🚐"
-              text={transportSubTab === 'trajets' ? "Vous avez des places dans votre van ?" : "Vous voulez louer votre van à la journée ?"}
+              text={transportSubTab === 'trajets' ? "Vous avez des places dans votre van ? Louez-le" : "Vous voulez louer votre van à la journée ? Louez-le"}
               hint={transportSubTab === 'trajets' ? "Recommandé : 0,8€/km" : "Recommandé : 200-220€/jour"}
               cta="Proposer une annonce"
               route={transportSubTab === 'trajets' ? '/proposer-transport?type=trajet' : '/proposer-transport?type=location'}
@@ -358,7 +417,7 @@ export default function ServicesScreen() {
         )}
         {tab === 'box' && (
           <>
-            <BannerAdd icon="🏠" text="Vous avez des boxes disponibles ?" hint="Recommandé : 45–80€/nuit" cta="Proposer des boxes" route="/proposer-box" />
+            <BannerAdd icon="🏠" text="Vous avez des boxes disponibles ? Louez-le" hint="Recommandé : 45–80€/nuit" cta="Proposer des boxes" route="/proposer-box" />
             {filteredB.length === 0 && <EmptyState text="Aucun box ne correspond à vos filtres." />}
             {filteredB.map((b) => (
               <BoxCard
@@ -520,6 +579,8 @@ export default function ServicesScreen() {
         )}
 
       </ScrollView>
+      </>
+      )}
 
       {/* Filtres modal */}
       <Modal visible={showFilters} transparent animationType="slide">
@@ -1387,12 +1448,29 @@ const s = StyleSheet.create({
   stripeText: { fontSize: 10, color: Colors.textTertiary },
 
   // PROTOTYPE — bannière concours (additive)
-  protoConcoursBanner: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, marginHorizontal: Spacing.lg, marginTop: Spacing.md, padding: Spacing.md, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
-  protoConcoursIcon: { fontSize: 24 },
-  protoConcoursTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.primaryDark },
-  protoConcoursSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2 },
-  protoConcoursCta: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: 6 },
-  protoConcoursCtaTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  modeToggle: { flexDirection: 'row', marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.xs, backgroundColor: Colors.backgroundSecondary, borderRadius: Radius.lg, padding: 4, gap: 4 },
+  modeBtn: { flex: 1, alignItems: 'center', paddingVertical: 10, borderRadius: Radius.md },
+  modeBtnOn: { backgroundColor: Colors.surface, ...Shadow.card },
+  modeTxt: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
+  modeTxtOn: { color: Colors.textPrimary, fontWeight: FontWeight.bold },
+  concoursListLbl: { fontSize: 10, fontWeight: FontWeight.extrabold, color: Colors.textTertiary, letterSpacing: 1, marginTop: Spacing.md, marginBottom: Spacing.xs, marginHorizontal: Spacing.xs },
+  concoursRow: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, overflow: 'hidden', marginBottom: Spacing.sm, ...Shadow.card },
+  concoursBar: { width: 5, alignSelf: 'stretch', backgroundColor: Colors.cso },
+  concoursRowName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, paddingTop: Spacing.md, paddingLeft: Spacing.md },
+  concoursMeta: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 3, paddingLeft: Spacing.md, paddingBottom: Spacing.md },
+  concoursArrow: { fontSize: 24, color: Colors.textTertiary, paddingHorizontal: Spacing.md },
+  concoursEscape: { alignItems: 'center', paddingVertical: Spacing.md },
+  concoursEscapeTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold, textDecorationLine: 'underline' },
+  concoursEmpty: { alignItems: 'center', paddingVertical: Spacing.xxl, gap: Spacing.sm },
+  concoursEmptyIcon: { fontSize: 40 },
+  concoursEmptyTxt: { fontSize: FontSize.base, color: Colors.textSecondary },
+  protoConcoursBanner: { marginHorizontal: Spacing.lg, marginTop: Spacing.md, marginBottom: Spacing.sm, borderRadius: Radius.xl, overflow: 'hidden', ...Shadow.card },
+  protoConcoursGrad: { paddingVertical: Spacing.xl, paddingHorizontal: Spacing.xl },
+  protoConcoursKick: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: FontWeight.extrabold, letterSpacing: 1.5 },
+  protoConcoursTitle: { color: Colors.textInverse, fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, marginTop: 6 },
+  protoConcoursSub: { color: 'rgba(255,255,255,0.92)', fontSize: FontSize.sm, marginTop: 6, lineHeight: 19 },
+  protoConcoursCta: { alignSelf: 'flex-start', backgroundColor: Colors.surface, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: 10, marginTop: Spacing.md },
+  protoConcoursCtaTxt: { color: Colors.primaryDark, fontWeight: FontWeight.bold, fontSize: FontSize.base },
   tabBar: { flexDirection: 'row', gap: Spacing.sm, padding: Spacing.lg, paddingBottom: Spacing.sm },
   tabBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 4, paddingVertical: Spacing.sm, borderRadius: 20, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
   tabBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
