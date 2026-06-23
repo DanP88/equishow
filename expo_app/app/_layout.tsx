@@ -167,7 +167,10 @@ function RootLayout() {
   const isStripeReturn = segments[0] === 'checkout-success' || segments[0] === 'cancelled';
   // PROTOTYPE (branche feature/local-concours-deplacement-prototype) : la galerie
   // de démo /proto est du mock autonome (aucune auth/DB), accessible sans session.
-  const isProto = segments[0] === 'proto';
+  // /proto-ux (branche proto/ux-redesign) = refonte UX, même principe mock/no-auth.
+  // Toute route commençant par "proto" (proto, proto-ux, proto-noir, proto-editorial,
+  // proto-sellier) = galerie de démo mock autonome, accessible sans session.
+  const isProto = !!segments[0] && segments[0].startsWith('proto');
   if (!isSignedIn && !inAuthGroup && !isStripeReturn && !isProto) {
     return <Redirect href="/login" />;
   }

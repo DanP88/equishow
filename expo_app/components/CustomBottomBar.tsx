@@ -22,33 +22,34 @@ export interface TabConfig {
 
 const TABS_BY_ROLE: Record<'cavalier' | 'coach' | 'organisateur' | 'admin', TabConfig[]> = {
   cavalier: [
+    { name: 'accueil', label: 'Accueil', emoji: '🏠', route: '/(tabs)/accueil' },
     { name: 'chevaux', label: 'Chevaux', emoji: '🐴', route: '/(tabs)/chevaux' },
     { name: 'services', label: 'Services', emoji: '🤝', route: '/(tabs)/services' },
     { name: 'cavalier-agenda', label: 'Agenda', emoji: '📅', route: '/(tabs)/cavalier-agenda' },
-    { name: 'messagerie', label: 'Messages', emoji: '💬', route: '/messagerie' },
     { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
     { name: 'notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/notifications' },
     { name: 'profil', label: 'Profil', emoji: '👤', route: '/(tabs)/profil' },
   ],
   coach: [
+    { name: 'accueil', label: 'Accueil', emoji: '🏠', route: '/(tabs)/accueil' },
     { name: 'coach-agenda', label: 'Agenda', emoji: '📅', route: '/(tabs)/coach-agenda' },
     { name: 'coach-concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/coach-concours' },
     { name: 'coach-stages', label: 'Stages', emoji: '📚', route: '/(tabs)/coach-stages' },
     { name: 'coach-demandes', label: 'Demandes', emoji: '📬', route: '/(tabs)/coach-demandes' },
-    { name: 'coach-messagerie', label: 'Messages', emoji: '💬', route: '/messagerie' },
     { name: 'coach-notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/coach-notifications' },
     { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
     { name: 'profil-coach', label: 'Profil', emoji: '👤', route: '/(tabs)/profil-coach' },
   ],
   organisateur: [
+    { name: 'accueil', label: 'Accueil', emoji: '🏠', route: '/(tabs)/accueil' },
     { name: 'org-concours', label: 'Concours', emoji: '🏆', route: '/(tabs)/org-concours' },
     { name: 'org-services', label: 'Services', emoji: '📦', route: '/(tabs)/org-services' },
     { name: 'communaute', label: 'Communauté', emoji: '👥', route: '/(tabs)/communaute' },
-    { name: 'org-messages', label: 'Messages', emoji: '💬', route: '/messagerie' },
     { name: 'org-notifications', label: 'Notifs', emoji: '🔔', route: '/(tabs)/org-notifications' },
     { name: 'profil-org', label: 'Profil', emoji: '👤', route: '/(tabs)/profil-org' },
   ],
   admin: [
+    { name: 'accueil', label: 'Accueil', emoji: '🏠', route: '/(tabs)/accueil' },
     { name: 'import-concours', label: 'CSV Import', emoji: '📋', route: '/(tabs)/import-concours' },
     { name: 'admin-analytics', label: 'Analytics', emoji: '📊', route: '/(tabs)/admin-analytics' },
     { name: 'admin-disputes', label: 'Litiges', emoji: '⚖️', route: '/(tabs)/admin-disputes' },
@@ -130,16 +131,17 @@ export function CustomBottomBar() {
 
   // Get badge count for each tab
   const getBadgeCount = (tab: TabConfig): number => {
+    // Messagerie déplacée dans l'onglet Communauté → le badge non-lus messages
+    // s'affiche désormais sur « communaute » (tous rôles user).
+    if (tab.name === 'communaute') return msgCount;
     if (role === 'coach') {
       if (tab.name === 'coach-notifications') return notificationCount;
       if (tab.name === 'coach-demandes') return demandCount;
     } else if (role === 'cavalier') {
       if (tab.name === 'notifications') return notificationCount;
       if (tab.name === 'cavalier-agenda') return agendaCount;
-      if (tab.name === 'messagerie' || tab.name === 'coach-messagerie') return msgCount;
     } else if (role === 'organisateur') {
       if (tab.name === 'org-notifications') return notificationCount;
-      if (tab.name === 'org-messages') return msgCount;
     } else if (role === 'admin') {
       if (tab.name === 'admin-support') return openSupportCount;
       if (tab.name === 'admin-notifications') return notificationCount;

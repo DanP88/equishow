@@ -45,12 +45,19 @@ const firstConcours = (annonce: any): { id: string | null; nom: string | null; d
   return { id: cc?.id ?? null, nom: cc?.nom ?? null, dateFin: cc?.date_fin ?? cc?.date_debut ?? null };
 };
 
-export function useChevalConcours(chevalId?: string) {
+// Accepte un cheval (fiche cheval) OU plusieurs (accueil « Tous » = récap de
+// l'ensemble des chevaux). On agrège alors les réservations de tous les chevaux,
+// regroupées par concours.
+export function useChevalConcours(chevalId?: string | string[]) {
   const [items, setItems] = useState<ChevalConcours[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
+  // Clé stable pour les deps (un tableau change d'identité à chaque rendu).
+  const idsKey = (Array.isArray(chevalId) ? chevalId : chevalId ? [chevalId] : []).join(',');
+
   const load = useCallback(async () => {
-    if (!chevalId) { setItems([]); setIsLoading(false); return; }
+    const chevalIds = idsKey ? idsKey.split(',') : [];
+    if (chevalIds.length === 0) { setItems([]); setIsLoading(false); return; }
     setIsLoading(true);
 
     type Raw = { resaKey: string; concoursId: string | null; concoursNom: string | null; dateFin: string | null; reserved: ReservedItem };
@@ -60,7 +67,7 @@ export function useChevalConcours(chevalId?: string) {
     await Promise.all([
       safe(async () => {
         const { data } = await supabase.from('box_reservations')
-          .select('id, status, box_annonces(concours(id, nom, date_fin))').eq('cheval_id', chevalId);
+          .select('id, status, box_annonces(concours(id, nom, date_fin))').in('cheval_id', chevalIds);
         (data ?? []).forEach((r: any) => { const c = firstConcours(r.box_annonces); raws.push({
           resaKey: `box-${r.id}`, concoursId: c.id, concoursNom: c.nom, dateFin: c.dateFin,
           reserved: { module: 'box', label: MODULE_META.box.label, icon: MODULE_META.box.icon, status: r.status ?? null },
@@ -68,7 +75,7 @@ export function useChevalConcours(chevalId?: string) {
       }),
       safe(async () => {
         const { data } = await supabase.from('transport_reservations')
-          .select('id, statut, transport_annonces(type_transport, concours(id, nom, date_fin))').eq('cheval_id', chevalId);
+          .select('id, statut, transport_annonces(type_transport, concours(id, nom, date_fin))').in('cheval_id', chevalIds);
         (data ?? []).forEach((r: any) => {
           const a = Array.isArray(r.transport_annonces) ? r.transport_annonces[0] : r.transport_annonces;
           const label = a?.type_transport === 'trajet' ? 'Transport · trajet' : 'Transport · van seul';
@@ -79,7 +86,7 @@ export function useChevalConcours(chevalId?: string) {
       }),
       safe(async () => {
         const { data } = await supabase.from('course_demands')
-          .select('id, status, coach_annonces(concours(id, nom, date_fin))').eq('cheval_id', chevalId);
+          .select('id, status, coach_annonces(concours(id, nom, date_fin))').in('cheval_id', chevalIds);
         (data ?? []).forEach((r: any) => { const c = firstConcours(r.coach_annonces); raws.push({
           resaKey: `coach-${r.id}`, concoursId: c.id, concoursNom: c.nom, dateFin: c.dateFin,
           reserved: { module: 'coach', label: MODULE_META.coach.label, icon: MODULE_META.coach.icon, status: r.status ?? null },
@@ -87,7 +94,7 @@ export function useChevalConcours(chevalId?: string) {
       }),
       safe(async () => {
         const { data } = await supabase.from('stage_reservations')
-          .select('id, status, stages(concours(id, nom, date_fin))').eq('cheval_id', chevalId);
+          .select('id, status, stages(concours(id, nom, date_fin))').in('cheval_id', chevalIds);
         (data ?? []).forEach((r: any) => { const c = firstConcours(r.stages); raws.push({
           resaKey: `stage-${r.id}`, concoursId: c.id, concoursNom: c.nom, dateFin: c.dateFin,
           reserved: { module: 'stage', label: MODULE_META.stage.label, icon: MODULE_META.stage.icon, status: r.status ?? null },
@@ -138,7 +145,7 @@ export function useChevalConcours(chevalId?: string) {
 
     setItems(out);
     setIsLoading(false);
-  }, [chevalId]);
+  }, [idsKey]);
 
   useEffect(() => { load(); }, [load]);
   return { items, isLoading, reload: load };

@@ -14,6 +14,7 @@ import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { useCommunautePosts } from '../../hooks/useCommunautePosts';
 import { useConcoursList, ConcoursHub } from '../../hooks/useConcours';
 import { useConcoursDiscussionsFeed } from '../../hooks/useConcoursDiscussion';
+import { useUnreadMessagesCount, useConversations } from '../../hooks/useMessaging';
 import { UserBadge } from '../../components/UserBadge';
 
 // Adaptateur DB → forme attendue par la carte/modale « Info concours ».
@@ -64,11 +65,13 @@ function getUserInitiales(): string {
   return (userStore.prenom.charAt(0) + userStore.nom.charAt(0)).toUpperCase();
 }
 
-type MainTab = 'communaute' | 'concours' | 'contact-concours' | 'discussions';
+type MainTab = 'communaute' | 'concours' | 'contact-concours' | 'discussions' | 'messages';
 type SortMode = 'date_asc' | 'date_desc' | 'region_asc';
 
 export default function CommunauteScreen() {
   useScreenTracking('communaute');
+  const msgUnread = useUnreadMessagesCount();
+  const { conversations: msgConversations } = useConversations();
   const { posts, createPost, toggleLike: hookToggleLike, addComment: hookAddComment, toggleCommentLike: hookToggleCommentLike } = useCommunautePosts('community');
   const [mainTab, setMainTab] = useState<MainTab>('communaute');
   const [showNew, setShowNew] = useState(false);
@@ -211,7 +214,58 @@ export default function CommunauteScreen() {
             )}
           </TouchableOpacity>
         </View>
+        <View style={styles.tabRow}>
+          <TouchableOpacity
+            style={[styles.mainTabBtn, mainTab === 'messages' && styles.mainTabBtnActive]}
+            onPress={() => setMainTab('messages')}
+            activeOpacity={0.8}
+          >
+            <Text style={[styles.mainTabLabel, mainTab === 'messages' && styles.mainTabLabelActive]}>
+              ✉️ Messages
+            </Text>
+            {msgUnread > 0 && (
+              <View style={[styles.mainTabBadge, mainTab === 'messages' && styles.mainTabBadgeActive]}>
+                <Text style={[styles.mainTabBadgeText, mainTab === 'messages' && styles.mainTabBadgeTextActive]}>
+                  {msgUnread > 9 ? '9+' : msgUnread}
+                </Text>
+              </View>
+            )}
+          </TouchableOpacity>
+        </View>
       </View>
+
+      {/* ── ONGLET MESSAGES ──────────────────────────────────────── */}
+      {mainTab === 'messages' && (
+        <ScrollView contentContainerStyle={styles.contactList}>
+          <Text style={styles.contactSectionTitle}>✉️ Mes conversations</Text>
+          {msgConversations.length === 0 ? (
+            <View style={styles.contactEmpty}>
+              <Text style={styles.contactEmptyIcon}>✉️</Text>
+              <Text style={styles.contactEmptyText}>Aucune conversation pour le moment.</Text>
+            </View>
+          ) : (
+            msgConversations.map((c) => (
+              <TouchableOpacity
+                key={c.id}
+                style={styles.msgConvCard}
+                activeOpacity={0.8}
+                onPress={() => router.push({ pathname: '/messagerie', params: { otherId: c.otherId, otherNom: c.otherNom, otherPseudo: c.otherPseudo, otherCouleur: c.otherCouleur, otherInitiales: c.otherInitiales } } as any)}
+              >
+                <View style={[styles.msgConvAvatar, { backgroundColor: c.otherCouleur || Colors.primary }]}>
+                  <Text style={styles.msgConvAvatarTxt}>{c.otherInitiales}</Text>
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={[styles.msgConvName, c.unread && styles.msgConvNameBold]}>{c.otherNom}</Text>
+                  <Text style={[styles.msgConvLast, c.unread && styles.msgConvLastBold]} numberOfLines={1}>
+                    {c.dernierMsg || 'Démarrez la conversation…'}
+                  </Text>
+                </View>
+                {c.unread && <View style={styles.msgConvDot} />}
+              </TouchableOpacity>
+            ))
+          )}
+        </ScrollView>
+      )}
 
       {/* ── ONGLET CONTACT CONCOURS ──────────────────────────────── */}
       {mainTab === 'contact-concours' && (() => {
@@ -785,6 +839,14 @@ function ConcoursDetail({ concours: c, onClose }: { concours: ConcoursCSV; onClo
 const styles = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   header: { paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
+  msgConvCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.md, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.sm },
+  msgConvAvatar: { width: 44, height: 44, borderRadius: 22, alignItems: 'center', justifyContent: 'center' },
+  msgConvAvatarTxt: { color: '#FFF', fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  msgConvName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  msgConvNameBold: { fontWeight: FontWeight.extrabold },
+  msgConvLast: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
+  msgConvLastBold: { color: Colors.textPrimary, fontWeight: FontWeight.semibold },
+  msgConvDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: Colors.primary },
   headerTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   headerSub: { fontSize: FontSize.sm, color: Colors.textTertiary, marginTop: 2 },
   list: { padding: Spacing.lg, gap: Spacing.md },
