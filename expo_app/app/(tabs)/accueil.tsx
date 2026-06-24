@@ -5,7 +5,7 @@
  * et la navigation sont réels. À brancher progressivement sur les hooks existants.
  */
 import React, { useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -16,6 +16,7 @@ import { useMyChevaux } from '../../hooks/useChevaux';
 import { useChevalConcours, CModuleKey } from '../../hooks/useChevalReservations';
 import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
 import { useMyReservationsSummary, ResaModule } from '../../hooks/useMyReservationsSummary';
+import { ACCUEIL_DEV_SEED, MOCK_ACCUEIL } from '../../data/mockAccueil';
 
 type Role = 'cavalier' | 'coach' | 'organisateur' | 'admin';
 
@@ -31,7 +32,6 @@ export default function Accueil() {
           <Text style={s.hello}>{hello}</Text>
           <Text style={s.headerSub}>{SUBTITLE[role]}</Text>
         </View>
-        <View style={s.avatar}><Text style={s.avatarTxt}>{initials(prenom, userStore.nom)}</Text></View>
       </View>
 
       {role === 'cavalier' && <Cavalier />}
@@ -70,6 +70,35 @@ function formatHeroDate(dateStr: string): string {
   if (isNaN(+d)) return '';
   return d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'long', year: 'numeric' });
 }
+function initials2(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return '··';
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[1][0]).toUpperCase();
+}
+// Libellé du CTA (P6-premium) selon le service manquant.
+const FIND_LABEL: Record<CModuleKey, string> = {
+  box: 'Réserver un box', transport: 'Réserver un transport', coach: 'Réserver un coach', stage: 'Réserver un stage',
+};
+// Nom [singulier, pluriel] pour la ligne de réassurance.
+const PREP_NOUN: Record<CModuleKey, [string, string]> = {
+  box: ['box', 'box'], transport: ['transport', 'transports'], coach: ['coach', 'coachs'], stage: ['stage', 'stages'],
+};
+// Anneau de progression (V5) — gold pâle sur le hero orange.
+function HeroRing({ pct, count, total }: { pct: number; count: number; total: number }) {
+  const ringStyle = Platform.select({
+    web: { backgroundImage: `conic-gradient(#FFE2A0 0 ${pct}%, rgba(255,255,255,0.22) ${pct}% 100%)` } as any,
+    default: { borderWidth: 4, borderColor: '#FFE2A0' },
+  });
+  return (
+    <View style={[s.hRing, ringStyle as any]}>
+      <View style={s.hRingInner}>
+        <Text style={s.hRingNum}>{count}/{total}</Text>
+        <Text style={s.hRingLbl}>prêt</Text>
+      </View>
+    </View>
+  );
+}
 
 const RESA_META: Record<ResaModule, { emoji: string; label: string }> = {
   box: { emoji: '🏠', label: 'Box' },
@@ -95,15 +124,23 @@ function Cavalier() {
   const { chevaux } = useMyChevaux();
   // Récap concours réel (tous chevaux) pour le hero + complétion.
   const concoursIds = useMemo(() => chevaux.map((c) => c.id), [chevaux]);
-  const { items: concoursItems } = useChevalConcours(concoursIds);
+  const cc = useChevalConcours(concoursIds);
   // Réservations réelles de l'utilisateur (acheteur) + escrow.
-  const { items: resa, toPay } = useMyReservationsSummary();
+  const rs = useMyReservationsSummary();
   const { byReservation } = useMyEscrowPayments();
 
-  const heldCount = useMemo(
+  const heldCountReal = useMemo(
     () => Object.values(byReservation).filter((p) => p.transferState === 'held').length,
     [byReservation],
   );
+
+  // SEED DEV (front-only, __DEV__ uniquement) : remplace les sorties des hooks par
+  // des données d'exemple pour tester l'accueil sans écrire en base. Cf. data/mockAccueil.
+  const seed = __DEV__ && ACCUEIL_DEV_SEED;
+  const concoursItems = seed ? MOCK_ACCUEIL.concours : cc.items;
+  const resa = seed ? MOCK_ACCUEIL.resa : rs.items;
+  const toPay = seed ? MOCK_ACCUEIL.resa.filter((r) => r.needsPayment) : rs.toPay;
+  const heldCount = seed ? MOCK_ACCUEIL.heldCount : heldCountReal;
 
   const upcoming = useMemo(() => concoursItems.filter((i) => !i.past && i.concoursNom), [concoursItems]);
   const hero = upcoming[0];
@@ -114,6 +151,22 @@ function Cavalier() {
     return { pct: Math.round((done / PREP_MODULES.length) * 100), reserved };
   }, [hero]);
   const heroDays = hero ? daysTo(hero.dateFin) : null;
+
+  // V5+V8 : nom du prestataire par service (depuis le récap réel) + service manquant.
+  const vendorByModule = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const r of resa) if (!map.has(r.module) && r.vendeur) map.set(r.module, r.vendeur);
+    return map;
+  }, [resa]);
+  const reservedCount = PREP_MODULES.filter((m) => heroPrep.reserved.has(m)).length;
+  // Tous les services encore à réserver → un bouton dédié par service.
+  const missingModules = PREP_MODULES.filter((m) => !heroPrep.reserved.has(m));
+  const availOf = (m: CModuleKey) => hero?.available[m] ?? 0;
+  // Chaque bouton atterrit DIRECTEMENT sur l'onglet du service, pré-filtré sur CE
+  // concours (par nom, comme la fiche concours) → le cavalier ne cherche pas son
+  // concours : « Trouver un box » → liste des box du CSO de Saumur.
+  const goServiceConcours = (module: CModuleKey) =>
+    router.push({ pathname: '/(tabs)/services', params: { tab: module, concours: hero?.concoursNom ?? '' } } as any);
 
   const nextToPay = toPay[0];
 
@@ -128,17 +181,66 @@ function Cavalier() {
               {heroDays != null && <View style={s.heroJ}><Text style={s.heroJTxt}>{jLabel(heroDays)}</Text></View>}
             </View>
             <Text style={s.heroName} numberOfLines={2}>{hero.concoursNom}</Text>
-            {hero.dateFin && <Text style={s.heroMeta}>{formatHeroDate(hero.dateFin)}</Text>}
-            <View style={s.prepRow}>
-              {PREP_MODULES.map((m) => (
-                <View key={m} style={s.prepChip}>
-                  <Text style={s.prepDot}>{heroPrep.reserved.has(m) ? '✓' : '○'}</Text>
-                  <Text style={s.prepTxt}>{RESA_META[m].label}</Text>
-                </View>
-              ))}
+            {hero.dateFin && (
+              <Text style={s.heroMeta}>
+                {formatHeroDate(hero.dateFin)}
+                {hero.lieu ? ` · ${hero.lieu}${hero.departement ? ` (${hero.departement})` : ''}` : ''}
+              </Text>
+            )}
+
+            {/* Hybride V5 (anneau) + V8 (prestataires / slot manquant) */}
+            <View style={s.hRingRow}>
+              <HeroRing pct={heroPrep.pct} count={reservedCount} total={PREP_MODULES.length} />
+              <View style={s.hSide}>
+                {PREP_MODULES.map((m) => {
+                  const done = heroPrep.reserved.has(m);
+                  const vendor = vendorByModule.get(m);
+                  const avail = availOf(m);
+                  return (
+                    <View key={m} style={s.hLine}>
+                      <View style={[s.hAv, done ? s.hAvOn : s.hAvDash]}>
+                        <Text style={s.hAvTxt}>{done ? (vendor ? initials2(vendor) : '✓') : '+'}</Text>
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.hLineLabel} numberOfLines={1}>{RESA_META[m].emoji} {RESA_META[m].label}</Text>
+                        <Text style={[s.hLineSub, !done && s.hLineMiss]} numberOfLines={1}>
+                          {done
+                            ? (vendor || 'Réservé ✓')
+                            : (avail > 0 ? `${avail} ${PREP_NOUN[m][avail > 1 ? 1 : 0]} dispo` : 'À réserver')}
+                        </Text>
+                      </View>
+                      {done && <Text style={s.hOk}>✓</Text>}
+                    </View>
+                  );
+                })}
+              </View>
             </View>
-            <View style={s.heroBar}><View style={[s.heroFill, { width: `${heroPrep.pct}%` }]} /></View>
-            <Text style={s.heroPct}>Déplacement prêt à {heroPrep.pct} %</Text>
+            {missingModules.length > 0 ? (
+              <>
+                {/* P6 : par service manquant → preuve sociale (rareté + prix mini
+                    réels) puis CTA « Réserver un X » menant à CE service pré-filtré. */}
+                {missingModules.map((m) => {
+                  const avail = availOf(m);
+                  const from = hero?.availableFrom?.[m] ?? null;
+                  const ville = hero?.lieu ?? '';
+                  return (
+                    <View key={m} style={s.hMissBlock}>
+                      {avail > 0 && (
+                        <Text style={s.hProof} numberOfLines={1}>
+                          ★ {avail} {PREP_NOUN[m][avail > 1 ? 1 : 0]} disponible{avail > 1 ? 's' : ''}
+                          {ville ? ` à ${ville}` : ''}{from ? ` · dès ${Math.round(from)} €` : ''}
+                        </Text>
+                      )}
+                      <TouchableOpacity activeOpacity={0.85} style={s.hCta} onPress={() => goServiceConcours(m)}>
+                        <Text style={s.hCtaTxt} numberOfLines={1}>{FIND_LABEL[m]} →</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
+              </>
+            ) : (
+              <Text style={s.hReady}>🎉 Tout est prêt pour ce concours</Text>
+            )}
           </LinearGradient>
         </TouchableOpacity>
       ) : (
@@ -151,13 +253,19 @@ function Cavalier() {
         </TouchableOpacity>
       )}
 
-      {/* Récap chiffres réels */}
+      {/* Récap chiffres réels — chaque bloc mène au bon écran */}
       <View style={s.stats}>
-        <View style={s.stat}><Text style={s.statN}>{resa.length}</Text><Text style={s.statL}>réservations</Text></View>
+        <TouchableOpacity style={s.stat} activeOpacity={0.7} onPress={() => go('/(tabs)/cavalier-agenda')}>
+          <Text style={s.statN}>{resa.length}</Text><Text style={s.statL}>réservations</Text>
+        </TouchableOpacity>
         <View style={s.statSep} />
-        <View style={s.stat}><Text style={[s.statN, { color: Colors.warning }]}>{toPay.length}</Text><Text style={s.statL}>à régler</Text></View>
+        <TouchableOpacity style={s.stat} activeOpacity={0.7} onPress={() => go('/(tabs)/cavalier-agenda?topay=1')}>
+          <Text style={[s.statN, { color: Colors.warning }]}>{toPay.length}</Text><Text style={s.statL}>à régler</Text>
+        </TouchableOpacity>
         <View style={s.statSep} />
-        <View style={s.stat}><Text style={s.statN}>{upcoming.length}</Text><Text style={s.statL}>concours à venir</Text></View>
+        <TouchableOpacity style={s.stat} activeOpacity={0.7} onPress={() => go('/(tabs)/concours-hub')}>
+          <Text style={s.statN}>{upcoming.length}</Text><Text style={s.statL}>concours à venir</Text>
+        </TouchableOpacity>
       </View>
 
       {/* À régler — paiement réel le plus urgent */}
@@ -393,6 +501,29 @@ const s = StyleSheet.create({
   heroBar: { height: 6, borderRadius: 3, backgroundColor: 'rgba(255,255,255,0.25)', marginTop: Spacing.md, overflow: 'hidden' },
   heroFill: { height: 6, borderRadius: 3, backgroundColor: '#FFF' },
   heroPct: { color: 'rgba(255,255,255,0.92)', fontSize: FontSize.xs, marginTop: 6, fontWeight: FontWeight.medium },
+
+  // Hybride V5 (anneau) + V8 (prestataires / slot manquant)
+  hRingRow: { flexDirection: 'row', alignItems: 'center', gap: 14, marginTop: Spacing.md },
+  hRing: { width: 74, height: 74, borderRadius: 37, alignItems: 'center', justifyContent: 'center' },
+  hRingInner: { width: 56, height: 56, borderRadius: 28, backgroundColor: '#D9610C', alignItems: 'center', justifyContent: 'center' },
+  hRingNum: { color: '#FFF', fontSize: 16, fontWeight: FontWeight.extrabold },
+  hRingLbl: { color: 'rgba(255,255,255,0.85)', fontSize: 10 },
+  hSide: { flex: 1, gap: 6 },
+  hLine: { flexDirection: 'row', alignItems: 'center', gap: 9 },
+  hAv: { width: 28, height: 28, borderRadius: 14, alignItems: 'center', justifyContent: 'center' },
+  hAvOn: { backgroundColor: 'rgba(255,255,255,0.22)' },
+  hAvDash: { borderWidth: 1.5, borderColor: 'rgba(255,255,255,0.7)', borderStyle: 'dashed' },
+  hAvTxt: { color: '#FFF', fontSize: 11, fontWeight: FontWeight.bold },
+  hLineLabel: { color: '#FFF', fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  hLineSub: { color: 'rgba(255,255,255,0.8)', fontSize: FontSize.xs, marginTop: 1 },
+  hLineMiss: { color: '#FFE2A0', fontWeight: FontWeight.bold },
+  hOk: { color: '#BBF7D0', fontWeight: FontWeight.bold, fontSize: 14 },
+  hGo: { color: '#FFE2A0', fontWeight: FontWeight.bold, fontSize: 18 },
+  hMissBlock: { marginTop: Spacing.sm },
+  hProof: { color: '#FFE2A0', fontSize: FontSize.xs, fontWeight: FontWeight.semibold, marginTop: Spacing.md, marginBottom: 2 },
+  hCta: { marginTop: 8, backgroundColor: '#FFF', borderRadius: Radius.md, paddingVertical: 11, alignItems: 'center' },
+  hCtaTxt: { color: '#EA580C', fontSize: FontSize.base, fontWeight: FontWeight.bold },
+  hReady: { marginTop: Spacing.md, color: '#FFF', fontSize: FontSize.base, fontWeight: FontWeight.semibold, textAlign: 'center' },
 
   stats: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, paddingVertical: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
   stat: { flex: 1, alignItems: 'center' },

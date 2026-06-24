@@ -148,7 +148,9 @@ export function AddressAutocomplete({ value, onChange, placeholder, disabled, st
             zIndex: 99999,
             boxShadow: '0 4px 16px rgba(0,0,0,0.18)',
             overflow: 'hidden',
-          }}
+            // position:'fixed' + boxShadow = props CSS web-only (code gated
+            // Platform.OS === 'web'), absentes du type ViewStyle RN → cast.
+          } as any}
         >
           {dropdownContent}
         </View>,

@@ -7,7 +7,12 @@ import { supabase } from '../data/store';
 // Config: afficher les notifs même si l'app est au premier plan
 Notifications.setNotificationHandler({
   handleNotification: async () => ({
+    // SDK54 : shouldShowAlert remplacé par shouldShowBanner + shouldShowList
+    // (shouldShowAlert gardé pour compat). Intention inchangée : afficher en
+    // premier plan.
     shouldShowAlert: true,
+    shouldShowBanner: true,
+    shouldShowList: true,
     shouldPlaySound: true,
     shouldSetBadge: true,
   }),

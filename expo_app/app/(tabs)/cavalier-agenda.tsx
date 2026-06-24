@@ -170,11 +170,14 @@ export default function CavalierAgendaScreen() {
   // Deep-link depuis l'accueil « 🔒 SOUS SÉQUESTRE » : ?escrow=held → ne montrer
   // que les réservations dont le paiement est sous séquestre (transferState='held').
   const [heldOnly, setHeldOnly] = useState(false);
+  // Deep-link depuis l'accueil « X à régler » : ?topay=1 → ne montrer que les
+  // réservations dont le paiement est dû (awaiting_payment, + accepted coach/stage).
+  const [toPayOnly, setToPayOnly] = useState(false);
 
   // Deep-link email « Payer ma réservation » : ?pay=<resaId> → on cible la résa
   // dans l'agenda (scroll + surlignage), prête à payer. Le surlignage s'estompe
   // après 6 s. baseId() retire les suffixes d'agenda (_s stage, _coach coach).
-  const { pay: payParam, escrow: escrowParam } = useLocalSearchParams<{ pay?: string; type?: string; escrow?: string }>();
+  const { pay: payParam, escrow: escrowParam, topay: topayParam } = useLocalSearchParams<{ pay?: string; type?: string; escrow?: string; topay?: string }>();
   const scrollRef = useRef<ScrollView>(null);
   const [focusId, setFocusId] = useState<string | null>(null);
   const baseId = (id: string) =>
@@ -191,6 +194,11 @@ export default function CavalierAgendaScreen() {
     const e = Array.isArray(escrowParam) ? escrowParam[0] : escrowParam;
     setHeldOnly(e === 'held');
   }, [escrowParam]);
+
+  useEffect(() => {
+    const t = Array.isArray(topayParam) ? topayParam[0] : topayParam;
+    setToPayOnly(t === '1' || t === 'true');
+  }, [topayParam]);
 
   // Copie le numéro de réservation (web : presse-papier ; natif : retour visuel
   // seul tant qu'expo-clipboard n'est pas ajouté). Affiche « ✓ Copié » 1,5 s.
@@ -611,7 +619,14 @@ export default function CavalierAgendaScreen() {
   const dayItems = selectedDay ? items.filter((it) => dayKeyOf(it.dateDebut) === selectedDay) : [];
   // Réservations sous séquestre (paiement encore protégé), passées ou à venir.
   const heldItems = items.filter((it) => escrowByResa[it.id]?.transferState === 'held');
-  const displayRows: AgendaRow[] = heldOnly
+  // Réservations « à régler » : paiement dû (awaiting_payment partout ; accepted
+  // en plus pour coach/stage = paiement différé après acceptation).
+  const toPayItems = items.filter((it) =>
+    it.statut === 'awaiting_payment' ||
+    ((it.type === 'cours' || it.type === 'stage') && it.statut === 'accepted'));
+  const displayRows: AgendaRow[] = toPayOnly
+    ? toPayItems.map((it) => ({ kind: 'item', item: it, dk: dayKeyOf(it.dateDebut), firstOfDay: false }))
+    : heldOnly
     ? heldItems.map((it) => ({ kind: 'item', item: it, dk: dayKeyOf(it.dateDebut), firstOfDay: false }))
     : selectedDay
     ? dayItems.map((it) => ({ kind: 'item', item: it, dk: selectedDay, firstOfDay: false }))
@@ -689,6 +704,17 @@ export default function CavalierAgendaScreen() {
           </View>
         ) : (
           <>
+            {toPayOnly && (
+              <View style={s.dayFilterBar}>
+                <Text style={s.dayFilterText}>💳 À régler · {toPayItems.length} paiement{toPayItems.length > 1 ? 's' : ''} dû{toPayItems.length > 1 ? 's' : ''}</Text>
+                <TouchableOpacity onPress={() => setToPayOnly(false)} activeOpacity={0.7}>
+                  <Text style={s.dayFilterClear}>✕ Tout afficher</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+            {toPayOnly && toPayItems.length === 0 && (
+              <Text style={s.dayEmpty}>Aucun paiement à régler 🎉</Text>
+            )}
             {heldOnly && (
               <View style={s.dayFilterBar}>
                 <Text style={s.dayFilterText}>🔒 Sous séquestre · {heldItems.length} paiement{heldItems.length > 1 ? 's' : ''} protégé{heldItems.length > 1 ? 's' : ''}</Text>
