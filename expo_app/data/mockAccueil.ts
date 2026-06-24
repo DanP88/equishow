@@ -25,24 +25,27 @@ export const MOCK_ACCUEIL: {
   concours: [
     {
       key: 'mock-saumur', concoursId: 'mock-saumur', concoursNom: 'CSO de Saumur',
-      dateFin: iso(addDays(12)), past: false,
-      // TEST 2 manquants : seul le transport est réservé → Box + Coach « À réserver ».
+      dateFin: iso(addDays(12)), past: false, lieu: 'Saumur', departement: '49',
+      // P6 : 2/3 prêt (box + transport réservés) → seul le Coach « À réserver ».
       reserved: [
+        { module: 'box', label: 'Box', icon: '📦', status: 'paid' },
         { module: 'transport', label: 'Transport', icon: '🚐', status: 'paid' },
       ],
       available: { box: 6, transport: 2, coach: 4, stage: 1 },
+      availableFrom: { box: 55, transport: 80, coach: 45, stage: null },
     },
     {
       key: 'mock-fontainebleau', concoursId: 'mock-fontainebleau', concoursNom: 'Jumping de Fontainebleau',
-      dateFin: iso(addDays(34)), past: false,
+      dateFin: iso(addDays(34)), past: false, lieu: 'Fontainebleau', departement: '77',
       reserved: [], available: { box: 5, transport: 3, coach: 2, stage: 0 },
+      availableFrom: { box: 60, transport: 90, coach: 50, stage: null },
     },
   ],
   // Cohérent avec le hero (seul le transport est réservé) : transport payé, et une
   // demande de coach en attente. Box + coach « à réserver » côté hero.
   resa: [
+    { id: 'mock-resa-box', module: 'box', titre: 'Box CSO de Saumur', vendeur: 'Écurie du Parquet', montant: 165, statut: 'paid', needsPayment: false, dateDebut: addDays(11) },
     { id: 'mock-resa-transport', module: 'transport', titre: 'Lyon → Saumur', vendeur: 'Camille T.', montant: 98, statut: 'paid', needsPayment: false, dateDebut: addDays(10) },
-    { id: 'mock-resa-coach', module: 'coach', titre: 'Coaching CSO', vendeur: 'Émilie Laurent', montant: 200, statut: 'pending', needsPayment: false, dateDebut: addDays(12) },
   ],
-  heldCount: 1,
+  heldCount: 2,
 };

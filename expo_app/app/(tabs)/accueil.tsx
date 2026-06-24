@@ -32,7 +32,6 @@ export default function Accueil() {
           <Text style={s.hello}>{hello}</Text>
           <Text style={s.headerSub}>{SUBTITLE[role]}</Text>
         </View>
-        <View style={s.avatar}><Text style={s.avatarTxt}>{initials(prenom, userStore.nom)}</Text></View>
       </View>
 
       {role === 'cavalier' && <Cavalier />}
@@ -79,7 +78,7 @@ function initials2(name: string): string {
 }
 // Libellé du CTA (P6-premium) selon le service manquant.
 const FIND_LABEL: Record<CModuleKey, string> = {
-  box: 'Trouver un box', transport: 'Trouver un transport', coach: 'Trouver mon coach', stage: 'Trouver un stage',
+  box: 'Réserver un box', transport: 'Réserver un transport', coach: 'Réserver un coach', stage: 'Réserver un stage',
 };
 // Nom [singulier, pluriel] pour la ligne de réassurance.
 const PREP_NOUN: Record<CModuleKey, [string, string]> = {
@@ -182,7 +181,12 @@ function Cavalier() {
               {heroDays != null && <View style={s.heroJ}><Text style={s.heroJTxt}>{jLabel(heroDays)}</Text></View>}
             </View>
             <Text style={s.heroName} numberOfLines={2}>{hero.concoursNom}</Text>
-            {hero.dateFin && <Text style={s.heroMeta}>{formatHeroDate(hero.dateFin)}</Text>}
+            {hero.dateFin && (
+              <Text style={s.heroMeta}>
+                {formatHeroDate(hero.dateFin)}
+                {hero.lieu ? ` · ${hero.lieu}${hero.departement ? ` (${hero.departement})` : ''}` : ''}
+              </Text>
+            )}
 
             {/* Hybride V5 (anneau) + V8 (prestataires / slot manquant) */}
             <View style={s.hRingRow}>
@@ -213,13 +217,26 @@ function Cavalier() {
             </View>
             {missingModules.length > 0 ? (
               <>
-                <Text style={s.hProof}>🔒 Paiement protégé jusqu’à la prestation</Text>
-                {/* Un bouton par service à réserver → liste de CE service pour CE concours */}
-                {missingModules.map((m) => (
-                  <TouchableOpacity key={m} activeOpacity={0.85} style={s.hCta} onPress={() => goServiceConcours(m)}>
-                    <Text style={s.hCtaTxt} numberOfLines={1}>{FIND_LABEL[m]} →</Text>
-                  </TouchableOpacity>
-                ))}
+                {/* P6 : par service manquant → preuve sociale (rareté + prix mini
+                    réels) puis CTA « Réserver un X » menant à CE service pré-filtré. */}
+                {missingModules.map((m) => {
+                  const avail = availOf(m);
+                  const from = hero?.availableFrom?.[m] ?? null;
+                  const ville = hero?.lieu ?? '';
+                  return (
+                    <View key={m} style={s.hMissBlock}>
+                      {avail > 0 && (
+                        <Text style={s.hProof} numberOfLines={1}>
+                          ★ {avail} {PREP_NOUN[m][avail > 1 ? 1 : 0]} disponible{avail > 1 ? 's' : ''}
+                          {ville ? ` à ${ville}` : ''}{from ? ` · dès ${Math.round(from)} €` : ''}
+                        </Text>
+                      )}
+                      <TouchableOpacity activeOpacity={0.85} style={s.hCta} onPress={() => goServiceConcours(m)}>
+                        <Text style={s.hCtaTxt} numberOfLines={1}>{FIND_LABEL[m]} →</Text>
+                      </TouchableOpacity>
+                    </View>
+                  );
+                })}
               </>
             ) : (
               <Text style={s.hReady}>🎉 Tout est prêt pour ce concours</Text>
@@ -502,6 +519,7 @@ const s = StyleSheet.create({
   hLineMiss: { color: '#FFE2A0', fontWeight: FontWeight.bold },
   hOk: { color: '#BBF7D0', fontWeight: FontWeight.bold, fontSize: 14 },
   hGo: { color: '#FFE2A0', fontWeight: FontWeight.bold, fontSize: 18 },
+  hMissBlock: { marginTop: Spacing.sm },
   hProof: { color: '#FFE2A0', fontSize: FontSize.xs, fontWeight: FontWeight.semibold, marginTop: Spacing.md, marginBottom: 2 },
   hCta: { marginTop: 8, backgroundColor: '#FFF', borderRadius: Radius.md, paddingVertical: 11, alignItems: 'center' },
   hCtaTxt: { color: '#EA580C', fontSize: FontSize.base, fontWeight: FontWeight.bold },
