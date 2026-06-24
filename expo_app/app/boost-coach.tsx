@@ -165,7 +165,7 @@ const s = StyleSheet.create({
   back: { color: Colors.primary, fontSize: 16, fontWeight: '600', marginBottom: Spacing.lg },
   hero: {
     alignItems: 'center', backgroundColor: '#FEF3C7', borderRadius: Radius.lg,
-    borderWidth: 1, borderColor: '#F59E0B', padding: Spacing.xl, marginBottom: Spacing.lg, ...Shadow.sm,
+    borderWidth: 1, borderColor: '#F59E0B', padding: Spacing.xl, marginBottom: Spacing.lg, ...Shadow.card,
   },
   heroIcon: { fontSize: 44, marginBottom: Spacing.sm },
   heroTitle: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: '#92400E' },

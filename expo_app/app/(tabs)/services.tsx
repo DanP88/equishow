@@ -16,6 +16,7 @@ import { useCoachAnnonces, useMyCoachAnnonces } from '../../hooks/useCoachAnnonc
 import { useUnreadMessagesCount } from '../../hooks/useMessaging';
 import { useStages } from '../../hooks/useStages';
 import { useCoachProfiles } from '../../hooks/useCoachProfiles';
+import { SERVICES_DEV_SEED, MOCK_BOX_ANNONCES, MOCK_COACH_ANNONCES } from '../../data/mockServices';
 import { useAvisStats } from '../../hooks/useAvis';
 import { useUserRole } from '../../hooks/useUserRole';
 import { prixTTC, getCommission, TransportAnnonce, BoxAnnonce, CoachProfil, CoachAnnonce, CoachStage, Disponibilite } from '../../types/service';
@@ -124,9 +125,13 @@ export default function ServicesScreen() {
   const [viewMode, setViewMode] = useState<'concours' | 'tous'>('concours');
   const { transports, isLoading: transportsLoading } = useTransportAnnonces();
   const { deleteAnnonce: deleteTransportAnnonce } = useMyTransportAnnonces();
-  const { boxes, isLoading: boxesLoading } = useBoxAnnonces();
+  const { boxes: boxesReal, isLoading: boxesLoading } = useBoxAnnonces();
   const { deleteAnnonce: deleteBoxAnnonce } = useMyBoxAnnonces();
-  const { annonces: coachAnnonces, isLoading: coachAnnoncesLoading } = useCoachAnnonces();
+  const { annonces: coachAnnoncesReal, isLoading: coachAnnoncesLoading } = useCoachAnnonces();
+  // SEED DEV (front-only, __DEV__) : ajoute des offres d'exemple (box + coaching)
+  // pour « CSO de Saumur » afin de tester l'atterrissage depuis l'accueil. Cf. data/mockServices.
+  const boxes = (__DEV__ && SERVICES_DEV_SEED) ? [...MOCK_BOX_ANNONCES, ...boxesReal] : boxesReal;
+  const coachAnnonces = (__DEV__ && SERVICES_DEV_SEED) ? [...MOCK_COACH_ANNONCES, ...coachAnnoncesReal] : coachAnnoncesReal;
   const { deleteAnnonce: deleteCoachAnnonce } = useMyCoachAnnonces();
   const { stages } = useStages();
   const { coaches, isLoading: coachesLoading } = useCoachProfiles();
@@ -184,7 +189,9 @@ export default function ServicesScreen() {
   // Tous les hooks marketplace ont leur propre realtime — pas besoin de refetch
   // manuel ici. On lit juste les params URL.
   useFocusEffect(useCallback(() => {
-    if (params.tab) setTab(params.tab as Tab);
+    // Deep-link vers un service précis (accueil/fiche concours) → on bascule en vue
+    // « Tous les services » pour montrer DIRECTEMENT la liste filtrée (pas le sélecteur).
+    if (params.tab) { setTab(params.tab as Tab); setViewMode('tous'); }
     // subTab pilote le sous-onglet transport (trajets/van) OU le sous-onglet coach
     // (stages). On n'affecte chaque état que pour une valeur qui le concerne →
     // non régressif. LOT 2 : CTA #stage du fil concours → tab=coach&subTab=stages.

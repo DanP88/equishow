@@ -36,3 +36,35 @@ temp/
 
 # Supabase CLI scratch
 supabase/.temp/
+
+# ─────────────────────────────────────────────────────────────
+# Redesign UX (branche proto/ux-redesign) — artefacts de travail
+# NON destinés au repo. ⚠️ N'INCLUT PAS expo_app/data/mock*.ts
+# (importés par les écrans (tabs), donc commités avec la feature).
+# ─────────────────────────────────────────────────────────────
+
+# Docs design à la racine (maquettes HTML/PDF/DOCX)
+/*.html
+/*.pdf
+/*.docx
+
+# Écrans prototypes (galeries démo mock, hors build prod)
+expo_app/app/proto-*
+
+# Captures / planches de proto
+proto-screens/
+proto-verify/
+
+# Scripts de génération de maquettes & utilitaires dev
+scripts/__pycache__/
+scripts/gen-*.py
+scripts/audit-active-project.mjs
+scripts/debug-change-role.mjs
+
+# SQL de nettoyage one-shot (ne JAMAIS commiter — DROP/TRUNCATE prod)
+cleanup_active_project/
+cleanup_old_project/
+supabase/ops/
+
+# Config Vercel parasite
+vercel2.json

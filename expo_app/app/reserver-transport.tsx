@@ -173,6 +173,10 @@ export default function ReserverTransportScreen() {
 
   // ─── Calcul du prix ──────────────────────────────────────────────────────────
   async function handleCalculatePrice() {
+    // Re-narrowing : le composant a déjà fait un early return si `transport` est
+    // undefined, mais TS ne propage pas ce narrowing dans cette closure. Garde
+    // inerte en pratique (transport toujours défini ici).
+    if (!transport) return;
     if (pickupSource === 'manual' && !pickupAddress.trim()) {
       setRouteError('Veuillez saisir votre adresse de prise en charge.');
       return;
@@ -223,6 +227,9 @@ export default function ReserverTransportScreen() {
 
   // ─── Soumission ──────────────────────────────────────────────────────────────
   async function submit() {
+    // Re-narrowing (cf. handleCalculatePrice) : inerte, transport déjà garanti
+    // défini par l'early return du composant.
+    if (!transport) return;
     if (!isTrajet) {
       if (selectedDates.length === 0) {
         showErr('Aucune date sélectionnée', 'Choisissez au moins un jour de location.');

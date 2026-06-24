@@ -165,12 +165,26 @@ function RootLayout() {
   // session via getAuthToken.
   const inAuthGroup = segments[0] === '(auth)';
   const isStripeReturn = segments[0] === 'checkout-success' || segments[0] === 'cancelled';
-  // PROTOTYPE (branche feature/local-concours-deplacement-prototype) : la galerie
-  // de démo /proto est du mock autonome (aucune auth/DB), accessible sans session.
-  // /proto-ux (branche proto/ux-redesign) = refonte UX, même principe mock/no-auth.
-  // Toute route commençant par "proto" (proto, proto-ux, proto-noir, proto-editorial,
-  // proto-sellier) = galerie de démo mock autonome, accessible sans session.
-  const isProto = !!segments[0] && segments[0].startsWith('proto');
+  // PROTOTYPE : galeries de démo mock autonome (aucune auth/DB), accessibles sans
+  // session. LISTE BLANCHE EXPLICITE — ne PAS revenir à startsWith('proto'), qui
+  // exempterait d'auth toute route future nommée proto* (risque de bypass). Pour
+  // ajouter une galerie, l'inscrire ici en clair.
+  const PROTO_ROUTES = new Set([
+    'proto',
+    'proto-ux',
+    'proto-noir',
+    'proto-editorial',
+    'proto-sellier',
+    'proto-maison',
+    'proto-circuit',
+    'proto-piste',
+    'proto-accueil-90',
+    'proto-accueil-99',
+    'proto-banners',
+    'proto-concours-first',
+    'proto-services',
+  ]);
+  const isProto = !!segments[0] && PROTO_ROUTES.has(segments[0]);
   if (!isSignedIn && !inAuthGroup && !isStripeReturn && !isProto) {
     return <Redirect href="/login" />;
   }
