@@ -265,7 +265,7 @@ function Cavalier() {
             <TouchableOpacity activeOpacity={0.85} onPress={() => go('/(tabs)/concours-hub')} style={s.heCta}>
               <Text style={s.heCtaTxt}>Trouver mon concours  →</Text>
             </TouchableOpacity>
-            <Text style={s.heTrust}>🔒 Sans engagement · paiement sécurisé</Text>
+            <Text style={s.heTrust}>🔒 Paiement sécurisé</Text>
           </LinearGradient>
         </View>
       )}
