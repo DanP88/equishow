@@ -244,13 +244,30 @@ function Cavalier() {
           </LinearGradient>
         </TouchableOpacity>
       ) : (
-        <TouchableOpacity activeOpacity={0.92} onPress={() => go('/(tabs)/concours-hub')} style={[s.heroWrap, Shadow.card]}>
-          <LinearGradient colors={['#FB923C', '#EA580C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-            <Text style={s.heroKick}>VOTRE PROCHAIN CONCOURS</Text>
-            <Text style={[s.heroName, { marginTop: 6 }]}>Trouvez votre concours</Text>
-            <Text style={s.heroMeta}>Suivez un concours et Equishow organise box, transport et coach.</Text>
+        // État vide (aucun concours suivi) — V1 « Trio rassurant » : promesse
+        // rendue tangible (les 3 services) + CTA unique + réassurance escrow.
+        <View style={[s.heroWrap, Shadow.card]}>
+          <LinearGradient colors={['#FB923C', '#F97316', '#EA580C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
+            <View style={s.heRow}>
+              <View style={s.heDot} />
+              <Text style={s.heKick}>PRÊT(E) POUR LE PROCHAIN DÉFI ?</Text>
+            </View>
+            <Text style={s.heTitle}>On s'occupe de tout</Text>
+            <Text style={s.heDesc}>Box, transport, coach : Equishow simplifie votre prochain concours.</Text>
+            <View style={s.hePills}>
+              {([['📦', 'Box'], ['🚐', 'Transport'], ['🎯', 'Coach']] as const).map(([icon, label]) => (
+                <View key={label} style={s.hePill}>
+                  <Text style={s.hePillIcon}>{icon}</Text>
+                  <Text style={s.hePillTxt}>{label}</Text>
+                </View>
+              ))}
+            </View>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => go('/(tabs)/concours-hub')} style={s.heCta}>
+              <Text style={s.heCtaTxt}>Trouver mon concours  →</Text>
+            </TouchableOpacity>
+            <Text style={s.heTrust}>🔒 Sans engagement · paiement sécurisé</Text>
           </LinearGradient>
-        </TouchableOpacity>
+        </View>
       )}
 
       {/* Récap chiffres réels — chaque bloc mène au bon écran */}
@@ -524,6 +541,28 @@ const s = StyleSheet.create({
   hCta: { marginTop: 8, backgroundColor: '#FFF', borderRadius: Radius.md, paddingVertical: 11, alignItems: 'center' },
   hCtaTxt: { color: '#EA580C', fontSize: FontSize.base, fontWeight: FontWeight.bold },
   hReady: { marginTop: Spacing.md, color: '#FFF', fontSize: FontSize.base, fontWeight: FontWeight.semibold, textAlign: 'center' },
+
+  // Hero état vide — V1 « Trio rassurant »
+  heRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
+  heDot: { width: 6, height: 6, borderRadius: 3, backgroundColor: Colors.gold },
+  heKick: { color: 'rgba(255,255,255,0.9)', fontSize: FontSize.xs, fontWeight: FontWeight.extrabold, letterSpacing: 1.4 },
+  heTitle: { color: '#FFF', fontSize: FontSize.display, fontWeight: FontWeight.extrabold, marginTop: Spacing.md, lineHeight: 32 },
+  heDesc: { color: 'rgba(255,255,255,0.92)', fontSize: FontSize.base, lineHeight: 20, marginTop: Spacing.sm },
+  hePills: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.lg },
+  hePill: {
+    flexDirection: 'row', alignItems: 'center', gap: 5,
+    backgroundColor: 'rgba(255,255,255,0.16)', borderRadius: 999,
+    paddingHorizontal: Spacing.md, paddingVertical: 7,
+    borderWidth: 1, borderColor: 'rgba(255,255,255,0.22)',
+  },
+  hePillIcon: { fontSize: 14 },
+  hePillTxt: { color: '#FFF', fontSize: FontSize.sm, fontWeight: FontWeight.semibold },
+  heCta: {
+    marginTop: Spacing.xl, backgroundColor: '#FFF', borderRadius: Radius.lg,
+    paddingVertical: 14, alignItems: 'center', ...Shadow.card,
+  },
+  heCtaTxt: { color: Colors.primaryDark, fontSize: FontSize.lg, fontWeight: FontWeight.bold },
+  heTrust: { color: 'rgba(255,255,255,0.85)', fontSize: FontSize.xs, fontWeight: FontWeight.medium, textAlign: 'center', marginTop: Spacing.md },
 
   stats: { flexDirection: 'row', alignItems: 'center', backgroundColor: Colors.surface, borderRadius: Radius.lg, paddingVertical: Spacing.lg, borderWidth: 1, borderColor: Colors.border },
   stat: { flex: 1, alignItems: 'center' },
