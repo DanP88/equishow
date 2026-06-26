@@ -7,6 +7,7 @@ import { useScreenTracking } from '../../../hooks/useScreenTracking';
 import { trackCta } from '../../../lib/analytics';
 import { ConcoursWeatherCard } from '../../../components/ConcoursWeatherCard';
 import { ConcoursEpreuvesCard } from '../../../components/ConcoursEpreuvesCard';
+import { ConcoursCategoriesCard } from '../../../components/ConcoursCategoriesCard';
 import { ConcoursDiscussionEntry } from '../../../components/ConcoursDiscussionEntry';
 
 /**
@@ -97,6 +98,9 @@ export default function ConcoursFicheScreen() {
 
         {/* Météo V1 (Open-Meteo) — isolée, ne casse pas la fiche en cas d'échec. */}
         <ConcoursWeatherCard concours={concours} />
+
+        {/* Catégories FFE importées (084) — lecture seule, masquée si rien d'importé. */}
+        <ConcoursCategoriesCard concoursId={id} />
 
         {/* Épreuves importées (CSV FFE) — lecture seule, masquée si rien d'importé. */}
         <ConcoursEpreuvesCard concoursId={id} listeEpreuves={concours.liste_epreuves} />

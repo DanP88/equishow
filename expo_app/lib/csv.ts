@@ -24,12 +24,35 @@ export interface ParsedCSV {
 }
 
 /**
+ * Détecte le séparateur de champs sur la 1ʳᵉ ligne (hors guillemets).
+ * FFE « fusion canonique » utilise « ; » (la colonne categories contient des
+ * virgules internes) ; les exports historiques utilisent « , ». On choisit le
+ * séparateur le plus fréquent dans l'en-tête. Défaut : « , ».
+ */
+function detectDelimiter(text: string): ',' | ';' {
+  let semicolons = 0;
+  let commas = 0;
+  let inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (ch === '"') { inQuotes = !inQuotes; continue; }
+    if (inQuotes) continue;
+    if (ch === '\n' || ch === '\r') break; // 1ʳᵉ ligne seulement
+    if (ch === ';') semicolons++;
+    else if (ch === ',') commas++;
+  }
+  return semicolons > commas ? ';' : ',';
+}
+
+/**
  * Parse un texte CSV en { headers, rows }. Les valeurs sont trimées.
  * Les enregistrements entièrement vides (lignes blanches) sont ignorés.
+ * Le séparateur (« , » ou « ; ») est auto-détecté, ou forcé via `delimiter`.
  */
-export function parseCSV(input: string): ParsedCSV {
+export function parseCSV(input: string, delimiter?: ',' | ';'): ParsedCSV {
   // Retire le BOM UTF-8 éventuel (sinon le 1er header devient « ﻿Date… »).
   const text = input.charCodeAt(0) === 0xfeff ? input.slice(1) : input;
+  const sep = delimiter ?? detectDelimiter(text);
 
   const records: string[][] = [];
   let record: string[] = [];
@@ -53,7 +76,7 @@ export function parseCSV(input: string): ParsedCSV {
     }
 
     if (ch === '"') { inQuotes = true; i++; continue; }
-    if (ch === ',') { endField(); i++; continue; }
+    if (ch === sep) { endField(); i++; continue; }
     if (ch === '\n') { endRecord(); i++; continue; }
     if (ch === '\r') {
       endRecord();

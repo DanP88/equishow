@@ -17,6 +17,7 @@ export type ConcoursCSV = {
   numero_concours: string | null;
   etat: string | null;
   liste_epreuves: string[];
+  categories: string[];        // 084 — catégories FFE découpées/dédupliquées
   adresse: string | null;
   source_import: 'csv';
   import_batch_id: string | null;

@@ -46,6 +46,7 @@ function hubToCsv(c: ConcoursHub): ConcoursCSV {
     numero_concours: c.numero_ffe,
     etat: c.etat,
     liste_epreuves: c.liste_epreuves,
+    categories: [],
     adresse: null,
     source_import: 'csv',
     import_batch_id: null,

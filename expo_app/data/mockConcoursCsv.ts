@@ -55,6 +55,7 @@ export const mockConcoursCsv: ConcoursCSV[] = Array.from({ length: 100 }, (_, i)
     numero_concours: numero,
     etat,
     liste_epreuves: epreuves,
+    categories: [],
     adresse: `${10 + i} Route de l'Équitation, ${dep}000`,
     source_import: 'csv',
     import_batch_id: BATCH_ID,

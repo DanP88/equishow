@@ -9,13 +9,50 @@ import { concoursCsvStore } from '../../data/store';
 import { supabase } from '../../lib/supabase';
 import { parseCSV } from '../../lib/csv';
 import { parseEpreuves } from '../../lib/epreuves';
+import { parseCategories } from '../../lib/categories';
 import { ConcoursCSV, ImportBatch, ImportError } from '../../types/concours';
 
 // LOT 1 — Persistance des concours importés vers la table public.concours
 // (upsert sur numero_ffe = idempotent au ré-import). Tolère l'absence de table
 // (migration 074 non encore appliquée) : log only, le store mock reste la source
 // de visualisation tant que 074 n'est pas en place.
-async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: number; doublonsBase: number; error: string | null }> {
+// 084 — réplique les catégories d'un lot de concours dans concours_categories.
+// Sémantique « replace » idempotente : on efface les catégories existantes des
+// concours concernés puis on réinsère la liste fraîche (un ré-import qui retire
+// une catégorie la supprime aussi). Best-effort : tolère l'absence de la table
+// 084 (non appliquée) et n'interrompt JAMAIS l'import des concours.
+async function persistCategories(
+  rows: ConcoursCSV[],
+  numeroToId: Map<string, string>,
+): Promise<{ written: number; error: string | null }> {
+  // (concours_id, categorie) à écrire, en s'appuyant sur l'id réel post-upsert.
+  const catRows: { concours_id: string; categorie: string }[] = [];
+  const concoursIds = new Set<string>();
+  for (const r of rows) {
+    const id = r.numero_concours ? numeroToId.get(r.numero_concours) : undefined;
+    if (!id) continue;
+    concoursIds.add(id);
+    for (const categorie of r.categories) catRows.push({ concours_id: id, categorie });
+  }
+  if (concoursIds.size === 0) return { written: 0, error: null };
+
+  try {
+    // Replace : on purge les catégories des concours ré-importés…
+    const { error: delErr } = await supabase
+      .from('concours_categories').delete().in('concours_id', [...concoursIds]);
+    if (delErr) return { written: 0, error: delErr.message };
+    // …puis on réinsère la liste fraîche (dédup déjà faite côté parseCategories).
+    if (catRows.length === 0) return { written: 0, error: null };
+    const { error: insErr } = await supabase
+      .from('concours_categories').insert(catRows);
+    if (insErr) return { written: 0, error: insErr.message };
+    return { written: catRows.length, error: null };
+  } catch (e: any) {
+    return { written: 0, error: e?.message ?? String(e) };
+  }
+}
+
+async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: number; doublonsBase: number; categoriesWritten: number; categoriesError: string | null; error: string | null }> {
   const payload = rows
     .filter((r) => r.numero_concours) // skip lignes sans numéro (clé d'upsert)
     .map((r) => ({
@@ -36,7 +73,7 @@ async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: numb
       source_import: 'csv',
       import_batch_id: r.import_batch_id,
     }));
-  if (payload.length === 0) return { written: 0, doublonsBase: 0, error: null };
+  if (payload.length === 0) return { written: 0, doublonsBase: 0, categoriesWritten: 0, categoriesError: null, error: null };
   try {
     // Dédup contre la BASE : quels numero_ffe existent déjà ?
     const numeros = payload.map((p) => p.numero_ffe).filter(Boolean) as string[];
@@ -44,25 +81,40 @@ async function persistConcoursToDb(rows: ConcoursCSV[]): Promise<{ written: numb
       .from('concours').select('numero_ffe').in('numero_ffe', numeros);
     if (exErr) {
       console.warn('[import-concours] lecture doublons base échouée:', exErr.message);
-      return { written: 0, doublonsBase: 0, error: exErr.message };
+      return { written: 0, doublonsBase: 0, categoriesWritten: 0, categoriesError: null, error: exErr.message };
     }
     const existingSet = new Set((existing ?? []).map((e: any) => e.numero_ffe));
     const doublonsBase = payload.filter((p) => existingSet.has(p.numero_ffe)).length;
 
-    // Upsert (insère les nouveaux, met à jour les existants).
+    // Upsert (insère les nouveaux, met à jour les existants). On récupère `id`
+    // (en plus de numero_ffe) pour rattacher les catégories (FK concours_id).
     const { data, error } = await supabase
-      .from('concours').upsert(payload, { onConflict: 'numero_ffe' }).select('numero_ffe');
+      .from('concours').upsert(payload, { onConflict: 'numero_ffe' }).select('id, numero_ffe');
     if (error) {
       console.warn('[import-concours] upsert concours échoué:', error.message);
-      return { written: 0, doublonsBase: 0, error: error.message };
+      return { written: 0, doublonsBase: 0, categoriesWritten: 0, categoriesError: null, error: error.message };
     }
     const affected = data?.length ?? 0;
+
+    // 084 — catégories : best-effort, n'impacte pas le statut d'import des concours.
+    const numeroToId = new Map<string, string>(
+      (data ?? []).map((d: any) => [d.numero_ffe as string, d.id as string]),
+    );
+    const cat = await persistCategories(rows, numeroToId);
+    if (cat.error) console.warn('[import-concours] catégories non écrites:', cat.error);
+
     // écrits en base = nouveaux insérés (affectés − déjà présents).
-    return { written: Math.max(affected - doublonsBase, 0), doublonsBase, error: null };
+    return {
+      written: Math.max(affected - doublonsBase, 0),
+      doublonsBase,
+      categoriesWritten: cat.written,
+      categoriesError: cat.error,
+      error: null,
+    };
   } catch (e: any) {
     const msg = e?.message ?? String(e);
     console.warn('[import-concours] persistance concours indisponible:', msg);
-    return { written: 0, doublonsBase: 0, error: msg };
+    return { written: 0, doublonsBase: 0, categoriesWritten: 0, categoriesError: null, error: msg };
   }
 }
 
@@ -87,10 +139,17 @@ const HEADER_MAP: Record<string, keyof ConcoursCSVRaw> = {
   'lieu': 'lieu',
   'Type de concours': 'type_concours',
   'type_concours': 'type_concours',
+  // Format « fusion canonique » : la discipline (CCE/CSO/Dressage…) est dans sa
+  // propre colonne, type_concours y est souvent vide → on l'alimente aussi.
+  'discipline': 'type_concours',
+  'Discipline': 'type_concours',
   'Département': 'departement',
   'departement': 'departement',
   'CRE': 'cre',
   'cre': 'cre',
+  // Format « fusion canonique » : la région (CRE) est dans la colonne « region ».
+  'region': 'cre',
+  'Région': 'cre',
   'Numéro de concours': 'numero_concours',
   'numero_concours': 'numero_concours',
   'Etat': 'etat',
@@ -98,6 +157,10 @@ const HEADER_MAP: Record<string, keyof ConcoursCSVRaw> = {
   'Épreuve': 'epreuves_raw',
   'Epreuve': 'epreuves_raw',
   'epreuves': 'epreuves_raw',
+  // 084 — catégories FFE (liste séparée par virgules), découpées à l'import.
+  'categories': 'categories_raw',
+  'Catégories': 'categories_raw',
+  'Categories': 'categories_raw',
   'nom_concours': 'nom_concours_direct',
   'adresse': 'adresse',
 };
@@ -115,6 +178,7 @@ interface ConcoursCSVRaw {
   numero_concours?: string;
   etat?: string;
   epreuves_raw?: string;
+  categories_raw?: string;
   nom_concours_direct?: string;
   adresse?: string;
 }
@@ -123,9 +187,24 @@ function mapRow(raw: Record<string, string>): ConcoursCSVRaw {
   const mapped: ConcoursCSVRaw = {};
   for (const [key, value] of Object.entries(raw)) {
     const field = HEADER_MAP[key];
-    if (field) (mapped as any)[field] = value || undefined;
+    // On ignore les valeurs vides : sinon une colonne `type_concours` vide
+    // écraserait la `discipline` déjà mappée sur le même champ (fusion canonique).
+    if (field && value) (mapped as any)[field] = value;
   }
   return mapped;
+}
+
+// Normalise une date en ISO (YYYY-MM-DD). Gère :
+//   - ISO déjà conforme (« 2026-04-28 ») → inchangé (format historique préservé)
+//   - FFE « fusion canonique » au format « DD/MM/YYYY » (« 23/08/2026 ») → ISO
+// Retourne undefined si non interprétable (ex « 17/08 » sans année).
+function normalizeDate(s: string | undefined): string | undefined {
+  if (!s) return undefined;
+  const t = s.trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return t;                 // déjà ISO
+  const m = t.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);            // DD/MM/YYYY
+  if (m) return `${m[3]}-${m[2]}-${m[1]}`;
+  return undefined;
 }
 
 function isValidDate(s: string | undefined): boolean {
@@ -162,28 +241,30 @@ function processCSVRows(
     const rowNum = idx + 2; // +1 for header, +1 for 1-based
     const mapped = mapRow(raw);
 
+    // Normalisation des dates (ISO passthrough ou DD/MM/YYYY → ISO).
+    // date_fin absente (cas « fusion canonique ») → repli sur date_debut.
+    const dDebut = normalizeDate(mapped.date_debut);
+    const dFin = normalizeDate(mapped.date_fin) || dDebut;
+    const dCloture = normalizeDate(mapped.date_cloture);
+
     // Validation
     if (!mapped.date_debut) {
       result.errors.push({ row: rowNum, data: JSON.stringify(raw), message: 'date_debut manquante' });
-      return;
-    }
-    if (!mapped.date_fin) {
-      result.errors.push({ row: rowNum, data: JSON.stringify(raw), message: 'date_fin manquante' });
       return;
     }
     if (!mapped.lieu && !mapped.nom_concours_direct) {
       result.errors.push({ row: rowNum, data: JSON.stringify(raw), message: 'lieu manquant' });
       return;
     }
-    if (!isValidDate(mapped.date_debut)) {
+    if (!isValidDate(dDebut)) {
       result.errors.push({ row: rowNum, data: JSON.stringify(raw), message: `date_debut invalide: "${mapped.date_debut}"` });
       return;
     }
-    if (!isValidDate(mapped.date_fin)) {
+    if (!isValidDate(dFin)) {
       result.errors.push({ row: rowNum, data: JSON.stringify(raw), message: `date_fin invalide: "${mapped.date_fin}"` });
       return;
     }
-    if (new Date(mapped.date_debut!) > new Date(mapped.date_fin!)) {
+    if (new Date(dDebut!) > new Date(dFin!)) {
       result.errors.push({ row: rowNum, data: JSON.stringify(raw), message: 'date_debut > date_fin' });
       return;
     }
@@ -201,9 +282,9 @@ function processCSVRows(
     result.valid.push({
       id: `csv_${Date.now()}_${rowNum}`,
       nom_concours: buildNomConcours(mapped),
-      date_debut: mapped.date_debut || null,
-      date_fin: mapped.date_fin || null,
-      date_cloture: mapped.date_cloture || null,
+      date_debut: dDebut || null,
+      date_fin: dFin || null,
+      date_cloture: dCloture || null,
       organisateur_terrain: mapped.organisateur_terrain || null,
       organisateur_financier: mapped.organisateur_financier || null,
       lieu: mapped.lieu || null,
@@ -213,6 +294,7 @@ function processCSVRows(
       numero_concours: mapped.numero_concours || null,
       etat: mapped.etat || null,
       liste_epreuves: parseEpreuves(mapped.epreuves_raw),
+      categories: parseCategories(mapped.categories_raw),
       adresse: mapped.adresse || null,
       source_import: 'csv',
       import_batch_id: batchId,
@@ -234,7 +316,7 @@ export default function ImportConcoursScreen() {
   const [headers, setHeaders] = useState<string[]>([]);
   const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [imported, setImported] = useState(false);
-  const [dbResult, setDbResult] = useState<{ written: number; doublonsBase: number; error: string | null } | null>(null);
+  const [dbResult, setDbResult] = useState<{ written: number; doublonsBase: number; categoriesWritten: number; categoriesError: string | null; error: string | null } | null>(null);
   const [tick, setTick] = useState(0);
 
   function refresh() { setTick(t => t + 1); }
@@ -381,8 +463,8 @@ export default function ImportConcoursScreen() {
               <Text style={s.uploadIcon}>📂</Text>
               <Text style={s.uploadTitle}>Sélectionner un fichier CSV</Text>
               <Text style={s.uploadHint}>
-                Formats supportés : FFE standard, CSV générique{'\n'}
-                Séparateur : virgule · Encodage : UTF-8
+                Formats supportés : FFE standard, fusion canonique, CSV générique{'\n'}
+                Séparateur : , ou ; (auto) · Encodage : UTF-8
               </Text>
 
               {Platform.OS === 'web' ? (
@@ -410,6 +492,8 @@ export default function ImportConcoursScreen() {
                   ['Département', 'departement', 'Optionnel'],
                   ['Numéro de concours', 'numero_concours', 'Dédoublonnage'],
                   ['Épreuve / epreuves', 'liste_epreuves', 'Séparateur ;'],
+                  ['categories', 'concours_categories', 'Séparateur ,'],
+                  ['Discipline / region', 'type_concours / cre', 'Optionnel'],
                   ['Date de clôture', 'date_cloture', 'Optionnel'],
                   ['Organisateur terrain', 'organisateur_terrain', 'Optionnel'],
                   ['Organisateur financier', 'organisateur_financier', 'Optionnel'],
@@ -474,6 +558,11 @@ export default function ImportConcoursScreen() {
                 <View style={[s.successBanner, dbResult.written === 0 && { backgroundColor: '#FEF3C7', borderColor: '#FCD34D' }]}>
                   <Text style={[s.successText, dbResult.written === 0 && { color: '#92400E' }]}>
                     ✅ {dbResult.written} écrits en base · ⏭ {dbResult.doublonsBase} doublons (déjà en base) · ⚠️ {parseResult.errors.length} erreurs
+                  </Text>
+                  <Text style={{ color: '#475569', fontSize: 12, marginTop: 4, textAlign: 'center' }}>
+                    {dbResult.categoriesError
+                      ? `🏷 Catégories non écrites (table 084 absente ?)`
+                      : `🏷 ${dbResult.categoriesWritten} catégories rattachées`}
                   </Text>
                 </View>
               )
