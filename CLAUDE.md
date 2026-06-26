@@ -1,7 +1,7 @@
 # CLAUDE.md — Equishow
 
 > **Source de vérité du projet.** Résumé stratégique. Les détails volumineux sont dans `docs/` (liens en bas de chaque section).
-> MAJ : 2026-06-21 · repo `main` @ `12cf0c3` · migrations fichiers → **083**.
+> MAJ : 2026-06-26 · repo `main` @ `ac56b1d` · migrations fichiers → **084**.
 > Légende : ✅ observé · 🟡 partiel · 🔴 bloquant · _(déduit)_ à confirmer.
 
 ## Session startup
@@ -59,7 +59,7 @@ Rôle dans `users.role` ; bascule via RPC `change_user_role`. Différences clés
 
 | Module | Objectif | Statut | Points sensibles |
 |---|---|---|---|
-| Concours | Hub découverte contextuel | ✅ | dual-source (7 écrans mock→DB) ; `isMissingTable` doit couvrir PGRST205 → `docs/concours.md` |
+| Concours | Hub découverte contextuel | ✅ | dual-source (7 écrans mock→DB) ; `isMissingTable` doit couvrir PGRST205 → `docs/concours.md` ; **catégories FFE = table enfant `concours_categories` (084, 1 ligne=1 catégorie, FK `concours(id)` CASCADE)** affichée sur la fiche |
 | Box | Hébergement cheval | ✅ escrow | dispo par chevauchement dates |
 | Transport | Trajets partagés (+ van fermé) | ✅ escrow | colonne `statut` (FR) ≠ `status` ; van hors compteur places |
 | Coach | Cours ponctuel | ✅ escrow | capacité créneau (mig 057, advisory lock) |

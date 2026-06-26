@@ -26,3 +26,10 @@
 - `isMissingTable` doit couvrir `PGRST205` (+ 42P01/42703).
 - Import : index partiel non inférable par ON CONFLICT (cf incident 079) ; RLS admin = `role='admin'`.
 - Discussions LOT 2 reste : fil participants, `@user`, push, notif de mention (archi prête, non câblée).
+
+## Catégories FFE (mig 084)
+- Table enfant **`concours_categories`** (`id`, `concours_id → concours(id) ON DELETE CASCADE`, `categorie`, `UNIQUE(concours_id, categorie)`, index `idx_cc_categorie`). RLS = miroir `concours` (select public / write admin). Vue read-only `v_concours_categories_counts` (`security_invoker`).
+- Clé de jointure = `concours.id` (uuid), PAS `numero_ffe` (son index unique est partiel → inéligible comme cible de FK).
+- Import (`import-concours.tsx`) : `parseCategories` (lib/categories.ts) découpe la colonne `categories` (séparateur `,`), trim, **dédup** ; persistance « replace » idempotente (delete+insert par `concours_id`), best-effort (tolère table absente).
+- Format « fusion canonique » : parser CSV auto-détecte le séparateur `;` (lib/csv.ts) ; dates `DD/MM/YYYY`→ISO + repli `date_fin`→`date_debut` (`normalizeDate`). Catégories portées par les lignes `source_type=CSV` ; les lignes `XLS` ont `categories` vide (niveaux noyés dans `epreuves`, non extraits).
+- Affichage : carte `ConcoursCategoriesCard` sur la fiche (`useConcoursCategories`). Pas de filtre hub (reporté).

@@ -345,3 +345,34 @@ export function useConcoursFollow(concoursId?: string) {
 
   return { isFollowing, toggle, isReady, available, canFollow: !!userId };
 }
+
+// ── useConcoursCategories — catégories FFE d'un concours (084) ─────────────────
+// Lecture read-only de public.concours_categories (select public). Tolère
+// l'absence de la table (084 non appliquée) → liste vide, aucun crash.
+export function useConcoursCategories(concoursId?: string) {
+  const [categories, setCategories] = useState<string[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!concoursId) { setCategories([]); setIsLoading(false); return; }
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('concours_categories')
+      .select('categorie')
+      .eq('concours_id', concoursId)
+      .order('categorie', { ascending: true });
+    if (error || !data) {
+      // Table 084 absente ou erreur → pas de catégories (section masquée).
+      if (error && !isMissingTable(error) && __DEV__) {
+        console.warn('[categories] lecture échouée:', error.message);
+      }
+      setCategories([]);
+    } else {
+      setCategories((data as { categorie: string }[]).map((r) => r.categorie));
+    }
+    setIsLoading(false);
+  }, [concoursId]);
+
+  useEffect(() => { load(); }, [load]);
+  return { categories, isLoading, reload: load };
+}
