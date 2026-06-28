@@ -97,4 +97,9 @@ describe('coachHasPro', () => {
     expect(coachHasPro(null, null)).toBe(false);
     expect(coachHasPro(null, 'Gratuit')).toBe(false);
   });
+  test('plans cavalier legacy ne sont PAS Pro coach', () => {
+    expect(coachHasPro('cavalier-plus', 'Cavalier+')).toBe(false);
+    expect(coachHasPro('cavalier-premium', 'Premium')).toBe(false);
+    expect(coachHasPro('cavalier-famille', 'Famille')).toBe(false);
+  });
 });

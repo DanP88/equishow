@@ -13,7 +13,8 @@
 --   • nom+prénom+région = jamais bloquant seul → AUDIT admin uniquement
 --   • téléphone / SIRET / ville = colonnes ABSENTES aujourd'hui → extension future
 --
--- Dépendances : fn_coach_paid_sessions (085), fn_is_paid_plan (032).
+-- Dépendance : fn_coach_paid_sessions (085). « Pro » = plan_id LIKE 'coach-%'
+-- (volontairement PAS fn_is_paid_plan, qui verrait un plan cavalier legacy comme payant).
 -- 100% additif : 1 table + RLS + 3 fonctions. Aucun impact escrow/réservation.
 -- ─────────────────────────────────────────────────────────────────────────────
 
@@ -75,7 +76,9 @@ begin
   from public.users where id = p_uid;
 
   v_count   := public.fn_coach_paid_sessions(p_uid);
-  v_has_pro := public.fn_is_paid_plan(coalesce(v_plan_id, v_plan));
+  -- Pro coach = plan COACH payant uniquement (coach-mensuel / coach-annuel).
+  -- (Ne PAS utiliser fn_is_paid_plan : un plan cavalier legacy serait vu comme « Pro ».)
+  v_has_pro := lower(coalesce(v_plan_id, '')) like 'coach-%';
 
   -- PREUVE FORTE : même compte Stripe Connect sur un AUTRE user.
   v_dup := v_stripe is not null and exists (

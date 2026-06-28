@@ -44,22 +44,21 @@ export function countPaidCoachSessions(rows: PaymentRowForTrial[] | null | undef
   ).length;
 }
 
-// Plans considérés comme « gratuits » (jamais Pro).
-const FREE_PLAN_KEYS = new Set([
-  '', 'gratuit', 'free', 'decouverte', 'découverte',
-  'cavalier-gratuit', 'cavalier-decouverte',
-]);
-
-/** Le coach a-t-il un abonnement Pro actif (plan coach payant) ? */
+/**
+ * Le coach a-t-il un abonnement Pro actif ?
+ * Pro = plan COACH payant uniquement (`coach-mensuel` / `coach-annuel`).
+ * Les plans cavalier legacy (`cavalier-plus/premium/famille`) ne comptent PAS
+ * comme Pro coach — sinon un ancien cavalier devenu coach n'aurait jamais l'essai.
+ */
 export function coachHasPro(
   planId: string | undefined | null,
   plan: string | undefined | null,
 ): boolean {
   const id = (planId ?? '').toLowerCase().trim();
-  if (id) return !FREE_PLAN_KEYS.has(id);
+  if (id) return id.startsWith('coach-');
+  // Fallback nom (anciens enregistrements sans plan_id) : noms de forfaits coach.
   const name = (plan ?? '').toLowerCase().trim();
-  if (!name) return false;
-  return !FREE_PLAN_KEYS.has(name);
+  return /\b(mensuel|annuel)\b/.test(name) || name.includes('coach pro');
 }
 
 // Statut anti-abus de l'essai (cf. table coach_trial_identity / RPC serveur).
