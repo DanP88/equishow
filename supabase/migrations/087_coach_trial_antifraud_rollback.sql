@@ -1,4 +1,4 @@
--- Rollback migration 086 — anti-abus essai Coach
+-- Rollback migration 087 — anti-abus essai Coach
 -- Supprime fonctions + table de suivi. (TRUNCATE non requis : DROP CASCADE de la
 -- table de suivi uniquement ; aucune donnée métier escrow/réservation impactée.)
 

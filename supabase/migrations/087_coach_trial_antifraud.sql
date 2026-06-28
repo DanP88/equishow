@@ -1,7 +1,7 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- Migration 086 — Anti-abus de l'essai gratuit Coach (multi-comptes)
+-- Migration 087 — Anti-abus de l'essai gratuit Coach (multi-comptes)
 --
--- ⚠️ NON APPLIQUÉE EN PROD à ce stade (cohérent avec 085). Le front fail-open
+-- ⚠️ NON APPLIQUÉE EN PROD à ce stade (cohérent avec 086). Le front fail-open
 --    tant que ces RPC n'existent pas (aucun faux blocage).
 --
 -- Risque adressé : un coach crée plusieurs comptes pour re-bénéficier des 3
@@ -13,7 +13,7 @@
 --   • nom+prénom+région = jamais bloquant seul → AUDIT admin uniquement
 --   • téléphone / SIRET / ville = colonnes ABSENTES aujourd'hui → extension future
 --
--- Dépendance : fn_coach_paid_sessions (085). « Pro » = plan_id LIKE 'coach-%'
+-- Dépendance : fn_coach_paid_sessions (086). « Pro » = plan_id LIKE 'coach-%'
 -- (volontairement PAS fn_is_paid_plan, qui verrait un plan cavalier legacy comme payant).
 -- 100% additif : 1 table + RLS + 3 fonctions. Aucun impact escrow/réservation.
 -- ─────────────────────────────────────────────────────────────────────────────

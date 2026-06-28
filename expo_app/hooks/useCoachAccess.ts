@@ -3,7 +3,7 @@
 // + anti-abus multi-comptes (éligibilité d'identité).
 //
 // Stratégie de lecture :
-//   1. RPC serveur `fn_my_coach_trial_status` (mig 086) → compteur + éligibilité
+//   1. RPC serveur `fn_my_coach_trial_status` (mig 087) → compteur + éligibilité
 //      anti-abus (doublon Stripe Connect = preuve forte). Source autoritaire.
 //   2. Fallback si la RPC n'existe pas encore (mig non appliquée) ou erreur :
 //      calcul client depuis `payments` (RLS seller) + éligibilité = true.

@@ -1,5 +1,5 @@
 -- ─────────────────────────────────────────────────────────────────────────────
--- Migration 085 — Essai gratuit Coach : 3 premières séances de coaching payées
+-- Migration 086 — Essai gratuit Coach : 3 premières séances de coaching payées
 --
 -- ⚠️ NON APPLIQUÉE EN PROD à ce stade. Le front calcule le compteur côté client
 --    (lecture `payments`, RLS payments_select_parties). Cette migration fournit
