@@ -24,7 +24,6 @@ import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { trackFunnel } from '../../lib/analytics';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
-import { getPlanLimits } from '../../lib/planLimits';
 
 type Tab = 'transport' | 'box' | 'coach';
 type TransportSubTab = 'trajets' | 'van';
@@ -149,40 +148,12 @@ export default function ServicesScreen() {
     kind: 'transport' | 'box' | 'coach';
     id: string;
   } | null>(null);
-  const [upgradeAlert, setUpgradeAlert] = useState<{ title: string; message: string } | null>(null);
-
   // Compteur messages non lus (badge cloche dans le header) — Supabase realtime.
   const msgUnreadCount = useUnreadMessagesCount();
 
-  // Gating plan : Découverte (gratuit) bloque Transport et Box.
-  const planLimits = getPlanLimits((userStore as any).plan);
-  const transportLocked = !planLimits.canAccessTransport;
-  const boxLocked = !planLimits.canAccessBox;
-
-  // Si l'onglet courant est verrouillé (cas du landing par défaut ou deep link
-  // ?tab=transport/box pour un cavalier Découverte) → forcer la bascule sur
-  // Coachs (la seule destination accessible).
-  useEffect(() => {
-    if ((tab === 'transport' && transportLocked) || (tab === 'box' && boxLocked)) {
-      setTab('coach');
-    }
-  }, [tab, transportLocked, boxLocked]);
-
+  // Plus de gating d'abonnement cavalier : box et transport sont accessibles
+  // gratuitement à tous les cavaliers.
   function handleTabPress(target: Tab) {
-    if (target === 'transport' && transportLocked) {
-      setUpgradeAlert({
-        title: 'Transport — réservé à Cavalier+',
-        message: `Les annonces de transport sont disponibles à partir du forfait Cavalier+ (6,99€/mois). Votre plan actuel : ${planLimits.label}.`,
-      });
-      return;
-    }
-    if (target === 'box' && boxLocked) {
-      setUpgradeAlert({
-        title: 'Box — réservé à Cavalier+',
-        message: `Les annonces de box sont disponibles à partir du forfait Cavalier+ (6,99€/mois). Votre plan actuel : ${planLimits.label}.`,
-      });
-      return;
-    }
     setTab(target);
   }
 
@@ -374,8 +345,8 @@ export default function ServicesScreen() {
       <>
       {/* Tabs */}
       <View style={s.tabBar}>
-        <TabBtn label="Box" count={filteredB.length} loading={boxesLoading} active={tab === 'box'} locked={boxLocked} onPress={() => handleTabPress('box')} />
-        <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} locked={transportLocked} onPress={() => handleTabPress('transport')} />
+        <TabBtn label="Box" count={filteredB.length} loading={boxesLoading} active={tab === 'box'} onPress={() => handleTabPress('box')} />
+        <TabBtn label="Transport" count={filteredT.length} loading={transportsLoading} active={tab === 'transport'} onPress={() => handleTabPress('transport')} />
         <TabBtn label="Coachs" count={filteredCoachAnnonces.length + filteredCoaches.length} loading={coachAnnoncesLoading || coachesLoading} active={tab === 'coach'} onPress={() => handleTabPress('coach')} />
       </View>
 
@@ -690,19 +661,6 @@ export default function ServicesScreen() {
         destructive
         onCancel={() => setPendingCancel(null)}
         onConfirm={confirmCancel}
-      />
-
-      <ConfirmModal
-        visible={!!upgradeAlert}
-        title={upgradeAlert?.title ?? ''}
-        message={upgradeAlert?.message}
-        cancelLabel="Annuler"
-        confirmLabel="Voir les forfaits"
-        onCancel={() => setUpgradeAlert(null)}
-        onConfirm={() => {
-          setUpgradeAlert(null);
-          router.push('/tarification' as any);
-        }}
       />
 
     </SafeAreaView>

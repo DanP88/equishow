@@ -12,21 +12,19 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { TARIFICATION, getPlansByRole, formatPrice, Plan } from '../data/tarification';
-import { ConfirmModal } from '../components/ConfirmModal';
 
 export default function TarificationScreen() {
   const { profile } = useAuth();
   const { role: paramRole } = useLocalSearchParams<{ role?: string }>();
   const userRole = (paramRole || profile?.role || 'cavalier') as 'cavalier' | 'coach' | 'organisateur';
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
-  const [downgradeTarget, setDowngradeTarget] = useState<Plan | null>(null);
 
   const plans = getPlansByRole(userRole);
 
   // Résoudre le plan actuel — robuste aux anciennes valeurs DB :
   //   - match exact sur plan.id
   //   - match sur le nom textuel (users.plan) en tolérant casse/accents
-  //   - fallback ULTIME : plan gratuit du rôle (pour cavalier → Découverte). Pour
+  //   - fallback ULTIME : plan gratuit du rôle (pour cavalier → Gratuit). Pour
   //     coach/organisateur sans plan gratuit, la bannière reste légitimement masquée.
   const rawPlanId = ((profile as any)?.plan_id ?? '').toString().toLowerCase().trim();
   const rawPlanNom = ((profile as any)?.plan ?? '').toString().toLowerCase().trim();
@@ -54,7 +52,7 @@ export default function TarificationScreen() {
   };
 
   const ROLE_DESCRIPTIONS: Record<string, string> = {
-    cavalier: 'Choisissez votre forfait cavalier',
+    cavalier: 'Equishow est 100% gratuit pour les cavaliers',
     coach: 'Développez votre activité de coach',
     organisateur: 'Organisez vos concours ou événements',
   };
@@ -100,16 +98,6 @@ export default function TarificationScreen() {
               isSelected={selectedPlanId === plan.id}
               onSelect={() => setSelectedPlanId(plan.id)}
               onSubscribe={() => {
-                // Avertir avant un downgrade cavalier vers Découverte
-                const isDowngradeToFree =
-                  userRole === 'cavalier'
-                  && plan.prix === 0
-                  && currentPlan
-                  && currentPlan.prix > 0;
-                if (isDowngradeToFree) {
-                  setDowngradeTarget(plan);
-                  return;
-                }
                 router.push({
                   pathname: '/checkout',
                   params: { planId: plan.id, role: userRole },
@@ -118,33 +106,6 @@ export default function TarificationScreen() {
             />
           ))}
         </View>
-
-        {/* Modale avertissement downgrade cavalier vers Découverte */}
-        <ConfirmModal
-          visible={!!downgradeTarget}
-          title="Repasser en Découverte ?"
-          message={
-            "En revenant au forfait Découverte (gratuit) :\n\n" +
-            "• Vous ne pourrez conserver qu'un seul cheval (les suivants seront archivés).\n" +
-            "• Vous perdrez l'accès aux onglets Transport et Box.\n" +
-            "• L'inscription aux concours sera à nouveau verrouillée.\n\n" +
-            "Vous pourrez revenir à un forfait supérieur à tout moment."
-          }
-          confirmLabel="Confirmer le downgrade"
-          cancelLabel="Annuler"
-          destructive
-          onConfirm={() => {
-            const target = downgradeTarget;
-            setDowngradeTarget(null);
-            if (target) {
-              router.push({
-                pathname: '/checkout',
-                params: { planId: target.id, role: userRole },
-              } as any);
-            }
-          }}
-          onCancel={() => setDowngradeTarget(null)}
-        />
 
         {/* FAQ Section */}
         <View style={styles.faqSection}>
@@ -246,7 +207,7 @@ function PlanCard({ plan, isCurrent, isSelected, onSelect, onSubscribe }: PlanCa
           activeOpacity={0.85}
         >
           <Text style={[styles.subscribeBtnText, isSelected && styles.subscribeBtnTextActive]}>
-            {isFree ? 'Choisir Découverte' : 'S\'abonner'}
+            {isFree ? 'Commencer gratuitement' : 'S\'abonner'}
           </Text>
         </TouchableOpacity>
       )}
