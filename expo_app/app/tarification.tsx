@@ -12,12 +12,14 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { TARIFICATION, getPlansByRole, formatPrice, Plan } from '../data/tarification';
+import { useCoachAccess } from '../hooks/useCoachAccess';
 
 export default function TarificationScreen() {
   const { profile } = useAuth();
   const { role: paramRole } = useLocalSearchParams<{ role?: string }>();
   const userRole = (paramRole || profile?.role || 'cavalier') as 'cavalier' | 'coach' | 'organisateur';
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const coachAccess = useCoachAccess();
 
   const plans = getPlansByRole(userRole);
 
@@ -178,6 +180,26 @@ export default function TarificationScreen() {
           </>
         ) : (
           <>
+            {/* COACH — explication de l'essai gratuit « 3 premières séances payées » */}
+            {userRole === 'coach' && (
+              <View style={styles.coachTrialCard}>
+                <Text style={styles.coachTrialTitle}>🎁 Gratuit jusqu'à vos 3 premières séances payées</Text>
+                <Text style={styles.coachTrialText}>
+                  Démarrez sans rien payer : l'accès Pro est offert tant que vous n'avez pas reçu le
+                  paiement de vos 3 premières séances de coaching. Ensuite, choisissez une offre pour
+                  continuer à recevoir de nouvelles réservations.
+                </Text>
+                {coachAccess.isCoach && !coachAccess.loading && !coachAccess.error && !coachAccess.hasPro && (
+                  <Text style={styles.coachTrialProgress}>
+                    Séances payées : {coachAccess.paidSessions}/{coachAccess.limit}
+                    {coachAccess.trialActive
+                      ? `  ·  ${coachAccess.remaining} restante${coachAccess.remaining > 1 ? 's' : ''}`
+                      : '  ·  essai terminé'}
+                  </Text>
+                )}
+              </View>
+            )}
+
             {/* Bannière "Plan actuel" — bien visible en haut */}
             {currentPlan && (
               <View style={styles.currentBanner}>
@@ -366,6 +388,33 @@ const styles = StyleSheet.create({
   plansContainer: {
     gap: Spacing.lg,
     marginBottom: Spacing.xxxl,
+  },
+
+  // ── Coach : explication essai « 3 premières séances payées » ────────────────
+  coachTrialCard: {
+    ...CommonStyles.card,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    backgroundColor: Colors.primaryLight,
+    marginBottom: Spacing.lg,
+  },
+  coachTrialTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.primaryDark,
+  },
+  coachTrialText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 21,
+    marginTop: Spacing.xs,
+  },
+  coachTrialProgress: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginTop: Spacing.sm,
   },
 
   // ── Cavalier : carte « tout gratuit » ──────────────────────────────────────

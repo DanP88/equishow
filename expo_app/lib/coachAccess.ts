@@ -1,0 +1,86 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// coachAccess — essai gratuit Coach basé sur les 3 PREMIÈRES séances de coaching
+// réellement réalisées ET payées (escrow libéré au coach).
+//
+// PAS d'essai en jours. On compte uniquement des prestations terminées + fonds
+// libérés au coach, en lisant la table `payments` (source de vérité financière).
+//
+// Une séance compte si (payments-authoritative) :
+//   - type = 'course'              (séance de coaching ; stage exclu)
+//   - transfer_state = 'released'  (escrow libéré au coach)
+//   - payment_status = 'succeeded'
+//   - refunded_at IS NULL          (pas de remboursement)
+//   - dispute_status ∉ {open, resolved_refund}   (pas de litige ouvert / refund)
+//
+// → exclut automatiquement : réservations créées, annulées, remboursées,
+//   paiements en attente (held), litiges ouverts.
+//
+// 100% lecture seule. Aucune écriture escrow / réservation. Cavalier & organisateur
+// ne sont jamais concernés (gardes côté hooks/écrans sur role === 'coach').
+// ─────────────────────────────────────────────────────────────────────────────
+
+export const FREE_TRIAL_SESSIONS = 3;
+
+// Forme minimale d'une ligne `payments` nécessaire au calcul.
+export interface PaymentRowForTrial {
+  type: string | null;
+  transfer_state: string | null;
+  payment_status: string | null;
+  refunded_at: string | null;
+  dispute_status: string | null;
+}
+
+/** Compte les séances de coaching payées ET validées (fonds reçus par le coach). */
+export function countPaidCoachSessions(rows: PaymentRowForTrial[] | null | undefined): number {
+  if (!rows) return 0;
+  return rows.filter(
+    (r) =>
+      r.type === 'course' &&
+      r.transfer_state === 'released' &&
+      r.payment_status === 'succeeded' &&
+      !r.refunded_at &&
+      r.dispute_status !== 'open' &&
+      r.dispute_status !== 'resolved_refund',
+  ).length;
+}
+
+// Plans considérés comme « gratuits » (jamais Pro).
+const FREE_PLAN_KEYS = new Set([
+  '', 'gratuit', 'free', 'decouverte', 'découverte',
+  'cavalier-gratuit', 'cavalier-decouverte',
+]);
+
+/** Le coach a-t-il un abonnement Pro actif (plan coach payant) ? */
+export function coachHasPro(
+  planId: string | undefined | null,
+  plan: string | undefined | null,
+): boolean {
+  const id = (planId ?? '').toLowerCase().trim();
+  if (id) return !FREE_PLAN_KEYS.has(id);
+  const name = (plan ?? '').toLowerCase().trim();
+  if (!name) return false;
+  return !FREE_PLAN_KEYS.has(name);
+}
+
+export interface CoachAccess {
+  paidSessions: number;   // séances payées validées
+  remaining: number;      // séances gratuites restantes (0..3)
+  limit: number;          // = FREE_TRIAL_SESSIONS
+  hasPro: boolean;        // abonnement Pro actif
+  trialActive: boolean;   // essai gratuit en cours (paidSessions < 3)
+  canAcceptNew: boolean;  // peut accepter de nouvelles réservations
+}
+
+/** Dérive l'état d'accès Coach à partir du compteur + abonnement. */
+export function computeCoachAccess(input: { paidSessions: number; hasPro: boolean }): CoachAccess {
+  const paidSessions = Math.max(0, input.paidSessions | 0);
+  const trialActive = paidSessions < FREE_TRIAL_SESSIONS;
+  return {
+    paidSessions,
+    remaining: Math.max(0, FREE_TRIAL_SESSIONS - paidSessions),
+    limit: FREE_TRIAL_SESSIONS,
+    hasPro: input.hasPro,
+    trialActive,
+    canAcceptNew: trialActive || input.hasPro,
+  };
+}
