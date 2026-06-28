@@ -180,6 +180,21 @@ export default function TarificationScreen() {
           </>
         ) : (
           <>
+            {/* COACH — carte marketing « Commencez gratuitement » */}
+            {userRole === 'coach' && (
+              <View style={styles.coachMktCard}>
+                <Text style={styles.coachMktTitle}>🚀 Commencez gratuitement</Text>
+                <View style={styles.coachMktRow}>
+                  <Text style={styles.coachMktCheck}>✓</Text>
+                  <Text style={styles.coachMktText}>Aucun abonnement avant vos 3 premières séances payées.</Text>
+                </View>
+                <View style={styles.coachMktRow}>
+                  <Text style={styles.coachMktCheck}>✓</Text>
+                  <Text style={styles.coachMktText}>Vous payez seulement lorsque vous avez déjà gagné de l'argent avec Equishow.</Text>
+                </View>
+              </View>
+            )}
+
             {/* COACH — explication de l'essai gratuit « 3 premières séances payées » */}
             {userRole === 'coach' && (
               <View style={styles.coachTrialCard}>
@@ -394,6 +409,40 @@ const styles = StyleSheet.create({
   plansContainer: {
     gap: Spacing.lg,
     marginBottom: Spacing.xxxl,
+  },
+
+  // ── Coach : carte marketing « Commencez gratuitement » ──────────────────────
+  coachMktCard: {
+    ...CommonStyles.card,
+    padding: Spacing.lg,
+    borderWidth: 2,
+    borderColor: Colors.primaryBorder,
+    backgroundColor: Colors.primaryLight,
+    marginBottom: Spacing.lg,
+  },
+  coachMktTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  coachMktRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  coachMktCheck: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.success,
+    marginTop: 1,
+  },
+  coachMktText: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 21,
   },
 
   // ── Coach : explication essai « 3 premières séances payées » ────────────────

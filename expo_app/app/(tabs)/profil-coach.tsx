@@ -97,7 +97,7 @@ export default function ProfilCoachScreen() {
                   🎁 Essai Coach : {coachAccess.paidSessions}/{coachAccess.limit} séances payées
                 </Text>
                 <Text style={styles.trialBadgeSub}>
-                  Accès Pro offert jusqu'à vos 3 premières séances payées.
+                  Vous profitez d'Equishow Pro gratuitement jusqu'à vos 3 premières séances payées.
                 </Text>
               </View>
             ) : (
