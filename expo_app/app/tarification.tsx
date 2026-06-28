@@ -190,12 +190,18 @@ export default function TarificationScreen() {
                   continuer à recevoir de nouvelles réservations.
                 </Text>
                 {coachAccess.isCoach && !coachAccess.loading && !coachAccess.error && !coachAccess.hasPro && (
-                  <Text style={styles.coachTrialProgress}>
-                    Séances payées : {coachAccess.paidSessions}/{coachAccess.limit}
-                    {coachAccess.trialActive
-                      ? `  ·  ${coachAccess.remaining} restante${coachAccess.remaining > 1 ? 's' : ''}`
-                      : '  ·  essai terminé'}
-                  </Text>
+                  coachAccess.trialBlockedDuplicate ? (
+                    <Text style={styles.coachTrialProgress}>
+                      Un compte professionnel semble déjà exister pour cette activité.
+                    </Text>
+                  ) : (
+                    <Text style={styles.coachTrialProgress}>
+                      Séances payées : {coachAccess.paidSessions}/{coachAccess.limit}
+                      {coachAccess.trialActive
+                        ? `  ·  ${coachAccess.remaining} restante${coachAccess.remaining > 1 ? 's' : ''}`
+                        : '  ·  essai terminé'}
+                    </Text>
+                  )
                 )}
               </View>
             )}

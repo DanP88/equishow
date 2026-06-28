@@ -62,25 +62,44 @@ export function coachHasPro(
   return !FREE_PLAN_KEYS.has(name);
 }
 
+// Statut anti-abus de l'essai (cf. table coach_trial_identity / RPC serveur).
+export type TrialAdminStatus = 'trial_allowed' | 'trial_blocked_duplicate' | 'manual_review';
+
 export interface CoachAccess {
   paidSessions: number;   // séances payées validées
   remaining: number;      // séances gratuites restantes (0..3)
   limit: number;          // = FREE_TRIAL_SESSIONS
   hasPro: boolean;        // abonnement Pro actif
   trialActive: boolean;   // essai gratuit en cours (paidSessions < 3)
+  trialEligible: boolean; // identité éligible à l'essai (anti-abus)
+  trialBlockedDuplicate: boolean; // bloqué car doublon d'identité probable
   canAcceptNew: boolean;  // peut accepter de nouvelles réservations
 }
 
-/** Dérive l'état d'accès Coach à partir du compteur + abonnement. */
-export function computeCoachAccess(input: { paidSessions: number; hasPro: boolean }): CoachAccess {
+/**
+ * Dérive l'état d'accès Coach à partir du compteur + abonnement + éligibilité
+ * anti-abus. `trialEligible` par défaut true (fail-open : on ne bloque jamais
+ * un coach sans preuve forte de doublon).
+ */
+export function computeCoachAccess(input: {
+  paidSessions: number;
+  hasPro: boolean;
+  trialEligible?: boolean;
+}): CoachAccess {
   const paidSessions = Math.max(0, input.paidSessions | 0);
-  const trialActive = paidSessions < FREE_TRIAL_SESSIONS;
+  const trialEligible = input.trialEligible !== false; // défaut true
+  const trialActiveByCount = paidSessions < FREE_TRIAL_SESSIONS;
+  // L'essai n'est réellement actif que si l'identité est éligible (anti-abus).
+  const trialActive = trialActiveByCount && trialEligible;
   return {
     paidSessions,
     remaining: Math.max(0, FREE_TRIAL_SESSIONS - paidSessions),
     limit: FREE_TRIAL_SESSIONS,
     hasPro: input.hasPro,
     trialActive,
+    trialEligible,
+    trialBlockedDuplicate: !trialEligible,
+    // Sans essai (doublon) il faut un abonnement Pro pour accepter.
     canAcceptNew: trialActive || input.hasPro,
   };
 }

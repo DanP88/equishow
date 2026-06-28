@@ -76,7 +76,22 @@ export default function ProfilCoachScreen() {
           {/* Essai gratuit Coach — 3 premières séances payées (jamais affiché si
               erreur de lecture / non-coach / abonnement Pro déjà actif). */}
           {coachAccess.isCoach && !coachAccess.loading && !coachAccess.error && !coachAccess.hasPro && (
-            coachAccess.trialActive ? (
+            coachAccess.trialBlockedDuplicate ? (
+              <View style={styles.trialDoneCard}>
+                <Text style={styles.trialDoneTitle}>👋 Compte professionnel déjà connu</Text>
+                <Text style={styles.trialDoneText}>
+                  Un compte professionnel semble déjà exister pour cette activité. Contactez le
+                  support si vous pensez qu'il s'agit d'une erreur, ou choisissez une offre Pro.
+                </Text>
+                <TouchableOpacity
+                  style={styles.trialDoneBtn}
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/tarification?role=coach' as any)}
+                >
+                  <Text style={styles.trialDoneBtnText}>Voir les offres Pro →</Text>
+                </TouchableOpacity>
+              </View>
+            ) : coachAccess.trialActive ? (
               <View style={styles.trialBadge}>
                 <Text style={styles.trialBadgeText}>
                   🎁 Essai Coach : {coachAccess.paidSessions}/{coachAccess.limit} séances payées

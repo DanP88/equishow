@@ -68,6 +68,23 @@ describe('computeCoachAccess', () => {
   test('3 séances + abo Pro → accès complet', () => {
     expect(computeCoachAccess({ paidSessions: 3, hasPro: true }).canAcceptNew).toBe(true);
   });
+
+  test('anti-abus : identité non éligible (doublon) → essai bloqué', () => {
+    const a = computeCoachAccess({ paidSessions: 0, hasPro: false, trialEligible: false });
+    expect(a.trialActive).toBe(false);
+    expect(a.trialBlockedDuplicate).toBe(true);
+    expect(a.canAcceptNew).toBe(false); // pas d'essai + pas d'abo
+  });
+
+  test('anti-abus : doublon mais abo Pro actif → accès complet', () => {
+    const a = computeCoachAccess({ paidSessions: 0, hasPro: true, trialEligible: false });
+    expect(a.canAcceptNew).toBe(true);
+    expect(a.trialBlockedDuplicate).toBe(true);
+  });
+
+  test('éligible par défaut (fail-open) si non précisé', () => {
+    expect(computeCoachAccess({ paidSessions: 0, hasPro: false }).trialEligible).toBe(true);
+  });
 });
 
 describe('coachHasPro', () => {

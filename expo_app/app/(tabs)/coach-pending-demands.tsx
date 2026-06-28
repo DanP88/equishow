@@ -152,11 +152,14 @@ export default function CoachPendingDemandsScreen() {
       <Modal visible={showUpgrade} transparent animationType="fade" onRequestClose={() => setShowUpgrade(false)}>
         <View style={s.upgradeOverlay}>
           <View style={s.upgradeCard}>
-            <Text style={s.upgradeEmoji}>🎉</Text>
-            <Text style={s.upgradeTitle}>Félicitations&nbsp;!</Text>
+            <Text style={s.upgradeEmoji}>{coachAccess.trialBlockedDuplicate ? '👋' : '🎉'}</Text>
+            <Text style={s.upgradeTitle}>
+              {coachAccess.trialBlockedDuplicate ? 'Compte professionnel déjà connu' : 'Félicitations !'}
+            </Text>
             <Text style={s.upgradeText}>
-              Vous avez réalisé vos 3 premières séances payées. Choisissez une offre Pro pour
-              continuer à recevoir de nouvelles réservations.
+              {coachAccess.trialBlockedDuplicate
+                ? "Un compte professionnel semble déjà exister pour cette activité. Contactez le support si vous pensez qu'il s'agit d'une erreur, ou choisissez une offre Pro pour accepter de nouvelles réservations."
+                : 'Vous avez réalisé vos 3 premières séances payées. Choisissez une offre Pro pour continuer à recevoir de nouvelles réservations.'}
             </Text>
             <TouchableOpacity
               style={s.upgradePrimary}

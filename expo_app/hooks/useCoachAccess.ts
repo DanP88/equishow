@@ -1,14 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// useCoachAccess — état de l'essai gratuit Coach (3 premières séances payées).
+// useCoachAccess — état de l'essai gratuit Coach (3 premières séances payées)
+// + anti-abus multi-comptes (éligibilité d'identité).
 //
-// Lit `payments` du coach courant (RLS : payments_select_parties → seller_id =
-// auth.uid()) et calcule l'état d'accès via lib/coachAccess (fonctions pures).
+// Stratégie de lecture :
+//   1. RPC serveur `fn_my_coach_trial_status` (mig 086) → compteur + éligibilité
+//      anti-abus (doublon Stripe Connect = preuve forte). Source autoritaire.
+//   2. Fallback si la RPC n'existe pas encore (mig non appliquée) ou erreur :
+//      calcul client depuis `payments` (RLS seller) + éligibilité = true.
 //
-// Sécurité produit : FAIL-OPEN. Toute erreur de lecture renvoie un accès complet
-// (canAcceptNew = true, badge masqué) — on ne bloque JAMAIS un coach à cause d'un
-// bug de lecture. Cavalier / organisateur : hook inerte (isCoach = false).
-//
-// 100% lecture seule. Aucun impact escrow / réservation / abonnements existants.
+// Sécurité produit : FAIL-OPEN. On ne bloque JAMAIS un coach sans preuve forte.
+// Cavalier / organisateur : hook inerte (isCoach = false).
+// 100% lecture (la RPC ne fait qu'un upsert de suivi). 0 impact escrow/réservation.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useCallback, useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
@@ -16,6 +18,7 @@ import { useAuth } from './useAuth';
 import {
   CoachAccess,
   PaymentRowForTrial,
+  TrialAdminStatus,
   coachHasPro,
   computeCoachAccess,
   countPaidCoachSessions,
@@ -24,7 +27,8 @@ import {
 export interface UseCoachAccess extends CoachAccess {
   isCoach: boolean;
   loading: boolean;
-  error: boolean;     // true si lecture échouée → fail-open
+  error: boolean;                  // lecture échouée → fail-open
+  adminStatus: TrialAdminStatus;   // statut anti-abus (défaut trial_allowed)
   reload: () => void;
 }
 
@@ -33,29 +37,43 @@ export function useCoachAccess(): UseCoachAccess {
   const isCoach = (profile as any)?.role === 'coach';
 
   const [paidSessions, setPaidSessions] = useState(0);
+  const [trialEligible, setTrialEligible] = useState(true);
+  const [adminStatus, setAdminStatus] = useState<TrialAdminStatus>('trial_allowed');
+  const [serverHasPro, setServerHasPro] = useState<boolean | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
 
-  const hasPro = coachHasPro((profile as any)?.plan_id, (profile as any)?.plan);
+  const localHasPro = coachHasPro((profile as any)?.plan_id, (profile as any)?.plan);
 
   const load = useCallback(async () => {
-    if (!profile?.id || !isCoach) {
-      setLoading(false);
-      return;
-    }
+    if (!profile?.id || !isCoach) { setLoading(false); return; }
     setLoading(true);
     setError(false);
     try {
-      const { data, error: qErr } = await supabase
+      // 1. Source autoritaire : RPC serveur (compteur + anti-abus).
+      const { data, error: rpcErr } = await supabase.rpc('fn_my_coach_trial_status');
+      if (!rpcErr && data) {
+        const d = data as any;
+        setPaidSessions(Number(d.paid_sessions) || 0);
+        setTrialEligible(d.trial_eligible !== false);
+        setAdminStatus((d.admin_status as TrialAdminStatus) ?? 'trial_allowed');
+        setServerHasPro(!!d.has_pro);
+        return;
+      }
+      // 2. Fallback : RPC absente (mig non appliquée) → calcul client, éligible.
+      const { data: pays, error: qErr } = await supabase
         .from('payments')
         .select('type,transfer_state,payment_status,refunded_at,dispute_status')
         .eq('seller_id', profile.id)
         .eq('type', 'course');
       if (qErr) throw qErr;
-      setPaidSessions(countPaidCoachSessions((data ?? []) as PaymentRowForTrial[]));
+      setPaidSessions(countPaidCoachSessions((pays ?? []) as PaymentRowForTrial[]));
+      setTrialEligible(true);
+      setAdminStatus('trial_allowed');
+      setServerHasPro(null);
     } catch (e) {
       // FAIL-OPEN : ne jamais bloquer le coach pour une erreur de lecture.
-      console.warn('[useCoachAccess] lecture payments échouée (fail-open):', e);
+      console.warn('[useCoachAccess] lecture échouée (fail-open):', e);
       setError(true);
     } finally {
       setLoading(false);
@@ -64,9 +82,12 @@ export function useCoachAccess(): UseCoachAccess {
 
   useEffect(() => { load(); }, [load]);
 
-  // Fail-open : en cas d'erreur, accès complet (hasPro forcé ; badge masqué côté
-  // écran via le flag `error`).
-  const access = computeCoachAccess({ paidSessions, hasPro: error ? true : hasPro });
+  const hasPro = serverHasPro ?? localHasPro;
+  const access = computeCoachAccess({
+    paidSessions,
+    hasPro: error ? true : hasPro,        // fail-open
+    trialEligible: error ? true : trialEligible,
+  });
 
-  return { ...access, isCoach, loading, error, reload: load };
+  return { ...access, isCoach, loading, error, adminStatus, reload: load };
 }
