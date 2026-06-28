@@ -94,8 +94,10 @@ export default function ProfilScreen() {
             <Text style={styles.roleIcon}>{ROLE_ICONS[user.role]}</Text>
             <Text style={styles.roleText}>{ROLE_LABELS[user.role]}</Text>
           </View>
+          {/* Plus de notion de plan/abonnement côté cavalier (tout est gratuit) :
+              libellé neutre d'appartenance, jamais la valeur users.plan (legacy). */}
           <View style={styles.planBadge}>
-            <Text style={styles.planText}>🌟 Plan {user.plan}</Text>
+            <Text style={styles.planText}>🐴 Cavalier Equishow</Text>
           </View>
         </View>
 
