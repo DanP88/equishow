@@ -163,7 +163,7 @@ export default function ProfilScreen() {
           />
           <MenuButton icon="🔔" label="Notifications" onPress={() => router.push('/parametres-notifications')} />
           <MenuButton icon="🔒" label="Sécurité" onPress={() => router.push('/securite')} />
-          <MenuButton icon="💳" label="Abonnement" onPress={() => router.push('/tarification')} color={Colors.gold} />
+          <MenuButton icon="👔" label="Offres Pro" onPress={() => router.push('/tarification')} color={Colors.gold} />
         </View>
 
         {/* Support */}

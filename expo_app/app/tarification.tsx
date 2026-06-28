@@ -99,6 +99,20 @@ export default function TarificationScreen() {
 
   const faqItems = userRole === 'cavalier' ? FAQ_CAVALIER : FAQ_PRO;
 
+  // Fonctionnalités incluses gratuitement pour tout cavalier (réassurance).
+  const CAVALIER_FEATURES: string[] = [
+    'Chevaux illimités',
+    'Réservation Box',
+    'Réservation Transport',
+    'Réservation Coach',
+    'Réservation Stage',
+    'Agenda Concours',
+    'Communauté',
+    'Messagerie',
+    'Notifications',
+    'Avis & suivi',
+  ];
+
   return (
     <SafeAreaView style={styles.root}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -112,42 +126,96 @@ export default function TarificationScreen() {
           <Text style={styles.subtitle}>{ROLE_DESCRIPTIONS[userRole]}</Text>
         </View>
 
-        {/* Bannière "Plan actuel" — bien visible en haut */}
-        {currentPlan && (
-          <View style={styles.currentBanner}>
-            <View style={styles.currentBannerLeft}>
-              <Text style={styles.currentBannerLabel}>VOTRE FORFAIT ACTUEL</Text>
-              <Text style={styles.currentBannerName}>{currentPlan.nom}</Text>
-              <Text style={styles.currentBannerPrice}>
-                {currentPlan.prix === 0
-                  ? 'Gratuit'
-                  : `${currentPlan.prix}€${currentPlan.periode === 'mensuel' ? '/mois' : currentPlan.periode === 'annuel' ? '/an' : ''}`}
+        {userRole === 'cavalier' ? (
+          <>
+            {/* CAVALIER — page « marketing » : Equishow gratuit, aucun abonnement */}
+            <View style={styles.freeCard}>
+              <View style={styles.freeBadge}>
+                <Text style={styles.freeBadgeText}>✓ Gratuit pour tous les cavaliers</Text>
+              </View>
+              <Text style={styles.freeTitle}>Tous les services sont inclus, sans abonnement</Text>
+              <Text style={styles.freeDesc}>
+                Vous ne payez que les <Text style={styles.freeDescStrong}>prestations que vous réservez</Text>
+                {' '}(box, transport, coach ou stage).
+              </Text>
+
+              <View style={styles.featGrid}>
+                {CAVALIER_FEATURES.map((f) => (
+                  <View key={f} style={styles.featRow}>
+                    <View style={styles.featCheck}><Text style={styles.featCheckText}>✓</Text></View>
+                    <Text style={styles.featText}>{f}</Text>
+                  </View>
+                ))}
+              </View>
+            </View>
+
+            {/* Pourquoi gratuit ? — argument de marque */}
+            <View style={styles.whyCard}>
+              <Text style={styles.whyTitle}>Pourquoi Equishow est gratuit&nbsp;?</Text>
+              <Text style={styles.whyText}>
+                Notre objectif est de permettre à tous les cavaliers de participer plus facilement aux
+                concours. Les cavaliers n'ont aucun abonnement. Les professionnels (coachs et
+                organisateurs) disposent d'offres dédiées pour développer leur activité.
               </Text>
             </View>
-            <View style={styles.currentBannerBadge}>
-              <Text style={styles.currentBannerBadgeText}>✓ Actif</Text>
-            </View>
-          </View>
-        )}
 
-        {/* Plans Grid */}
-        <View style={styles.plansContainer}>
-          {plans.map((plan) => (
-            <PlanCard
-              key={plan.id}
-              plan={plan}
-              isCurrent={plan.id === currentPlanId}
-              isSelected={selectedPlanId === plan.id}
-              onSelect={() => setSelectedPlanId(plan.id)}
-              onSubscribe={() => {
-                router.push({
-                  pathname: '/checkout',
-                  params: { planId: plan.id, role: userRole },
-                } as any);
-              }}
-            />
-          ))}
-        </View>
+            {/* Renvoi vers les Offres Pro */}
+            <View style={styles.proCard}>
+              <Text style={styles.proKicker}>VOUS ÊTES PROFESSIONNEL&nbsp;?</Text>
+              <Text style={styles.proTitle}>Offres Pro — coachs &amp; organisateurs</Text>
+              <Text style={styles.proDesc}>
+                Développez votre activité avec des forfaits dédiés. Réservé aux pros — les cavaliers
+                ne sont jamais concernés.
+              </Text>
+              <TouchableOpacity
+                style={styles.proBtn}
+                activeOpacity={0.85}
+                onPress={() => router.push('/tarification?role=coach' as any)}
+              >
+                <Text style={styles.proBtnText}>Découvrir les offres Pro →</Text>
+              </TouchableOpacity>
+            </View>
+          </>
+        ) : (
+          <>
+            {/* Bannière "Plan actuel" — bien visible en haut */}
+            {currentPlan && (
+              <View style={styles.currentBanner}>
+                <View style={styles.currentBannerLeft}>
+                  <Text style={styles.currentBannerLabel}>VOTRE FORFAIT ACTUEL</Text>
+                  <Text style={styles.currentBannerName}>{currentPlan.nom}</Text>
+                  <Text style={styles.currentBannerPrice}>
+                    {currentPlan.prix === 0
+                      ? 'Gratuit'
+                      : `${currentPlan.prix}€${currentPlan.periode === 'mensuel' ? '/mois' : currentPlan.periode === 'annuel' ? '/an' : ''}`}
+                  </Text>
+                </View>
+                <View style={styles.currentBannerBadge}>
+                  <Text style={styles.currentBannerBadgeText}>✓ Actif</Text>
+                </View>
+              </View>
+            )}
+
+            {/* Plans Grid */}
+            <View style={styles.plansContainer}>
+              {plans.map((plan) => (
+                <PlanCard
+                  key={plan.id}
+                  plan={plan}
+                  isCurrent={plan.id === currentPlanId}
+                  isSelected={selectedPlanId === plan.id}
+                  onSelect={() => setSelectedPlanId(plan.id)}
+                  onSubscribe={() => {
+                    router.push({
+                      pathname: '/checkout',
+                      params: { planId: plan.id, role: userRole },
+                    } as any);
+                  }}
+                />
+              ))}
+            </View>
+          </>
+        )}
 
         {/* FAQ Section */}
         <View style={styles.faqSection}>
@@ -298,6 +366,136 @@ const styles = StyleSheet.create({
   plansContainer: {
     gap: Spacing.lg,
     marginBottom: Spacing.xxxl,
+  },
+
+  // ── Cavalier : carte « tout gratuit » ──────────────────────────────────────
+  freeCard: {
+    ...CommonStyles.card,
+    padding: Spacing.xl,
+    borderWidth: 2,
+    borderColor: Colors.primaryBorder,
+    backgroundColor: Colors.primaryLight,
+    marginBottom: Spacing.lg,
+  },
+  freeBadge: {
+    alignSelf: 'flex-start',
+    backgroundColor: Colors.success,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.xs,
+    borderRadius: 30,
+    marginBottom: Spacing.md,
+  },
+  freeBadgeText: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.extrabold,
+    color: '#fff',
+  },
+  freeTitle: {
+    fontSize: FontSize.xl,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  freeDesc: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 21,
+    marginBottom: Spacing.lg,
+  },
+  freeDescStrong: {
+    color: Colors.textPrimary,
+    fontWeight: FontWeight.bold,
+  },
+  featGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    rowGap: Spacing.sm,
+  },
+  featRow: {
+    width: '50%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: Spacing.sm,
+    paddingRight: Spacing.sm,
+  },
+  featCheck: {
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.successBg,
+    borderWidth: 1,
+    borderColor: Colors.successBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  featCheckText: {
+    fontSize: 11,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.success,
+  },
+  featText: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.semibold,
+    color: Colors.textPrimary,
+  },
+
+  // ── Cavalier : « pourquoi gratuit » ────────────────────────────────────────
+  whyCard: {
+    ...CommonStyles.card,
+    padding: Spacing.lg,
+    marginBottom: Spacing.lg,
+  },
+  whyTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  whyText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 21,
+  },
+
+  // ── Cavalier : renvoi Offres Pro ───────────────────────────────────────────
+  proCard: {
+    ...CommonStyles.card,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.goldBorder,
+    backgroundColor: Colors.goldBg,
+    marginBottom: Spacing.xxxl,
+  },
+  proKicker: {
+    fontSize: FontSize.xs,
+    fontWeight: FontWeight.extrabold,
+    letterSpacing: 1,
+    color: Colors.gold,
+    marginBottom: 4,
+  },
+  proTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
+  },
+  proDesc: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 20,
+    marginTop: Spacing.xs,
+    marginBottom: Spacing.md,
+  },
+  proBtn: {
+    backgroundColor: Colors.textPrimary,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.md,
+    alignItems: 'center',
+  },
+  proBtnText: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.bold,
+    color: '#fff',
   },
 
   currentBanner: {
