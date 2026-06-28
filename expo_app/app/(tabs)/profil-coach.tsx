@@ -69,9 +69,14 @@ export default function ProfilCoachScreen() {
             <Text style={styles.roleIcon}>{ROLE_ICONS[user.role]}</Text>
             <Text style={styles.roleText}>{ROLE_LABELS[user.role]}</Text>
           </View>
-          <View style={styles.planBadge}>
-            <Text style={styles.planText}>🌟 Plan {user.plan}</Text>
-          </View>
+          {/* Badge plan affiché UNIQUEMENT pour un vrai forfait coach Pro.
+              Sinon (essai gratuit / plan cavalier legacy), on ne montre rien :
+              le badge « Essai Coach : X/3 » ci-dessous communique le statut. */}
+          {coachAccess.hasPro && (
+            <View style={styles.planBadge}>
+              <Text style={styles.planText}>🌟 Plan {user.plan}</Text>
+            </View>
+          )}
 
           {/* Essai gratuit Coach — 3 premières séances payées (jamais affiché si
               erreur de lecture / non-coach / abonnement Pro déjà actif). */}
