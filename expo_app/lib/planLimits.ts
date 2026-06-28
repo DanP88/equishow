@@ -1,5 +1,13 @@
-// Limites des plans d'abonnement — gating UI côté front.
-// (Le gating sécurisé sera ajouté côté DB via RLS plus tard.)
+// Limites « plan » côté cavalier.
+//
+// ⚠️ Depuis la suppression de l'abonnement Cavalier : un cavalier accède
+// GRATUITEMENT à toutes les fonctionnalités qui lui sont destinées (transport,
+// box, inscription concours, chevaux illimités). Il n'existe plus de palier
+// payant cavalier → ces limites sont volontairement « tout débloqué ».
+//
+// La fonction est conservée (signature inchangée) pour ne pas casser les appelants
+// existants et pour rester extensible si un jour un palier cavalier réapparaissait.
+// Les abonnements PRO (coach / organisateur) restent gérés ailleurs (data/tarification).
 
 export interface PlanLimits {
   maxChevaux: number;        // Infinity = illimité
@@ -9,53 +17,28 @@ export interface PlanLimits {
   label: string;             // Nom affichable du plan
 }
 
-const FREE: PlanLimits = {
-  maxChevaux: 1,
-  canAccessTransport: false,
-  canAccessBox: false,
-  canRegisterConcours: false,
-  label: 'Découverte',
-};
-
-const PLUS: PlanLimits = {
-  maxChevaux: 3,
-  canAccessTransport: true,
-  canAccessBox: true,
-  canRegisterConcours: true,
-  label: 'Cavalier+',
-};
-
-const PREMIUM: PlanLimits = {
+// Accès complet, gratuit, pour tout cavalier.
+const CAVALIER_FULL: PlanLimits = {
   maxChevaux: Infinity,
   canAccessTransport: true,
   canAccessBox: true,
   canRegisterConcours: true,
-  label: 'Premium',
+  label: 'Cavalier',
 };
 
-// Détecte le plan à partir du string remonté par le backend (users.plan).
-// Tolérant aux variations de casse / orthographe.
-export function isFreePlan(plan: string | undefined | null): boolean {
-  if (!plan) return true;
-  const lower = plan.toLowerCase().trim();
-  return lower === 'gratuit'
-      || lower === 'découverte'
-      || lower === 'decouverte'
-      || lower === 'free';
+// Conservé pour compat : un cavalier est toujours « gratuit ».
+export function isFreePlan(_plan: string | undefined | null): boolean {
+  return true;
 }
 
-export function getPlanLimits(plan: string | undefined | null): PlanLimits {
-  if (isFreePlan(plan)) return FREE;
-  const lower = (plan ?? '').toLowerCase();
-  if (lower.includes('premium') || lower.includes('famille') || lower.includes('élite') || lower.includes('elite')) {
-    return PREMIUM;
-  }
-  // Tout ce qui n'est pas gratuit / premium → palier intermédiaire (Cavalier+)
-  return PLUS;
+// Le cavalier a désormais un accès complet quel que soit le contenu de users.plan.
+export function getPlanLimits(_plan: string | undefined | null): PlanLimits {
+  return CAVALIER_FULL;
 }
 
 // Coach : on considère "mis en avant" tout coach abonné à un plan payant
 // non-mensuel (annuel ou supérieur). Le plan mensuel n'est PAS mis en avant.
+// (Abonnement PRO — inchangé.)
 export function isFeaturedCoach(planId: string | undefined | null, plan: string | undefined | null): boolean {
   const id = (planId ?? '').toLowerCase();
   if (id === 'coach-annuel' || id === 'coach-premium') return true;

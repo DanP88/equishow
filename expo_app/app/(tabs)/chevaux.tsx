@@ -13,8 +13,6 @@ import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { trackCta } from '../../lib/analytics';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
-import { userStore } from '../../data/store';
-import { getPlanLimits } from '../../lib/planLimits';
 
 export default function ChevauxScreen() {
   useScreenTracking('chevaux');
@@ -24,7 +22,6 @@ export default function ChevauxScreen() {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [pendingDelete, setPendingDelete] = useState<{ id: string; nom: string } | null>(null);
   const [errorAlert, setErrorAlert] = useState<string | null>(null);
-  const [upgradeAlert, setUpgradeAlert] = useState<{ title: string; message: string } | null>(null);
 
   function showErr(msg: string) {
     setErrorAlert(msg);
@@ -37,17 +34,7 @@ export default function ChevauxScreen() {
       showErr('Session non chargée. Reconnectez-vous.');
       return;
     }
-    // Gating plan Découverte : 1 cheval maximum
-    // Lit `profile.plan` (DB, source de vérité) avec fallback userStore.
-    const planSource = (profile as any)?.plan ?? userStore.plan;
-    const limits = getPlanLimits(planSource);
-    if (chevaux.length >= limits.maxChevaux) {
-      setUpgradeAlert({
-        title: 'Limite atteinte',
-        message: `Le plan ${limits.label} permet ${limits.maxChevaux === 1 ? '1 seul cheval' : `jusqu'à ${limits.maxChevaux} chevaux`}. Passez à un forfait supérieur pour ajouter des chevaux supplémentaires.`,
-      });
-      return;
-    }
+    // Chevaux illimités et gratuits pour tous les cavaliers (plus d'abonnement).
     setCreating(true);
     try {
       const { data, error } = await createCheval({ nom: 'Nouveau cheval', type: 'cheval' });
@@ -146,18 +133,6 @@ export default function ChevauxScreen() {
         onClose={() => setErrorAlert(null)}
       />
 
-      <ConfirmModal
-        visible={!!upgradeAlert}
-        title={upgradeAlert?.title ?? ''}
-        message={upgradeAlert?.message}
-        cancelLabel="Annuler"
-        confirmLabel="Voir les forfaits"
-        onCancel={() => setUpgradeAlert(null)}
-        onConfirm={() => {
-          setUpgradeAlert(null);
-          router.push('/tarification' as any);
-        }}
-      />
     </SafeAreaView>
   );
 }
