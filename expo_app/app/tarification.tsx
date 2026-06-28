@@ -57,6 +57,48 @@ export default function TarificationScreen() {
     organisateur: 'Organisez vos concours ou événements',
   };
 
+  // FAQ adaptée au rôle : le cavalier est gratuit (aucun abonnement) ;
+  // coach / organisateur ont des offres payantes.
+  const FAQ_PRO: { question: string; answer: string }[] = [
+    {
+      question: 'Puis-je changer de forfait ?',
+      answer: 'Oui, vous pouvez changer ou annuler votre abonnement à tout moment depuis votre compte.',
+    },
+    {
+      question: "Y a-t-il une période d'essai ?",
+      answer: "Les forfaits mensuels offrent 7 jours d'essai gratuit. Pas de carte bancaire requise.",
+    },
+    {
+      question: 'Comment fonctionnent les paiements ?',
+      answer: 'Nous acceptons les cartes bancaires, PayPal et virement. Les renouvellements sont automatiques.',
+    },
+    {
+      question: "Quelle est votre politique d'annulation ?",
+      answer: "Annulation sans frais jusqu'à 7 jours avant le renouvellement. Remboursement immédiat.",
+    },
+  ];
+
+  const FAQ_CAVALIER: { question: string; answer: string }[] = [
+    {
+      question: 'Equishow est-il vraiment gratuit pour les cavaliers ?',
+      answer: 'Oui, totalement. Toutes les fonctionnalités cavalier sont gratuites, sans abonnement ni carte bancaire : chevaux illimités, réservation de box, transport, coach et stage, suivi des concours, messagerie, communauté, agenda et notifications.',
+    },
+    {
+      question: 'Devrai-je payer un abonnement plus tard ?',
+      answer: "Non. L'accès cavalier reste gratuit. Vous ne payez que les services que vous réservez (box, transport, coach, stage), réglés en toute sécurité au moment de la réservation.",
+    },
+    {
+      question: 'Comment fonctionnent les paiements des réservations ?',
+      answer: "Quand vous réservez un service, le paiement est sécurisé et conservé sous séquestre jusqu'à la prestation. Une commission de service est ajoutée au moment du paiement, affichée clairement avant validation.",
+    },
+    {
+      question: 'Existe-t-il des offres payantes sur Equishow ?',
+      answer: "Oui, mais uniquement pour les professionnels : les coachs et les organisateurs disposent de forfaits dédiés. En tant que cavalier, vous n'êtes jamais concerné.",
+    },
+  ];
+
+  const faqItems = userRole === 'cavalier' ? FAQ_CAVALIER : FAQ_PRO;
+
   return (
     <SafeAreaView style={styles.root}>
       <ScrollView contentContainerStyle={styles.container} showsVerticalScrollIndicator={false}>
@@ -111,25 +153,9 @@ export default function TarificationScreen() {
         <View style={styles.faqSection}>
           <Text style={styles.faqTitle}>Questions fréquentes</Text>
 
-          <FAQItem
-            question="Puis-je changer de forfait?"
-            answer="Oui, vous pouvez changer ou annuler votre abonnement à tout moment depuis votre compte."
-          />
-
-          <FAQItem
-            question="Y a-t-il une période d'essai?"
-            answer="Les forfaits mensuels offrent 7 jours d'essai gratuit. Pas de carte bancaire requise."
-          />
-
-          <FAQItem
-            question="Comment fonctionnent les paiements?"
-            answer="Nous acceptons les cartes bancaires, PayPal et virement. Les renouvellements sont automatiques."
-          />
-
-          <FAQItem
-            question="Quelle est votre politique d'annulation?"
-            answer="Annulation sans frais jusqu'à 7 jours avant le renouvellement. Remboursement immédiat."
-          />
+          {faqItems.map((item) => (
+            <FAQItem key={item.question} question={item.question} answer={item.answer} />
+          ))}
         </View>
       </ScrollView>
     </SafeAreaView>
