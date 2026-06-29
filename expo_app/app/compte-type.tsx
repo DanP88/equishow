@@ -48,6 +48,7 @@ const ROLES: {
     subtitle: 'Proposez vos services, suivez vos élèves',
     color: '#7C3AED',
     features: [
+      'Aucun abonnement avant vos 3 premières séances payées',
       'Profil coach public et visible',
       'Proposez des créneaux de coaching',
       'Recevez des demandes de cavaliers',

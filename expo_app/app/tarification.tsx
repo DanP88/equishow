@@ -67,16 +67,16 @@ export default function TarificationScreen() {
       answer: 'Oui, vous pouvez changer ou annuler votre abonnement à tout moment depuis votre compte.',
     },
     {
-      question: "Y a-t-il une période d'essai ?",
-      answer: "Les forfaits mensuels offrent 7 jours d'essai gratuit. Pas de carte bancaire requise.",
+      question: 'Dois-je payer pour commencer ?',
+      answer: "Non. Vous commencez gratuitement et ne payez aucun abonnement avant vos 3 premières séances payées. Vous choisissez une offre Pro uniquement après avoir commencé à gagner de l'argent avec Equishow.",
     },
     {
       question: 'Comment fonctionnent les paiements ?',
-      answer: 'Nous acceptons les cartes bancaires, PayPal et virement. Les renouvellements sont automatiques.',
+      answer: 'Les abonnements Pro se règlent par carte bancaire via Stripe. Les renouvellements sont automatiques et résiliables à tout moment.',
     },
     {
       question: "Quelle est votre politique d'annulation ?",
-      answer: "Annulation sans frais jusqu'à 7 jours avant le renouvellement. Remboursement immédiat.",
+      answer: "Vous pouvez résilier votre offre Pro à tout moment depuis votre espace compte. L'accès reste actif jusqu'à la fin de la période déjà payée.",
     },
   ];
 

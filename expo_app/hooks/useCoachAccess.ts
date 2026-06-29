@@ -32,6 +32,13 @@ export interface UseCoachAccess extends CoachAccess {
   reload: () => void;
 }
 
+// Mémo de session : une fois la RPC serveur détectée absente (mig 086/087 non
+// appliquée → PGRST202 / 404), on cesse de la rappeler à chaque montage d'écran.
+// Évite de répéter le 404 réseau (bruit console) tant que la migration n'est pas
+// appliquée. NE concerne QUE la fonction manquante : une erreur transitoire
+// (réseau, timeout) ne désactive pas la RPC et reste visible.
+let serverRpcMissing = false;
+
 export function useCoachAccess(): UseCoachAccess {
   const { profile } = useAuth();
   const isCoach = (profile as any)?.role === 'coach';
@@ -51,14 +58,24 @@ export function useCoachAccess(): UseCoachAccess {
     setError(false);
     try {
       // 1. Source autoritaire : RPC serveur (compteur + anti-abus).
-      const { data, error: rpcErr } = await supabase.rpc('fn_my_coach_trial_status');
-      if (!rpcErr && data) {
-        const d = data as any;
-        setPaidSessions(Number(d.paid_sessions) || 0);
-        setTrialEligible(d.trial_eligible !== false);
-        setAdminStatus((d.admin_status as TrialAdminStatus) ?? 'trial_allowed');
-        setServerHasPro(!!d.has_pro);
-        return;
+      //    Sautée si déjà détectée absente cette session (évite un 404 répété).
+      if (!serverRpcMissing) {
+        const { data, error: rpcErr } = await supabase.rpc('fn_my_coach_trial_status');
+        if (!rpcErr && data) {
+          const d = data as any;
+          setPaidSessions(Number(d.paid_sessions) || 0);
+          setTrialEligible(d.trial_eligible !== false);
+          setAdminStatus((d.admin_status as TrialAdminStatus) ?? 'trial_allowed');
+          setServerHasPro(!!d.has_pro);
+          return;
+        }
+        // RPC inexistante (mig 086/087 non appliquée) : on mémorise pour ne plus
+        // la rappeler. PGRST202 = fonction absente ; 404 idem côté PostgREST.
+        if (rpcErr && (rpcErr.code === 'PGRST202' || rpcErr.code === '404')) {
+          serverRpcMissing = true;
+        }
+        // (autre erreur RPC = transitoire : on tente quand même le fallback client
+        //  ci-dessous, sans désactiver la RPC pour les prochains montages.)
       }
       // 2. Fallback : RPC absente (mig non appliquée) → calcul client, éligible.
       const { data: pays, error: qErr } = await supabase
