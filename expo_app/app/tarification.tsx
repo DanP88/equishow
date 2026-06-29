@@ -12,12 +12,14 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles } from '../constants/theme';
 import { useAuth } from '../hooks/useAuth';
 import { TARIFICATION, getPlansByRole, formatPrice, Plan } from '../data/tarification';
+import { useCoachAccess } from '../hooks/useCoachAccess';
 
 export default function TarificationScreen() {
   const { profile } = useAuth();
   const { role: paramRole } = useLocalSearchParams<{ role?: string }>();
   const userRole = (paramRole || profile?.role || 'cavalier') as 'cavalier' | 'coach' | 'organisateur';
   const [selectedPlanId, setSelectedPlanId] = useState<string | null>(null);
+  const coachAccess = useCoachAccess();
 
   const plans = getPlansByRole(userRole);
 
@@ -65,16 +67,16 @@ export default function TarificationScreen() {
       answer: 'Oui, vous pouvez changer ou annuler votre abonnement à tout moment depuis votre compte.',
     },
     {
-      question: "Y a-t-il une période d'essai ?",
-      answer: "Les forfaits mensuels offrent 7 jours d'essai gratuit. Pas de carte bancaire requise.",
+      question: 'Dois-je payer pour commencer ?',
+      answer: "Non. Vous commencez gratuitement et ne payez aucun abonnement avant vos 3 premières séances payées. Vous choisissez une offre Pro uniquement après avoir commencé à gagner de l'argent avec Equishow.",
     },
     {
       question: 'Comment fonctionnent les paiements ?',
-      answer: 'Nous acceptons les cartes bancaires, PayPal et virement. Les renouvellements sont automatiques.',
+      answer: 'Les abonnements Pro se règlent par carte bancaire via Stripe. Les renouvellements sont automatiques et résiliables à tout moment.',
     },
     {
       question: "Quelle est votre politique d'annulation ?",
-      answer: "Annulation sans frais jusqu'à 7 jours avant le renouvellement. Remboursement immédiat.",
+      answer: "Vous pouvez résilier votre offre Pro à tout moment depuis votre espace compte. L'accès reste actif jusqu'à la fin de la période déjà payée.",
     },
   ];
 
@@ -178,6 +180,47 @@ export default function TarificationScreen() {
           </>
         ) : (
           <>
+            {/* COACH — carte marketing « Commencez gratuitement » */}
+            {userRole === 'coach' && (
+              <View style={styles.coachMktCard}>
+                <Text style={styles.coachMktTitle}>🚀 Commencez gratuitement</Text>
+                <View style={styles.coachMktRow}>
+                  <Text style={styles.coachMktCheck}>✓</Text>
+                  <Text style={styles.coachMktText}>Aucun abonnement avant vos 3 premières séances payées.</Text>
+                </View>
+                <View style={styles.coachMktRow}>
+                  <Text style={styles.coachMktCheck}>✓</Text>
+                  <Text style={styles.coachMktText}>Vous payez seulement lorsque vous avez déjà gagné de l'argent avec Equishow.</Text>
+                </View>
+              </View>
+            )}
+
+            {/* COACH — explication de l'essai gratuit « 3 premières séances payées » */}
+            {userRole === 'coach' && (
+              <View style={styles.coachTrialCard}>
+                <Text style={styles.coachTrialTitle}>🎁 Gratuit jusqu'à vos 3 premières séances payées</Text>
+                <Text style={styles.coachTrialText}>
+                  Démarrez sans rien payer : l'accès Pro est offert tant que vous n'avez pas reçu le
+                  paiement de vos 3 premières séances de coaching. Ensuite, choisissez une offre pour
+                  continuer à recevoir de nouvelles réservations.
+                </Text>
+                {coachAccess.isCoach && !coachAccess.loading && !coachAccess.error && !coachAccess.hasPro && (
+                  coachAccess.trialBlockedDuplicate ? (
+                    <Text style={styles.coachTrialProgress}>
+                      Un compte professionnel semble déjà exister pour cette activité.
+                    </Text>
+                  ) : (
+                    <Text style={styles.coachTrialProgress}>
+                      Séances payées : {coachAccess.paidSessions}/{coachAccess.limit}
+                      {coachAccess.trialActive
+                        ? `  ·  ${coachAccess.remaining} restante${coachAccess.remaining > 1 ? 's' : ''}`
+                        : '  ·  essai terminé'}
+                    </Text>
+                  )
+                )}
+              </View>
+            )}
+
             {/* Bannière "Plan actuel" — bien visible en haut */}
             {currentPlan && (
               <View style={styles.currentBanner}>
@@ -366,6 +409,67 @@ const styles = StyleSheet.create({
   plansContainer: {
     gap: Spacing.lg,
     marginBottom: Spacing.xxxl,
+  },
+
+  // ── Coach : carte marketing « Commencez gratuitement » ──────────────────────
+  coachMktCard: {
+    ...CommonStyles.card,
+    padding: Spacing.lg,
+    borderWidth: 2,
+    borderColor: Colors.primaryBorder,
+    backgroundColor: Colors.primaryLight,
+    marginBottom: Spacing.lg,
+  },
+  coachMktTitle: {
+    fontSize: FontSize.lg,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.textPrimary,
+    marginBottom: Spacing.sm,
+  },
+  coachMktRow: {
+    flexDirection: 'row',
+    alignItems: 'flex-start',
+    gap: Spacing.sm,
+    marginTop: Spacing.xs,
+  },
+  coachMktCheck: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.success,
+    marginTop: 1,
+  },
+  coachMktText: {
+    flex: 1,
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 21,
+  },
+
+  // ── Coach : explication essai « 3 premières séances payées » ────────────────
+  coachTrialCard: {
+    ...CommonStyles.card,
+    padding: Spacing.lg,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    backgroundColor: Colors.primaryLight,
+    marginBottom: Spacing.lg,
+  },
+  coachTrialTitle: {
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.extrabold,
+    color: Colors.primaryDark,
+  },
+  coachTrialText: {
+    fontSize: FontSize.sm,
+    color: Colors.textSecondary,
+    lineHeight: 21,
+    marginTop: Spacing.xs,
+  },
+  coachTrialProgress: {
+    fontSize: FontSize.sm,
+    fontWeight: FontWeight.bold,
+    color: Colors.textPrimary,
+    marginTop: Spacing.sm,
   },
 
   // ── Cavalier : carte « tout gratuit » ──────────────────────────────────────

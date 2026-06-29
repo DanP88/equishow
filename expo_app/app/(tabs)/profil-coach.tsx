@@ -11,6 +11,7 @@ import { FollowListModal } from '../../components/FollowListModal';
 import { useAuth } from '../../hooks/useAuth';
 import { UserBadge } from '../../components/UserBadge';
 import { SellerStripeMenuItem } from '../../components/SellerStripeMenuItem';
+import { useCoachAccess } from '../../hooks/useCoachAccess';
 
 const ROLE_LABELS: Record<string, string> = {
   coach: 'Coach',
@@ -31,6 +32,7 @@ export default function ProfilCoachScreen() {
   const [draft, setDraft] = useState({ ...userStore });
   const [followModal, setFollowModal] = useState<'followers' | 'following' | null>(null);
   const { count: nbAvis } = useAvisStats(userStore.id);
+  const coachAccess = useCoachAccess();
   const nbFollowers = getFollowers(userStore.id).length;
   const nbFollowing = getFollowing(userStore.id).length;
 
@@ -67,9 +69,59 @@ export default function ProfilCoachScreen() {
             <Text style={styles.roleIcon}>{ROLE_ICONS[user.role]}</Text>
             <Text style={styles.roleText}>{ROLE_LABELS[user.role]}</Text>
           </View>
-          <View style={styles.planBadge}>
-            <Text style={styles.planText}>🌟 Plan {user.plan}</Text>
-          </View>
+          {/* Badge plan affiché UNIQUEMENT pour un vrai forfait coach Pro.
+              Sinon (essai gratuit / plan cavalier legacy), on ne montre rien :
+              le badge « Essai Coach : X/3 » ci-dessous communique le statut. */}
+          {coachAccess.hasPro && (
+            <View style={styles.planBadge}>
+              <Text style={styles.planText}>🌟 Plan {user.plan}</Text>
+            </View>
+          )}
+
+          {/* Essai gratuit Coach — 3 premières séances payées (jamais affiché si
+              erreur de lecture / non-coach / abonnement Pro déjà actif). */}
+          {coachAccess.isCoach && !coachAccess.loading && !coachAccess.error && !coachAccess.hasPro && (
+            coachAccess.trialBlockedDuplicate ? (
+              <View style={styles.trialDoneCard}>
+                <Text style={styles.trialDoneTitle}>👋 Compte professionnel déjà connu</Text>
+                <Text style={styles.trialDoneText}>
+                  Un compte professionnel semble déjà exister pour cette activité. Contactez le
+                  support si vous pensez qu'il s'agit d'une erreur, ou choisissez une offre Pro.
+                </Text>
+                <TouchableOpacity
+                  style={styles.trialDoneBtn}
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/tarification?role=coach' as any)}
+                >
+                  <Text style={styles.trialDoneBtnText}>Voir les offres Pro →</Text>
+                </TouchableOpacity>
+              </View>
+            ) : coachAccess.trialActive ? (
+              <View style={styles.trialBadge}>
+                <Text style={styles.trialBadgeText}>
+                  🎁 Essai Coach : {coachAccess.paidSessions}/{coachAccess.limit} séances payées
+                </Text>
+                <Text style={styles.trialBadgeSub}>
+                  Vous profitez d'Equishow Pro gratuitement jusqu'à vos 3 premières séances payées.
+                </Text>
+              </View>
+            ) : (
+              <View style={styles.trialDoneCard}>
+                <Text style={styles.trialDoneTitle}>🎉 Félicitations !</Text>
+                <Text style={styles.trialDoneText}>
+                  Vous avez réalisé vos 3 premières séances payées. Choisissez une offre Pro pour
+                  continuer à recevoir de nouvelles réservations.
+                </Text>
+                <TouchableOpacity
+                  style={styles.trialDoneBtn}
+                  activeOpacity={0.85}
+                  onPress={() => router.push('/tarification?role=coach' as any)}
+                >
+                  <Text style={styles.trialDoneBtnText}>Voir les offres Pro →</Text>
+                </TouchableOpacity>
+              </View>
+            )
+          )}
         </View>
 
         {/* Followers */}
@@ -272,6 +324,38 @@ const styles = StyleSheet.create({
   roleText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: '#7C3AED' },
   planBadge: { marginTop: Spacing.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.xs },
   planText: { fontSize: FontSize.sm, color: Colors.textSecondary },
+
+  trialBadge: {
+    marginTop: Spacing.md,
+    alignItems: 'center',
+    backgroundColor: Colors.primaryLight,
+    borderWidth: 1,
+    borderColor: Colors.primaryBorder,
+    borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md,
+    paddingVertical: Spacing.sm,
+  },
+  trialBadgeText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primaryDark },
+  trialBadgeSub: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 2, textAlign: 'center' },
+
+  trialDoneCard: {
+    marginTop: Spacing.md,
+    backgroundColor: Colors.goldBg,
+    borderWidth: 1,
+    borderColor: Colors.goldBorder,
+    borderRadius: Radius.md,
+    padding: Spacing.md,
+  },
+  trialDoneTitle: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
+  trialDoneText: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20, marginTop: 4 },
+  trialDoneBtn: {
+    marginTop: Spacing.md,
+    backgroundColor: Colors.textPrimary,
+    borderRadius: Radius.md,
+    paddingVertical: Spacing.sm,
+    alignItems: 'center',
+  },
+  trialDoneBtnText: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: '#fff' },
   followRow: { flexDirection: 'row', backgroundColor: Colors.surface, borderRadius: Radius.xl, borderWidth: 1, borderColor: Colors.border, marginBottom: Spacing.md, paddingVertical: Spacing.md },
   followItem: { flex: 1, alignItems: 'center', paddingVertical: 4 },
   followNum: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.primary },
