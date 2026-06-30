@@ -1,7 +1,7 @@
 # CLAUDE.md — Equishow
 
 > **Source de vérité du projet.** Résumé stratégique. Les détails volumineux sont dans `docs/` (liens en bas de chaque section).
-> MAJ : 2026-06-26 · repo `main` @ `ac56b1d` · migrations fichiers → **084**.
+> MAJ : 2026-06-30 · repo `main` @ `422fd50` · migrations fichiers → **088** (086/087/088 appliquées prod ; 085 cleanup cavalier non appliquée).
 > Légende : ✅ observé · 🟡 partiel · 🔴 bloquant · _(déduit)_ à confirmer.
 
 ## Session startup
@@ -24,6 +24,8 @@ Marché : 350–400k compétiteurs FR / 1,3M Europe. Marketplace à commission (
 - ✅ Notifs in-app + push serveur ; emails Resend ; messagerie ; communauté ; avis ; badges.
 - ✅ Concours : import CSV FFE (297 prod), fiche/météo/épreuves, followers, discussions (tags+réponses+mentions), claim org + Radar.
 - ✅ Dashboards admin : analytics, litiges, commissions, réclamations (EQ-REC), notifications.
+- ✅ Coach Freemium (PR #64, `789e4d4`) : Pro gratuit jusqu'aux **3 premières séances payées** + anti-abus identité Stripe Connect ; migs **086/087 appliquées prod** ; RPC `fn_my_coach_trial_status` (compteur serveur-authoritative) ; paywall doux sur `coach-demandes`.
+- ✅ Social / Hub Concours PR1 (PR #65, `422fd50`, **mig 088 appliquée prod**) : graphe **`user_follows`** (suivi **asymétrique Instagram-like**, sans demande/acceptation) + RPC `fn_people_i_know` (« personnes que je connais »). Bouton **Suivre persistant** (profils coach + cavaliers via Communauté/Services câblés sur de vrais `users.id`). **Aucun payments/escrow/Stripe/webhook touché.** Fondation des lots suivants (présence concours, hero « X que vous connaissez »).
 - 🟡 Push mobile EAS en pause (0 projet) ; concours dual-source (7 écrans mock) ; location van fermée ; discussions LOT2 partiel.
 - 🔴 Bloquants lancement : Stripe `sk_live` non confirmé · domaine Resend non vérifié · onboarding vendeur live.
 
@@ -62,11 +64,12 @@ Rôle dans `users.role` ; bascule via RPC `change_user_role`. Différences clés
 | Concours | Hub découverte contextuel | ✅ | dual-source (7 écrans mock→DB) ; `isMissingTable` doit couvrir PGRST205 → `docs/concours.md` ; **catégories FFE = table enfant `concours_categories` (084, 1 ligne=1 catégorie, FK `concours(id)` CASCADE)** affichée sur la fiche |
 | Box | Hébergement cheval | ✅ escrow | dispo par chevauchement dates |
 | Transport | Trajets partagés (+ van fermé) | ✅ escrow | colonne `statut` (FR) ≠ `status` ; van hors compteur places |
-| Coach | Cours ponctuel | ✅ escrow | capacité créneau (mig 057, advisory lock) |
+| Coach | Cours ponctuel | ✅ escrow | capacité créneau (mig 057, advisory lock) ; **Freemium : Pro gratuit jusqu'à 3 séances payées (`type=course`+`released`+`succeeded`) ; anti-abus doublon Stripe Connect ; migs 086/087 prod ; paywall doux `coach-demandes`** |
 | Stage | Stages multi-jours | ✅ escrow | prix coach affiché, commission en modale récap |
 | Chevaux | Fiches + historique résa | ✅ | photo → bucket `chevaux-photos` |
 | Messagerie | Conversations 1:1 | ✅ | `conversation_reads` hors realtime (décrément pubsub) |
-| Communauté | Posts par rôle | ✅ | likes + points |
+| Communauté | Posts par rôle | ✅ | likes + points ; auteurs (posts+commentaires) naviguent vers `/user-profile/<auteurId>` (vrai `users.id`) |
+| Social (Follow) | Graphe de relations | ✅ | **mig 088** `user_follows` (PK `(follower_id,followee_id)`, `check` anti auto-follow, index followee, RLS own-only insert/delete + select authenticated) ; RPC read-only `fn_people_i_know(viewer)` (UNION `follows ∪ messagerie ∪ réservations box/stage/course/transport ∪ club si présent`, anti-énumération `viewer=auth.uid()` sauf admin). **Ne lit JAMAIS payments.** Front : `useFollow` (DB-backed), `FollowButton`. Dette : `users.club_name` absent (source club ignorée) ; `FollowListModal` encore mock → `docs/social.md` |
 | Notifications | In-app + push | 🟡 | push mobile EAS en pause ; web OK |
 | Analytics | Mesure produit + marketplace | ✅ | `event_type` figé par CHECK → `docs/analytics.md` |
 
@@ -131,5 +134,5 @@ Quand Claude travaille sur Equishow, **toujours** :
 CLAUDE.md = source de vérité, **synthétique** (historique long → `MEMORY.md` Obsidian). Après toute évolution majeure (feature, table, migration, policy, trigger, dashboard, workflow Stripe, archi, sécurité) → mettre à jour la section + le détail `docs/` concerné, et **proposer** :
 > « Cette modification semble nécessiter une mise à jour de CLAUDE.md. Souhaitez-vous que je mette à jour la documentation du projet ? »
 
-Docs spécialisées : `docs/database.md` · `docs/stripe.md` · `docs/analytics.md` · `docs/concours.md` · `docs/incidents.md`.
+Docs spécialisées : `docs/database.md` · `docs/stripe.md` · `docs/analytics.md` · `docs/concours.md` · `docs/social.md` · `docs/incidents.md`.
 Skills : `.claude/skills/{supabase-auditor, stripe-connect-expert, analytics-expert, release-manager, prompt-generator}`.
