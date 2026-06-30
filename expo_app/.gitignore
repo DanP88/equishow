@@ -40,3 +40,6 @@ yarn-error.*
 /ios
 /android
 .vercel
+
+# local recette tooling (credentials en dur, chemins machine — hors repo)
+scripts/recette-*.mjs
