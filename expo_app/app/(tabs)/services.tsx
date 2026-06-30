@@ -1020,7 +1020,7 @@ function TransportCard({ item, onCancel, onModify }: {
           nom={item.auteurNom}
           onPress={() => {
             console.log('🖱️ Transport author tapped - ID:', item.auteurId);
-            router.push(`/user-profile/${item.auteurNom}` as any);
+            router.push(`/user-profile/${item.auteurId}` as any);
           }}
         />
         {isOwner ? (
@@ -1089,7 +1089,7 @@ function BoxCard({ item, onCancel, onModify }: {
           nom={item.auteurNom}
           onPress={() => {
             console.log('🖱️ Box author tapped - ID:', item.auteurId);
-            router.push(`/user-profile/${item.auteurNom}` as any);
+            router.push(`/user-profile/${item.auteurId}` as any);
           }}
         />
         {isOwner ? (
