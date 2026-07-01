@@ -106,7 +106,7 @@ Rôle dans `users.role` ; bascule via RPC `change_user_role`. Différences clés
 | Signup « permission denied users » | upsert front `anon` (row déjà créée par trigger) | ne pas écrire `public.users` au signup |
 | Radar `tr.status does not exist` (077) | `transport_reservations` = `statut` (FR) | `statut` pour transport, `status` ailleurs |
 | Cron release escrow cassé (066) | `release_trigger:"cron"` ⛔ CHECK | utiliser `auto_cron` ; diag via `net._http_response` |
-| Surbooking transport (060) | F1 ne consommait qu'au `pending→accepted` | ensemble de statuts consommants (Box à vérifier) |
+| Surbooking transport (060) | F1 ne consommait qu'au `pending→accepted` | ensemble de statuts consommants ; **Stage+Box fixés (062), Coach (057) — vérifiés harness `tests/062_availability_stage_box` (20/20)** |
 | Import concours 0 ligne (079) | ON CONFLICT index partiel + RLS admin false | UNIQUE réel + admin `role='admin'` |
 | Webhook 401 / paiements pending | `verify_jwt=true` | toujours `--no-verify-jwt` (signature HMAC) |
 
