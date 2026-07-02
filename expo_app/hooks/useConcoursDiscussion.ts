@@ -137,6 +137,83 @@ export function useConcoursDiscussionsFeed() {
   return { items, isLoading, reload: load };
 }
 
+// ── Fil des participants (LOT 2) ─────────────────────────────────────────────
+// Auteurs distincts d'un fil concours, dérivés de concours_messages (aucune
+// nouvelle table, RLS lecture publique 082). Identité PSEUDONYME conservée
+// (pseudo + initiales + couleur) — jamais le nom complet. Sert :
+//   - au bandeau « participants » en tête d'écran (tap → /user-profile/<id>) ;
+//   - de source d'autocomplétion @user (mentions LOT2-B), pseudos déjà visibles.
+export interface ConcoursParticipant {
+  user_id: string;
+  pseudo: string | null;
+  initiales: string | null;
+  couleur: string | null;
+  role: string | null;
+  messageCount: number;
+  lastAt: string;
+}
+
+export function useConcoursParticipants(concoursId?: string) {
+  const channelId = useId();
+  const [participants, setParticipants] = useState<ConcoursParticipant[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!concoursId) { setParticipants([]); setIsLoading(false); return; }
+    setIsLoading(true);
+    // Messages non supprimés de ce concours → dédup côté client par auteur.
+    const { data, error } = await supabase
+      .from('concours_messages')
+      .select('auteur_id,auteur_pseudo,auteur_initiales,auteur_couleur,auteur_role,created_at')
+      .eq('concours_id', concoursId)
+      .eq('is_deleted', false)
+      .order('created_at', { ascending: true });
+
+    if (error || !data) { setParticipants([]); setIsLoading(false); return; }
+
+    const map = new Map<string, ConcoursParticipant>();
+    for (const row of data as any[]) {
+      const uid = row.auteur_id as string;
+      if (!uid) continue;
+      const cur = map.get(uid);
+      if (cur) {
+        cur.messageCount += 1;
+        if (row.created_at > cur.lastAt) cur.lastAt = row.created_at;
+      } else {
+        map.set(uid, {
+          user_id: uid,
+          pseudo: row.auteur_pseudo ?? null,
+          initiales: row.auteur_initiales ?? null,
+          couleur: row.auteur_couleur ?? null,
+          role: row.auteur_role ?? null,
+          messageCount: 1,
+          lastAt: row.created_at,
+        });
+      }
+    }
+    // Tri : plus actifs d'abord, puis récence.
+    const list = [...map.values()].sort(
+      (a, b) => b.messageCount - a.messageCount || (a.lastAt < b.lastAt ? 1 : -1),
+    );
+    setParticipants(list);
+    setIsLoading(false);
+  }, [concoursId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  // Realtime : nouveau message / soft delete → recharge la liste.
+  useEffect(() => {
+    if (!concoursId) return;
+    const ch = supabase
+      .channel(`concours-participants-${concoursId}-${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'concours_messages', filter: `concours_id=eq.${concoursId}` }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(ch); };
+  }, [concoursId, channelId, load]);
+
+  return { participants, isLoading, reload: load };
+}
+
 // ── Fil complet (écran dédié) ───────────────────────────────────────────────
 export function useConcoursDiscussion(concoursId?: string) {
   const { profile } = useAuth();

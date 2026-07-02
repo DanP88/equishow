@@ -17,7 +17,7 @@ import { Colors } from '../../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../../constants/theme';
 import { useScreenTracking } from '../../../hooks/useScreenTracking';
 import { trackCta } from '../../../lib/analytics';
-import { useConcoursDiscussion, ConcoursMessage } from '../../../hooks/useConcoursDiscussion';
+import { useConcoursDiscussion, useConcoursParticipants, ConcoursMessage } from '../../../hooks/useConcoursDiscussion';
 import { useConcours, useConcoursList, ConcoursHub } from '../../../hooks/useConcours';
 import {
   parseConcoursMentions, serializeConcoursMentions, activeMentionQuery, replaceActiveMention,
@@ -84,6 +84,7 @@ export default function ConcoursDiscussionScreen() {
   const { concours } = useConcours(id);
   const { concours: allConcours } = useConcoursList(); // source autocomplétion @mention
   const { messages, isLoading, sending, send, softDelete, markRead, canDelete, canPost } = useConcoursDiscussion(id);
+  const { participants } = useConcoursParticipants(id);
   const [draft, setDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<ConcoursMessage | null>(null);
   // Mentions @concours : libellés saisis en clair + leur concours_id, sérialisés
@@ -166,6 +167,30 @@ export default function ConcoursDiscussionScreen() {
         <TouchableOpacity onPress={goBack} style={s.back}><Text style={s.backTxt}>←</Text></TouchableOpacity>
         <Text style={s.title} numberOfLines={1}>💬 Discussion</Text>
       </View>
+
+      {/* Fil des participants (LOT2) : auteurs distincts, tap → profil public. */}
+      {participants.length > 0 && (
+        <View style={s.participantsWrap}>
+          <Text style={s.participantsLabel}>
+            {participants.length} participant{participants.length > 1 ? 's' : ''}
+          </Text>
+          <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.participantsRow}>
+            {participants.map((p) => (
+              <TouchableOpacity
+                key={p.user_id}
+                style={s.participant}
+                activeOpacity={0.7}
+                onPress={() => router.push(`/user-profile/${p.user_id}` as any)}
+              >
+                <View style={[s.pAvatar, { backgroundColor: p.couleur || Colors.primary }]}>
+                  <Text style={s.pAvatarTxt}>{(p.initiales || p.pseudo || '?').slice(0, 2).toUpperCase()}</Text>
+                </View>
+                <Text style={s.pName} numberOfLines={1}>{p.pseudo || 'Cavalier'}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
 
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
         <ScrollView contentContainerStyle={s.list}>
@@ -341,6 +366,13 @@ const s = StyleSheet.create({
   back: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center', backgroundColor: Colors.surfaceVariant },
   backTxt: { fontSize: 20, color: Colors.textPrimary },
   title: { flex: 1, fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
+  participantsWrap: { backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, paddingVertical: Spacing.sm },
+  participantsLabel: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold, paddingHorizontal: Spacing.lg, marginBottom: Spacing.xs },
+  participantsRow: { paddingHorizontal: Spacing.lg, gap: Spacing.md },
+  participant: { alignItems: 'center', width: 56 },
+  pAvatar: { width: 40, height: 40, borderRadius: 20, alignItems: 'center', justifyContent: 'center', marginBottom: 2 },
+  pAvatarTxt: { color: Colors.textInverse, fontSize: FontSize.xs, fontWeight: FontWeight.bold },
+  pName: { fontSize: 10, color: Colors.textSecondary, maxWidth: 56, textAlign: 'center' },
   list: { padding: Spacing.lg, paddingBottom: Spacing.lg, gap: Spacing.md },
   loader: { paddingVertical: Spacing.xl, alignItems: 'center' },
   empty: { alignItems: 'center', paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg },
