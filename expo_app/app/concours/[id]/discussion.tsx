@@ -18,10 +18,10 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../../constant
 import { useScreenTracking } from '../../../hooks/useScreenTracking';
 import { trackCta } from '../../../lib/analytics';
 import { useConcoursDiscussion, useConcoursParticipants, ConcoursMessage } from '../../../hooks/useConcoursDiscussion';
-import { useConcours, useConcoursList, ConcoursHub } from '../../../hooks/useConcours';
+import { useConcours, useConcoursList } from '../../../hooks/useConcours';
 import {
-  parseConcoursMentions, serializeConcoursMentions, activeMentionQuery, replaceActiveMention,
-  ConcoursMentionRef,
+  parseMentions, serializeMentions, activeMentionQuery, replaceActiveMention,
+  MentionRef,
 } from '../../../lib/mentions';
 
 // ── Tags métier LOT 2 (valeurs alignées sur le CHECK topic de la mig 083) ──────
@@ -87,26 +87,35 @@ export default function ConcoursDiscussionScreen() {
   const { participants } = useConcoursParticipants(id);
   const [draft, setDraft] = useState('');
   const [replyingTo, setReplyingTo] = useState<ConcoursMessage | null>(null);
-  // Mentions @concours : libellés saisis en clair + leur concours_id, sérialisés
-  // en jetons à l'envoi (cf. lib/mentions).
-  const [mentions, setMentions] = useState<ConcoursMentionRef[]>([]);
+  // Mentions @concours + @user : libellés saisis en clair + leur cible typée,
+  // sérialisés en jetons à l'envoi (cf. lib/mentions).
+  const [mentions, setMentions] = useState<MentionRef[]>([]);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
 
-  // Suggestions d'autocomplétion : concours dont le nom contient la requête.
-  const mentionSuggestions = useMemo<ConcoursHub[]>(() => {
+  // Suggestions d'autocomplétion @ : participants du fil (users, pseudos déjà
+  // publics → respecte l'invariant pseudonyme) PUIS concours du même libellé.
+  const mentionSuggestions = useMemo<MentionRef[]>(() => {
     if (mentionQuery === null) return [];
     const q = mentionQuery.toLowerCase();
-    return allConcours.filter((c) => c.nom.toLowerCase().includes(q)).slice(0, 6);
-  }, [mentionQuery, allConcours]);
+    const users: MentionRef[] = participants
+      .filter((p) => (p.pseudo ?? '').toLowerCase().includes(q) && p.pseudo)
+      .slice(0, 4)
+      .map((p) => ({ kind: 'user', id: p.user_id, label: p.pseudo as string }));
+    const concoursItems: MentionRef[] = allConcours
+      .filter((c) => c.nom.toLowerCase().includes(q))
+      .slice(0, 4)
+      .map((c) => ({ kind: 'concours', id: c.id, label: c.nom }));
+    return [...users, ...concoursItems].slice(0, 6);
+  }, [mentionQuery, participants, allConcours]);
 
   const onChangeDraft = (t: string) => {
     setDraft(t);
     setMentionQuery(activeMentionQuery(t)); // null si pas de @requête active en fin
   };
 
-  const selectMention = (c: ConcoursHub) => {
-    setDraft((d) => replaceActiveMention(d, c.nom));
-    setMentions((prev) => (prev.some((m) => m.concoursId === c.id) ? prev : [...prev, { label: c.nom, concoursId: c.id }]));
+  const selectMention = (ref: MentionRef) => {
+    setDraft((d) => replaceActiveMention(d, ref.label));
+    setMentions((prev) => (prev.some((m) => m.kind === ref.kind && m.id === ref.id) ? prev : [...prev, ref]));
     setMentionQuery(null);
   };
 
@@ -140,8 +149,8 @@ export default function ConcoursDiscussionScreen() {
     if (!text || sending) return;
     // Tag implicite : détecté automatiquement depuis le texte (plus de chips).
     const detected = detectTopic(text);
-    // Mentions @concours : « @Nom » saisis → jetons @[Nom](concours:id) persistés.
-    const payload = serializeConcoursMentions(text, mentions);
+    // Mentions @concours + @user : « @Libellé » saisis → jetons typés persistés.
+    const payload = serializeMentions(text, mentions);
     const parentId = replyingTo?.id ?? null;
     setDraft(''); setReplyingTo(null); setMentions([]); setMentionQuery(null);
     const { error } = await send(payload, detected, parentId);
@@ -239,14 +248,18 @@ export default function ConcoursDiscussionScreen() {
                       <Text style={s.deleted}>Message supprimé</Text>
                     ) : (
                       <Text style={s.contenu}>
-                        {parseConcoursMentions(m.contenu).map((seg, i) =>
+                        {parseMentions(m.contenu).map((seg, i) =>
                           seg.type === 'text' ? (
                             <Text key={i}>{seg.value}</Text>
                           ) : (
                             <Text
                               key={i}
                               style={s.mention}
-                              onPress={() => router.push(`/concours/${seg.concoursId}` as any)}
+                              onPress={() => router.push(
+                                (seg.kind === 'user'
+                                  ? `/user-profile/${seg.id}`
+                                  : `/concours/${seg.id}`) as any,
+                              )}
                             >
                               @{seg.label}
                             </Text>
@@ -297,22 +310,19 @@ export default function ConcoursDiscussionScreen() {
               </Text>
             )}
 
-            {/* Autocomplétion @mention concours (source : table concours). */}
+            {/* Autocomplétion @mention : participants du fil (@user) + concours. */}
             {mentionQuery !== null && mentionSuggestions.length > 0 && (
               <View style={s.mentionBox}>
-                {mentionSuggestions.map((c) => (
+                {mentionSuggestions.map((ref) => (
                   <TouchableOpacity
-                    key={c.id}
+                    key={`${ref.kind}:${ref.id}`}
                     style={s.mentionRow}
                     activeOpacity={0.8}
-                    onPress={() => selectMention(c)}
+                    onPress={() => selectMention(ref)}
                   >
-                    <Text style={s.mentionRowName} numberOfLines={1}>🏆 {c.nom}</Text>
-                    {(c.dateLabel || c.lieu) && (
-                      <Text style={s.mentionRowMeta} numberOfLines={1}>
-                        {[c.dateLabel, c.lieu].filter(Boolean).join(' · ')}
-                      </Text>
-                    )}
+                    <Text style={s.mentionRowName} numberOfLines={1}>
+                      {ref.kind === 'user' ? '👤' : '🏆'} {ref.label}
+                    </Text>
                   </TouchableOpacity>
                 ))}
               </View>
