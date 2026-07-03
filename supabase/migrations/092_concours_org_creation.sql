@@ -54,14 +54,23 @@ create index if not exists idx_concours_organisateur_id
 drop policy if exists concours_insert_organisateur on public.concours;
 create policy concours_insert_organisateur on public.concours
   for insert to authenticated
-  with check (organisateur_id = auth.uid());
+  with check (
+    organisateur_id = auth.uid()
+    and exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'organisateur')
+  );
 
 -- UPDATE org (own-row) : édition + publication (brouillon→publie) de SES concours.
 drop policy if exists concours_update_organisateur on public.concours;
 create policy concours_update_organisateur on public.concours
   for update to authenticated
-  using (organisateur_id = auth.uid())
-  with check (organisateur_id = auth.uid());
+  using (
+    organisateur_id = auth.uid()
+    and exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'organisateur')
+  )
+  with check (
+    organisateur_id = auth.uid()
+    and exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'organisateur')
+  );
 
 -- SELECT durcie : remplace concours_select_all (true). Brouillons masqués au public
 -- (et à anon) AU NIVEAU DB ; visibles par le propriétaire + admin. default 'publie'

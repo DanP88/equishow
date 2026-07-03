@@ -148,6 +148,17 @@ do $$ begin
   end;
 end $$;
 reset role;
+-- [3c] un cavalier (rôle ≠ organisateur) ne peut pas créer de concours même own-row.
+set role authenticated; set test.uid='00000000-0000-0000-0000-0000000000b1';
+do $$ begin
+  begin
+    insert into public.concours(nom, organisateur_id, statut)
+      values ('cava-concours','00000000-0000-0000-0000-0000000000b1','brouillon');
+    raise exception 'FAIL [3c] un cavalier a pu créer un concours';
+  exception when insufficient_privilege then raise notice 'PASS [3c] garde rôle : cavalier refusé (non-organisateur)';
+  end;
+end $$;
+reset role;
 
 \echo '=== [4] CHECK statut ==='
 do $$ begin
