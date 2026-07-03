@@ -1,25 +1,25 @@
 import { useState, useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, ActivityIndicator, Alert } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { concoursStore } from '../../data/store';
-import { getUserById } from '../../data/mockUsers';
-import { Concours } from '../../types/concours';
+import { useConcoursList } from '../../hooks/useConcours';
 import { useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
 
 type Tab = 'disponibles' | 'mesAnnonces';
 
 export default function CoachConcoursScreen() {
   const [tab, setTab] = useState<Tab>('disponibles');
-  const [concours, setConcours] = useState<Concours[]>(
-    concoursStore.list.filter(c => c.statut !== 'brouillon')
-  );
+  // Concours disponibles = table public.concours (DB) via useConcoursList()
+  // — remplace le mock concoursStore. Aucune migration/RLS. Les concours importés
+  // FFE sont tous publics → pas de filtre 'brouillon' (les brouillons org ne sont
+  // pas encore en DB, cf. PR2 creer-concours).
+  const { concours, isLoading: concoursLoading, reload: reloadConcours } = useConcoursList();
   const { annonces: mesAnnonces, deleteAnnonce } = useMyCoachAnnonces();
 
   useFocusEffect(useCallback(() => {
-    setConcours(concoursStore.list.filter(c => c.statut !== 'brouillon'));
-  }, []));
+    reloadConcours();
+  }, [reloadConcours]));
 
   const handleCreateAnnouncement = (concoursId: string) => {
     router.push(`/proposer-coach-annonce?concoursId=${concoursId}`);
@@ -65,13 +65,17 @@ export default function CoachConcoursScreen() {
 
       <ScrollView contentContainerStyle={s.container}>
         {tab === 'disponibles' ? (
-          // Onglet Concours disponibles
-          concours.length === 0 ? (
+          // Onglet Concours disponibles (source DB : public.concours)
+          concoursLoading && concours.length === 0 ? (
+            <View style={s.loader}><ActivityIndicator color={Colors.primary} /></View>
+          ) : concours.length === 0 ? (
             <Text style={s.emptyText}>Aucun concours disponible pour le moment</Text>
           ) : (
             concours.map((c) => {
-            const dateStr = `${c.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}-${c.dateFin.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })}`;
-            return (
+              // discipline brute FFE souvent 'nan' → masquée si non pertinente.
+              const disc = c.type_concours && c.type_concours.trim().toLowerCase() !== 'nan'
+                ? c.type_concours : null;
+              return (
               <View key={c.id} style={s.concoursCard}>
                 <View style={s.concoursHeader}>
                   <Text style={s.concoursName}>{c.nom}</Text>
@@ -81,17 +85,8 @@ export default function CoachConcoursScreen() {
                     </Text>
                   </View>
                 </View>
-                <Text style={s.concoursDate}>📅 {dateStr} — {c.lieu}</Text>
-                <Text style={s.concoursDetail}>{c.disciplines.join(', ')} • {c.typesCavaliers.join(', ')}</Text>
-
-                {c.horaireDebut && (
-                  <Text style={s.concoursHoraire}>🕐 {c.horaireDebut} - {c.horaireFin || '?'}</Text>
-                )}
-
-                <View style={s.concoursStats}>
-                  <StatBadge label="Inscrits" value={`${c.nbInscrits}/${c.nbPlaces}`} />
-                  {c.prix && <StatBadge label="Prix" value={`${c.prix}€`} />}
-                </View>
+                <Text style={s.concoursDate}>📅 {c.dateLabel}{c.lieu ? ` — ${c.lieu}` : ''}</Text>
+                {disc && <Text style={s.concoursDetail}>{disc}</Text>}
 
                 <TouchableOpacity
                   style={s.createBtn}
@@ -101,19 +96,6 @@ export default function CoachConcoursScreen() {
                   <Text style={s.createBtnText}>Créer une annonce pour ce concours</Text>
                   <Text style={s.createArrow}>→</Text>
                 </TouchableOpacity>
-                {(() => {
-                  const org = getUserById(c.organisateurId);
-                  if (!org) return null;
-                  return (
-                    <TouchableOpacity
-                      style={[s.createBtn, { backgroundColor: '#EFF6FF', borderColor: '#93C5FD', marginTop: 6 }]}
-                      onPress={() => router.push({ pathname: '/messagerie', params: { otherId: org.id, otherNom: org.prenom + ' ' + org.nom, otherPseudo: org.pseudo, otherCouleur: org.avatarColor, otherInitiales: org.initiales, sujet: `🏆 ${c.nom}` } } as any)}
-                      activeOpacity={0.8}
-                    >
-                      <Text style={[s.createBtnText, { color: '#1D4ED8' }]}>💬 Contacter l'organisateur</Text>
-                    </TouchableOpacity>
-                  );
-                })()}
               </View>
             );
             })
@@ -166,17 +148,9 @@ export default function CoachConcoursScreen() {
   );
 }
 
-function StatBadge({ label, value }: { label: string; value: string }) {
-  return (
-    <View style={s.statBadge}>
-      <Text style={s.statLabel}>{label}</Text>
-      <Text style={s.statValue}>{value}</Text>
-    </View>
-  );
-}
-
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
+  loader: { paddingVertical: Spacing.xl, alignItems: 'center' },
   header: { paddingHorizontal: Spacing.lg, paddingTop: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
   headerTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.md },
   tabs: { flexDirection: 'row', gap: Spacing.sm, marginBottom: Spacing.lg },
