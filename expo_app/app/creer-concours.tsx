@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal, Switch,
@@ -65,6 +65,11 @@ function MultiSelectChip({ options, selected, onChange }: {
 export default function CreerConcoursScreen() {
   const { profile, session } = useAuth();
   const [submitting, setSubmitting] = useState(false);
+  // Verrou SYNCHRONE anti double-submit : `submitting` (état React) ne se met à
+  // jour qu'au re-render, donc deux taps dans la même frame passeraient la garde.
+  // Le ref est lu/écrit immédiatement → il bloque le 2e submit avant tout await.
+  // (L'état `submitting` reste la source de vérité UX : loading + bouton disabled.)
+  const submitLock = useRef(false);
   const [nom, setNom] = useState('');
   const [dateDebut, setDateDebut] = useState<Date | undefined>();
   const [dateFin, setDateFin] = useState<Date | undefined>();
@@ -99,7 +104,7 @@ export default function CreerConcoursScreen() {
   }
 
   async function submit() {
-    if (submitting) return; // garde double-submit
+    if (submitLock.current) return; // garde synchrone double-submit
 
     // Garde session : organisateur_id vient UNIQUEMENT de l'utilisateur authentifié.
     const userId = session?.user?.id;
@@ -140,55 +145,63 @@ export default function CreerConcoursScreen() {
       }
     }
 
+    // Acquisition du verrou JUSTE avant l'async : toute validation ci-dessus a
+    // pu sortir (return) sans jamais verrouiller → le formulaire reste utilisable.
+    submitLock.current = true;
     setSubmitting(true);
-    const { id, error } = await createConcours({
-      organisateurId: userId,
-      nom,
-      dateDebut,
-      dateFin,
-      lieu,
-      adresse,
-      codePostal,
-      ville,
-      discipline,
-      disciplines: disciplines.length > 0 ? disciplines : [discipline],
-      epreuves,
-      typesCavaliers,
-      nbPlaces: placesNum,
-      prix: prix ? parseInt(prix, 10) : undefined,
-      horaireDebut,
-      horaireFin,
-      description,
-      region: (profile as any)?.region ?? null,
-      infos: {
-        restauration: restauration.trim() || null,
-        parking: parking.trim() || null,
-        coaching,
-        securite: securite.trim() || null,
-        veterinaire,
-        soins_chevaux: soins,
-        douches,
-        wifi,
-        autre: autre.trim() || null,
-      },
-    });
-    setSubmitting(false);
+    try {
+      const { id, error } = await createConcours({
+        organisateurId: userId,
+        nom,
+        dateDebut,
+        dateFin,
+        lieu,
+        adresse,
+        codePostal,
+        ville,
+        discipline,
+        disciplines: disciplines.length > 0 ? disciplines : [discipline],
+        epreuves,
+        typesCavaliers,
+        nbPlaces: placesNum,
+        prix: prix ? parseInt(prix, 10) : undefined,
+        horaireDebut,
+        horaireFin,
+        description,
+        region: (profile as any)?.region ?? null,
+        infos: {
+          restauration: restauration.trim() || null,
+          parking: parking.trim() || null,
+          coaching,
+          securite: securite.trim() || null,
+          veterinaire,
+          soins_chevaux: soins,
+          douches,
+          wifi,
+          autre: autre.trim() || null,
+        },
+      });
 
-    if (error || !id) {
-      showErr('Création impossible', error ?? 'Une erreur est survenue. Réessaie.');
-      return;
+      if (error || !id) {
+        showErr('Création impossible', error ?? 'Une erreur est survenue. Réessaie.');
+        return;
+      }
+
+      // Navigation UNIQUEMENT après succès réel de l'insert.
+      setAlertState({
+        title: 'Concours créé 🏆',
+        message: `"${nom.trim()}" a été enregistré en brouillon.`,
+        variant: 'info',
+        onClose: () => {
+          setAlertState(null);
+          router.replace('/(tabs)/org-concours' as any);
+        },
+      });
+    } finally {
+      // Libération sur TOUS les chemins (succès, erreur retournée, exception).
+      submitLock.current = false;
+      setSubmitting(false);
     }
-
-    // Navigation UNIQUEMENT après succès réel de l'insert.
-    setAlertState({
-      title: 'Concours créé 🏆',
-      message: `"${nom.trim()}" a été enregistré en brouillon.`,
-      variant: 'info',
-      onClose: () => {
-        setAlertState(null);
-        router.replace('/(tabs)/org-concours' as any);
-      },
-    });
   }
 
   return (
