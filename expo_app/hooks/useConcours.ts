@@ -154,9 +154,14 @@ export function useConcoursList() {
     setIsLoading(true);
     // select('*') : ramène followers_count si 075 appliquée, sinon colonne absente
     // → rowToHub applique `?? 0`. Évite l'erreur "column does not exist".
+    // PR2-B : découverte = flux PUBLIC → on ne remonte QUE les concours publiés.
+    // Les brouillons/archives restent invisibles ici (défense en profondeur au-dessus
+    // de la RLS `concours_select_visible`). Les flux organisateur/admin (fiche via
+    // useConcours(id), management par claims) NE passent PAS par ce filtre.
     const { data, error } = await supabase
       .from('concours')
       .select('*')
+      .eq('statut', 'publie')
       .order('date_debut', { ascending: true });
 
     if (error) {
@@ -375,4 +380,97 @@ export function useConcoursCategories(concoursId?: string) {
 
   useEffect(() => { load(); }, [load]);
   return { categories, isLoading, reload: load };
+}
+
+// ── createConcours — PR2-B : création organisateur (INSERT réel) ───────────────
+// Persiste un concours dans public.concours en `statut='brouillon'`.
+// - `organisateur_id` DOIT provenir de l'utilisateur authentifié (passé par
+//   l'appelant depuis la session Supabase) : la RLS `concours_insert_organisateur`
+//   exige `organisateur_id = auth.uid()` ET `users.role = 'organisateur'`.
+// - Aucun service role, aucun bypass : un cavalier/coach reçoit une erreur RLS.
+// - Les champs sans colonne dédiée (ville, horaires, options logistiques…) sont
+//   stockés dans la colonne `infos jsonb` (092).
+export interface CreateConcoursInput {
+  organisateurId: string;          // auth.uid() — obligatoire
+  nom: string;
+  dateDebut: Date;
+  dateFin: Date;
+  lieu: string;
+  adresse?: string;
+  codePostal?: string;
+  ville?: string;
+  discipline: string;
+  disciplines: string[];
+  epreuves: string[];
+  typesCavaliers: string[];
+  nbPlaces: number;
+  prix?: number;
+  horaireDebut?: string;
+  horaireFin?: string;
+  description?: string;
+  region?: string | null;
+  infos?: Record<string, unknown>; // options logistiques (restauration, parking…)
+}
+
+// Date locale → 'YYYY-MM-DD' (sans décalage UTC qui décalerait le jour).
+function toISODate(d: Date): string {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+
+export async function createConcours(
+  input: CreateConcoursInput,
+): Promise<{ id: string | null; error: string | null }> {
+  if (!input.organisateurId) {
+    return { id: null, error: 'Session expirée : reconnecte-toi pour créer un concours.' };
+  }
+
+  // Département dérivé du code postal FR (2 premiers chiffres) si dispo.
+  const cp = (input.codePostal ?? '').trim();
+  const departement = /^\d{5}$/.test(cp) ? cp.slice(0, 2) : null;
+
+  const infos = {
+    ville: input.ville?.trim() || null,
+    code_postal: cp || null,
+    disciplines: input.disciplines,
+    types_cavaliers: input.typesCavaliers,
+    nb_places: input.nbPlaces,
+    prix: input.prix ?? null,
+    horaire_debut: input.horaireDebut ?? null,
+    horaire_fin: input.horaireFin ?? null,
+    description: input.description?.trim() || null,
+    region: input.region ?? null,
+    ...(input.infos ?? {}),
+  };
+
+  const { data, error } = await supabase
+    .from('concours')
+    .insert({
+      nom: input.nom.trim(),
+      date_debut: toISODate(input.dateDebut),
+      date_fin: toISODate(input.dateFin),
+      lieu: input.lieu.trim(),
+      adresse: input.adresse?.trim() || null,
+      departement,
+      type_concours: input.discipline,
+      liste_epreuves: input.epreuves,
+      etat: 'ouvert',
+      organisateur_id: input.organisateurId,
+      statut: 'brouillon',
+      source_import: 'manual',
+      infos,
+    })
+    .select('id')
+    .single();
+
+  if (error) {
+    // RLS refusée (rôle ≠ organisateur / id ≠ auth.uid()) ou réseau.
+    if (/row-level security|violates row-level|permission denied/i.test(error.message ?? '')) {
+      return { id: null, error: "Accès refusé : seul un compte organisateur peut créer un concours." };
+    }
+    return { id: null, error: error.message || 'Échec de la création du concours.' };
+  }
+  return { id: (data as { id: string }).id, error: null };
 }
