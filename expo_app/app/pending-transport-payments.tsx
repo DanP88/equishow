@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { userStore } from '../data/store';
 import { useAuth } from '../hooks/useAuth';
 import { useMyTransportReservations } from '../hooks/useTransports';
+import { useChevauxByIds } from '../hooks/useChevauxByIds';
 import { createNotification } from '../hooks/useNotifications';
 import { TransportReservation } from '../types/service';
 import { getAuthToken } from '../utils/supabaseAuth';
@@ -25,6 +26,7 @@ export default function PendingTransportPaymentsScreen() {
   const validatedReservations = reservations.filter(
     (r) => r.buyerId === profile?.id && r.statut === 'accepted',
   );
+  const chevauxById = useChevauxByIds(validatedReservations.map((r) => r.chevalId));
 
   const handlePayNow = async (reservation: TransportReservation) => {
     try {
@@ -157,6 +159,13 @@ export default function PendingTransportPaymentsScreen() {
                 <Text style={s.label}>🪑 Places:</Text>
                 <Text style={s.value}>{reservation.nbPlaces}</Text>
               </View>
+
+              {reservation.chevalId && chevauxById.get(reservation.chevalId) && (
+                <View style={s.detailsRow}>
+                  <Text style={s.label}>🐴 Cheval:</Text>
+                  <Text style={s.value}>{chevauxById.get(reservation.chevalId)}</Text>
+                </View>
+              )}
 
               {reservation.message && (
                 <View style={s.detailsRow}>
