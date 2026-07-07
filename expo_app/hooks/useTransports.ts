@@ -369,6 +369,7 @@ interface TransportReservationRow {
   route_provider: string | null;
   route_snapshot_json: unknown;
   route_pricing_status: string | null;
+  cheval_id: string | null;
   // Jointure annonce (date du trajet) — voir useMyTransportReservations.
   transport_annonces?: { date_trajet: string | null; date_retour: string | null } | null;
 }
@@ -405,6 +406,7 @@ function rowToReservation(r: TransportReservationRow): TransportReservation {
     routeProvider: r.route_provider ?? undefined,
     routeSnapshotJson: r.route_snapshot_json ?? undefined,
     routePricingStatus: (r.route_pricing_status ?? undefined) as TransportReservation['routePricingStatus'],
+    chevalId: r.cheval_id ?? null,
   };
 }
 

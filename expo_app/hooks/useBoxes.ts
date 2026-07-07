@@ -297,6 +297,7 @@ interface BoxReservationRow {
   status: string;
   created_at: string;
   updated_at: string;
+  cheval_id: string | null;
 }
 
 function rowToReservation(r: BoxReservationRow): BoxReservation {
@@ -316,6 +317,7 @@ function rowToReservation(r: BoxReservationRow): BoxReservation {
     prixTotalTTC: r.price_total_ttc,
     statut: r.status as BoxReservation['statut'],
     dateCreation: new Date(r.created_at),
+    chevalId: r.cheval_id ?? null,
   };
 }
 

@@ -42,6 +42,7 @@ export default function ReserverTransportScreen() {
   const [nbPlaces, setNbPlaces] = useState(1);
   const [message, setMessage] = useState('');
   const [chevalId, setChevalId] = useState<string | null>(null);
+  const [chevalNom, setChevalNom] = useState<string | null>(null);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [selectedDates, setSelectedDates] = useState<Date[]>([]);
@@ -337,6 +338,7 @@ export default function ReserverTransportScreen() {
         villeDepart: transport.villeDepart,
         villeArrivee: transport.villeArrivee,
         reference: transportRef,
+        ...(chevalNom ? { chevalNom } : {}),
       },
     } as any);
   }
@@ -600,7 +602,7 @@ export default function ReserverTransportScreen() {
 
         {/* Cheval concerné (optionnel) */}
         <View style={s.field}>
-          <ChevalPicker value={chevalId} onChange={(id) => setChevalId(id)} />
+          <ChevalPicker value={chevalId} onChange={(id, nom) => { setChevalId(id); setChevalNom(nom); }} />
         </View>
 
         {/* Message */}

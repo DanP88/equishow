@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { useAuth } from '../hooks/useAuth';
 import { useMyTransportReservations } from '../hooks/useTransports';
 import { useUsersByIds } from '../hooks/useUsersByIds';
+import { useChevauxByIds } from '../hooks/useChevauxByIds';
 import { createNotification } from '../hooks/useNotifications';
 import { sendReservationEmail } from '../utils/sendReservationEmail';
 import { TransportReservation } from '../types/service';
@@ -26,6 +27,7 @@ export default function TransportPendingDemandsScreen() {
   // A6 : résoudre les UUID acheteurs vers leurs infos publiques (nom + pseudo)
   // au lieu d'afficher l'UUID brut. RLS users_public : lecture authentifiée.
   const usersById = useUsersByIds(demands.map((d) => d.buyerId));
+  const chevauxById = useChevauxByIds(demands.map((d) => d.chevalId));
   const buyerLabel = (buyerId: string) => {
     const u = usersById.get(buyerId);
     if (!u) return 'Cavalier';
@@ -123,6 +125,13 @@ export default function TransportPendingDemandsScreen() {
                 <Text style={s.label}>🪑 Places:</Text>
                 <Text style={s.value}>{demand.nbPlaces}</Text>
               </View>
+
+              {demand.chevalId && chevauxById.get(demand.chevalId) && (
+                <View style={s.detailsRow}>
+                  <Text style={s.label}>🐴 Cheval:</Text>
+                  <Text style={s.value}>{chevauxById.get(demand.chevalId)}</Text>
+                </View>
+              )}
 
               {demand.message && (
                 <View style={s.detailsRow}>
