@@ -111,10 +111,18 @@ export function ConcoursPresenceModule({ concoursId }: { concoursId: string }) {
         <View style={s.vous}>
           <View style={s.vousAv}><Text style={s.vousAvTxt}>🐴</Text></View>
           <View style={{ flex: 1 }}>
-            {myChevalNom
-              ? <Text style={s.vousHorse} numberOfLines={1}>{myChevalNom}</Text>
-              : <Text style={s.vousName}>Vous y serez</Text>}
-            <Text style={s.vousSub}>{myChevalNom ? 'Votre cheval' : 'cheval non précisé'}</Text>
+            {myChevalNom ? (
+              <>
+                {/* Layout label/valeur : petit label gris AU-DESSUS, cheval en gros DESSOUS. */}
+                <Text style={s.vousLabel}>Votre cheval</Text>
+                <Text style={s.vousHorse} numberOfLines={1}>{myChevalNom}</Text>
+              </>
+            ) : (
+              <>
+                <Text style={s.vousName}>Vous y serez</Text>
+                <Text style={s.vousSub}>cheval non précisé</Text>
+              </>
+            )}
           </View>
           <Text style={s.vousPin}>VOUS</Text>
         </View>
@@ -175,6 +183,8 @@ const s = StyleSheet.create({
     backgroundColor: Colors.primaryDark, borderWidth: 2, borderColor: Colors.surface,
   },
   vousAvTxt: { fontSize: 16 },
+  // Petit label gris discret au-dessus de la valeur (« Votre cheval »).
+  vousLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.semibold, letterSpacing: 0.4, textTransform: 'uppercase', marginBottom: 2 },
   vousHorse: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   vousName: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   vousSub: { fontSize: FontSize.xs, color: Colors.primaryDark, fontWeight: FontWeight.semibold, marginTop: 1 },
