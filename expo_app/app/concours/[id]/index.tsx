@@ -10,7 +10,7 @@ import { ConcoursEpreuvesCard } from '../../../components/ConcoursEpreuvesCard';
 import { ConcoursCategoriesCard } from '../../../components/ConcoursCategoriesCard';
 import { ConcoursDiscussionEntry } from '../../../components/ConcoursDiscussionEntry';
 import { PresenceButton } from '../../../components/PresenceButton';
-import { ConcoursKnownAttendeesCard } from '../../../components/ConcoursKnownAttendeesCard';
+import { ConcoursPresenceModule } from '../../../components/ConcoursPresenceModule';
 
 /**
  * LOT 1 — Fiche concours (hub). Compteurs RÉELS masqués si 0 (anti cold-start).
@@ -98,9 +98,10 @@ export default function ConcoursFicheScreen() {
           </>
         )}
 
-        {/* Présence (PR2a, mig 089) — « J'y serai » + hero « X que vous connaissez ». */}
+        {/* Présence (PR2a, mig 089) — « J'y serai » + module Présence (compteurs,
+            Vous, connaissances cheval-forward, « Tous les participants »). */}
         <PresenceButton concoursId={id} />
-        <ConcoursKnownAttendeesCard concoursId={id} />
+        <ConcoursPresenceModule concoursId={id} />
 
         {/* Météo V1 (Open-Meteo) — isolée, ne casse pas la fiche en cas d'échec. */}
         <ConcoursWeatherCard concours={concours} />

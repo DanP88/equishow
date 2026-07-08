@@ -121,6 +121,74 @@ export function useConcoursPresence(concoursId?: string) {
   };
 }
 
+// ── Compteurs de présence (fiche) ───────────────────────────────────────────
+// participants = présents (status='going') ; horses = présents ayant renseigné
+// un cheval. Deux `count head` (pas de rows ramenées) → léger. Filtre concours_id
+// = préfixe de la PK (concours_id, user_id) → indexé. Anti cold-start géré côté UI.
+export function useConcoursPresenceSummary(concoursId?: string) {
+  const [participants, setParticipants] = useState(0);
+  const [horses, setHorses] = useState(0);
+  const [isReady, setIsReady] = useState(false);
+  const [available, setAvailable] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!concoursId) { setIsReady(true); return; }
+    const base = () => supabase
+      .from('concours_presence')
+      .select('*', { count: 'exact', head: true })
+      .eq('concours_id', concoursId)
+      .eq('status', 'going');
+    const [pRes, hRes] = await Promise.all([
+      base(),
+      base().not('cheval_id', 'is', null),
+    ]);
+    if (pRes.error) {
+      if (isMissing(pRes.error)) setAvailable(false);
+      setParticipants(0); setHorses(0);
+    } else {
+      setParticipants(pRes.count ?? 0);
+      setHorses(hRes.error ? 0 : (hRes.count ?? 0));
+    }
+    setIsReady(true);
+  }, [concoursId]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { participants, horses, isReady, available, reload: load };
+}
+
+// ── Tous les participants (écran « Tous les participants ») ──────────────────
+// Lignes brutes (user_id, cheval_id) des présents. La résolution nom cavalier
+// (useUsersByIds) et nom cheval (useChevauxByIds) se fait dans l'écran (hooks
+// top-level). Paresseux : ne requête que si `enabled` (ouverture de l'écran).
+export interface AttendeeRow { user_id: string; cheval_id: string | null }
+
+export function useConcoursAttendees(concoursId?: string, enabled: boolean = true) {
+  const [rows, setRows] = useState<AttendeeRow[]>([]);
+  const [isReady, setIsReady] = useState(false);
+  const [available, setAvailable] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!concoursId || !enabled) { setRows([]); setIsReady(!enabled ? false : true); return; }
+    const { data, error } = await supabase
+      .from('concours_presence')
+      .select('user_id, cheval_id')
+      .eq('concours_id', concoursId)
+      .eq('status', 'going');
+    if (error) {
+      if (isMissing(error)) setAvailable(false);
+      setRows([]);
+    } else {
+      setRows((data ?? []) as AttendeeRow[]);
+    }
+    setIsReady(true);
+  }, [concoursId, enabled]);
+
+  useEffect(() => { load(); }, [load]);
+
+  return { rows, isReady, available, reload: load };
+}
+
 export function useConcoursKnownAttendees(concoursId?: string) {
   const { profile } = useAuth();
   const userId = profile?.id;
