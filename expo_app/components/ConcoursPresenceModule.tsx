@@ -43,8 +43,11 @@ function displayName(a: KnownAttendee): string {
 }
 
 export function ConcoursPresenceModule({ concoursId }: { concoursId: string }) {
-  const { participants, horses, isReady, available, reload } = useConcoursPresenceSummary(concoursId);
-  const { present, chevalId, canDeclare } = useConcoursPresence(concoursId);
+  // countsOk = compteurs fiables. Ils sont un BONUS d'affichage : ils ne
+  // conditionnent JAMAIS le rendu du module (robustesse — cf. incident présence).
+  const { participants, horses, ok: countsOk, reload } = useConcoursPresenceSummary(concoursId);
+  // La disponibilité du module dépend de MA présence (089), pas des compteurs.
+  const { present, chevalId, canDeclare, isReady: presReady, available: presAvailable } = useConcoursPresence(concoursId);
   const { attendees: known } = useConcoursKnownAttendees(concoursId);
   const myCheval = useChevauxByIds([chevalId]);
   const tracked = useRef(false);
@@ -53,17 +56,23 @@ export function ConcoursPresenceModule({ concoursId }: { concoursId: string }) {
   useEffect(() => { reload(); }, [present, chevalId, reload]);
 
   useEffect(() => {
-    if (isReady && available && participants > 0 && !tracked.current) {
+    if (countsOk && participants > 0 && !tracked.current) {
       tracked.current = true;
       trackCta('concours-fiche', 'presence_hero_view', { concours_id: concoursId, count: participants });
     }
-  }, [isReady, available, participants, concoursId]);
+  }, [countsOk, participants, concoursId]);
 
-  // Pas prêt ou données de présence indisponibles (089 absente / non connecté) → masqué.
-  if (!isReady || !available) return null;
+  // Gate = état de MA présence (évite le flash ; 089 absente / non connecté → masqué).
+  // Les compteurs peuvent échouer sans faire disparaître le module.
+  if (!presReady) return null;
+  if (!presAvailable) return null;
 
-  // ── Cold start : personne d'inscrit ─────────────────────────────────────────
-  if (participants === 0) {
+  const shownKnown = known.slice(0, PREVIEW);
+  const myChevalNom = chevalId ? myCheval.get(chevalId) : null;
+
+  // Contenu = je suis présent, OU je connais des présents, OU des compteurs fiables > 0.
+  const hasContent = present || shownKnown.length > 0 || (countsOk && participants > 0);
+  if (!hasContent) {
     if (!canDeclare) return null; // visiteur non éligible → rien
     return (
       <View style={s.card}>
@@ -72,10 +81,9 @@ export function ConcoursPresenceModule({ concoursId }: { concoursId: string }) {
     );
   }
 
-  const shownKnown = known.slice(0, PREVIEW);
-  const myChevalNom = chevalId ? myCheval.get(chevalId) : null;
   const shownCount = (present ? 1 : 0) + shownKnown.length;
-  const showSeeAll = participants > shownCount;
+  // « Voir tous » seulement si les compteurs sont fiables et qu'il reste des gens.
+  const showSeeAll = countsOk && participants > shownCount;
 
   const openProfile = (a: KnownAttendee) => {
     trackCta('concours-fiche', 'presence_avatar_tap', { concours_id: concoursId, target: a.user_id });
@@ -89,12 +97,14 @@ export function ConcoursPresenceModule({ concoursId }: { concoursId: string }) {
 
   return (
     <View style={s.card}>
-      {/* ① Compteurs */}
-      <Text style={s.counters}>
-        👥 <Text style={s.countHi}>{participants}</Text> participant{participants > 1 ? 's' : ''}
-        {'   ·   '}
-        🐴 <Text style={s.countHi}>{horses}</Text> cheval{horses > 1 ? 'aux' : ''}
-      </Text>
+      {/* ① Compteurs — affichés seulement si fiables (jamais bloquants) */}
+      {countsOk && (
+        <Text style={s.counters}>
+          👥 <Text style={s.countHi}>{participants}</Text> participant{participants > 1 ? 's' : ''}
+          {'   ·   '}
+          🐴 <Text style={s.countHi}>{horses}</Text> cheval{horses > 1 ? 'aux' : ''}
+        </Text>
+      )}
 
       {/* ② Vous */}
       {present && (
