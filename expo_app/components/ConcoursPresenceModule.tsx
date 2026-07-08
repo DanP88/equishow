@@ -114,7 +114,7 @@ export function ConcoursPresenceModule({ concoursId }: { concoursId: string }) {
             {myChevalNom
               ? <Text style={s.vousHorse} numberOfLines={1}>{myChevalNom}</Text>
               : <Text style={s.vousName}>Vous y serez</Text>}
-            <Text style={s.vousSub}>{myChevalNom ? 'Vous' : 'cheval non précisé'}</Text>
+            <Text style={s.vousSub}>{myChevalNom ? 'Votre cheval' : 'cheval non précisé'}</Text>
           </View>
           <Text style={s.vousPin}>VOUS</Text>
         </View>
