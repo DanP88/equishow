@@ -170,31 +170,43 @@ export function useConcoursPresenceSummary(concoursId?: string) {
   const [horses, setHorses] = useState(0);
   const [isReady, setIsReady] = useState(false);
   const [available, setAvailable] = useState(true);
+  // ok = le comptage a RÉUSSI (≠ isReady qui signale seulement « chargement terminé »).
+  // Sert au module à n'afficher les compteurs que s'ils sont fiables, sans jamais
+  // masquer tout le module en cas d'échec des compteurs.
+  const [ok, setOk] = useState(false);
 
   const load = useCallback(async () => {
     if (!concoursId) { setIsReady(true); return; }
-    const base = () => supabase
-      .from('concours_presence')
-      .select('*', { count: 'exact', head: true })
-      .eq('concours_id', concoursId)
-      .eq('status', 'going');
-    const [pRes, hRes] = await Promise.all([
-      base(),
-      base().not('cheval_id', 'is', null),
-    ]);
-    if (pRes.error) {
-      if (isMissing(pRes.error)) setAvailable(false);
-      setParticipants(0); setHorses(0);
-    } else {
-      setParticipants(pRes.count ?? 0);
-      setHorses(hRes.error ? 0 : (hRes.count ?? 0));
+    setAvailable(true); // reset : évite un état sticky d'un chargement précédent
+    try {
+      // Select normal (GET) plutôt que head:true (requête HEAD fragile sur Web) :
+      // on compte côté client. Payload = paires d'UUID → léger même sur gros concours.
+      const { data, error } = await supabase
+        .from('concours_presence')
+        .select('user_id, cheval_id')
+        .eq('concours_id', concoursId)
+        .eq('status', 'going');
+      if (error) {
+        if (isMissing(error)) setAvailable(false);
+        setParticipants(0); setHorses(0); setOk(false);
+      } else {
+        const rows = (data ?? []) as { user_id: string; cheval_id: string | null }[];
+        setParticipants(rows.length);
+        setHorses(rows.filter((r) => r.cheval_id != null).length);
+        setOk(true);
+      }
+    } catch (_e) {
+      // Échec réseau/inattendu : NE PAS masquer le module (available reste vrai) ;
+      // on marque simplement les compteurs comme non fiables (ok=false).
+      setParticipants(0); setHorses(0); setOk(false);
+    } finally {
+      setIsReady(true); // garanti sur TOUS les chemins → le module ne reste jamais bloqué
     }
-    setIsReady(true);
   }, [concoursId]);
 
   useEffect(() => { load(); }, [load]);
 
-  return { participants, horses, isReady, available, reload: load };
+  return { participants, horses, isReady, available, ok, reload: load };
 }
 
 // ── Tous les participants (écran « Tous les participants ») ──────────────────
