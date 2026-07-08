@@ -39,6 +39,30 @@ export interface KnownAttendee {
   status: string | null;
 }
 
+// ── Bus in-process : source de vérité partagée de MA présence par concours ───
+// Synchronise instantanément TOUTES les instances de useConcoursPresence d'un même
+// concours (ex. PresenceButton + ConcoursPresenceModule) sans remount ni refetch :
+// chaque mutation (declare/remove) diffuse un instantané {present, chevalId} à tous
+// les abonnés. Le module recharge alors ses compteurs via son effet existant.
+type PresenceSnapshot = { present: boolean; chevalId: string | null };
+const presenceListeners = new Map<string, Set<(s: PresenceSnapshot) => void>>();
+
+function subscribePresence(concoursId: string, fn: (s: PresenceSnapshot) => void): () => void {
+  let set = presenceListeners.get(concoursId);
+  if (!set) { set = new Set(); presenceListeners.set(concoursId, set); }
+  set.add(fn);
+  return () => {
+    const s = presenceListeners.get(concoursId);
+    if (!s) return;
+    s.delete(fn);
+    if (s.size === 0) presenceListeners.delete(concoursId);
+  };
+}
+
+function publishPresence(concoursId: string, snap: PresenceSnapshot) {
+  presenceListeners.get(concoursId)?.forEach((fn) => fn(snap));
+}
+
 export function useConcoursPresence(concoursId?: string) {
   const { profile } = useAuth();
   const userId = profile?.id;
@@ -57,18 +81,32 @@ export function useConcoursPresence(concoursId?: string) {
       .eq('concours_id', concoursId)
       .eq('user_id', userId)
       .maybeSingle();
+    let p = false;
+    let c: string | null = null;
     if (error) {
       if (isMissing(error)) setAvailable(false);
-      setPresent(false);
-      setChevalId(null);
     } else {
-      setPresent(!!data);
-      setChevalId(data?.cheval_id ?? null);
+      p = !!data;
+      c = data?.cheval_id ?? null;
     }
+    setPresent(p);
+    setChevalId(c);
     setIsReady(true);
+    // Diffuse l'état authoritatif (resync des autres instances après une erreur).
+    publishPresence(concoursId, { present: p, chevalId: c });
   }, [concoursId, userId]);
 
   useEffect(() => { load(); }, [load]);
+
+  // Sync inter-instances : réagit aux mutations émises par une AUTRE instance du
+  // même concours (le bouton met à jour le module, et inversement) sans refetch.
+  useEffect(() => {
+    if (!concoursId) return;
+    return subscribePresence(concoursId, (snap) => {
+      setPresent(snap.present);
+      setChevalId(snap.chevalId);
+    });
+  }, [concoursId]);
 
   // Déclare (ou met à jour le cheval de) ma présence. Upsert own.
   const declare = useCallback(async (cheval: string | null = null) => {
@@ -76,6 +114,7 @@ export function useConcoursPresence(concoursId?: string) {
     setBusy(true);
     setPresent(true);             // optimiste
     setChevalId(cheval);
+    publishPresence(concoursId, { present: true, chevalId: cheval });
     const { error } = await supabase
       .from('concours_presence')
       .upsert(
@@ -94,6 +133,7 @@ export function useConcoursPresence(concoursId?: string) {
     setBusy(true);
     setPresent(false);            // optimiste
     setChevalId(null);
+    publishPresence(concoursId, { present: false, chevalId: null });
     const { error } = await supabase
       .from('concours_presence')
       .delete()
