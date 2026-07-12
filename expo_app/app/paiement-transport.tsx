@@ -9,7 +9,7 @@ import { getAuthToken } from '../utils/supabaseAuth';
 import { trackFunnel } from '../lib/analytics';
 
 export default function PaiementTransportScreen() {
-  const { reservationId, titre, montant, nbPlaces, villeDepart, villeArrivee, reference } =
+  const { reservationId, titre, montant, nbPlaces, villeDepart, villeArrivee, reference, chevalNom } =
     useLocalSearchParams<{
       reservationId: string;
       titre: string;
@@ -18,6 +18,7 @@ export default function PaiementTransportScreen() {
       villeDepart: string;
       villeArrivee: string;
       reference?: string;
+      chevalNom?: string;
     }>();
 
   const [loading, setLoading] = useState(false);
@@ -90,6 +91,11 @@ export default function PaiementTransportScreen() {
             <Text style={s.orderMeta}>{nbPlaces} place{Number(nbPlaces) > 1 ? 's' : ''}</Text>
             <Text style={s.orderAmount}>{montant}€</Text>
           </View>
+          {chevalNom ? (
+            <View style={s.orderRow}>
+              <Text style={s.orderMeta}>🐴 {chevalNom}</Text>
+            </View>
+          ) : null}
           {reference ? (
             <View style={s.refRow}>
               <Text style={s.refLabel}>Référence</Text>

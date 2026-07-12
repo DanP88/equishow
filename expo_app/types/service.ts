@@ -223,6 +223,8 @@ export interface StageReservation {
   message: string;
   statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
   dateReservation: Date;
+  // Cheval concerné (078) — null si non renseigné ou cheval supprimé (FK SET NULL).
+  chevalId?: string | null;
 }
 
 export interface CourseDemande {
@@ -305,6 +307,8 @@ export interface TransportReservation {
   routeProvider?: string;
   routeSnapshotJson?: unknown;
   routePricingStatus?: 'pending' | 'calculated' | 'skipped';
+  // Cheval concerné (078) — null si non renseigné ou cheval supprimé (FK SET NULL).
+  chevalId?: string | null;
 }
 
 export interface BoxReservation {
@@ -323,4 +327,6 @@ export interface BoxReservation {
   prixTotalTTC: number;
   statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
   dateCreation: Date;
+  // Cheval concerné (078) — null si non renseigné ou cheval supprimé (FK SET NULL).
+  chevalId?: string | null;
 }

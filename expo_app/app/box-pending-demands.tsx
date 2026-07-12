@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { useAuth } from '../hooks/useAuth';
 import { useMyBoxReservations } from '../hooks/useBoxes';
 import { useUsersByIds } from '../hooks/useUsersByIds';
+import { useChevauxByIds } from '../hooks/useChevauxByIds';
 import { createNotification } from '../hooks/useNotifications';
 import { sendReservationEmail } from '../utils/sendReservationEmail';
 import { BoxReservation } from '../types/service';
@@ -23,6 +24,7 @@ export default function BoxPendingDemandsScreen() {
     (r) => r.sellerId === profile?.id && r.statut === 'pending',
   );
   const buyersById = useUsersByIds(demands.map((d) => d.buyerId));
+  const chevauxById = useChevauxByIds(demands.map((d) => d.chevalId));
 
   const handleAccept = async (demand: BoxReservation) => {
     const { error } = await updateStatut(demand.id, 'accepted');
@@ -124,6 +126,13 @@ export default function BoxPendingDemandsScreen() {
                   })()}
                 </Text>
               </View>
+
+              {demand.chevalId && chevauxById.get(demand.chevalId) && (
+                <View style={s.detailsRow}>
+                  <Text style={s.label}>🐴 Cheval:</Text>
+                  <Text style={s.value}>{chevauxById.get(demand.chevalId)}</Text>
+                </View>
+              )}
 
               {demand.message && (
                 <View style={s.detailsRow}>

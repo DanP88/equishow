@@ -11,6 +11,7 @@ import { useCoursePayment } from '../hooks/useCoursePayment';
 import { useMyStageReservations } from '../hooks/useStages';
 import { StageReservation } from '../types/service';
 import { useStagePayment } from '../hooks/useStagePayment';
+import { useChevauxByIds } from '../hooks/useChevauxByIds';
 
 export default function PendingPaymentsScreen() {
   const { demands } = useMyCourseDemands();
@@ -38,6 +39,7 @@ export default function PendingPaymentsScreen() {
     r => r.cavalierUserId === userStore.id && (r.statut === 'accepted' || r.statut === 'awaiting_payment')
   );
   const totalToPay = validatedDemands.length + validatedStages.length;
+  const chevauxById = useChevauxByIds(validatedStages.map((r) => r.chevalId));
 
   const handlePayCourse = async (demand: typeof validatedDemands[number]) => {
     if (payingId) return;
@@ -130,6 +132,13 @@ export default function PendingPaymentsScreen() {
                 <Text style={s.label}>👥 Places:</Text>
                 <Text style={s.value}>{reservation.nombreParticipants} participant{reservation.nombreParticipants > 1 ? 's' : ''}</Text>
               </View>
+
+              {reservation.chevalId && chevauxById.get(reservation.chevalId) && (
+                <View style={s.detailsRow}>
+                  <Text style={s.label}>🐴 Cheval:</Text>
+                  <Text style={s.value}>{chevauxById.get(reservation.chevalId)}</Text>
+                </View>
+              )}
 
               <View style={s.statusBadge}>
                 <Text style={s.statusText}>

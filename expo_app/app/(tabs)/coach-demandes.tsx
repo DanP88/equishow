@@ -8,6 +8,7 @@ import { createNotification } from '../../hooks/useNotifications';
 import { sendReservationEmail } from '../../utils/sendReservationEmail';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
+import { useChevauxByIds } from '../../hooks/useChevauxByIds';
 import { useCoachAccess } from '../../hooks/useCoachAccess';
 
 // Supprime la notif « 🎓 Nouvelle demande … » (pending) du coach une fois la
@@ -36,6 +37,7 @@ async function clearPendingRequestNotif(
 export default function CoachDemandesScreen() {
   const { demands: courseDemandes, updateStatus: updateCourseStatus } = useMyCourseDemands();
   const { reservations: stageReservations, updateStatus: updateStageStatus } = useMyStageReservations();
+  const chevauxById = useChevauxByIds(stageReservations.map((r) => r.chevalId));
 
   // Essai gratuit Coach : après 3 séances payées sans offre Pro → blocage DOUX.
   // Même garde que coach-pending-demands.tsx : l'onglet « 📬 Demandes » pointe
@@ -332,6 +334,16 @@ export default function CoachDemandesScreen() {
                       <Text style={s.detailValue}>{r.nombreParticipants}</Text>
                     </View>
                   </View>
+
+                  {r.chevalId && chevauxById.get(r.chevalId) && (
+                    <View style={s.detailItem}>
+                      <Text style={s.detailIcon}>🐴</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.detailLabel}>CHEVAL</Text>
+                        <Text style={s.detailValue}>{chevauxById.get(r.chevalId)}</Text>
+                      </View>
+                    </View>
+                  )}
 
                   <View style={s.detailItem}>
                     <Text style={s.detailIcon}>💳</Text>
