@@ -8,6 +8,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 import { concoursCsvStore } from '../../data/store';
 import { supabase } from '../../lib/supabase';
 import { parseCSV } from '../../lib/csv';
+import { decodeImportedText } from '../../lib/encoding';
 import { parseEpreuves } from '../../lib/epreuves';
 import { parseCategories } from '../../lib/categories';
 import { ConcoursCSV, ImportBatch, ImportError } from '../../types/concours';
@@ -339,7 +340,10 @@ export default function ImportConcoursScreen() {
 
       const reader = new FileReader();
       reader.onload = (e) => {
-        const text = e.target?.result as string;
+        // Lecture à l'OCTET puis décodage robuste (UTF-8 / Windows-1252 / double-encodage)
+        // pour éviter le mojibake « PrÃ©paratoire/AnnulÃ© » sur les exports FFE/Excel.
+        const buffer = e.target?.result as ArrayBuffer;
+        const text = decodeImportedText(buffer);
         const { headers: hdrs, rows } = parseCSV(text);
         setHeaders(hdrs);
 
@@ -355,7 +359,7 @@ export default function ImportConcoursScreen() {
         alert('Erreur lors de la lecture du fichier.');
       };
 
-      reader.readAsText(file, 'UTF-8');
+      reader.readAsArrayBuffer(file);
     };
 
     input.click();
