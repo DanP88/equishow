@@ -1,7 +1,7 @@
 # CLAUDE.md — Equishow
 
 > **Source de vérité du projet.** Résumé stratégique. Les détails volumineux sont dans `docs/` (liens en bas de chaque section).
-> MAJ : 2026-07-12 · repo `main` @ `62856c3` · migrations fichiers → **094** (…091/092/093/094 appliquées prod ; 085 cleanup cavalier non appliquée).
+> MAJ : 2026-07-13 · repo `main` @ `4571b4c` · migrations fichiers → **095** (…092/093/094/095 appliquées prod ; 085 cleanup cavalier non appliquée). **0 PR ouverte.**
 > Légende : ✅ observé · 🟡 partiel · 🔴 bloquant · _(déduit)_ à confirmer.
 
 ## Session startup
@@ -17,18 +17,18 @@ Marché : 350–400k compétiteurs FR / 1,3M Europe. Marketplace à commission (
 
 # Current Status
 
-🟢 **code prêt** / 🔴 **infra commerciale non prête**. `main` = `origin/main` @ `62856c3`. PR ouvertes : **#74** (PR2-B creer-concours→insert, CI verte) · **#62** (fix encodage import) — non mergées.
+🟢 **code prêt** / 🔴 **infra commerciale non prête**. `main` = `origin/main` @ `4571b4c`, **0 PR ouverte**.
 
 - ✅ 4 modules marketplace + escrow (box/transport/coach/stage), anti-surbooking, capacité créneau coach.
 - ✅ Stripe Connect + séquestre + crons release/expiration ; litiges + remboursements + alerting.
 - ✅ Notifs in-app + push serveur ; emails Resend ; messagerie ; communauté ; avis ; badges.
-- ✅ Concours : import CSV FFE (297 prod), fiche/météo/épreuves, followers, discussions (tags+réponses+mentions), claim org + Radar.
+- ✅ Concours : import CSV FFE (297 prod), fiche/météo/épreuves, followers, discussions (tags+réponses+mentions), claim org + Radar. **Création persistée en base** (PR #74/PR2-B, `main bce1a95`) : l'organisateur crée un concours réel dans `public.concours` en **`statut='brouillon'`** (`organisateur_id=auth.uid()`, RLS `concours_insert_organisateur` : rôle organisateur requis) ; seuls les concours **`publie`** apparaissent dans les listes publiques, **filtre appliqué côté application** (`useConcoursList().eq('statut','publie')`). **Import robuste à l'encodage** (PR #62, `main 4571b4c`) : gère UTF-8, Windows-1252 et le double-encodage (`lib/encoding.ts`, lecture à l'octet).
 - ✅ Dashboards admin : analytics, litiges, commissions, réclamations (EQ-REC), notifications.
 - ✅ Coach Freemium (PR #64, `789e4d4`) : Pro gratuit jusqu'aux **3 premières séances payées** + anti-abus identité Stripe Connect ; migs **086/087 appliquées prod** ; RPC `fn_my_coach_trial_status` (compteur serveur-authoritative) ; paywall doux sur `coach-demandes`.
 - ✅ Social / Hub Concours PR1 (PR #65, `422fd50`, **mig 088 appliquée prod**) : graphe **`user_follows`** (suivi **asymétrique Instagram-like**, sans demande/acceptation) + RPC `fn_people_i_know` (« personnes que je connais »). Bouton **Suivre persistant** (profils coach + cavaliers via Communauté/Services câblés sur de vrais `users.id`). **Aucun payments/escrow/Stripe/webhook touché.** Fondation des lots suivants (présence concours, hero « X que vous connaissez »).
 - ✅ Discussions concours LOT2 (PR #71, `main e4a99e7`, **mig 091 appliquée prod**) : ✅ **fil participants** · ✅ **mentions @user** · ✅ **notifications de mention** (`concours_mention`) · ✅ **migration 091 appliquée** · ✅ **en production**. Trigger `fn_notify_concours_mention` (dédup, best-effort) ; jeton typé `@[](user|concours:UUID)` (rétro-compat @concours). CI verte, harness 12/12, recette prod PASS, 0 régression LOT1. Aucun payments/escrow/Stripe/webhook touché.
-- ✅ Sécurité — escalade de privilège fermée sur les 2 systèmes de rôles (2026-07-12) : **mig 093 (PR #82, prod)** garde anti auto-promotion `users.role` (trigger `trg_users_guard_role` SECURITY INVOKER : neutralise `update users set role='admin'` par un authentifié non-admin ; `change_user_role`/service_role/admin intacts) ; **mig 094 (PR #83, prod)** verrou anti-escalade legacy `profiles.role_id` (permissions de colonnes : `role_id`/`id` retirés des grants `authenticated` + `WITH CHECK (id=auth.uid())` sur `profiles_update_own` + `search_path` épinglé sur `is_admin()`). Harness 9/9 + 8/8, recettes prod transactionnelles PASS. **Aucun payments/escrow/Stripe/webhook touché par 093 ni 094.**
-- 🟡 Push mobile EAS en pause (0 projet) ; concours dual-source (7 écrans mock) ; location van fermée.
+- ✅ Sécurité — escalade de privilège fermée + autorisations admin unifiées (2026-07-12/13) : **mig 093 (PR #82, prod)** garde anti auto-promotion `users.role` (trigger `trg_users_guard_role` SECURITY INVOKER : neutralise `update users set role='admin'` par un authentifié non-admin ; `change_user_role`/service_role/admin intacts) ; **mig 094 (PR #83, prod)** verrou anti-escalade legacy `profiles.role_id` (permissions de colonnes : `role_id`/`id` retirés des grants `authenticated` + `WITH CHECK (id=auth.uid())` sur `profiles_update_own` + `search_path` épinglé sur `is_admin()`) ; **mig 095 (PR #85, prod)** autorisations admin désormais basées sur `users.role` via **`is_app_admin()`** (rebase de 8 policies legacy `is_admin()`→`is_app_admin()`, drop de 2 policies legacy `profiles`/`roles` — moindre privilège). Harness 9/9 + 8/8 + 10/10, recettes prod transactionnelles PASS. **Dette : mig 096 (drop `is_admin()`) et 097 (drop `profiles`/`roles`) non commencées.** **Aucun payments/escrow/Stripe/webhook touché par 093/094/095.**
+- 🟡 Push mobile EAS en pause (0 projet) ; location van fermée. _(Concours mock→DB : `creer-concours` désormais persisté (PR #74) ; reste PR2-C = édition + publication `brouillon→publie` + affichage des brouillons dans `org-concours`.)_
 - 🔴 Bloquants lancement : Stripe `sk_live` non confirmé · domaine Resend non vérifié · onboarding vendeur live.
 
 # Stack
@@ -63,7 +63,7 @@ Rôle dans `users.role` ; bascule via RPC `change_user_role`. Différences clés
 
 | Module | Objectif | Statut | Points sensibles |
 |---|---|---|---|
-| Concours | Hub découverte contextuel | ✅ | dual-source (7 écrans mock→DB) ; `isMissingTable` doit couvrir PGRST205 → `docs/concours.md` ; **catégories FFE = table enfant `concours_categories` (084, 1 ligne=1 catégorie, FK `concours(id)` CASCADE)** affichée sur la fiche |
+| Concours | Hub découverte contextuel | ✅ | **création persistée en DB** (`creer-concours`→INSERT réel, `statut='brouillon'`, filtre public `statut='publie'` côté app) ; import robuste à l'encodage (UTF-8/Windows-1252/double-encodage, `lib/encoding.ts`) ; reste PR2-C (édition/publication) ; `isMissingTable` doit couvrir PGRST205 → `docs/concours.md` ; **catégories FFE = table enfant `concours_categories` (084, 1 ligne=1 catégorie, FK `concours(id)` CASCADE)** affichée sur la fiche |
 | Box | Hébergement cheval | ✅ escrow | dispo par chevauchement dates |
 | Transport | Trajets partagés (+ van fermé) | ✅ escrow | colonne `statut` (FR) ≠ `status` ; van hors compteur places |
 | Coach | Cours ponctuel | ✅ escrow | capacité créneau (mig 057, advisory lock) ; **Freemium : Pro gratuit jusqu'à 3 séances payées (`type=course`+`released`+`succeeded`) ; anti-abus doublon Stripe Connect ; migs 086/087 prod ; paywall doux `coach-demandes`** |
@@ -119,9 +119,9 @@ Détail complet : `docs/incidents.md`.
 # Technical Debt
 
 - **P0** — Stripe `sk_live` à confirmer · domaine Resend `equishow.app` non vérifié (~50 % emails échouent) · onboarding vendeur live.
-- **P1** — brancher 7 écrans concours mock→DB. _(Discussions LOT2 fil participants + @user + notif mention = ✅ prod mig 091 ; reste seulement le push de mention, replié dans P3 EAS pause.)_
+- **P1** — concours mock→DB : `creer-concours` (PR #74) + `coach-concours` (PR #72) migrés ; **reste PR2-C** (édition + publication `brouillon→publie` + affichage des brouillons dans `org-concours`). _(Discussions LOT2 fil participants + @user + notif mention = ✅ prod mig 091 ; reste seulement le push de mention, replié dans P3 EAS pause.)_
 - **P2** — 18 erreurs TS (surtout `reserver-transport.tsx`) · KPI notifications/rétention · location van (dates/cautions R4/CR6).
-- **P3** — push mobile EAS · 23 fichiers parasites untracked · ~30 branches locales mortes · **simplification système de rôles** : retirer le legacy `profiles.role_id`/`roles`/`is_admin()` au profit de `users.role` unique (audit dans `docs/security.md`).
+- **P3** — push mobile EAS · 23 fichiers parasites untracked · ~30 branches locales mortes · **simplification système de rôles (095 fait ; reste 096/097 non commencées)** : `mig 096` = drop `is_admin()`, `mig 097` = drop tables legacy `profiles`/`roles` — retrait final du legacy au profit de `users.role`/`is_app_admin()` (audit + plan dans `docs/security.md`).
 
 # Claude Code Guidance
 
