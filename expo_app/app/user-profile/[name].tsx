@@ -5,8 +5,8 @@ import {
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../../constants/theme';
-import { userStore } from '../../data/store';
 import { useFollow } from '../../hooks/useFollow';
+import { useUsersByIds } from '../../hooks/useUsersByIds';
 
 interface UserProfile {
   name: string;
@@ -40,6 +40,21 @@ const NAME_TO_ID: Record<string, string> = {
 
 function nameToId(name: string): string {
   return NAME_TO_ID[name] ?? `uid_${name.replace(/\s+/g, '_').toLowerCase()}`;
+}
+
+// Le paramètre de route peut désormais être un VRAI users.id (UUID) — passé par
+// la Communauté / les Services depuis auteurId. Dans ce cas on résout le profil
+// réel (users_public) et le follow est persistant. Sinon : chemin mock legacy.
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function roleLabel(role: string): string {
+  switch (role) {
+    case 'coach': return 'Coach';
+    case 'organisateur': return 'Organisateur';
+    case 'admin': return 'Admin';
+    default: return 'Cavalier';
+  }
 }
 
 const USERNAME_MAP: Record<string, string> = {
@@ -275,22 +290,74 @@ function generateUserProfile(username: string): UserProfile {
 
 export default function UserProfileScreen() {
   const { name } = useLocalSearchParams<{ name: string }>();
-  let decodedName = '';
+  let decodedParam = '';
 
   try {
-    decodedName = name ? decodeURIComponent(name) : '';
+    decodedParam = name ? decodeURIComponent(name) : '';
   } catch (error) {
     console.error('Invalid URL parameter:', error);
   }
 
-  const userProfile = USERS_MAP[decodedName] || (decodedName ? generateUserProfile(decodedName) : null);
+  const isUuid = UUID_RE.test(decodedParam);
+
+  // Chemin RÉEL : le paramètre est un users.id → on résout le vrai profil.
+  const realUsers = useUsersByIds(isUuid ? [decodedParam] : []);
+  const realUser = isUuid ? realUsers.get(decodedParam) : undefined;
+
+  // Chemin MOCK legacy : le paramètre est un nom/pseudo.
+  const mockProfile = !isUuid && decodedParam
+    ? (USERS_MAP[decodedParam] || generateUserProfile(decodedParam))
+    : null;
+
   const [liked, setLiked] = useState<Record<string, boolean>>({});
 
-  const targetId = nameToId(decodedName);
-  const isOwnProfile = targetId === userStore.id;
-  const { following, toggle, followersCount, followingCount } = useFollow(targetId);
+  // targetId du follow : vrai users.id si UUID, sinon ID mock.
+  const targetId = isUuid ? decodedParam : nameToId(decodedParam);
+  const { following, toggle, followersCount, followingCount, isSelf } = useFollow(targetId);
 
-  if (!userProfile) {
+  // Vue d'affichage unifiée (mock ou réel).
+  const display = isUuid
+    ? (realUser
+        ? {
+            name: realUser.pseudo?.trim() || `${realUser.prenom} ${realUser.nom}`.trim() || 'Utilisateur',
+            initiales: realUser.initiales
+              || ((realUser.prenom?.[0] ?? '') + (realUser.nom?.[0] ?? '')).toUpperCase()
+              || 'U',
+            couleur: realUser.avatar_color || '#7C3AED',
+            role: roleLabel(realUser.role),
+            location: 'France',
+          }
+        : null)
+    : (mockProfile
+        ? {
+            name: mockProfile.name,
+            initiales: mockProfile.initiales,
+            couleur: mockProfile.couleur,
+            role: mockProfile.role,
+            location: mockProfile.location,
+          }
+        : null);
+
+  // chevaux/concours/posts ne sont fiables que sur le chemin mock.
+  const extras = !isUuid ? mockProfile : null;
+
+  // Chargement du vrai profil en cours.
+  if (isUuid && !realUser) {
+    return (
+      <SafeAreaView style={styles.root}>
+        <View style={styles.header}>
+          <TouchableOpacity onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
+            <Text style={styles.backButton}>← Retour</Text>
+          </TouchableOpacity>
+        </View>
+        <View style={styles.notFound}>
+          <Text style={styles.notFoundText}>Chargement…</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
+  if (!display) {
     return (
       <SafeAreaView style={styles.root}>
         <View style={styles.header}>
@@ -317,18 +384,18 @@ export default function UserProfileScreen() {
 
         {/* Hero Section */}
         <View style={styles.heroSection}>
-          <View style={[styles.avatar, { backgroundColor: userProfile.couleur }]}>
-            <Text style={styles.avatarText}>{userProfile.initiales}</Text>
+          <View style={[styles.avatar, { backgroundColor: display.couleur }]}>
+            <Text style={styles.avatarText}>{display.initiales}</Text>
           </View>
-          <Text style={styles.name}>{userProfile.name}</Text>
-          <Text style={styles.role}>{userProfile.role}</Text>
-          <Text style={styles.location}>📍 {userProfile.location}</Text>
+          <Text style={styles.name}>{display.name}</Text>
+          <Text style={styles.role}>{display.role}</Text>
+          <Text style={styles.location}>📍 {display.location}</Text>
 
-          {/* Follow button */}
-          {!isOwnProfile && (
+          {/* Follow button (masqué sur mon propre profil) */}
+          {!isSelf && (
             <TouchableOpacity
               style={[styles.followBtn, following && styles.followBtnActive]}
-              onPress={toggle}
+              onPress={() => void toggle()}
               activeOpacity={0.8}
             >
               <Text style={[styles.followBtnText, following && styles.followBtnTextActive]}>
@@ -348,42 +415,50 @@ export default function UserProfileScreen() {
               <Text style={styles.statNum}>{followingCount}</Text>
               <Text style={styles.statLabel}>Abonnements</Text>
             </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNum}>{userProfile.chevaux}</Text>
-              <Text style={styles.statLabel}>Chevaux</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statNum}>{userProfile.concours}</Text>
-              <Text style={styles.statLabel}>Concours</Text>
-            </View>
+            {extras && (
+              <>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={styles.statNum}>{extras.chevaux}</Text>
+                  <Text style={styles.statLabel}>Chevaux</Text>
+                </View>
+                <View style={styles.statDivider} />
+                <View style={styles.statItem}>
+                  <Text style={styles.statNum}>{extras.concours}</Text>
+                  <Text style={styles.statLabel}>Concours</Text>
+                </View>
+              </>
+            )}
           </View>
         </View>
 
-        {/* Posts */}
-        <Text style={styles.postsTitle}>Posts</Text>
-        {userProfile.posts.map((post) => (
-          <View key={post.id} style={styles.card}>
-            <Text style={styles.contenu}>{post.contenu}</Text>
-            <Text style={styles.date}>{timeAgo(post.date)}</Text>
-            <View style={styles.actions}>
-              <TouchableOpacity
-                style={styles.actionBtn}
-                onPress={() => setLiked({ ...liked, [post.id]: !liked[post.id] })}
-              >
-                <Text style={styles.actionIcon}>{liked[post.id] ? '❤️' : '🤍'}</Text>
-                <Text style={[styles.actionText, liked[post.id] && { color: Colors.urgent }]}>
-                  {post.likes + (liked[post.id] ? 1 : 0)}
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionBtn}>
-                <Text style={styles.actionIcon}>💬</Text>
-                <Text style={styles.actionText}>0</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        ))}
+        {/* Posts (mock legacy uniquement) */}
+        {extras && (
+          <>
+            <Text style={styles.postsTitle}>Posts</Text>
+            {extras.posts.map((post) => (
+              <View key={post.id} style={styles.card}>
+                <Text style={styles.contenu}>{post.contenu}</Text>
+                <Text style={styles.date}>{timeAgo(post.date)}</Text>
+                <View style={styles.actions}>
+                  <TouchableOpacity
+                    style={styles.actionBtn}
+                    onPress={() => setLiked({ ...liked, [post.id]: !liked[post.id] })}
+                  >
+                    <Text style={styles.actionIcon}>{liked[post.id] ? '❤️' : '🤍'}</Text>
+                    <Text style={[styles.actionText, liked[post.id] && { color: Colors.urgent }]}>
+                      {post.likes + (liked[post.id] ? 1 : 0)}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.actionBtn}>
+                    <Text style={styles.actionIcon}>💬</Text>
+                    <Text style={styles.actionText}>0</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ))}
+          </>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>

@@ -1,5 +1,6 @@
-import { useCallback } from 'react';
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert } from 'react-native';
+import { useCallback, useState } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, Alert, Modal } from 'react-native';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { userStore, supabase } from '../../data/store';
@@ -7,6 +8,8 @@ import { createNotification } from '../../hooks/useNotifications';
 import { sendReservationEmail } from '../../utils/sendReservationEmail';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
+import { useChevauxByIds } from '../../hooks/useChevauxByIds';
+import { useCoachAccess } from '../../hooks/useCoachAccess';
 
 // Supprime la notif « 🎓 Nouvelle demande … » (pending) du coach une fois la
 // demande traitée (acceptée/refusée) — sinon elle reste affichée « En attente ».
@@ -34,12 +37,31 @@ async function clearPendingRequestNotif(
 export default function CoachDemandesScreen() {
   const { demands: courseDemandes, updateStatus: updateCourseStatus } = useMyCourseDemands();
   const { reservations: stageReservations, updateStatus: updateStageStatus } = useMyStageReservations();
+  const chevauxById = useChevauxByIds(stageReservations.map((r) => r.chevalId));
+
+  // Essai gratuit Coach : après 3 séances payées sans offre Pro → blocage DOUX.
+  // Même garde que coach-pending-demands.tsx : l'onglet « 📬 Demandes » pointe
+  // ici, c'est donc LE point d'acceptation réel à protéger.
+  const coachAccess = useCoachAccess();
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
+  // Renvoie true si l'acceptation est autorisée ; sinon ouvre la modale de blocage
+  // doux et renvoie false. Fail-open : si le statut n'est pas chargé / en erreur,
+  // on laisse passer (jamais de faux blocage).
+  const guardAccept = useCallback((): boolean => {
+    if (!coachAccess.loading && !coachAccess.error && !coachAccess.canAcceptNew) {
+      setShowUpgrade(true);
+      return false;
+    }
+    return true;
+  }, [coachAccess.loading, coachAccess.error, coachAccess.canAcceptNew]);
 
   // Filtrer les demandes EN ATTENTE pour le coach actuel
   const myCourseDemandes = courseDemandes.filter(d => d.coachId === userStore.id && d.statut === 'pending');
   const myStageReservations = stageReservations.filter(r => r.coachId === userStore.id && r.statut === 'pending');
 
   const handleAcceptCourse = useCallback(async (demandeId: string) => {
+    if (!guardAccept()) return;
     const demande = courseDemandes.find(d => d.id === demandeId);
     if (!demande) return;
     const { error } = await updateCourseStatus(demandeId, 'accepted');
@@ -71,7 +93,7 @@ export default function CoachDemandesScreen() {
         console.warn('accept course post-tasks failed (non bloquant):', e);
       }
     })();
-  }, [courseDemandes, updateCourseStatus]);
+  }, [courseDemandes, updateCourseStatus, guardAccept]);
 
   const handleRejectCourse = useCallback(async (demandeId: string) => {
     const demande = courseDemandes.find(d => d.id === demandeId);
@@ -94,6 +116,7 @@ export default function CoachDemandesScreen() {
   }, [courseDemandes, updateCourseStatus]);
 
   const handleAcceptStage = useCallback(async (reservationId: string) => {
+    if (!guardAccept()) return;
     const reservation = stageReservations.find(r => r.id === reservationId);
     if (!reservation) return;
     const { error } = await updateStageStatus(reservationId, 'accepted');
@@ -125,7 +148,7 @@ export default function CoachDemandesScreen() {
         console.warn('accept stage post-tasks failed (non bloquant):', e);
       }
     })();
-  }, [stageReservations, updateStageStatus]);
+  }, [stageReservations, updateStageStatus, guardAccept]);
 
   const handleRejectStage = useCallback(async (reservationId: string) => {
     const reservation = stageReservations.find(r => r.id === reservationId);
@@ -312,6 +335,16 @@ export default function CoachDemandesScreen() {
                     </View>
                   </View>
 
+                  {r.chevalId && chevauxById.get(r.chevalId) && (
+                    <View style={s.detailItem}>
+                      <Text style={s.detailIcon}>🐴</Text>
+                      <View style={{ flex: 1 }}>
+                        <Text style={s.detailLabel}>CHEVAL</Text>
+                        <Text style={s.detailValue}>{chevauxById.get(r.chevalId)}</Text>
+                      </View>
+                    </View>
+                  )}
+
                   <View style={s.detailItem}>
                     <Text style={s.detailIcon}>💳</Text>
                     <View style={{ flex: 1 }}>
@@ -362,11 +395,50 @@ export default function CoachDemandesScreen() {
           </>
         )}
       </ScrollView>
+
+      {/* Blocage doux — message positif après les 3 séances payées (essai terminé).
+          Réplique exacte de coach-pending-demands.tsx (même wording, même UX). */}
+      <Modal visible={showUpgrade} transparent animationType="fade" onRequestClose={() => setShowUpgrade(false)}>
+        <View style={s.upgradeOverlay}>
+          <View style={s.upgradeCard}>
+            <Text style={s.upgradeEmoji}>{coachAccess.trialBlockedDuplicate ? '👋' : '🎉'}</Text>
+            <Text style={s.upgradeTitle}>
+              {coachAccess.trialBlockedDuplicate ? 'Compte professionnel déjà connu' : 'Félicitations !'}
+            </Text>
+            <Text style={s.upgradeText}>
+              {coachAccess.trialBlockedDuplicate
+                ? "Un compte professionnel semble déjà exister pour cette activité. Contactez le support si vous pensez qu'il s'agit d'une erreur, ou choisissez une offre Pro pour accepter de nouvelles réservations."
+                : 'Vous avez réalisé vos 3 premières séances payées. Choisissez une offre Pro pour continuer à recevoir de nouvelles réservations.'}
+            </Text>
+            <TouchableOpacity
+              style={s.upgradePrimary}
+              activeOpacity={0.85}
+              onPress={() => { setShowUpgrade(false); router.push('/tarification?role=coach' as any); }}
+            >
+              <Text style={s.upgradePrimaryText}>Voir les offres Pro →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.upgradeSecondary} onPress={() => setShowUpgrade(false)}>
+              <Text style={s.upgradeSecondaryText}>Plus tard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
+  // Modale de blocage doux (identique à coach-pending-demands.tsx).
+  upgradeOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
+  upgradeCard: { width: '100%', maxWidth: 380, backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xl, alignItems: 'center', ...Shadow.card },
+  upgradeEmoji: { fontSize: 40 },
+  upgradeTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: Spacing.sm },
+  upgradeText: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 21, marginTop: Spacing.sm },
+  upgradePrimary: { alignSelf: 'stretch', backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.lg },
+  upgradePrimaryText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: '#fff' },
+  upgradeSecondary: { paddingVertical: Spacing.md, alignItems: 'center' },
+  upgradeSecondaryText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
+
   root: { flex: 1, backgroundColor: Colors.background },
   header: { padding: Spacing.lg, borderBottomWidth: 1, borderBottomColor: Colors.border },
   headerTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },

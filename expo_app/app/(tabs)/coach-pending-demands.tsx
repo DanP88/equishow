@@ -11,6 +11,7 @@ import { createNotification } from '../../hooks/useNotifications';
 import { sendReservationEmail } from '../../utils/sendReservationEmail';
 import { CourseDemande } from '../../types/service';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
+import { useCoachAccess } from '../../hooks/useCoachAccess';
 
 export default function CoachPendingDemandsScreen() {
   const { demands: allDemands, updateStatus } = useMyCourseDemands();
@@ -18,7 +19,18 @@ export default function CoachPendingDemandsScreen() {
   const [selectedDemand, setSelectedDemand] = useState<CourseDemande | null>(null);
   const [showModal, setShowModal] = useState(false);
 
+  // Essai gratuit Coach : après 3 séances payées sans offre Pro → blocage DOUX.
+  const coachAccess = useCoachAccess();
+  const [showUpgrade, setShowUpgrade] = useState(false);
+
   const handleAccept = async (demand: CourseDemande) => {
+    // Blocage doux : essai terminé (3 séances payées) sans abonnement Pro actif.
+    // Fail-open : si le statut n'est pas encore chargé ou en erreur, on laisse passer.
+    if (!coachAccess.loading && !coachAccess.error && !coachAccess.canAcceptNew) {
+      setShowModal(false);
+      setShowUpgrade(true);
+      return;
+    }
     const { error } = await updateStatus(demand.id, 'accepted');
     if (error) { Alert.alert('Erreur', error); return; }
 
@@ -135,11 +147,48 @@ export default function CoachPendingDemandsScreen() {
           <View style={{ height: 40 }} />
         </ScrollView>
       )}
+
+      {/* Blocage doux — message positif après les 3 séances payées (essai terminé) */}
+      <Modal visible={showUpgrade} transparent animationType="fade" onRequestClose={() => setShowUpgrade(false)}>
+        <View style={s.upgradeOverlay}>
+          <View style={s.upgradeCard}>
+            <Text style={s.upgradeEmoji}>{coachAccess.trialBlockedDuplicate ? '👋' : '🎉'}</Text>
+            <Text style={s.upgradeTitle}>
+              {coachAccess.trialBlockedDuplicate ? 'Compte professionnel déjà connu' : 'Félicitations !'}
+            </Text>
+            <Text style={s.upgradeText}>
+              {coachAccess.trialBlockedDuplicate
+                ? "Un compte professionnel semble déjà exister pour cette activité. Contactez le support si vous pensez qu'il s'agit d'une erreur, ou choisissez une offre Pro pour accepter de nouvelles réservations."
+                : 'Vous avez réalisé vos 3 premières séances payées. Choisissez une offre Pro pour continuer à recevoir de nouvelles réservations.'}
+            </Text>
+            <TouchableOpacity
+              style={s.upgradePrimary}
+              activeOpacity={0.85}
+              onPress={() => { setShowUpgrade(false); router.push('/tarification?role=coach' as any); }}
+            >
+              <Text style={s.upgradePrimaryText}>Voir les offres Pro →</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={s.upgradeSecondary} onPress={() => setShowUpgrade(false)}>
+              <Text style={s.upgradeSecondaryText}>Plus tard</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
 
 const s = StyleSheet.create({
+  upgradeOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', alignItems: 'center', justifyContent: 'center', padding: Spacing.xl },
+  upgradeCard: { width: '100%', maxWidth: 380, backgroundColor: Colors.surface, borderRadius: Radius.xl, padding: Spacing.xl, alignItems: 'center', ...Shadow.card },
+  upgradeEmoji: { fontSize: 40 },
+  upgradeTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: Spacing.sm },
+  upgradeText: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 21, marginTop: Spacing.sm },
+  upgradePrimary: { alignSelf: 'stretch', backgroundColor: Colors.primary, borderRadius: Radius.md, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.lg },
+  upgradePrimaryText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: '#fff' },
+  upgradeSecondary: { paddingVertical: Spacing.md, alignItems: 'center' },
+  upgradeSecondaryText: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
+
   root: { flex: 1, backgroundColor: Colors.background },
   header: {
     flexDirection: 'row',

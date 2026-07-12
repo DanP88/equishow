@@ -24,7 +24,8 @@ type NotificationType =
   | 'escrow_release_soon'
   | 'dispute_opened'
   | 'dispute_resolved'
-  | 'seller_onboarded';
+  | 'seller_onboarded'
+  | 'concours_presence';
 
 type NotificationStatus = 'pending' | 'accepted' | 'rejected' | 'paid';
 

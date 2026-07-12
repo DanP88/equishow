@@ -62,6 +62,7 @@ interface StageReservationRow {
   date_reservation: string | null;
   created_at: string;
   updated_at: string;
+  cheval_id: string | null;
 }
 
 function rowToStage(r: StageRow): CoachStage {
@@ -119,6 +120,7 @@ function rowToReservation(r: StageReservationRow): StageReservation {
     message: r.message ?? '',
     statut: r.status,
     dateReservation: r.date_reservation ? new Date(r.date_reservation) : new Date(r.created_at),
+    chevalId: r.cheval_id ?? null,
   };
 }
 

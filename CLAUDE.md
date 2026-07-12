@@ -1,7 +1,7 @@
 # CLAUDE.md — Equishow
 
 > **Source de vérité du projet.** Résumé stratégique. Les détails volumineux sont dans `docs/` (liens en bas de chaque section).
-> MAJ : 2026-06-26 · repo `main` @ `ac56b1d` · migrations fichiers → **084**.
+> MAJ : 2026-07-12 · repo `main` @ `62856c3` · migrations fichiers → **094** (…091/092/093/094 appliquées prod ; 085 cleanup cavalier non appliquée).
 > Légende : ✅ observé · 🟡 partiel · 🔴 bloquant · _(déduit)_ à confirmer.
 
 ## Session startup
@@ -17,14 +17,18 @@ Marché : 350–400k compétiteurs FR / 1,3M Europe. Marketplace à commission (
 
 # Current Status
 
-🟢 **code prêt** / 🔴 **infra commerciale non prête**. `main` = `origin/main`, 0 PR ouverte.
+🟢 **code prêt** / 🔴 **infra commerciale non prête**. `main` = `origin/main` @ `62856c3`. PR ouvertes : **#74** (PR2-B creer-concours→insert, CI verte) · **#62** (fix encodage import) — non mergées.
 
 - ✅ 4 modules marketplace + escrow (box/transport/coach/stage), anti-surbooking, capacité créneau coach.
 - ✅ Stripe Connect + séquestre + crons release/expiration ; litiges + remboursements + alerting.
 - ✅ Notifs in-app + push serveur ; emails Resend ; messagerie ; communauté ; avis ; badges.
 - ✅ Concours : import CSV FFE (297 prod), fiche/météo/épreuves, followers, discussions (tags+réponses+mentions), claim org + Radar.
 - ✅ Dashboards admin : analytics, litiges, commissions, réclamations (EQ-REC), notifications.
-- 🟡 Push mobile EAS en pause (0 projet) ; concours dual-source (7 écrans mock) ; location van fermée ; discussions LOT2 partiel.
+- ✅ Coach Freemium (PR #64, `789e4d4`) : Pro gratuit jusqu'aux **3 premières séances payées** + anti-abus identité Stripe Connect ; migs **086/087 appliquées prod** ; RPC `fn_my_coach_trial_status` (compteur serveur-authoritative) ; paywall doux sur `coach-demandes`.
+- ✅ Social / Hub Concours PR1 (PR #65, `422fd50`, **mig 088 appliquée prod**) : graphe **`user_follows`** (suivi **asymétrique Instagram-like**, sans demande/acceptation) + RPC `fn_people_i_know` (« personnes que je connais »). Bouton **Suivre persistant** (profils coach + cavaliers via Communauté/Services câblés sur de vrais `users.id`). **Aucun payments/escrow/Stripe/webhook touché.** Fondation des lots suivants (présence concours, hero « X que vous connaissez »).
+- ✅ Discussions concours LOT2 (PR #71, `main e4a99e7`, **mig 091 appliquée prod**) : ✅ **fil participants** · ✅ **mentions @user** · ✅ **notifications de mention** (`concours_mention`) · ✅ **migration 091 appliquée** · ✅ **en production**. Trigger `fn_notify_concours_mention` (dédup, best-effort) ; jeton typé `@[](user|concours:UUID)` (rétro-compat @concours). CI verte, harness 12/12, recette prod PASS, 0 régression LOT1. Aucun payments/escrow/Stripe/webhook touché.
+- ✅ Sécurité — escalade de privilège fermée sur les 2 systèmes de rôles (2026-07-12) : **mig 093 (PR #82, prod)** garde anti auto-promotion `users.role` (trigger `trg_users_guard_role` SECURITY INVOKER : neutralise `update users set role='admin'` par un authentifié non-admin ; `change_user_role`/service_role/admin intacts) ; **mig 094 (PR #83, prod)** verrou anti-escalade legacy `profiles.role_id` (permissions de colonnes : `role_id`/`id` retirés des grants `authenticated` + `WITH CHECK (id=auth.uid())` sur `profiles_update_own` + `search_path` épinglé sur `is_admin()`). Harness 9/9 + 8/8, recettes prod transactionnelles PASS. **Aucun payments/escrow/Stripe/webhook touché par 093 ni 094.**
+- 🟡 Push mobile EAS en pause (0 projet) ; concours dual-source (7 écrans mock) ; location van fermée.
 - 🔴 Bloquants lancement : Stripe `sk_live` non confirmé · domaine Resend non vérifié · onboarding vendeur live.
 
 # Stack
@@ -53,7 +57,7 @@ Rôle dans `users.role` ; bascule via RPC `change_user_role`. Différences clés
 - **Cavalier** — réserve, paie (escrow), suit/discute concours, gère chevaux, avis (si `completed`).
 - **Coach** — + crée annonces cours/stages, accepte demandes, profil + boost payant, reçoit fonds. ⚠️ un compte valide 1 type de barre à la fois (box/transport=cavalier, coach=coach, exclusives).
 - **Organisateur** — + revendique concours → Radar (agrégats RGPD-aware, masquage < 5). Jamais de nominatif.
-- **Admin** — dashboards, remboursements/litiges réels, approbation claims, import concours. Admin = `users.role='admin'`.
+- **Admin** — dashboards, remboursements/litiges réels, approbation claims, import concours. Admin = `users.role='admin'` (**source de vérité autoritative**). ⚠️ Un système **legacy** parallèle existe (`profiles.role_id` → `roles` + fonction `is_admin()`), non utilisé par le front ni les Edge Functions ; sécurisé par la mig 094 (verrou colonne `role_id` + `search_path`). Toute nouvelle policy admin doit s'appuyer sur `users.role='admin'`, pas sur `is_admin()`.
 
 # Functional Modules
 
@@ -62,11 +66,12 @@ Rôle dans `users.role` ; bascule via RPC `change_user_role`. Différences clés
 | Concours | Hub découverte contextuel | ✅ | dual-source (7 écrans mock→DB) ; `isMissingTable` doit couvrir PGRST205 → `docs/concours.md` ; **catégories FFE = table enfant `concours_categories` (084, 1 ligne=1 catégorie, FK `concours(id)` CASCADE)** affichée sur la fiche |
 | Box | Hébergement cheval | ✅ escrow | dispo par chevauchement dates |
 | Transport | Trajets partagés (+ van fermé) | ✅ escrow | colonne `statut` (FR) ≠ `status` ; van hors compteur places |
-| Coach | Cours ponctuel | ✅ escrow | capacité créneau (mig 057, advisory lock) |
+| Coach | Cours ponctuel | ✅ escrow | capacité créneau (mig 057, advisory lock) ; **Freemium : Pro gratuit jusqu'à 3 séances payées (`type=course`+`released`+`succeeded`) ; anti-abus doublon Stripe Connect ; migs 086/087 prod ; paywall doux `coach-demandes`** |
 | Stage | Stages multi-jours | ✅ escrow | prix coach affiché, commission en modale récap |
 | Chevaux | Fiches + historique résa | ✅ | photo → bucket `chevaux-photos` |
 | Messagerie | Conversations 1:1 | ✅ | `conversation_reads` hors realtime (décrément pubsub) |
-| Communauté | Posts par rôle | ✅ | likes + points |
+| Communauté | Posts par rôle | ✅ | likes + points ; auteurs (posts+commentaires) naviguent vers `/user-profile/<auteurId>` (vrai `users.id`) |
+| Social (Follow) | Graphe de relations | ✅ | **mig 088** `user_follows` (PK `(follower_id,followee_id)`, `check` anti auto-follow, index followee, RLS own-only insert/delete + select authenticated) ; RPC read-only `fn_people_i_know(viewer)` (UNION `follows ∪ messagerie ∪ réservations box/stage/course/transport ∪ club si présent`, anti-énumération `viewer=auth.uid()` sauf admin). **Ne lit JAMAIS payments.** Front : `useFollow` (DB-backed), `FollowButton`. Dette : `users.club_name` absent (source club ignorée) ; `FollowListModal` encore mock → `docs/social.md` |
 | Notifications | In-app + push | 🟡 | push mobile EAS en pause ; web OK |
 | Analytics | Mesure produit + marketplace | ✅ | `event_type` figé par CHECK → `docs/analytics.md` |
 
@@ -103,18 +108,20 @@ Rôle dans `users.role` ; bascule via RPC `change_user_role`. Différences clés
 | Signup « permission denied users » | upsert front `anon` (row déjà créée par trigger) | ne pas écrire `public.users` au signup |
 | Radar `tr.status does not exist` (077) | `transport_reservations` = `statut` (FR) | `statut` pour transport, `status` ailleurs |
 | Cron release escrow cassé (066) | `release_trigger:"cron"` ⛔ CHECK | utiliser `auto_cron` ; diag via `net._http_response` |
-| Surbooking transport (060) | F1 ne consommait qu'au `pending→accepted` | ensemble de statuts consommants (Box à vérifier) |
+| Surbooking transport (060) | F1 ne consommait qu'au `pending→accepted` | ensemble de statuts consommants ; **Stage+Box fixés (062), Coach (057) — vérifiés harness `tests/062_availability_stage_box` (20/20)** |
 | Import concours 0 ligne (079) | ON CONFLICT index partiel + RLS admin false | UNIQUE réel + admin `role='admin'` |
 | Webhook 401 / paiements pending | `verify_jwt=true` | toujours `--no-verify-jwt` (signature HMAC) |
+| Escalade self-admin `users.role` P0 (093) | policy `users_update_own` USING sans `WITH CHECK` + grant `UPDATE(role)` | trigger garde SECURITY INVOKER ; toute policy UPDATE sensible = `WITH CHECK` explicite |
+| Escalade legacy `profiles.role_id` F2 (094) | policy UPDATE sans `WITH CHECK` + grant **table-level** couvrant `role_id` + `roles` lisible | grant **par colonne** (jamais table-level sur table à champ sensible) ; `search_path` épinglé sur SECURITY DEFINER |
 
 Détail complet : `docs/incidents.md`.
 
 # Technical Debt
 
 - **P0** — Stripe `sk_live` à confirmer · domaine Resend `equishow.app` non vérifié (~50 % emails échouent) · onboarding vendeur live.
-- **P1** — brancher 7 écrans concours mock→DB · discussions LOT2 (fil participants, @user, push, notif mention).
+- **P1** — brancher 7 écrans concours mock→DB. _(Discussions LOT2 fil participants + @user + notif mention = ✅ prod mig 091 ; reste seulement le push de mention, replié dans P3 EAS pause.)_
 - **P2** — 18 erreurs TS (surtout `reserver-transport.tsx`) · KPI notifications/rétention · location van (dates/cautions R4/CR6).
-- **P3** — push mobile EAS · 23 fichiers parasites untracked · ~30 branches locales mortes.
+- **P3** — push mobile EAS · 23 fichiers parasites untracked · ~30 branches locales mortes · **simplification système de rôles** : retirer le legacy `profiles.role_id`/`roles`/`is_admin()` au profit de `users.role` unique (audit dans `docs/security.md`).
 
 # Claude Code Guidance
 
@@ -131,5 +138,5 @@ Quand Claude travaille sur Equishow, **toujours** :
 CLAUDE.md = source de vérité, **synthétique** (historique long → `MEMORY.md` Obsidian). Après toute évolution majeure (feature, table, migration, policy, trigger, dashboard, workflow Stripe, archi, sécurité) → mettre à jour la section + le détail `docs/` concerné, et **proposer** :
 > « Cette modification semble nécessiter une mise à jour de CLAUDE.md. Souhaitez-vous que je mette à jour la documentation du projet ? »
 
-Docs spécialisées : `docs/database.md` · `docs/stripe.md` · `docs/analytics.md` · `docs/concours.md` · `docs/incidents.md`.
+Docs spécialisées : `docs/database.md` · `docs/stripe.md` · `docs/analytics.md` · `docs/concours.md` · `docs/social.md` · `docs/incidents.md`.
 Skills : `.claude/skills/{supabase-auditor, stripe-connect-expert, analytics-expert, release-manager, prompt-generator}`.

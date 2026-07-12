@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal,
@@ -8,11 +8,11 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
 import { AlertModal } from '../components/AlertModal';
-import { userStore, concoursStore } from '../data/store';
+import { userStore } from '../data/store';
 import { Disponibilite, prixTTC as calculatePrixTTC, getTVAMontant } from '../types/service';
 import { useCommission } from '../hooks/useCommissions';
 import { useCoachAnnonce, useMyCoachAnnonces } from '../hooks/useCoachAnnonces';
-import { useConcoursList } from '../hooks/useConcours';
+import { useConcoursList, useConcours } from '../hooks/useConcours';
 import { supabase } from '../lib/supabase';
 import { toLocalDateString } from '../utils/dateFormat';
 
@@ -74,30 +74,51 @@ export default function ProposerCoachAnnonceScreen() {
   // Liste RÉELLE des concours (table public.concours, 074) pour le menu déroulant.
   const { concours: concoursReels } = useConcoursList();
 
-  // Charger le concours si fourni en paramètre
-  const preSelectedConcours = concoursId ? concoursStore.list.find(c => c.id === concoursId) : null;
+  // Concours présélectionné (deep-link) : lu depuis la table public.concours (DB,
+  // hook useConcours) — plus le mock concoursStore. `preHub` est null tant que le
+  // chargement n'est pas fini, si l'id est absent, ou si le concours est introuvable
+  // → l'écran retombe alors proprement sur le sélecteur manuel (comportement legacy).
+  const { concours: preHub, isLoading: preLoading } = useConcours(concoursId);
+  const preSelectedConcours = useMemo(() => {
+    if (!preHub) return null;
+    // Mapping minimal : champs réellement consommés par l'écran. typesCavaliers
+    // n'existe pas côté DB (gap connu) → []. disciplines dérivée de type_concours
+    // (souvent 'nan' à l'import FFE → masquée). epreuves = liste_epreuves (074).
+    return {
+      id: preHub.id,
+      nom: preHub.nom,
+      lieu: preHub.lieu ?? '',
+      dateDebut: preHub.date_debut ? new Date(preHub.date_debut) : undefined,
+      dateFin: preHub.date_fin ? new Date(preHub.date_fin) : undefined,
+      disciplines: preHub.type_concours && preHub.type_concours !== 'nan' ? [preHub.type_concours] : [],
+      epreuves: preHub.liste_epreuves ?? [],
+      typesCavaliers: [] as string[],
+    };
+  }, [preHub]);
 
   // Initialiser avec les données existantes si édition, sinon initialiser vide ou avec concours
+  // Présélection DB async : les valeurs initiales n'utilisent PAS preSelectedConcours
+  // (null au mount) ; l'hydratation se fait dans l'effet ci-dessous une fois la DB lue.
   const [type, setType] = useState<'concours' | 'regulier' | ''>(
-    annonceToEdit ? annonceToEdit.type : preSelectedConcours ? 'concours' : ''
+    annonceToEdit ? annonceToEdit.type : ''
   );
   const [titre, setTitre] = useState(annonceToEdit ? annonceToEdit.titre : '');
   const [description, setDescription] = useState(annonceToEdit ? annonceToEdit.description : '');
   const [discipline, setDiscipline] = useState(
-    annonceToEdit ? annonceToEdit.discipline : preSelectedConcours ? preSelectedConcours.disciplines.join(', ') : ''
+    annonceToEdit ? annonceToEdit.discipline : ''
   );
   const [niveau, setNiveau] = useState(annonceToEdit ? annonceToEdit.niveau : '');
   const [concours, setConcours] = useState(
-    annonceToEdit ? (annonceToEdit.concours || '') : preSelectedConcours ? preSelectedConcours.nom : ''
+    annonceToEdit ? (annonceToEdit.concours || '') : ''
   );
   const [selectedConcoursId, setSelectedConcoursId] = useState<string | undefined>(
     annonceToEdit ? annonceToEdit.concoursId : undefined
   );
   const [dateDebut, setDateDebut] = useState<Date | undefined>(
-    annonceToEdit ? annonceToEdit.dateDebut : preSelectedConcours ? preSelectedConcours.dateDebut : undefined
+    annonceToEdit ? annonceToEdit.dateDebut : undefined
   );
   const [dateFin, setDateFin] = useState<Date | undefined>(
-    annonceToEdit ? annonceToEdit.dateFin : preSelectedConcours ? preSelectedConcours.dateFin : undefined
+    annonceToEdit ? annonceToEdit.dateFin : undefined
   );
   const [prixHeure, setPrixHeure] = useState(annonceToEdit ? annonceToEdit.prixHeure.toString() : '');
 
@@ -107,14 +128,15 @@ export default function ProposerCoachAnnonceScreen() {
   // chargée — une seule fois, hors édition, et seulement si non déjà sélectionné.
   const hydratedFromDb = useRef(false);
   useEffect(() => {
-    if (annonceToEdit || hydratedFromDb.current || !concoursId) return;
-    const match = concoursReels.find((c) => c.id === concoursId);
-    if (!match) return;
+    if (annonceToEdit || hydratedFromDb.current || !preSelectedConcours) return;
     hydratedFromDb.current = true;
     setType('concours');
-    setConcours(match.nom);
-    setSelectedConcoursId(match.id);
-  }, [concoursId, concoursReels, annonceToEdit]);
+    setConcours(preSelectedConcours.nom);
+    setSelectedConcoursId(preSelectedConcours.id);
+    if (preSelectedConcours.disciplines.length) setDiscipline(preSelectedConcours.disciplines.join(', '));
+    if (preSelectedConcours.dateDebut) setDateDebut(preSelectedConcours.dateDebut);
+    if (preSelectedConcours.dateFin) setDateFin(preSelectedConcours.dateFin);
+  }, [preSelectedConcours, annonceToEdit]);
 
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
@@ -254,7 +276,11 @@ export default function ProposerCoachAnnonceScreen() {
 
         <View style={s.field}>
           <Text style={s.fieldLabel}>Concours associé {preSelectedConcours && '*'}</Text>
-          {preSelectedConcours ? (
+          {concoursId && preLoading && !preSelectedConcours ? (
+            <View style={[f.input, f.inputDisabled]}>
+              <Text style={[f.inputText, f.placeholder]}>Chargement du concours…</Text>
+            </View>
+          ) : preSelectedConcours ? (
             <View style={[f.input, f.inputDisabled]}>
               <Text style={[f.inputText, { color: Colors.textPrimary }]} numberOfLines={1}>
                 {concours}

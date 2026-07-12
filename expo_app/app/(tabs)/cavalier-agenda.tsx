@@ -12,6 +12,8 @@ import { useMyStageReservations, useStages } from '../../hooks/useStages';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { getUserById } from '../../data/mockUsers';
 import { useUsersByIds } from '../../hooks/useUsersByIds';
+import { useChevauxByIds } from '../../hooks/useChevauxByIds';
+import { ChevalTag } from '../../components/ChevalTag';
 import { useAvis, useMyAvisRefs, AvisType } from '../../hooks/useAvis';
 import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
 import { useEscrowActions } from '../../hooks/useEscrowActions';
@@ -62,6 +64,10 @@ type AgendaItem = {
   autrePartiePseudo: string;
   autrePartieInitiales: string;
   autrePartieCouleur: string;
+  // Cheval concerné (078). chevalId → résolu en nom via useChevauxByIds
+  // (box/transport/stage) ; chevalNom → nom direct (cours = horse_name texte).
+  chevalId?: string | null;
+  chevalNom?: string | null;
 };
 
 function statutStyle(statut: string) {
@@ -148,6 +154,8 @@ export default function CavalierAgendaScreen() {
   const { reservations: stageReservations } = useMyStageReservations();
   const { stages: allStages } = useStages();
   const { demands: courseDemands } = useMyCourseDemands();
+  // Résout les cheval_id (box/transport/stage) en noms pour l'affichage (078).
+  const chevauxById = useChevauxByIds(items.map(i => i.chevalId));
   const [tick, setTick] = useState(0);
   const [avisModal, setAvisModal] = useState<AvisModal>(null);
   const [avisNote, setAvisNote] = useState(5);
@@ -389,6 +397,7 @@ export default function CavalierAgendaScreen() {
           autrePartiePseudo: seller.pseudo,
           autrePartieInitiales: seller.initiales,
           autrePartieCouleur: seller.avatarColor,
+          chevalId: r.chevalId,
         });
       });
 
@@ -415,6 +424,7 @@ export default function CavalierAgendaScreen() {
           autrePartiePseudo: buyer.pseudo,
           autrePartieInitiales: buyer.initiales,
           autrePartieCouleur: buyer.avatarColor,
+          chevalId: r.chevalId,
         });
       });
 
@@ -437,6 +447,7 @@ export default function CavalierAgendaScreen() {
           autrePartiePseudo: seller?.pseudo ?? '?',
           autrePartieInitiales: seller?.initiales ?? '?',
           autrePartieCouleur: seller?.avatarColor ?? Colors.primary,
+          chevalId: r.chevalId,
         });
       });
 
@@ -459,6 +470,7 @@ export default function CavalierAgendaScreen() {
           autrePartiePseudo: buyer?.pseudo ?? '?',
           autrePartieInitiales: buyer?.initiales ?? '?',
           autrePartieCouleur: buyer?.avatarColor ?? Colors.primary,
+          chevalId: r.chevalId,
         });
       });
 
@@ -484,6 +496,7 @@ export default function CavalierAgendaScreen() {
           autrePartiePseudo: coach?.pseudo ?? r.coachNom,
           autrePartieInitiales: coach?.initiales ?? r.coachNom.slice(0, 2).toUpperCase(),
           autrePartieCouleur: coach?.avatarColor ?? '#7C3AED',
+          chevalId: r.chevalId,
         });
       });
 
@@ -506,6 +519,7 @@ export default function CavalierAgendaScreen() {
           autrePartiePseudo: coach?.pseudo ?? r.coachNom,
           autrePartieInitiales: coach?.initiales ?? r.coachNom.slice(0, 2).toUpperCase(),
           autrePartieCouleur: coach?.avatarColor ?? '#7C3AED',
+          chevalNom: r.cheval || null,
         });
       });
 
@@ -532,6 +546,7 @@ export default function CavalierAgendaScreen() {
           autrePartiePseudo: r.cavalierPseudo,
           autrePartieInitiales: (r.cavalierNom || r.cavalierPseudo || '?').slice(0, 2).toUpperCase(),
           autrePartieCouleur: r.cavalierCouleur,
+          chevalNom: r.cheval || null,
         });
       });
 
@@ -553,6 +568,7 @@ export default function CavalierAgendaScreen() {
           autrePartiePseudo: r.cavalierPseudo,
           autrePartieInitiales: (r.cavalierNom || r.cavalierPseudo || '?').slice(0, 2).toUpperCase(),
           autrePartieCouleur: r.cavalierCouleur,
+          chevalId: r.chevalId,
         });
       });
 
@@ -784,6 +800,11 @@ export default function CavalierAgendaScreen() {
                     {/* Titre */}
                     <Text style={s.titre}>{item.titre}</Text>
                     <Text style={s.sousTitre}>{item.sous_titre}</Text>
+
+                    {/* Cheval concerné (078) */}
+                    <View style={s.chevalRow}>
+                      <ChevalTag nom={item.chevalNom ?? (item.chevalId ? chevauxById.get(item.chevalId) : null)} />
+                    </View>
 
                     {/* Dates */}
                     <View style={s.datesRow}>
@@ -1099,6 +1120,7 @@ const s = StyleSheet.create({
   statutText: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   titre: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   sousTitre: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  chevalRow: { marginTop: 6 },
   datesRow: { flexDirection: 'row', alignItems: 'center', gap: 6, flexWrap: 'wrap' },
   dateLabel: { fontSize: FontSize.sm, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   dateVal: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },

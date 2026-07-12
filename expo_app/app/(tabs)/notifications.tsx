@@ -260,6 +260,13 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoad
 
   const isCommunity = notification.type === 'like' || notification.type === 'comment';
 
+  // Notif présence concours (PR2b) : deep-link vers la fiche concours (action_url).
+  const isConcoursPresence = notification.type === 'concours_presence';
+  const handleConcoursNavigation = () => {
+    const url = notification.actionUrl ?? notification.lien;
+    if (url) router.push(url as any);
+  };
+
   if (isCommunity) {
     return (
       <View style={[s.card, !notification.lu && s.cardUnread]}>
@@ -320,6 +327,15 @@ function NotificationCard({ notification, onMarkAsRead, onDelete, onPay, payLoad
             onPress={handleSupportNavigation}
           >
             <Text style={s.payBtnText}>📩 Voir la réclamation</Text>
+          </TouchableOpacity>
+        )}
+
+        {isConcoursPresence && (
+          <TouchableOpacity
+            style={[s.actionBtn, s.payBtn]}
+            onPress={handleConcoursNavigation}
+          >
+            <Text style={s.payBtnText}>🏇 Voir le concours</Text>
           </TouchableOpacity>
         )}
         {isIncomingCoachDemand && onSwitchToCoach && (

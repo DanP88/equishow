@@ -94,7 +94,7 @@ export default function CommunauteCoachScreen() {
             <View key={post.id} style={styles.card}>
               <TouchableOpacity
                 style={styles.postHeader}
-                onPress={() => router.push(`/user-profile/${post.auteur}`)}
+                onPress={() => router.push(`/user-profile/${post.auteurId}`)}
                 activeOpacity={0.7}
               >
                 <View style={[styles.avatar, { backgroundColor: post.couleur }]}>
@@ -168,7 +168,7 @@ export default function CommunauteCoachScreen() {
                   return (
                     <View key={c.id} style={styles.commentRow}>
                       <TouchableOpacity
-                        onPress={() => { setOpenComments(null); router.push(`/user-profile/${c.auteur}`); }}
+                        onPress={() => { setOpenComments(null); router.push(`/user-profile/${c.auteurId}`); }}
                         activeOpacity={0.7}
                       >
                         <View style={[styles.commentAvatar, { backgroundColor: c.couleur }]}>

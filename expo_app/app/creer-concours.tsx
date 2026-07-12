@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal, Switch,
@@ -8,8 +8,8 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton } from '../components/DatePickerModal';
 import { AlertModal } from '../components/AlertModal';
-import { userStore, concoursStore } from '../data/store';
-import { Concours } from '../types/concours';
+import { useAuth } from '../hooks/useAuth';
+import { createConcours } from '../hooks/useConcours';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const TYPES_CAVALIERS = ['Poney', 'Loisir', 'Amateur', 'Pro', 'Elite'];
@@ -63,6 +63,13 @@ function MultiSelectChip({ options, selected, onChange }: {
 }
 
 export default function CreerConcoursScreen() {
+  const { profile, session } = useAuth();
+  const [submitting, setSubmitting] = useState(false);
+  // Verrou SYNCHRONE anti double-submit : `submitting` (état React) ne se met à
+  // jour qu'au re-render, donc deux taps dans la même frame passeraient la garde.
+  // Le ref est lu/écrit immédiatement → il bloque le 2e submit avant tout await.
+  // (L'état `submitting` reste la source de vérité UX : loading + bouton disabled.)
+  const submitLock = useRef(false);
   const [nom, setNom] = useState('');
   const [dateDebut, setDateDebut] = useState<Date | undefined>();
   const [dateFin, setDateFin] = useState<Date | undefined>();
@@ -96,7 +103,20 @@ export default function CreerConcoursScreen() {
     setAlertState({ title, message, variant: 'error' });
   }
 
-  function submit() {
+  async function submit() {
+    if (submitLock.current) return; // garde synchrone double-submit
+
+    // Garde session : organisateur_id vient UNIQUEMENT de l'utilisateur authentifié.
+    const userId = session?.user?.id;
+    if (!userId) {
+      showErr('Session expirée', 'Reconnecte-toi pour créer un concours.');
+      return;
+    }
+    if (profile?.role !== 'organisateur') {
+      showErr('Compte non organisateur', 'Seul un compte organisateur peut créer un concours.');
+      return;
+    }
+
     if (!nom.trim()) { showErr('Nom manquant', 'Indiquez le nom du concours.'); return; }
     if (!dateDebut) { showErr('Date de début manquante', 'Sélectionnez la date de début du concours.'); return; }
     if (!dateFin) { showErr('Date de fin manquante', 'Sélectionnez la date de fin du concours.'); return; }
@@ -125,54 +145,63 @@ export default function CreerConcoursScreen() {
       }
     }
 
-    const newConcours: Concours = {
-      id: `concours_${Date.now()}`,
-      nom: nom.trim(),
-      dateDebut,
-      dateFin,
-      lieu: lieu.trim(),
-      adresseComplete: adresse.trim() || undefined,
-      codePostal: codePostal.trim() || undefined,
-      ville: ville.trim() || undefined,
-      discipline,
-      disciplines: disciplines.length > 0 ? disciplines : [discipline],
-      epreuves,
-      typesCavaliers,
-      organisateurId: userStore.id,
-      organisateurNom: `${userStore.prenom} ${userStore.nom}`,
-      statut: 'brouillon',
-      nbPlaces: placesNum,
-      nbInscrits: 0,
-      description: description.trim() || undefined,
-      prix: prix ? parseInt(prix, 10) : undefined,
-      region: userStore.region || undefined,
-      horaireDebut,
-      horaireFin,
-      enLive: false,
-      infosComplementaires: {
-        restauration: restauration.trim() || undefined,
-        parking: parking.trim() || undefined,
-        coaching,
-        securite: securite.trim() || undefined,
-        veterinaire,
-        soinsChevauxDisponibles: soins,
-        douches,
-        wifi,
-        autre: autre.trim() || undefined,
-      },
-    };
+    // Acquisition du verrou JUSTE avant l'async : toute validation ci-dessus a
+    // pu sortir (return) sans jamais verrouiller → le formulaire reste utilisable.
+    submitLock.current = true;
+    setSubmitting(true);
+    try {
+      const { id, error } = await createConcours({
+        organisateurId: userId,
+        nom,
+        dateDebut,
+        dateFin,
+        lieu,
+        adresse,
+        codePostal,
+        ville,
+        discipline,
+        disciplines: disciplines.length > 0 ? disciplines : [discipline],
+        epreuves,
+        typesCavaliers,
+        nbPlaces: placesNum,
+        prix: prix ? parseInt(prix, 10) : undefined,
+        horaireDebut,
+        horaireFin,
+        description,
+        region: (profile as any)?.region ?? null,
+        infos: {
+          restauration: restauration.trim() || null,
+          parking: parking.trim() || null,
+          coaching,
+          securite: securite.trim() || null,
+          veterinaire,
+          soins_chevaux: soins,
+          douches,
+          wifi,
+          autre: autre.trim() || null,
+        },
+      });
 
-    concoursStore.list = [newConcours, ...concoursStore.list];
+      if (error || !id) {
+        showErr('Création impossible', error ?? 'Une erreur est survenue. Réessaie.');
+        return;
+      }
 
-    setAlertState({
-      title: 'Concours créé 🏆',
-      message: `"${nom}" a été créé avec succès en brouillon.`,
-      variant: 'info',
-      onClose: () => {
-        setAlertState(null);
-        router.replace('/(tabs)/org-concours' as any);
-      },
-    });
+      // Navigation UNIQUEMENT après succès réel de l'insert.
+      setAlertState({
+        title: 'Concours créé 🏆',
+        message: `"${nom.trim()}" a été enregistré en brouillon.`,
+        variant: 'info',
+        onClose: () => {
+          setAlertState(null);
+          router.replace('/(tabs)/org-concours' as any);
+        },
+      });
+    } finally {
+      // Libération sur TOUS les chemins (succès, erreur retournée, exception).
+      submitLock.current = false;
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -421,8 +450,13 @@ export default function CreerConcoursScreen() {
           />
         </View>
 
-        <TouchableOpacity style={s.submitBtn} onPress={submit} activeOpacity={0.85}>
-          <Text style={s.submitText}>Créer le concours</Text>
+        <TouchableOpacity
+          style={[s.submitBtn, submitting && s.submitBtnDisabled]}
+          onPress={submit}
+          activeOpacity={0.85}
+          disabled={submitting}
+        >
+          <Text style={s.submitText}>{submitting ? 'Création…' : 'Créer le concours'}</Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
@@ -466,6 +500,7 @@ const s = StyleSheet.create({
   toggleItem: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border },
   toggleLabel: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
   submitBtn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 4, alignItems: 'center', marginTop: Spacing.lg, ...Shadow.fab },
+  submitBtnDisabled: { opacity: 0.6 },
   submitText: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
 });
 

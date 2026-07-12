@@ -103,8 +103,8 @@ export default function CheckoutScreen() {
       return;
     }
     setAlertState({
-      title: 'Bienvenue dans Découverte 🎉',
-      message: 'Votre plan gratuit est activé. Vous pouvez commencer à utiliser Equishow dès maintenant.',
+      title: 'Bienvenue sur Equishow 🎉',
+      message: 'Votre accès gratuit est activé. Vous pouvez commencer à utiliser Equishow dès maintenant.',
       variant: 'info',
       onClose: () => {
         setAlertState(null);
@@ -220,7 +220,7 @@ export default function CheckoutScreen() {
           ) : (
             <Text style={s.ctaText}>
               {isFree
-                ? 'Activer Découverte'
+                ? 'Commencer gratuitement'
                 : `Payer ${plan.prix}€${periodeLabel ? ' ' + periodeLabel : ''}`}
             </Text>
           )}

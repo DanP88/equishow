@@ -591,14 +591,14 @@ export default function CommunauteScreen() {
           return (
             <View key={post.id} style={styles.card}>
               <View style={styles.postHeader}>
-                <TouchableOpacity onPress={() => router.push(`/user-profile/${post.auteur}`)} activeOpacity={0.7}>
+                <TouchableOpacity onPress={() => router.push(`/user-profile/${post.auteurId}`)} activeOpacity={0.7}>
                   <View style={[styles.avatar, { backgroundColor: post.couleur }]}>
                     <Text style={styles.avatarText}>{post.initiales}</Text>
                   </View>
                 </TouchableOpacity>
                 <View style={styles.postMeta}>
                   <View style={{ flexDirection: 'row', alignItems: 'center', gap: 4, flexWrap: 'wrap' }}>
-                    <TouchableOpacity onPress={() => router.push(`/user-profile/${post.auteur}`)} activeOpacity={0.7}>
+                    <TouchableOpacity onPress={() => router.push(`/user-profile/${post.auteurId}`)} activeOpacity={0.7}>
                       <Text style={styles.auteur}>{post.auteur}</Text>
                     </TouchableOpacity>
                     <UserBadge userId={post.auteurId} variant="icon" size="sm" />
@@ -675,7 +675,7 @@ export default function CommunauteScreen() {
                     <TouchableOpacity
                       onPress={() => {
                         setOpenComments(null);
-                        router.push(`/user-profile/${c.auteur}`);
+                        router.push(`/user-profile/${c.auteurId}`);
                       }}
                       activeOpacity={0.7}
                     >
