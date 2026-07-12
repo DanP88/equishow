@@ -1,15 +1,16 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  TextInput, Modal, Switch,
+  TextInput, Modal, Switch, ActivityIndicator,
 } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton } from '../components/DatePickerModal';
 import { AlertModal } from '../components/AlertModal';
 import { useAuth } from '../hooks/useAuth';
-import { createConcours } from '../hooks/useConcours';
+import { createConcours, updateConcours, fetchConcoursForEdit } from '../hooks/useConcours';
+import { validateConcoursForm } from '../lib/concoursValidation';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const TYPES_CAVALIERS = ['Poney', 'Loisir', 'Amateur', 'Pro', 'Elite'];
@@ -64,6 +65,11 @@ function MultiSelectChip({ options, selected, onChange }: {
 
 export default function CreerConcoursScreen() {
   const { profile, session } = useAuth();
+  // Mode édition si un `id` est passé en paramètre → on charge le brouillon
+  // existant et `submit()` fait un UPDATE (aucune nouvelle ligne créée).
+  const { id: editId } = useLocalSearchParams<{ id?: string }>();
+  const isEdit = !!editId;
+  const [loadingDraft, setLoadingDraft] = useState(isEdit);
   const [submitting, setSubmitting] = useState(false);
   // Verrou SYNCHRONE anti double-submit : `submitting` (état React) ne se met à
   // jour qu'au re-render, donc deux taps dans la même frame passeraient la garde.
@@ -103,58 +109,84 @@ export default function CreerConcoursScreen() {
     setAlertState({ title, message, variant: 'error' });
   }
 
+  // Édition : charge le brouillon/concours existant et repeuple le formulaire.
+  // Le mapping reflète la structure `infos jsonb` écrite par createConcours.
+  useEffect(() => {
+    if (!editId) return;
+    let active = true;
+    (async () => {
+      const row = await fetchConcoursForEdit(editId);
+      if (!active) return;
+      if (!row) {
+        setLoadingDraft(false);
+        setAlertState({
+          title: 'Concours introuvable',
+          message: "Ce concours n'existe pas ou ne t'appartient pas.",
+          variant: 'error',
+          onClose: () => { setAlertState(null); router.replace('/(tabs)/org-concours' as any); },
+        });
+        return;
+      }
+      const infos = row.infos ?? {};
+      setNom(row.nom ?? '');
+      setDateDebut(row.date_debut ? new Date(row.date_debut) : undefined);
+      setDateFin(row.date_fin ? new Date(row.date_fin) : undefined);
+      setLieu(row.lieu ?? '');
+      setAdresse(row.adresse ?? '');
+      setCodePostal(infos.code_postal ?? '');
+      setVille(infos.ville ?? '');
+      setDiscipline(row.type_concours ?? '');
+      setDisciplines(Array.isArray(infos.disciplines) ? infos.disciplines : []);
+      setEpreuves(Array.isArray(row.liste_epreuves) ? row.liste_epreuves : []);
+      setTypesCavaliers(Array.isArray(infos.types_cavaliers) ? infos.types_cavaliers : []);
+      setNbPlaces(infos.nb_places != null ? String(infos.nb_places) : '');
+      setPrix(infos.prix != null ? String(infos.prix) : '');
+      setHoraireDebut(infos.horaire_debut ?? '09:00');
+      setHoraireFin(infos.horaire_fin ?? '18:00');
+      setDescription(infos.description ?? '');
+      setRestauration(infos.restauration ?? '');
+      setParking(infos.parking ?? '');
+      setCoaching(!!infos.coaching);
+      setSecurite(infos.securite ?? '');
+      setVeterinaire(!!infos.veterinaire);
+      setSoins(!!infos.soins_chevaux);
+      setDouches(!!infos.douches);
+      setWifi(!!infos.wifi);
+      setAutre(infos.autre ?? '');
+      setLoadingDraft(false);
+    })();
+    return () => { active = false; };
+  }, [editId]);
+
   async function submit() {
     if (submitLock.current) return; // garde synchrone double-submit
 
     // Garde session : organisateur_id vient UNIQUEMENT de l'utilisateur authentifié.
     const userId = session?.user?.id;
     if (!userId) {
-      showErr('Session expirée', 'Reconnecte-toi pour créer un concours.');
+      showErr('Session expirée', 'Reconnecte-toi pour gérer un concours.');
       return;
     }
     if (profile?.role !== 'organisateur') {
-      showErr('Compte non organisateur', 'Seul un compte organisateur peut créer un concours.');
+      showErr('Compte non organisateur', 'Seul un compte organisateur peut gérer un concours.');
       return;
     }
 
-    if (!nom.trim()) { showErr('Nom manquant', 'Indiquez le nom du concours.'); return; }
-    if (!dateDebut) { showErr('Date de début manquante', 'Sélectionnez la date de début du concours.'); return; }
-    if (!dateFin) { showErr('Date de fin manquante', 'Sélectionnez la date de fin du concours.'); return; }
-    if (dateFin.getTime() < dateDebut.getTime()) {
-      showErr('Dates incohérentes', `La date de fin (${dateFin.toLocaleDateString('fr-FR')}) doit être égale ou postérieure à la date de début (${dateDebut.toLocaleDateString('fr-FR')}).`);
-      return;
-    }
-    const today = new Date(); today.setHours(0, 0, 0, 0);
-    if (dateDebut.getTime() < today.getTime()) {
-      showErr('Date dans le passé', `La date de début (${dateDebut.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`);
-      return;
-    }
-    if (!lieu.trim()) { showErr('Lieu manquant', 'Indiquez le lieu où se déroule le concours.'); return; }
-    if (!discipline) { showErr('Discipline manquante', 'Sélectionnez la discipline du concours.'); return; }
-    if (!nbPlaces) { showErr('Places manquantes', 'Indiquez le nombre de places disponibles.'); return; }
+    // Validation métier PARTAGÉE (identique création/édition, cf. lib/concoursValidation).
+    const invalid = validateConcoursForm({ nom, dateDebut, dateFin, lieu, discipline, nbPlaces, prix });
+    if (invalid) { showErr(invalid.title, invalid.message); return; }
     const placesNum = parseInt(nbPlaces, 10);
-    if (Number.isNaN(placesNum) || placesNum <= 0) {
-      showErr('Places invalides', 'Le nombre de places doit être un nombre supérieur à 0.');
-      return;
-    }
-    if (prix) {
-      const prixNum = parseInt(prix, 10);
-      if (Number.isNaN(prixNum) || prixNum < 0) {
-        showErr('Prix invalide', 'Le prix d\'inscription doit être un nombre positif.');
-        return;
-      }
-    }
 
     // Acquisition du verrou JUSTE avant l'async : toute validation ci-dessus a
     // pu sortir (return) sans jamais verrouiller → le formulaire reste utilisable.
     submitLock.current = true;
     setSubmitting(true);
     try {
-      const { id, error } = await createConcours({
+      const payload = {
         organisateurId: userId,
         nom,
-        dateDebut,
-        dateFin,
+        dateDebut: dateDebut!,
+        dateFin: dateFin!,
         lieu,
         adresse,
         codePostal,
@@ -180,23 +212,28 @@ export default function CreerConcoursScreen() {
           wifi,
           autre: autre.trim() || null,
         },
-      });
+      };
 
-      if (error || !id) {
-        showErr('Création impossible', error ?? 'Une erreur est survenue. Réessaie.');
-        return;
+      if (isEdit && editId) {
+        const { ok, error } = await updateConcours(editId, payload);
+        if (!ok) { showErr('Enregistrement impossible', error ?? 'Une erreur est survenue. Réessaie.'); return; }
+        setAlertState({
+          title: 'Modifications enregistrées ✅',
+          message: `"${nom.trim()}" a été mis à jour.`,
+          variant: 'info',
+          onClose: () => { setAlertState(null); router.replace('/(tabs)/org-concours' as any); },
+        });
+      } else {
+        const { id, error } = await createConcours(payload);
+        if (error || !id) { showErr('Création impossible', error ?? 'Une erreur est survenue. Réessaie.'); return; }
+        // Navigation UNIQUEMENT après succès réel de l'insert.
+        setAlertState({
+          title: 'Concours créé 🏆',
+          message: `"${nom.trim()}" a été enregistré en brouillon.`,
+          variant: 'info',
+          onClose: () => { setAlertState(null); router.replace('/(tabs)/org-concours' as any); },
+        });
       }
-
-      // Navigation UNIQUEMENT après succès réel de l'insert.
-      setAlertState({
-        title: 'Concours créé 🏆',
-        message: `"${nom.trim()}" a été enregistré en brouillon.`,
-        variant: 'info',
-        onClose: () => {
-          setAlertState(null);
-          router.replace('/(tabs)/org-concours' as any);
-        },
-      });
     } finally {
       // Libération sur TOUS les chemins (succès, erreur retournée, exception).
       submitLock.current = false;
@@ -210,10 +247,16 @@ export default function CreerConcoursScreen() {
         <TouchableOpacity style={s.backBtn} onPress={() => router.canGoBack() ? router.back() : router.replace('/')}>
           <Text style={s.backIcon}>‹</Text>
         </TouchableOpacity>
-        <Text style={s.headerTitle}>Créer un concours</Text>
+        <Text style={s.headerTitle}>{isEdit ? 'Modifier le concours' : 'Créer un concours'}</Text>
         <View style={{ width: 40 }} />
       </View>
 
+      {loadingDraft ? (
+        <View style={s.loadingWrap}>
+          <ActivityIndicator size="large" color={Colors.primary} />
+          <Text style={s.loadingTxt}>Chargement du concours…</Text>
+        </View>
+      ) : (
       <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
         {/* INFORMATIONS GÉNÉRALES */}
         <Text style={s.sectionTitle}>📝 Informations générales</Text>
@@ -456,11 +499,16 @@ export default function CreerConcoursScreen() {
           activeOpacity={0.85}
           disabled={submitting}
         >
-          <Text style={s.submitText}>{submitting ? 'Création…' : 'Créer le concours'}</Text>
+          <Text style={s.submitText}>
+            {submitting
+              ? (isEdit ? 'Enregistrement…' : 'Création…')
+              : (isEdit ? 'Enregistrer les modifications' : 'Créer le concours')}
+          </Text>
         </TouchableOpacity>
 
         <View style={{ height: 40 }} />
       </ScrollView>
+      )}
 
       <DatePickerModal visible={showDateDebut} value={dateDebut} onConfirm={setDateDebut} onClose={() => setShowDateDebut(false)} title="Date de début" />
       <DatePickerModal visible={showDateFin} value={dateFin} onConfirm={setDateFin} onClose={() => setShowDateFin(false)} title="Date de fin" />
@@ -483,6 +531,8 @@ const s = StyleSheet.create({
   backIcon: { fontSize: 24, color: Colors.textPrimary, lineHeight: 28 },
   headerTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   container: { padding: Spacing.lg, gap: Spacing.lg },
+  loadingWrap: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: Spacing.md },
+  loadingTxt: { fontSize: FontSize.sm, color: Colors.textSecondary },
   sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.primary, marginTop: Spacing.lg },
   field: { gap: Spacing.xs },
   fieldLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },

@@ -420,17 +420,12 @@ function toISODate(d: Date): string {
   return `${y}-${m}-${day}`;
 }
 
-export async function createConcours(
-  input: CreateConcoursInput,
-): Promise<{ id: string | null; error: string | null }> {
-  if (!input.organisateurId) {
-    return { id: null, error: 'Session expirée : reconnecte-toi pour créer un concours.' };
-  }
-
-  // Département dérivé du code postal FR (2 premiers chiffres) si dispo.
+// Colonnes concours (hors organisateur_id/statut/source_import, spécifiques à la
+// création) construites depuis l'input — PARTAGÉ par createConcours & updateConcours
+// pour garantir un mapping identique (dont la structure de `infos jsonb`).
+function buildConcoursColumns(input: CreateConcoursInput) {
   const cp = (input.codePostal ?? '').trim();
-  const departement = /^\d{5}$/.test(cp) ? cp.slice(0, 2) : null;
-
+  const departement = /^\d{5}$/.test(cp) ? cp.slice(0, 2) : null; // dépt = 2 1ers chiffres CP FR
   const infos = {
     ville: input.ville?.trim() || null,
     code_postal: cp || null,
@@ -444,33 +439,173 @@ export async function createConcours(
     region: input.region ?? null,
     ...(input.infos ?? {}),
   };
+  return {
+    nom: input.nom.trim(),
+    date_debut: toISODate(input.dateDebut),
+    date_fin: toISODate(input.dateFin),
+    lieu: input.lieu.trim(),
+    adresse: input.adresse?.trim() || null,
+    departement,
+    type_concours: input.discipline,
+    liste_epreuves: input.epreuves,
+    etat: 'ouvert',
+    infos,
+  };
+}
+
+// Traduit une erreur PostgREST en message utilisateur (RLS refusée / réseau).
+function mapConcoursWriteError(error: { message?: string } | null, fallback: string): string {
+  if (/row-level security|violates row-level|permission denied/i.test(error?.message ?? '')) {
+    return 'Accès refusé : seul un compte organisateur peut gérer ce concours.';
+  }
+  return error?.message || fallback;
+}
+
+export async function createConcours(
+  input: CreateConcoursInput,
+): Promise<{ id: string | null; error: string | null }> {
+  if (!input.organisateurId) {
+    return { id: null, error: 'Session expirée : reconnecte-toi pour créer un concours.' };
+  }
 
   const { data, error } = await supabase
     .from('concours')
     .insert({
-      nom: input.nom.trim(),
-      date_debut: toISODate(input.dateDebut),
-      date_fin: toISODate(input.dateFin),
-      lieu: input.lieu.trim(),
-      adresse: input.adresse?.trim() || null,
-      departement,
-      type_concours: input.discipline,
-      liste_epreuves: input.epreuves,
-      etat: 'ouvert',
+      ...buildConcoursColumns(input),
       organisateur_id: input.organisateurId,
       statut: 'brouillon',
       source_import: 'manual',
-      infos,
     })
     .select('id')
     .single();
 
   if (error) {
-    // RLS refusée (rôle ≠ organisateur / id ≠ auth.uid()) ou réseau.
-    if (/row-level security|violates row-level|permission denied/i.test(error.message ?? '')) {
-      return { id: null, error: "Accès refusé : seul un compte organisateur peut créer un concours." };
-    }
-    return { id: null, error: error.message || 'Échec de la création du concours.' };
+    return { id: null, error: mapConcoursWriteError(error, 'Échec de la création du concours.') };
   }
   return { id: (data as { id: string }).id, error: null };
+}
+
+// ── PR2-C : gestion organisateur (liste / édition / publication) ───────────────
+// Toutes les écritures passent par la RLS `concours_update_organisateur`
+// (organisateur_id = auth.uid() ET users.role='organisateur'). Aucun service role.
+
+export type ConcoursStatut = 'brouillon' | 'publie' | 'archive';
+
+// Vue légère « mes concours » (liste organisateur, filtrée serveur).
+export interface MyConcours {
+  id: string;
+  nom: string;
+  statut: ConcoursStatut;
+  date_debut: string | null;
+  date_fin: string | null;
+  dateLabel: string;
+  lieu: string | null;
+}
+
+// Row brut éditable (pour repeupler le formulaire d'édition + valider la publication).
+export interface ConcoursEditableRow {
+  id: string;
+  nom: string | null;
+  date_debut: string | null;
+  date_fin: string | null;
+  lieu: string | null;
+  adresse: string | null;
+  departement: string | null;
+  type_concours: string | null;
+  liste_epreuves: string[] | null;
+  statut: string | null;
+  organisateur_id: string | null;
+  infos: Record<string, any> | null;
+}
+
+// useMyConcours — concours créés par l'organisateur connecté, filtrés SERVEUR par
+// organisateur_id (+ statut optionnel). La RLS `concours_select_visible` limite déjà
+// à l'owner ; le `.eq('organisateur_id', …)` explicite évite de ramener le public.
+export function useMyConcours(statut?: ConcoursStatut) {
+  const { session } = useAuth();
+  const userId = session?.user?.id;
+  const [list, setList] = useState<MyConcours[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  const load = useCallback(async () => {
+    if (!userId) { setList([]); setIsLoading(false); return; }
+    setIsLoading(true);
+    let q = supabase
+      .from('concours')
+      .select('id,nom,statut,date_debut,date_fin,lieu')
+      .eq('organisateur_id', userId);
+    if (statut) q = q.eq('statut', statut);
+    const { data, error } = await q.order('date_debut', { ascending: true });
+    if (error || !data) {
+      setList([]);
+    } else {
+      setList(
+        (data as any[]).map((r) => ({
+          id: r.id,
+          nom: r.nom,
+          statut: (r.statut ?? 'brouillon') as ConcoursStatut,
+          date_debut: r.date_debut,
+          date_fin: r.date_fin,
+          dateLabel: fmtDateLabel(r.date_debut, r.date_fin),
+          lieu: r.lieu,
+        })),
+      );
+    }
+    setIsLoading(false);
+  }, [userId, statut]);
+
+  useEffect(() => { load(); }, [load]);
+  return { concours: list, isLoading, reload: load };
+}
+
+// Lecture one-shot du row éditable (incl. infos/statut/adresse). null si non-owner (RLS).
+export async function fetchConcoursForEdit(id: string): Promise<ConcoursEditableRow | null> {
+  const { data, error } = await supabase
+    .from('concours')
+    .select('id,nom,date_debut,date_fin,lieu,adresse,departement,type_concours,liste_epreuves,statut,organisateur_id,infos')
+    .eq('id', id)
+    .maybeSingle();
+  if (error || !data) return null;
+  return data as ConcoursEditableRow;
+}
+
+// Met à jour un concours existant (édition) SANS créer de nouvelle ligne ni toucher
+// au statut/organisateur_id. `updated_at` géré par le trigger trg_concours_touch.
+export async function updateConcours(
+  id: string,
+  input: CreateConcoursInput,
+): Promise<{ ok: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('concours')
+    .update(buildConcoursColumns(input))
+    .eq('id', id)
+    .select('id')
+    .single();
+  if (error) return { ok: false, error: mapConcoursWriteError(error, "Échec de l'enregistrement.") };
+  return { ok: true, error: null };
+}
+
+// Publication : change UNIQUEMENT le statut brouillon→publie (rend le concours
+// visible dans les listes publiques via concours_select_visible + filtre statut).
+export async function publishConcours(id: string): Promise<{ ok: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('concours')
+    .update({ statut: 'publie' })
+    .eq('id', id)
+    .select('id')
+    .single();
+  if (error) return { ok: false, error: mapConcoursWriteError(error, 'Échec de la publication.') };
+  return { ok: true, error: null };
+}
+
+// Archivage : statut → archive (retire des listes publiques, conserve la donnée).
+export async function archiveConcours(id: string): Promise<{ ok: boolean; error: string | null }> {
+  const { error } = await supabase
+    .from('concours')
+    .update({ statut: 'archive' })
+    .eq('id', id)
+    .select('id')
+    .single();
+  if (error) return { ok: false, error: mapConcoursWriteError(error, "Échec de l'archivage.") };
+  return { ok: true, error: null };
 }
