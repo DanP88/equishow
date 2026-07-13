@@ -1,30 +1,47 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { View, Text, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
 import {
   EPREUVES_PAR_DISCIPLINE,
-  DISCIPLINES_EPREUVES,
+  DISCIPLINES_CATALOGUE,
   disciplineOfEpreuve,
 } from '../lib/epreuves';
 
 interface Props {
+  /** Disciplines explicitement sélectionnées par l'organisateur (onglets visibles). */
+  disciplines: string[];
+  /** Épreuves sélectionnées (labels plats, stockés tels quels dans liste_epreuves). */
   selected: string[];
   onChange: (s: string[]) => void;
 }
 
 /**
- * Sélecteur d'épreuves multidisciplinaire pour le formulaire concours.
+ * Sélecteur d'épreuves multidisciplinaire.
  *
- * - Onglets horizontaux par discipline (badge = nombre d'épreuves déjà choisies).
- * - Chips épreuves de l'onglet actif (toggle sans doublon).
- * - Récapitulatif de toutes les épreuves sélectionnées avec tag × supprimable.
- * - Labels "inconnus" (FFE importés, anciens labels hors catalogue) : préservés
- *   dans `selected`, visibles dans le récapitulatif, non affichés dans les onglets.
- * - Changer d'onglet ou de discipline principale (externe) n'efface jamais `selected`.
+ * - N'affiche que les onglets des disciplines passées dans `disciplines`.
+ * - L'ordre des onglets suit DISCIPLINES_CATALOGUE (stable).
+ * - Disciplines sans épreuves prédéfinies dans le catalogue : onglet vide.
+ * - Labels "inconnus" (FFE importés) : préservés dans `selected`, visibles
+ *   dans le récapitulatif avec ×, jamais supprimés silencieusement.
+ * - Changer d'onglet ne modifie jamais `selected`.
  */
-export function MultiDisciplineEpreuvePicker({ selected, onChange }: Props) {
-  const [activeDisc, setActiveDisc] = useState<string>(DISCIPLINES_EPREUVES[0]);
+export function MultiDisciplineEpreuvePicker({ disciplines, selected, onChange }: Props) {
+  // Tabs ordonnés : disciplines prop, triées dans l'ordre DISCIPLINES_CATALOGUE,
+  // avec les éventuelles valeurs hors catalogue appendées à la fin.
+  const orderedTabs = [
+    ...DISCIPLINES_CATALOGUE.filter(d => disciplines.includes(d)),
+    ...disciplines.filter(d => !DISCIPLINES_CATALOGUE.includes(d)),
+  ];
+
+  const [activeDisc, setActiveDisc] = useState<string>(orderedTabs[0] ?? '');
+
+  // Si la discipline active est retirée par le parent, revenir au premier onglet.
+  useEffect(() => {
+    if (orderedTabs.length === 0) { setActiveDisc(''); return; }
+    if (!orderedTabs.includes(activeDisc)) setActiveDisc(orderedTabs[0]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [disciplines.join(',')]);
 
   function toggle(label: string) {
     if (selected.includes(label)) {
@@ -38,10 +55,16 @@ export function MultiDisciplineEpreuvePicker({ selected, onChange }: Props) {
     onChange(selected.filter(x => x !== label));
   }
 
-  const activeEpreuves = EPREUVES_PAR_DISCIPLINE[activeDisc] ?? [];
-
-  // Labels hors catalogue (FFE, anciens) : préservés mais sans onglet dédié.
+  const activeEpreuves = (EPREUVES_PAR_DISCIPLINE[activeDisc] ?? []) as readonly string[];
   const unknownSelected = selected.filter(ep => disciplineOfEpreuve(ep) === null);
+
+  if (orderedTabs.length === 0) {
+    return (
+      <View style={s.emptyWrap}>
+        <Text style={s.emptyTxt}>Sélectionne d'abord une ou plusieurs disciplines ci-dessus.</Text>
+      </View>
+    );
+  }
 
   return (
     <View>
@@ -52,9 +75,9 @@ export function MultiDisciplineEpreuvePicker({ selected, onChange }: Props) {
         style={s.tabsScroll}
         contentContainerStyle={s.tabsContent}
       >
-        {DISCIPLINES_EPREUVES.map((disc) => {
-          const count = (EPREUVES_PAR_DISCIPLINE[disc] as readonly string[])
-            .filter(ep => selected.includes(ep)).length;
+        {orderedTabs.map((disc) => {
+          const count = (EPREUVES_PAR_DISCIPLINE[disc] as readonly string[] | undefined)
+            ?.filter(ep => selected.includes(ep)).length ?? 0;
           const active = disc === activeDisc;
           return (
             <TouchableOpacity
@@ -72,21 +95,27 @@ export function MultiDisciplineEpreuvePicker({ selected, onChange }: Props) {
       </ScrollView>
 
       {/* ── Chips épreuves de l'onglet actif ──────────────────────────── */}
-      <View style={s.chipsWrap}>
-        {(activeEpreuves as readonly string[]).map((ep) => {
-          const checked = selected.includes(ep);
-          return (
-            <TouchableOpacity
-              key={ep}
-              style={[s.chip, checked && s.chipActive]}
-              onPress={() => toggle(ep)}
-              activeOpacity={0.8}
-            >
-              <Text style={[s.chipTxt, checked && s.chipTxtActive]}>{ep}</Text>
-            </TouchableOpacity>
-          );
-        })}
-      </View>
+      {activeEpreuves.length > 0 ? (
+        <View style={s.chipsWrap}>
+          {activeEpreuves.map((ep) => {
+            const checked = selected.includes(ep);
+            return (
+              <TouchableOpacity
+                key={ep}
+                style={[s.chip, checked && s.chipActive]}
+                onPress={() => toggle(ep)}
+                activeOpacity={0.8}
+              >
+                <Text style={[s.chipTxt, checked && s.chipTxtActive]}>{ep}</Text>
+              </TouchableOpacity>
+            );
+          })}
+        </View>
+      ) : (
+        <View style={s.emptyDisc}>
+          <Text style={s.emptyDiscTxt}>Pas d'épreuves prédéfinies pour {activeDisc}.</Text>
+        </View>
+      )}
 
       {/* ── Récapitulatif ─────────────────────────────────────────────── */}
       {selected.length > 0 && (
@@ -119,6 +148,16 @@ export function MultiDisciplineEpreuvePicker({ selected, onChange }: Props) {
 }
 
 const s = StyleSheet.create({
+  emptyWrap: {
+    paddingVertical: Spacing.lg,
+    alignItems: 'center',
+  },
+  emptyTxt: {
+    fontSize: FontSize.sm,
+    color: Colors.textTertiary,
+    fontStyle: 'italic',
+    textAlign: 'center',
+  },
   tabsScroll: { marginBottom: Spacing.sm },
   tabsContent: { gap: Spacing.xs, paddingBottom: 2 },
   tab: {
@@ -166,6 +205,18 @@ const s = StyleSheet.create({
   },
   chipTxtActive: {
     color: Colors.textInverse,
+  },
+  emptyDisc: {
+    paddingVertical: Spacing.md,
+    paddingHorizontal: Spacing.sm,
+    marginBottom: Spacing.sm,
+    backgroundColor: Colors.surfaceVariant,
+    borderRadius: Radius.md,
+  },
+  emptyDiscTxt: {
+    fontSize: FontSize.sm,
+    color: Colors.textTertiary,
+    fontStyle: 'italic',
   },
   recap: {
     backgroundColor: Colors.surfaceVariant,

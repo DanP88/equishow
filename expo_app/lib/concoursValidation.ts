@@ -56,7 +56,7 @@ export function validateConcoursForm(
     }
   }
   if (!f.lieu.trim()) return { title: 'Lieu manquant', message: 'Indiquez le lieu où se déroule le concours.' };
-  if (!f.discipline) return { title: 'Discipline manquante', message: 'Sélectionnez la discipline du concours.' };
+  if (!f.discipline) return { title: 'Discipline manquante', message: 'Sélectionnez au moins une discipline.' };
   if (!f.nbPlaces) return { title: 'Places manquantes', message: 'Indiquez le nombre de places disponibles.' };
   const placesNum = parseInt(f.nbPlaces, 10);
   if (Number.isNaN(placesNum) || placesNum <= 0) {

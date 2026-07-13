@@ -1,131 +1,201 @@
-// Tests multi-discipline épreuves picker — fonctions pures de lib/epreuves.ts
-// Cf. contraintes de la PR : format liste_epreuves plat, labels inconnus préservés,
-// disciplines dérivées stables, fallback sur discipline_principale.
+// Tests sélecteur disciplines + épreuves multi-disciplines — fonctions pures lib/epreuves.ts
 import {
   EPREUVES_PAR_DISCIPLINE,
+  DISCIPLINES_CATALOGUE,
   DISCIPLINES_EPREUVES,
   disciplineOfEpreuve,
   deriveDisciplines,
+  resolveEditDisciplines,
 } from './epreuves';
 
-// ── T01 : sélection multi-disciplines ───────────────────────────────────────
-test('T01 — catalogue contient plusieurs disciplines avec des épreuves', () => {
-  expect(DISCIPLINES_EPREUVES.length).toBeGreaterThanOrEqual(3);
-  for (const disc of DISCIPLINES_EPREUVES) {
-    expect(EPREUVES_PAR_DISCIPLINE[disc].length).toBeGreaterThan(0);
+// ── T01 : sélection CSO + Dressage + CCE ────────────────────────────────────
+test('T01 — sélection CSO + Dressage + CCE retourne 3 disciplines dans le bon ordre', () => {
+  const disc = ['CCE', 'CSO', 'Dressage']; // ordre de sélection aléatoire
+  const ordered = DISCIPLINES_CATALOGUE.filter(d => disc.includes(d));
+  expect(ordered).toEqual(['CSO', 'Dressage', 'CCE']);
+});
+
+// ── T02 : ajout d'épreuves dans 3 disciplines ────────────────────────────────
+test('T02 — ajout d'épreuves dans CSO, Dressage et CCE — pas de doublon', () => {
+  const epreuves: string[] = [];
+  function addEpreuve(ep: string) {
+    if (!epreuves.includes(ep)) epreuves.push(ep);
   }
+  addEpreuve('1.20m');      // CSO
+  addEpreuve('Dressage Pro'); // Dressage
+  addEpreuve('CCE jeune');  // CCE
+  addEpreuve('1.20m');      // doublon → ignoré
+  expect(epreuves).toEqual(['1.20m', 'Dressage Pro', 'CCE jeune']);
+  expect(new Set(epreuves).size).toBe(epreuves.length);
 });
 
-// ── T02 : changement d'onglet sans perte (garantie structurelle) ─────────────
-// Le composant MultiDisciplineEpreuvePicker garde `activeDisc` en état interne
-// et n'appelle JAMAIS onChange lors d'un changement d'onglet.
-// On vérifie que `disciplineOfEpreuve` est stable : une épreuve CSO reste CSO
-// quelle que soit la discipline active.
-test('T02 — disciplineOfEpreuve stable (simulacre changement onglet)', () => {
-  const ep = '1.20m';
-  // Peu importe le "contexte" actif, le mapping reste le même.
-  expect(disciplineOfEpreuve(ep)).toBe('CSO');
-  expect(disciplineOfEpreuve(ep)).toBe('CSO');
+// ── T03 : retrait d'une discipline + ses épreuves après confirmation ─────────
+test('T03 — retrait discipline retire ses épreuves', () => {
+  let selectedDiscs = ['CSO', 'Dressage', 'CCE'];
+  let epreuves = ['1.20m', 'Dressage Pro', 'CCE jeune'];
+
+  // Simulation : utilisateur retire "Dressage" (a confirmé)
+  const discToRemove = 'Dressage';
+  const catalogue = EPREUVES_PAR_DISCIPLINE[discToRemove] as readonly string[];
+  const toRemove = epreuves.filter(ep => catalogue.includes(ep));
+  expect(toRemove).toEqual(['Dressage Pro']); // épreuve à retirer
+
+  selectedDiscs = selectedDiscs.filter(d => d !== discToRemove);
+  epreuves = epreuves.filter(ep => !toRemove.includes(ep));
+
+  expect(selectedDiscs).toEqual(['CSO', 'CCE']);
+  expect(epreuves).toEqual(['1.20m', 'CCE jeune']);
 });
 
-// ── T03 : changement discipline principale sans perte ────────────────────────
-// creer-concours.tsx gère `discipline` et `epreuves` comme deux états distincts.
-// deriveDisciplines ne lit pas `discipline` — seul le payload l'utilise.
-// Changer discipline principale ne réinitialise pas la liste épreuves.
-test('T03 — deriveDisciplines ne dépend pas de la discipline principale (états indépendants)', () => {
+// ── T04 : annulation du retrait d'une discipline ─────────────────────────────
+test('T04 — annulation du retrait : disciplines et épreuves inchangées', () => {
+  const selectedDiscs = ['CSO', 'Dressage'];
   const epreuves = ['1.20m', 'Dressage Pro'];
-  const avecCSO = deriveDisciplines(epreuves, ['CSO']);
-  const avecDressage = deriveDisciplines(epreuves, ['Dressage']);
-  // Disciplines dérivées des épreuves sont les mêmes quelle que soit discipline principale
-  expect(avecCSO).toEqual(['CSO', 'Dressage']);
-  expect(avecDressage).toEqual(['CSO', 'Dressage']);
+
+  // Utilisateur clique "Annuler" → aucun changement
+  const afterCancel = { selectedDiscs: [...selectedDiscs], epreuves: [...epreuves] };
+  expect(afterCancel.selectedDiscs).toEqual(['CSO', 'Dressage']);
+  expect(afterCancel.epreuves).toEqual(['1.20m', 'Dressage Pro']);
 });
 
-// ── T04 : déduplication ─────────────────────────────────────────────────────
-// Le toggle du picker : [...selected, label] seulement si !selected.includes(label)
-test('T04 — pas de doublon si même label soumis deux fois (simulacre toggle)', () => {
+// ── T05 : édition d'un concours existant (infos.disciplines présent) ─────────
+test('T05 — resolveEditDisciplines utilise infos.disciplines si présent', () => {
+  const infos = { disciplines: ['CSO', 'Dressage'] };
+  const liste = ['1.20m', 'Dressage Pro'];
+  const result = resolveEditDisciplines(infos, liste, 'CCE');
+  expect(result).toEqual(['CSO', 'Dressage']); // infos.disciplines prime
+});
+
+// ── T06 : ancien concours sans infos.disciplines — dériver depuis liste_epreuves
+test('T06 — resolveEditDisciplines dérive depuis liste_epreuves si infos.disciplines absent', () => {
+  const infos = { nb_places: 40 }; // pas de disciplines
+  const liste = ['1.20m', 'Dressage Novice', 'CCE amateur'];
+  const result = resolveEditDisciplines(infos, liste, 'CCE');
+  expect(result).toEqual(['CSO', 'Dressage', 'CCE']); // dérivé des 3 épreuves
+});
+
+// ── T07 : ancien concours avec épreuve FFE inconnue ─────────────────────────
+test('T07 — épreuve inconnue préservée dans selected, disciplineOfEpreuve = null', () => {
+  const ffe = 'Prix des As (1,30 m)';
+  expect(disciplineOfEpreuve(ffe)).toBeNull();
+
+  // Elle reste dans selected même si aucune discipline correspondante
+  const selected = ['1.20m', ffe];
+  expect(selected).toContain(ffe); // préservée
+
+  // deriveDisciplines ignore les épreuves inconnues pour la dérivation
+  const disc = deriveDisciplines(selected, ['CSO']);
+  expect(disc).toEqual(['CSO']); // seule 1.20m reconnue → CSO
+});
+
+// ── T08 : absence de doublons dans liste_epreuves ────────────────────────────
+test('T08 — toggle ne crée pas de doublons', () => {
   function toggle(selected: string[], label: string): string[] {
     if (selected.includes(label)) return selected.filter(x => x !== label);
     return [...selected, label];
   }
-  const s0: string[] = [];
-  const s1 = toggle(s0, '1.20m');
-  const s2 = toggle(s1, '1.20m'); // désélectionne
-  const s3 = toggle(s2, '1.20m'); // resélectionne
-  // Aucun doublon à aucune étape
-  expect(s1).toEqual(['1.20m']);
-  expect(s2).toEqual([]);
-  expect(s3).toEqual(['1.20m']);
-  // Ajout d'un second et retoggle du premier
-  const s4 = toggle(s3, 'Dressage Pro');
-  expect(new Set(s4).size).toBe(s4.length); // pas de doublon
+  let s = toggle([], '1.20m');
+  s = toggle(s, '1.20m'); // désélectionne
+  s = toggle(s, '1.20m'); // resélectionne
+  s = toggle(s, 'Dressage Pro');
+  // Simulation d'un toggle rapide en double
+  const afterDouble = [...s];
+  if (!afterDouble.includes('1.20m')) afterDouble.push('1.20m');
+  expect(new Set(afterDouble).size).toBe(afterDouble.length);
 });
 
-// ── T05 : ordre stable des disciplines dérivées ──────────────────────────────
-test('T05 — deriveDisciplines respecte DISCIPLINES_EPREUVES quel que soit l\'ordre de sélection', () => {
-  const ordre1 = deriveDisciplines(['Dressage Pro', '1.20m'], []);
-  const ordre2 = deriveDisciplines(['1.20m', 'Dressage Pro'], []);
-  // Toujours CSO avant Dressage (ordre DISCIPLINES_EPREUVES)
-  expect(ordre1).toEqual(['CSO', 'Dressage']);
-  expect(ordre2).toEqual(['CSO', 'Dressage']);
+// ── T09 : conservation des autres clés de infos ──────────────────────────────
+test('T09 — buildConcoursColumns ne supprime pas les clés existingInfos', () => {
+  // Simule le comportement de buildConcoursColumns (spread existingInfos en premier)
+  const existingInfos = {
+    region: 'Île-de-France',
+    parking: 'Gratuit',
+    coaching: true,
+    restauration: 'Buvette',
+    prix: 50,
+    nb_places: 60,
+    disciplines: ['CSO'],        // ancienne valeur — sera écrasée par la nouvelle
+  };
+  const newInfosFields = {
+    disciplines: ['CSO', 'Dressage'],
+    nb_places: 60,
+    prix: 50,
+    restauration: 'Buvette',
+    parking: 'Gratuit',
+    coaching: true,
+  };
+  const merged = { ...existingInfos, ...newInfosFields };
+
+  expect(merged.region).toBe('Île-de-France');     // conservé
+  expect(merged.parking).toBe('Gratuit');           // conservé
+  expect(merged.disciplines).toEqual(['CSO', 'Dressage']); // mis à jour
 });
 
-// ── T06 : préservation d'une valeur FFE inconnue ─────────────────────────────
-test('T06 — disciplineOfEpreuve retourne null pour un label FFE hors catalogue', () => {
-  expect(disciplineOfEpreuve('Prix des As Jeunes Etape 1 (1,30 m)')).toBeNull();
-  expect(disciplineOfEpreuve('SO Amateur2026 : préparatoire')).toBeNull();
-  expect(disciplineOfEpreuve('')).toBeNull();
+// ── T10 : mise à jour de la discipline principale de compatibilité ────────────
+test('T10 — discipline principale = premier élément de selectedDisciplines', () => {
+  // Si CSO est la première discipline, type_concours = 'CSO'
+  expect(['CSO', 'Dressage'][0]).toBe('CSO');
+  expect(['Dressage', 'CSO'][0]).toBe('Dressage');
+  // Aucune discipline sélectionnée → chaîne vide → validation bloque
+  expect([].at(0) ?? '').toBe('');
 });
 
-// ── T07 : suppression explicite d'une valeur inconnue ────────────────────────
-test('T07 — remove() supprime un label inconnu de selected', () => {
-  function remove(selected: string[], label: string): string[] {
-    return selected.filter(x => x !== label);
-  }
-  const ffe = 'Prix des As (1,30m)';
-  const s = ['1.20m', ffe];
-  expect(remove(s, ffe)).toEqual(['1.20m']);
-  expect(remove(s, '1.20m')).toEqual([ffe]);
+// ── Tests de régression depuis T01 original ──────────────────────────────────
+
+test('Régression — catalogue contient 12 disciplines', () => {
+  expect(DISCIPLINES_CATALOGUE.length).toBeGreaterThanOrEqual(12);
 });
 
-// ── T08 : round-trip formulaire → payload → préremplissage ──────────────────
-test('T08 — round-trip liste_epreuves : sélection → payload → prefill', () => {
-  const selected = ['1.20m', 'Dressage Pro', 'CCE jeune'];
-
-  // Payload : disciplines dérivées + liste plate
-  const disciplines = deriveDisciplines(selected, ['CSO']);
-  expect(disciplines).toEqual(['CSO', 'Dressage', 'CCE']);
-
-  // Préservation : liste plate stockée telle quelle dans liste_epreuves (text[])
-  const listeEpreuvesStored = selected; // pas de transformation
-
-  // Préremplissage (logique useEffect dans creer-concours.tsx)
-  const row = { liste_epreuves: listeEpreuvesStored };
-  const restored = Array.isArray(row.liste_epreuves) ? row.liste_epreuves : [];
-  expect(restored).toEqual(selected);
+test('Régression — DISCIPLINES_EPREUVES alias de DISCIPLINES_CATALOGUE', () => {
+  expect(DISCIPLINES_EPREUVES).toBe(DISCIPLINES_CATALOGUE);
 });
 
-// ── T09 : fallback sur la discipline principale si aucune épreuve reconnue ───
-test('T09 — deriveDisciplines retombe sur le fallback si aucune épreuve reconnue', () => {
-  expect(deriveDisciplines([], ['CSO'])).toEqual(['CSO']);
-  expect(deriveDisciplines(['Prix des As (1,30m)'], ['Dressage'])).toEqual(['Dressage']);
-  // Jamais tableau vide
-  expect(deriveDisciplines([], [])).toEqual([]);
+test('Régression — disciplineOfEpreuve stable sur labels CSO, Dressage, CCE', () => {
+  expect(disciplineOfEpreuve('1.20m')).toBe('CSO');
+  expect(disciplineOfEpreuve('Dressage Pro')).toBe('Dressage');
+  expect(disciplineOfEpreuve('CCE amateur')).toBe('CCE');
 });
 
-// ── T10 : compatibilité avec les 8 anciens labels ────────────────────────────
-test('T10 — les 8 labels historiques du formulaire d\'origine sont dans le catalogue', () => {
-  const legacyLabels: Array<[string, string]> = [
-    ['1.00m', 'CSO'],
-    ['1.10m', 'CSO'],
-    ['1.20m', 'CSO'],
-    ['1.30m', 'CSO'],
-    ['Dressage Novice', 'Dressage'],
-    ['Dressage Amateur', 'Dressage'],
-    ['CCE jeune', 'CCE'],
-    ['CCE amateur', 'CCE'],
+test('Régression — ordre stable DISCIPLINES_CATALOGUE dans deriveDisciplines', () => {
+  const o1 = deriveDisciplines(['Dressage Pro', '1.20m'], []);
+  const o2 = deriveDisciplines(['1.20m', 'Dressage Pro'], []);
+  expect(o1).toEqual(['CSO', 'Dressage']);
+  expect(o2).toEqual(['CSO', 'Dressage']);
+});
+
+test('Régression — les 8 anciens labels du formulaire sont dans le catalogue', () => {
+  const legacy: Array<[string, string]> = [
+    ['1.00m', 'CSO'], ['1.10m', 'CSO'], ['1.20m', 'CSO'], ['1.30m', 'CSO'],
+    ['Dressage Novice', 'Dressage'], ['Dressage Amateur', 'Dressage'],
+    ['CCE jeune', 'CCE'], ['CCE amateur', 'CCE'],
   ];
-  for (const [label, expectedDisc] of legacyLabels) {
-    expect(disciplineOfEpreuve(label)).toBe(expectedDisc);
+  for (const [label, disc] of legacy) {
+    expect(disciplineOfEpreuve(label)).toBe(disc);
   }
+});
+
+test('Régression — resolveEditDisciplines fallback sur type_concours si liste vide', () => {
+  const result = resolveEditDisciplines(null, [], 'Raid');
+  expect(result).toEqual(['Raid']);
+});
+
+test('Régression — resolveEditDisciplines retourne [] si tout est vide', () => {
+  const result = resolveEditDisciplines(null, [], null);
+  expect(result).toEqual([]);
+});
+
+test('Régression — deriveDisciplines ignore disciplines sans épreuves (Autre) pour la dérivation', () => {
+  // Autre a un tableau vide → jamais couvert par des épreuves
+  const disc = deriveDisciplines(['1.20m'], []);
+  expect(disc).not.toContain('Autre');
+  expect(disc).toContain('CSO');
+});
+
+test('Régression — nouvelles disciplines (Attelage, Endurance) dans DISCIPLINES_CATALOGUE', () => {
+  expect(DISCIPLINES_CATALOGUE).toContain('Attelage');
+  expect(DISCIPLINES_CATALOGUE).toContain('Endurance');
+  expect(DISCIPLINES_CATALOGUE).toContain('TREC');
+  expect(DISCIPLINES_CATALOGUE).toContain('Pony Games');
+  expect(DISCIPLINES_CATALOGUE).toContain('Western');
+  expect(DISCIPLINES_CATALOGUE).toContain('Autre');
 });

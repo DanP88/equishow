@@ -73,26 +73,42 @@ export function formatEpreuve(label: string): string {
 // Les 8 labels historiques du formulaire d'origine ('1.00m'…'CCE amateur') sont
 // préservés ici pour que l'édition d'un concours existant préremplisse correctement.
 // Format plat inchangé : chaque label est stocké tel quel dans liste_epreuves (text[]).
+//
+// DISCIPLINES_CATALOGUE = toutes les disciplines sélectionnables (dont celles sans
+// épreuves prédéfinies : Attelage, Endurance, TREC, Pony Games, Western, Autre).
+// EPREUVES_PAR_DISCIPLINE = catalogue des épreuves par discipline (sous-ensemble).
 // ─────────────────────────────────────────────────────────────────────────────
 
 export const EPREUVES_PAR_DISCIPLINE: Readonly<Record<string, readonly string[]>> = {
-  CSO:      ['1.00m', '1.10m', '1.20m', '1.30m', '1.40m', '1.50m', 'Grand Prix', 'Barème A', 'Barème C', 'Spéciale au chrono'],
-  Dressage: ['Dressage Novice', 'Dressage Amateur', 'Dressage Pro', 'Dressage Elite'],
-  CCE:      ['CCE jeune', 'CCE amateur', 'CCE pro', 'Cross', 'Dressage CCE', 'Jumping CCE'],
-  Hunter:   ['Hunter Amateur', 'Hunter Pro', 'Hunter Elite'],
-  Raid:     ['Raid Amateur', 'Raid Pro'],
-  Voltige:  ['Voltige Club', 'Voltige Pro'],
+  CSO:          ['1.00m', '1.10m', '1.20m', '1.30m', '1.40m', '1.50m', 'Grand Prix', 'Barème A', 'Barème C', 'Spéciale au chrono'],
+  Dressage:     ['Dressage Novice', 'Dressage Amateur', 'Dressage Pro', 'Dressage Elite'],
+  CCE:          ['CCE jeune', 'CCE amateur', 'CCE pro', 'Cross', 'Dressage CCE', 'Jumping CCE'],
+  Hunter:       ['Hunter Amateur', 'Hunter Pro', 'Hunter Elite'],
+  Raid:         ['Raid Amateur', 'Raid Pro'],
+  Voltige:      ['Voltige Club', 'Voltige Pro'],
+  Attelage:     ['Dressage Attelage', 'Marathon', 'Maniabilité', 'Combined Driving'],
+  Endurance:    ['Endurance 40 km', 'Endurance 80 km', 'Endurance 120 km', 'Endurance 160 km'],
+  TREC:         ['POR', 'PTV', 'MC'],
+  'Pony Games': ['Pony Games Équipe', 'Pony Games Individuel'],
+  Western:      ['Reining', 'Cutting', 'Trail', 'Barrel Racing', 'Working Cowhorse'],
+  Autre:        [],
 };
 
-/** Ordre stable des disciplines dans le sélecteur (défini une seule fois). */
-export const DISCIPLINES_EPREUVES: readonly string[] = Object.keys(EPREUVES_PAR_DISCIPLINE);
+/**
+ * Toutes les disciplines disponibles à la sélection, dans l'ordre d'affichage.
+ * Source de vérité de l'ordre des onglets et des chips disciplines.
+ */
+export const DISCIPLINES_CATALOGUE: readonly string[] = Object.keys(EPREUVES_PAR_DISCIPLINE);
+
+/** Alias — même référence, conservé pour compatibilité des consommateurs existants. */
+export const DISCIPLINES_EPREUVES: readonly string[] = DISCIPLINES_CATALOGUE;
 
 /**
  * Retourne la discipline du catalogue à laquelle appartient un label, ou null.
  * Une valeur FFE importée (long string hors catalogue) renvoie null.
  */
 export function disciplineOfEpreuve(label: string): string | null {
-  for (const disc of DISCIPLINES_EPREUVES) {
+  for (const disc of DISCIPLINES_CATALOGUE) {
     if ((EPREUVES_PAR_DISCIPLINE[disc] as readonly string[]).includes(label)) return disc;
   }
   return null;
@@ -100,14 +116,33 @@ export function disciplineOfEpreuve(label: string): string | null {
 
 /**
  * Dérive la liste ordonnée et dédupliquée des disciplines couvertes par un ensemble
- * d'épreuves. Ordre = DISCIPLINES_EPREUVES (stable, indépendant de l'ordre de sélection).
+ * d'épreuves. Ordre = DISCIPLINES_CATALOGUE (stable, indépendant de l'ordre de sélection).
  * Si aucune épreuve reconnue → renvoie `fallback` (jamais de tableau vide).
+ * Utilisé pour la compatibilité avec les anciens concours sans infos.disciplines.
  */
 export function deriveDisciplines(epreuves: string[], fallback: string[]): string[] {
   const covered: string[] = [];
-  for (const disc of DISCIPLINES_EPREUVES) {
+  for (const disc of DISCIPLINES_CATALOGUE) {
     const catalogue = EPREUVES_PAR_DISCIPLINE[disc] as readonly string[];
-    if (epreuves.some(ep => catalogue.includes(ep))) covered.push(disc);
+    if (catalogue.length > 0 && epreuves.some(ep => catalogue.includes(ep))) covered.push(disc);
   }
   return covered.length > 0 ? covered : fallback;
+}
+
+/**
+ * Résout les disciplines à charger en mode édition, avec fallback multi-niveaux :
+ * 1. infos.disciplines (valeur explicite stockée par le formulaire) ;
+ * 2. dérivation depuis liste_epreuves (anciens concours sans infos.disciplines) ;
+ * 3. type_concours comme dernier recours.
+ */
+export function resolveEditDisciplines(
+  infos: Record<string, any> | null | undefined,
+  listeEpreuves: string[] | null | undefined,
+  typeConcours: string | null | undefined,
+): string[] {
+  const stored = infos?.disciplines;
+  if (Array.isArray(stored) && stored.length > 0) return stored as string[];
+  const epreuves = listeEpreuves ?? [];
+  if (epreuves.length > 0) return deriveDisciplines(epreuves, typeConcours ? [typeConcours] : []);
+  return typeConcours ? [typeConcours] : [];
 }
