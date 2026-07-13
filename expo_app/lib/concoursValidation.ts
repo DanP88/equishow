@@ -71,6 +71,13 @@ export function validateConcoursForm(
   return null;
 }
 
+// Parses 'YYYY-MM-DD' as local midnight. new Date('YYYY-MM-DD') is parsed as UTC
+// midnight by spec — in UTC-negative zones that shifts the displayed day by -1.
+export function parseLocalDate(s: string): Date {
+  const [y, m, d] = s.split('-').map(Number);
+  return new Date(y, m - 1, d);
+}
+
 // Row brut (concours + infos jsonb) → champs de formulaire, pour valider une
 // publication sans réafficher le formulaire. Reflète le mapping de `createConcours`.
 export interface ConcoursRowForValidation {
@@ -86,8 +93,8 @@ export function rowToFormFields(row: ConcoursRowForValidation): ConcoursFormFiel
   const infos = row.infos ?? {};
   return {
     nom: row.nom ?? '',
-    dateDebut: row.date_debut ? new Date(row.date_debut) : undefined,
-    dateFin: row.date_fin ? new Date(row.date_fin) : undefined,
+    dateDebut: row.date_debut ? parseLocalDate(row.date_debut) : undefined,
+    dateFin: row.date_fin ? parseLocalDate(row.date_fin) : undefined,
     lieu: row.lieu ?? '',
     discipline: row.type_concours ?? '',
     nbPlaces: infos.nb_places != null ? String(infos.nb_places) : '',

@@ -38,6 +38,7 @@ export default function OrgConcoursScreen() {
   const [activeTab, setActiveTab] = useState<ConcoursStatut>('brouillon');
   const { concours: myConcours, isLoading: myLoading, reload: reloadMine } = useMyConcours(activeTab);
   const [confirmPublishId, setConfirmPublishId] = useState<string | null>(null);
+  const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'success' | 'error' } | null>(null);
 
@@ -71,11 +72,12 @@ export default function OrgConcoursScreen() {
   }, [reloadMine]);
 
   const doArchive = useCallback(async (id: string) => {
+    setConfirmArchiveId(null);
     setBusyId(id);
     const { ok, error } = await archiveConcours(id);
     setBusyId(null);
     if (!ok) { setAlertState({ title: 'Archivage impossible', message: error ?? 'Réessaie.', variant: 'error' }); return; }
-    setAlertState({ title: 'Concours archivé', message: 'Il n\'apparaît plus dans les listes publiques.', variant: 'info' });
+    setAlertState({ title: 'Concours archivé', message: 'Il n\'apparaît plus dans les listes publiques. Tu peux le republier à tout moment depuis l\'onglet Archivés.', variant: 'info' });
     reloadMine();
   }, [reloadMine]);
   return (
@@ -170,12 +172,24 @@ export default function OrgConcoursScreen() {
                     {c.statut === 'publie' && (
                       <TouchableOpacity
                         style={[s.actionBtn, s.actionSecondary, busy && s.actionDisabled]}
-                        onPress={() => doArchive(c.id)}
+                        onPress={() => setConfirmArchiveId(c.id)}
                         activeOpacity={0.85}
                         disabled={busy}
                       >
                         {busy ? <ActivityIndicator color={Colors.textSecondary} size="small" />
                           : <Text style={s.actionSecondaryTxt}>🗄️ Archiver</Text>}
+                      </TouchableOpacity>
+                    )}
+
+                    {c.statut === 'archive' && (
+                      <TouchableOpacity
+                        style={[s.actionBtn, s.actionPrimary, busy && s.actionDisabled]}
+                        onPress={() => setConfirmPublishId(c.id)}
+                        activeOpacity={0.85}
+                        disabled={busy}
+                      >
+                        {busy ? <ActivityIndicator color={Colors.textInverse} size="small" />
+                          : <Text style={s.actionPrimaryTxt}>🔄 Republier</Text>}
                       </TouchableOpacity>
                     )}
                   </View>
@@ -283,6 +297,16 @@ export default function OrgConcoursScreen() {
         cancelLabel="Annuler"
         onConfirm={() => { if (confirmPublishId) doPublish(confirmPublishId); }}
         onCancel={() => setConfirmPublishId(null)}
+      />
+
+      <ConfirmModal
+        visible={!!confirmArchiveId}
+        title="Archiver ce concours ?"
+        message="Il ne sera plus visible dans les listes publiques. Tes cavaliers inscrits ne seront pas affectés. Tu pourras le republier à tout moment depuis l'onglet Archivés."
+        confirmLabel="Archiver"
+        cancelLabel="Annuler"
+        onConfirm={() => { if (confirmArchiveId) doArchive(confirmArchiveId); }}
+        onCancel={() => setConfirmArchiveId(null)}
       />
 
       <AlertModal

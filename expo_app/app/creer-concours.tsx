@@ -10,7 +10,7 @@ import { DatePickerModal, DateButton } from '../components/DatePickerModal';
 import { AlertModal } from '../components/AlertModal';
 import { useAuth } from '../hooks/useAuth';
 import { createConcours, updateConcours, fetchConcoursForEdit } from '../hooks/useConcours';
-import { validateConcoursForm } from '../lib/concoursValidation';
+import { validateConcoursForm, parseLocalDate } from '../lib/concoursValidation';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const TYPES_CAVALIERS = ['Poney', 'Loisir', 'Amateur', 'Pro', 'Elite'];
@@ -76,6 +76,10 @@ export default function CreerConcoursScreen() {
   // Le ref est lu/écrit immédiatement → il bloque le 2e submit avant tout await.
   // (L'état `submitting` reste la source de vérité UX : loading + bouton disabled.)
   const submitLock = useRef(false);
+  // Mode édition : on garde le jsonb complet et la région stockée pour ne pas
+  // les écraser avec des valeurs dérivées du profil courant ou reconstruites à vide.
+  const originalInfosRef = useRef<Record<string, any> | null>(null);
+  const originalRegionRef = useRef<string | null>(null);
   const [nom, setNom] = useState('');
   const [dateDebut, setDateDebut] = useState<Date | undefined>();
   const [dateFin, setDateFin] = useState<Date | undefined>();
@@ -128,9 +132,11 @@ export default function CreerConcoursScreen() {
         return;
       }
       const infos = row.infos ?? {};
+      originalInfosRef.current = row.infos ?? null;
+      originalRegionRef.current = (infos as any).region ?? null;
       setNom(row.nom ?? '');
-      setDateDebut(row.date_debut ? new Date(row.date_debut) : undefined);
-      setDateFin(row.date_fin ? new Date(row.date_fin) : undefined);
+      setDateDebut(row.date_debut ? parseLocalDate(row.date_debut) : undefined);
+      setDateFin(row.date_fin ? parseLocalDate(row.date_fin) : undefined);
       setLieu(row.lieu ?? '');
       setAdresse(row.adresse ?? '');
       setCodePostal(infos.code_postal ?? '');
@@ -173,7 +179,7 @@ export default function CreerConcoursScreen() {
     }
 
     // Validation métier PARTAGÉE (identique création/édition, cf. lib/concoursValidation).
-    const invalid = validateConcoursForm({ nom, dateDebut, dateFin, lieu, discipline, nbPlaces, prix });
+    const invalid = validateConcoursForm({ nom, dateDebut, dateFin, lieu, discipline, nbPlaces, prix }, { allowPastDate: isEdit });
     if (invalid) { showErr(invalid.title, invalid.message); return; }
     const placesNum = parseInt(nbPlaces, 10);
 
@@ -200,7 +206,8 @@ export default function CreerConcoursScreen() {
         horaireDebut,
         horaireFin,
         description,
-        region: (profile as any)?.region ?? null,
+        region: isEdit ? originalRegionRef.current : ((profile as any)?.region ?? null),
+        existingInfos: isEdit ? originalInfosRef.current : undefined,
         infos: {
           restauration: restauration.trim() || null,
           parking: parking.trim() || null,

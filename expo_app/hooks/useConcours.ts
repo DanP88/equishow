@@ -410,6 +410,7 @@ export interface CreateConcoursInput {
   description?: string;
   region?: string | null;
   infos?: Record<string, unknown>; // options logistiques (restauration, parking…)
+  existingInfos?: Record<string, any> | null; // jsonb existant en DB (mode édition uniquement)
 }
 
 // Date locale → 'YYYY-MM-DD' (sans décalage UTC qui décalerait le jour).
@@ -427,6 +428,7 @@ function buildConcoursColumns(input: CreateConcoursInput) {
   const cp = (input.codePostal ?? '').trim();
   const departement = /^\d{5}$/.test(cp) ? cp.slice(0, 2) : null; // dépt = 2 1ers chiffres CP FR
   const infos = {
+    ...(input.existingInfos ?? {}),
     ville: input.ville?.trim() || null,
     code_postal: cp || null,
     disciplines: input.disciplines,
