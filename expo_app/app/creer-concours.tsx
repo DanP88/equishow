@@ -11,10 +11,11 @@ import { AlertModal } from '../components/AlertModal';
 import { useAuth } from '../hooks/useAuth';
 import { createConcours, updateConcours, fetchConcoursForEdit } from '../hooks/useConcours';
 import { validateConcoursForm, parseLocalDate } from '../lib/concoursValidation';
+import { MultiDisciplineEpreuvePicker } from '../components/MultiDisciplineEpreuvePicker';
+import { deriveDisciplines } from '../lib/epreuves';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const TYPES_CAVALIERS = ['Poney', 'Loisir', 'Amateur', 'Pro', 'Elite'];
-const EPREUVES = ['1.00m', '1.10m', '1.20m', '1.30m', 'Dressage Novice', 'Dressage Amateur', 'CCE jeune', 'CCE amateur'];
 
 function Dropdown({ placeholder, value, options, onChange }: {
   placeholder: string; value: string; options: string[]; onChange: (v: string) => void;
@@ -88,7 +89,6 @@ export default function CreerConcoursScreen() {
   const [codePostal, setCodePostal] = useState('');
   const [ville, setVille] = useState('');
   const [discipline, setDiscipline] = useState('');
-  const [disciplines, setDisciplines] = useState<string[]>([]);
   const [epreuves, setEpreuves] = useState<string[]>([]);
   const [typesCavaliers, setTypesCavaliers] = useState<string[]>([]);
   const [nbPlaces, setNbPlaces] = useState('');
@@ -142,7 +142,6 @@ export default function CreerConcoursScreen() {
       setCodePostal(infos.code_postal ?? '');
       setVille(infos.ville ?? '');
       setDiscipline(row.type_concours ?? '');
-      setDisciplines(Array.isArray(infos.disciplines) ? infos.disciplines : []);
       setEpreuves(Array.isArray(row.liste_epreuves) ? row.liste_epreuves : []);
       setTypesCavaliers(Array.isArray(infos.types_cavaliers) ? infos.types_cavaliers : []);
       setNbPlaces(infos.nb_places != null ? String(infos.nb_places) : '');
@@ -198,7 +197,7 @@ export default function CreerConcoursScreen() {
         codePostal,
         ville,
         discipline,
-        disciplines: disciplines.length > 0 ? disciplines : [discipline],
+        disciplines: deriveDisciplines(epreuves, discipline ? [discipline] : []),
         epreuves,
         typesCavaliers,
         nbPlaces: placesNum,
@@ -374,7 +373,7 @@ export default function CreerConcoursScreen() {
 
         <View style={s.field}>
           <Text style={s.fieldLabel}>Épreuves</Text>
-          <MultiSelectChip options={EPREUVES} selected={epreuves} onChange={setEpreuves} />
+          <MultiDisciplineEpreuvePicker selected={epreuves} onChange={setEpreuves} />
         </View>
 
         <View style={s.field}>
