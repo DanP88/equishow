@@ -13,6 +13,7 @@ import { createConcours, updateConcours, fetchConcoursForEdit } from '../hooks/u
 import { validateConcoursForm, parseLocalDate } from '../lib/concoursValidation';
 import { MultiDisciplineEpreuvePicker } from '../components/MultiDisciplineEpreuvePicker';
 import { ConfirmModal } from '../components/ConfirmModal';
+import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { DISCIPLINES_CATALOGUE, EPREUVES_PAR_DISCIPLINE, resolveEditDisciplines } from '../lib/epreuves';
 
 const TYPES_CAVALIERS = ['Poney', 'Loisir', 'Amateur', 'Pro', 'Elite'];
@@ -314,12 +315,10 @@ export default function CreerConcoursScreen() {
 
         <View style={s.field}>
           <Text style={s.fieldLabel}>Adresse complète</Text>
-          <TextInput
-            style={[f.input, !!adresse && f.inputFilled]}
+          <AddressAutocomplete
             value={adresse}
-            onChangeText={setAdresse}
-            placeholder="123 Rue du Cheval"
-            placeholderTextColor={Colors.textTertiary}
+            onChange={(addr) => setAdresse(addr)}
+            placeholder="123 Rue du Cheval, 69000 Lyon"
           />
         </View>
 
