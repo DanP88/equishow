@@ -11,33 +11,11 @@ import { AlertModal } from '../components/AlertModal';
 import { useAuth } from '../hooks/useAuth';
 import { createConcours, updateConcours, fetchConcoursForEdit } from '../hooks/useConcours';
 import { validateConcoursForm, parseLocalDate } from '../lib/concoursValidation';
+import { MultiDisciplineEpreuvePicker } from '../components/MultiDisciplineEpreuvePicker';
+import { ConfirmModal } from '../components/ConfirmModal';
+import { DISCIPLINES_CATALOGUE, EPREUVES_PAR_DISCIPLINE, resolveEditDisciplines } from '../lib/epreuves';
 
-const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Raid', 'Voltige', 'Hunter', 'Saut d\'obstacles'];
 const TYPES_CAVALIERS = ['Poney', 'Loisir', 'Amateur', 'Pro', 'Elite'];
-const EPREUVES = ['1.00m', '1.10m', '1.20m', '1.30m', 'Dressage Novice', 'Dressage Amateur', 'CCE jeune', 'CCE amateur'];
-
-function Dropdown({ placeholder, value, options, onChange }: {
-  placeholder: string; value: string; options: string[]; onChange: (v: string) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  return (
-    <>
-      <TouchableOpacity style={[f.input, !!value && f.inputFilled]} onPress={() => setOpen(true)} activeOpacity={0.8}>
-        <Text style={[f.inputText, !value && f.placeholder]}>{value || placeholder}</Text>
-        <Text style={f.arrow}>▼</Text>
-      </TouchableOpacity>
-      {open && (
-        <View style={f.dropList}>
-          {options.map((o) => (
-            <TouchableOpacity key={o} style={[f.dropItem, value === o && f.dropItemActive]} onPress={() => { onChange(o); setOpen(false); }}>
-              <Text style={[f.dropItemText, value === o && f.dropItemTextActive]}>{o}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      )}
-    </>
-  );
-}
 
 function MultiSelectChip({ options, selected, onChange }: {
   options: string[]; selected: string[]; onChange: (s: string[]) => void;
@@ -87,9 +65,12 @@ export default function CreerConcoursScreen() {
   const [adresse, setAdresse] = useState('');
   const [codePostal, setCodePostal] = useState('');
   const [ville, setVille] = useState('');
-  const [discipline, setDiscipline] = useState('');
-  const [disciplines, setDisciplines] = useState<string[]>([]);
+  // Disciplines explicitement choisies par l'organisateur (source de vérité de infos.disciplines).
+  // La discipline de compatibilité (type_concours) est dérivée de selectedDisciplines[0].
+  const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>([]);
   const [epreuves, setEpreuves] = useState<string[]>([]);
+  // Confirmation avant retrait d'une discipline qui a des épreuves sélectionnées.
+  const [confirmRemoveDisc, setConfirmRemoveDisc] = useState<{ disc: string; epreuvesToRemove: string[] } | null>(null);
   const [typesCavaliers, setTypesCavaliers] = useState<string[]>([]);
   const [nbPlaces, setNbPlaces] = useState('');
   const [prix, setPrix] = useState('');
@@ -141,8 +122,7 @@ export default function CreerConcoursScreen() {
       setAdresse(row.adresse ?? '');
       setCodePostal(infos.code_postal ?? '');
       setVille(infos.ville ?? '');
-      setDiscipline(row.type_concours ?? '');
-      setDisciplines(Array.isArray(infos.disciplines) ? infos.disciplines : []);
+      setSelectedDisciplines(resolveEditDisciplines(infos, row.liste_epreuves, row.type_concours));
       setEpreuves(Array.isArray(row.liste_epreuves) ? row.liste_epreuves : []);
       setTypesCavaliers(Array.isArray(infos.types_cavaliers) ? infos.types_cavaliers : []);
       setNbPlaces(infos.nb_places != null ? String(infos.nb_places) : '');
@@ -178,8 +158,11 @@ export default function CreerConcoursScreen() {
       return;
     }
 
+    // Discipline de compatibilité (type_concours) = première discipline sélectionnée.
+    const disciplineCompat = selectedDisciplines[0] ?? '';
+
     // Validation métier PARTAGÉE (identique création/édition, cf. lib/concoursValidation).
-    const invalid = validateConcoursForm({ nom, dateDebut, dateFin, lieu, discipline, nbPlaces, prix }, { allowPastDate: isEdit });
+    const invalid = validateConcoursForm({ nom, dateDebut, dateFin, lieu, discipline: disciplineCompat, nbPlaces, prix }, { allowPastDate: isEdit });
     if (invalid) { showErr(invalid.title, invalid.message); return; }
     const placesNum = parseInt(nbPlaces, 10);
 
@@ -197,8 +180,8 @@ export default function CreerConcoursScreen() {
         adresse,
         codePostal,
         ville,
-        discipline,
-        disciplines: disciplines.length > 0 ? disciplines : [discipline],
+        discipline: disciplineCompat,   // type_concours (compat)
+        disciplines: selectedDisciplines, // infos.disciplines (valeur explicite)
         epreuves,
         typesCavaliers,
         nbPlaces: placesNum,
@@ -368,13 +351,52 @@ export default function CreerConcoursScreen() {
         <Text style={s.sectionTitle}>🎯 Disciplines & Épreuves</Text>
 
         <View style={s.field}>
-          <Text style={s.fieldLabel}>Discipline principale *</Text>
-          <Dropdown placeholder="Sélectionner" value={discipline} options={DISCIPLINES} onChange={setDiscipline} />
+          <Text style={s.fieldLabel}>Disciplines proposées *</Text>
+          <Text style={s.fieldHint}>La première discipline sélectionnée sera la discipline principale.</Text>
+          <View style={s.chipsRow}>
+            {DISCIPLINES_CATALOGUE.map((disc) => {
+              const active = selectedDisciplines.includes(disc);
+              return (
+                <TouchableOpacity
+                  key={disc}
+                  style={[s.chip, active && s.chipActive]}
+                  onPress={() => {
+                    if (active) {
+                      // Retrait : vérifier si des épreuves de cette discipline sont sélectionnées.
+                      const catalogue = EPREUVES_PAR_DISCIPLINE[disc] as readonly string[] | undefined;
+                      const toRemove = catalogue ? epreuves.filter(ep => catalogue.includes(ep)) : [];
+                      if (toRemove.length > 0) {
+                        setConfirmRemoveDisc({ disc, epreuvesToRemove: toRemove });
+                      } else {
+                        setSelectedDisciplines(prev => prev.filter(d => d !== disc));
+                      }
+                    } else {
+                      // Ajout : maintenir l'ordre DISCIPLINES_CATALOGUE.
+                      setSelectedDisciplines(prev => {
+                        const next = new Set([...prev, disc]);
+                        return [
+                          ...DISCIPLINES_CATALOGUE.filter(d => next.has(d)),
+                          ...prev.filter(d => !DISCIPLINES_CATALOGUE.includes(d)),
+                        ];
+                      });
+                    }
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Text style={[s.chipText, active && s.chipTextActive]}>{disc}</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </View>
         </View>
 
         <View style={s.field}>
           <Text style={s.fieldLabel}>Épreuves</Text>
-          <MultiSelectChip options={EPREUVES} selected={epreuves} onChange={setEpreuves} />
+          <MultiDisciplineEpreuvePicker
+            disciplines={selectedDisciplines}
+            selected={epreuves}
+            onChange={setEpreuves}
+          />
         </View>
 
         <View style={s.field}>
@@ -520,6 +542,25 @@ export default function CreerConcoursScreen() {
       <DatePickerModal visible={showDateDebut} value={dateDebut} onConfirm={setDateDebut} onClose={() => setShowDateDebut(false)} title="Date de début" />
       <DatePickerModal visible={showDateFin} value={dateFin} onConfirm={setDateFin} onClose={() => setShowDateFin(false)} title="Date de fin" />
 
+      <ConfirmModal
+        visible={!!confirmRemoveDisc}
+        title={`Retirer ${confirmRemoveDisc?.disc ?? ''} ?`}
+        message={
+          `${confirmRemoveDisc?.epreuvesToRemove.length ?? 0} épreuve${(confirmRemoveDisc?.epreuvesToRemove.length ?? 0) > 1 ? 's' : ''} associée${(confirmRemoveDisc?.epreuvesToRemove.length ?? 0) > 1 ? 's' : ''} seront aussi retirée${(confirmRemoveDisc?.epreuvesToRemove.length ?? 0) > 1 ? 's' : ''} :\n${(confirmRemoveDisc?.epreuvesToRemove ?? []).join(', ')}`
+        }
+        cancelLabel="Annuler"
+        confirmLabel="Retirer"
+        destructive
+        onCancel={() => setConfirmRemoveDisc(null)}
+        onConfirm={() => {
+          if (!confirmRemoveDisc) return;
+          const { disc, epreuvesToRemove } = confirmRemoveDisc;
+          setSelectedDisciplines(prev => prev.filter(d => d !== disc));
+          setEpreuves(prev => prev.filter(ep => !epreuvesToRemove.includes(ep)));
+          setConfirmRemoveDisc(null);
+        }}
+      />
+
       <AlertModal
         visible={!!alertState}
         title={alertState?.title ?? ''}
@@ -543,6 +584,7 @@ const s = StyleSheet.create({
   sectionTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.primary, marginTop: Spacing.lg },
   field: { gap: Spacing.xs },
   fieldLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  fieldHint: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic', marginTop: -2, marginBottom: Spacing.xs },
   datesRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-end' },
   dateSep: { color: Colors.primary, fontSize: FontSize.sm, marginBottom: Spacing.xs + 8 },
   horaireRow: { flexDirection: 'row', gap: Spacing.sm },
@@ -566,12 +608,4 @@ const f = StyleSheet.create({
   inputFilled: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
   smallInput: { paddingVertical: Spacing.sm },
   inputMultiline: { minHeight: 80, textAlignVertical: 'top' },
-  inputText: { flex: 1, fontSize: FontSize.base, color: Colors.textPrimary },
-  placeholder: { color: Colors.textTertiary },
-  arrow: { fontSize: 11, color: Colors.textTertiary },
-  dropList: { backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, maxHeight: 200, overflow: 'hidden' },
-  dropItem: { paddingVertical: Spacing.sm + 2, paddingHorizontal: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  dropItemActive: { backgroundColor: Colors.primaryLight },
-  dropItemText: { fontSize: FontSize.base, color: Colors.textPrimary },
-  dropItemTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
 });
