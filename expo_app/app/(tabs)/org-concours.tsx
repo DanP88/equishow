@@ -6,8 +6,8 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { useMyConcoursClaims } from '../../hooks/useConcoursClaims';
 import {
-  useMyConcours, publishConcours, archiveConcours, fetchConcoursForEdit,
-  ConcoursStatut,
+  useMyConcours, publishConcours, archiveConcours, republishConcours,
+  fetchConcoursForEdit, ConcoursStatut,
 } from '../../hooks/useConcours';
 import { validateConcoursForm, rowToFormFields } from '../../lib/concoursValidation';
 import { ConfirmModal } from '../../components/ConfirmModal';
@@ -36,10 +36,13 @@ export default function OrgConcoursScreen() {
 
   // PR2-C — « Mes concours » créés par l'organisateur (filtrés serveur par statut).
   const [activeTab, setActiveTab] = useState<ConcoursStatut>('brouillon');
-  const { concours: myConcours, isLoading: myLoading, reload: reloadMine } = useMyConcours(activeTab);
-  const [confirmPublishId, setConfirmPublishId] = useState<string | null>(null);
+  const { concours: myConcours, isLoading: myLoading, error: myError, reload: reloadMine } = useMyConcours(activeTab);
+  // Stocker id + statut source pour le compare-and-set (#10).
+  const [confirmPublish, setConfirmPublish] = useState<{ id: string; fromStatut: 'brouillon' | 'archive' } | null>(null);
   const [confirmArchiveId, setConfirmArchiveId] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  // true quand une mutation est en vol → toutes les actions de toutes les cartes désactivées (#9).
+  const isMutating = busyId !== null;
   const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'success' | 'error' } | null>(null);
 
   useFocusEffect(useCallback(() => {
@@ -47,39 +50,60 @@ export default function OrgConcoursScreen() {
     reloadMine();
   }, [reloadClaims, reloadMine]));
 
-  // Publication : valide d'abord que le brouillon est complet (réutilise la
-  // validation du formulaire sur le row persisté), puis change UNIQUEMENT le statut.
-  const doPublish = useCallback(async (id: string) => {
-    setConfirmPublishId(null);
+  // Publication/republication : valide d'abord que le brouillon est complet (pour
+  // la publication initiale uniquement), puis compare-and-set sur le statut (#10).
+  const doPublish = useCallback(async (id: string, fromStatut: 'brouillon' | 'archive') => {
+    if (busyId !== null) return; // garde anti-concurrence (#9)
+    setConfirmPublish(null);
     setBusyId(id);
-    const row = await fetchConcoursForEdit(id);
-    if (!row) {
-      setBusyId(null);
-      setAlertState({ title: 'Erreur', message: 'Concours introuvable ou accès refusé.', variant: 'error' });
-      return;
+
+    if (fromStatut === 'brouillon') {
+      // Validation de complétude uniquement pour la publication initiale.
+      const row = await fetchConcoursForEdit(id);
+      if (!row) {
+        setBusyId(null);
+        setAlertState({ title: 'Erreur', message: 'Concours introuvable ou accès refusé.', variant: 'error' });
+        return;
+      }
+      const invalid = validateConcoursForm(rowToFormFields(row), { allowPastDate: true });
+      if (invalid) {
+        setBusyId(null);
+        setAlertState({ title: 'Informations incomplètes', message: `${invalid.message} Modifie le brouillon avant de le publier.`, variant: 'error' });
+        return;
+      }
     }
-    const invalid = validateConcoursForm(rowToFormFields(row), { allowPastDate: true });
-    if (invalid) {
-      setBusyId(null);
-      setAlertState({ title: 'Informations incomplètes', message: `${invalid.message} Modifie le brouillon avant de le publier.`, variant: 'error' });
-      return;
-    }
-    const { ok, error } = await publishConcours(id);
+
+    const { ok, error } = fromStatut === 'archive'
+      ? await republishConcours(id)
+      : await publishConcours(id);
     setBusyId(null);
-    if (!ok) { setAlertState({ title: 'Publication impossible', message: error ?? 'Réessaie.', variant: 'error' }); return; }
-    setAlertState({ title: 'Concours publié 🎉', message: 'Il est maintenant visible dans les listes publiques.', variant: 'success' });
+    if (!ok) {
+      setAlertState({ title: fromStatut === 'archive' ? 'Republication impossible' : 'Publication impossible', message: error ?? 'Réessaie.', variant: 'error' });
+      reloadMine();
+      return;
+    }
+    setAlertState({
+      title: fromStatut === 'archive' ? 'Concours republié 🎉' : 'Concours publié 🎉',
+      message: 'Il est maintenant visible dans les listes publiques.',
+      variant: 'success',
+    });
     reloadMine();
-  }, [reloadMine]);
+  }, [busyId, reloadMine]);
 
   const doArchive = useCallback(async (id: string) => {
+    if (busyId !== null) return; // garde anti-concurrence (#9)
     setConfirmArchiveId(null);
     setBusyId(id);
     const { ok, error } = await archiveConcours(id);
     setBusyId(null);
-    if (!ok) { setAlertState({ title: 'Archivage impossible', message: error ?? 'Réessaie.', variant: 'error' }); return; }
+    if (!ok) {
+      setAlertState({ title: 'Archivage impossible', message: error ?? 'Réessaie.', variant: 'error' });
+      reloadMine();
+      return;
+    }
     setAlertState({ title: 'Concours archivé', message: 'Il n\'apparaît plus dans les listes publiques. Tu peux le republier à tout moment depuis l\'onglet Archivés.', variant: 'info' });
     reloadMine();
-  }, [reloadMine]);
+  }, [busyId, reloadMine]);
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
@@ -122,8 +146,19 @@ export default function OrgConcoursScreen() {
             ))}
           </View>
 
-          {myLoading ? (
+          {myLoading && myConcours.length === 0 ? (
+            // Spinner uniquement au premier chargement (liste vide) — pas pendant les
+            // refreshs ultérieurs, pour éviter de masquer les données existantes.
             <ActivityIndicator color={Colors.primary} style={{ marginTop: Spacing.md }} />
+          ) : myError && myConcours.length === 0 ? (
+            // Erreur au premier chargement : afficher un état d'erreur explicite,
+            // jamais le message "Aucun brouillon" qui serait trompeur (#8).
+            <View style={s.errorWrap}>
+              <Text style={s.errorTxt}>{myError}</Text>
+              <TouchableOpacity style={s.retryBtn} onPress={reloadMine} activeOpacity={0.8}>
+                <Text style={s.retryTxt}>Réessayer</Text>
+              </TouchableOpacity>
+            </View>
           ) : myConcours.length === 0 ? (
             <Text style={s.mineEmpty}>
               {activeTab === 'brouillon'
@@ -149,20 +184,20 @@ export default function OrgConcoursScreen() {
 
                   <View style={s.actionsRow}>
                     <TouchableOpacity
-                      style={[s.actionBtn, s.actionSecondary]}
+                      style={[s.actionBtn, s.actionSecondary, isMutating && s.actionDisabled]}
                       onPress={() => router.push({ pathname: '/creer-concours', params: { id: c.id } } as any)}
                       activeOpacity={0.85}
-                      disabled={busy}
+                      disabled={isMutating}
                     >
                       <Text style={s.actionSecondaryTxt}>✏️ Modifier</Text>
                     </TouchableOpacity>
 
                     {c.statut === 'brouillon' && (
                       <TouchableOpacity
-                        style={[s.actionBtn, s.actionPrimary, busy && s.actionDisabled]}
-                        onPress={() => setConfirmPublishId(c.id)}
+                        style={[s.actionBtn, s.actionPrimary, isMutating && s.actionDisabled]}
+                        onPress={() => setConfirmPublish({ id: c.id, fromStatut: 'brouillon' })}
                         activeOpacity={0.85}
-                        disabled={busy}
+                        disabled={isMutating}
                       >
                         {busy ? <ActivityIndicator color={Colors.textInverse} size="small" />
                           : <Text style={s.actionPrimaryTxt}>🚀 Publier</Text>}
@@ -171,10 +206,10 @@ export default function OrgConcoursScreen() {
 
                     {c.statut === 'publie' && (
                       <TouchableOpacity
-                        style={[s.actionBtn, s.actionSecondary, busy && s.actionDisabled]}
+                        style={[s.actionBtn, s.actionSecondary, isMutating && s.actionDisabled]}
                         onPress={() => setConfirmArchiveId(c.id)}
                         activeOpacity={0.85}
-                        disabled={busy}
+                        disabled={isMutating}
                       >
                         {busy ? <ActivityIndicator color={Colors.textSecondary} size="small" />
                           : <Text style={s.actionSecondaryTxt}>🗄️ Archiver</Text>}
@@ -183,10 +218,10 @@ export default function OrgConcoursScreen() {
 
                     {c.statut === 'archive' && (
                       <TouchableOpacity
-                        style={[s.actionBtn, s.actionPrimary, busy && s.actionDisabled]}
-                        onPress={() => setConfirmPublishId(c.id)}
+                        style={[s.actionBtn, s.actionPrimary, isMutating && s.actionDisabled]}
+                        onPress={() => setConfirmPublish({ id: c.id, fromStatut: 'archive' })}
                         activeOpacity={0.85}
-                        disabled={busy}
+                        disabled={isMutating}
                       >
                         {busy ? <ActivityIndicator color={Colors.textInverse} size="small" />
                           : <Text style={s.actionPrimaryTxt}>🔄 Republier</Text>}
@@ -290,13 +325,13 @@ export default function OrgConcoursScreen() {
       </Modal>
 
       <ConfirmModal
-        visible={!!confirmPublishId}
-        title="Publier ce concours ?"
+        visible={!!confirmPublish}
+        title={confirmPublish?.fromStatut === 'archive' ? 'Republier ce concours ?' : 'Publier ce concours ?'}
         message="Il deviendra immédiatement visible par tous les cavaliers dans les listes publiques. Tu pourras encore le modifier ou l'archiver ensuite."
-        confirmLabel="Publier"
+        confirmLabel={confirmPublish?.fromStatut === 'archive' ? 'Republier' : 'Publier'}
         cancelLabel="Annuler"
-        onConfirm={() => { if (confirmPublishId) doPublish(confirmPublishId); }}
-        onCancel={() => setConfirmPublishId(null)}
+        onConfirm={() => { if (confirmPublish) doPublish(confirmPublish.id, confirmPublish.fromStatut); }}
+        onCancel={() => setConfirmPublish(null)}
       />
 
       <ConfirmModal
@@ -380,6 +415,10 @@ const s = StyleSheet.create({
   tabTxt: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
   tabTxtActive: { color: Colors.primary, fontWeight: FontWeight.bold },
   mineEmpty: { fontSize: FontSize.sm, color: Colors.textTertiary, textAlign: 'center', paddingVertical: Spacing.lg, lineHeight: 20 },
+  errorWrap: { alignItems: 'center', paddingVertical: Spacing.lg, gap: Spacing.md },
+  errorTxt: { fontSize: FontSize.sm, color: Colors.danger, textAlign: 'center', lineHeight: 20 },
+  retryBtn: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, paddingVertical: Spacing.sm, paddingHorizontal: Spacing.lg },
+  retryTxt: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
   actionsRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm },
   actionBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, alignItems: 'center', justifyContent: 'center' },
   actionPrimary: { backgroundColor: Colors.primary },
