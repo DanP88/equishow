@@ -65,7 +65,11 @@ export default function CoachDemandesScreen() {
     const demande = courseDemandes.find(d => d.id === demandeId);
     if (!demande) return;
     const { error } = await updateCourseStatus(demandeId, 'accepted');
-    if (error) { Alert.alert('Erreur', error); return; }
+    if (error) {
+      if (error.includes('COACH_TRIAL_LIMIT_REACHED')) { setShowUpgrade(true); }
+      else { Alert.alert('Erreur', error); }
+      return;
+    }
 
     // Feedback immédiat : la card disparaît grâce à l'update realtime, et le
     // coach voit le succès sans attendre la notif + l'email (2-4 s cumulés).
@@ -120,7 +124,11 @@ export default function CoachDemandesScreen() {
     const reservation = stageReservations.find(r => r.id === reservationId);
     if (!reservation) return;
     const { error } = await updateStageStatus(reservationId, 'accepted');
-    if (error) { Alert.alert('Erreur', error); return; }
+    if (error) {
+      if (error.includes('COACH_TRIAL_LIMIT_REACHED')) { setShowUpgrade(true); }
+      else { Alert.alert('Erreur', error); }
+      return;
+    }
 
     // Feedback immédiat (cf. handleAcceptCourse). Évite ~2-4 s d'attente.
     Alert.alert('✓ Demande acceptée', `Réservation confirmée.`);
