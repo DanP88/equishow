@@ -176,15 +176,39 @@ export async function handler(req: Request): Promise<Response> {
       ? Math.round((platformCommission / totalHt) * 10000) / 100
       : 0;
 
-    // ── 6. Charger le compte Stripe du seller ───────────────────────────
+    // ── 6. Charger le compte Stripe du seller (+ plan pour garde coach) ───
     const { data: seller, error: sellerErr } = await supabase
       .from("users")
-      .select("id, stripe_account_id, stripe_charges_enabled")
+      .select("id, stripe_account_id, stripe_charges_enabled, plan_id")
       .eq("id", sellerId)
       .maybeSingle();
 
     if (sellerErr || !seller) {
       return jsonResponse({ error: "Seller not found" }, 404);
+    }
+
+    // ── 6b. Defense en profondeur : limite d'essai coach ────────────────
+    // Protection secondaire (primaire = trigger trg_guard_coach_trial_accept).
+    // Règle Pro : plan_id LIKE 'coach-%'. fn_is_paid_plan non utilisée
+    // (bug legacy : cavalier-plus retourne true).
+    if (type === "course") {
+      const sellerPlanId: string = (seller as any).plan_id ?? "";
+      const isCoachPro = sellerPlanId.toLowerCase().startsWith("coach-");
+      if (!isCoachPro) {
+        const [paidRes, inflightRes] = await Promise.all([
+          supabase.rpc("fn_coach_paid_sessions", { p_coach: sellerId }),
+          supabase
+            .from("course_demands")
+            .select("id", { count: "exact", head: true })
+            .eq("coach_id", sellerId)
+            .in("status", ["accepted", "paid"])
+            .neq("id", itemId),
+        ]);
+        const consumed = (Number(paidRes.data) || 0) + (inflightRes.count ?? 0);
+        if (consumed >= 3) {
+          return jsonResponse({ error: "COACH_TRIAL_LIMIT_REACHED" }, 403);
+        }
+      }
     }
 
     // En mode test Stripe (`sk_test_*`), on autorise un seller sans compte

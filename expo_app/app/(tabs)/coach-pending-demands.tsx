@@ -32,7 +32,15 @@ export default function CoachPendingDemandsScreen() {
       return;
     }
     const { error } = await updateStatus(demand.id, 'accepted');
-    if (error) { Alert.alert('Erreur', error); return; }
+    if (error) {
+      if (error.includes('COACH_TRIAL_LIMIT_REACHED')) {
+        setShowModal(false);
+        setShowUpgrade(true);
+      } else {
+        Alert.alert('Erreur', error);
+      }
+      return;
+    }
 
     await createNotification({
       destinataireId: demand.cavalierUserId,
