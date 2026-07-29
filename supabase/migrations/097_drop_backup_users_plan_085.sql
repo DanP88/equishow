@@ -1,0 +1,30 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migration 097 — Suppression de la table de sauvegarde temporaire _backup_users_plan_085
+--
+-- Contexte :
+--   La table public._backup_users_plan_085 a été créée par la migration 085
+--   (2026-07-17) comme snapshot de réversibilité avant la normalisation des
+--   plans cavalier legacy (cavalier-plus → gratuit). Elle contenait 2 rows.
+--
+-- Pourquoi supprimer :
+--   1. Migration 085 définitivement appliquée en prod (2026-07-17).
+--      11 migrations supplémentaires (086→096) ont été appliquées par-dessus :
+--      le rollback 085 est techniquement impossible sans régression.
+--   2. SELECT count(*) FROM users WHERE role='cavalier' AND plan_id IN
+--      ('cavalier-plus', ...) = 0 : normalisation complète, aucun plan legacy.
+--   3. Aucune vue, fonction, trigger business, Edge Function ni code frontend
+--      ne référence cette table (audit complet du dépôt + pg_depend = 0).
+--   4. La table n'était accessible qu'au rôle postgres/service_role pour usage
+--      de rollback uniquement. Elle ne doit pas exister en production au-delà
+--      de sa fenêtre de rollback.
+--   5. Alerte Supabase Security Advisor : "RLS Disabled in Public" — la table
+--      avait des grants anon (SELECT) et authenticated (SELECT/INSERT/UPDATE/
+--      DELETE) sans RLS activée, exposant des user_id et anciens plans.
+--
+-- Rollback : aucun fichier fourni.
+--   Un DROP TABLE ne peut pas restaurer les 2 rows supprimées. Le rollback 085
+--   étant lui-même irréalisable (11 migrations par-dessus), la perte est
+--   acceptable. Pas de rollback partiel qui laisserait une table vide orpheline.
+-- ─────────────────────────────────────────────────────────────────────────────
+
+drop table if exists public._backup_users_plan_085;
