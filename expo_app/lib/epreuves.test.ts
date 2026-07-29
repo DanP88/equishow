@@ -16,7 +16,7 @@ test('T01 — sélection CSO + Dressage + CCE retourne 3 disciplines dans le bon
 });
 
 // ── T02 : ajout d'épreuves dans 3 disciplines ────────────────────────────────
-test('T02 — ajout d'épreuves dans CSO, Dressage et CCE — pas de doublon', () => {
+test(`T02 — ajout d'épreuves dans CSO, Dressage et CCE — pas de doublon`, () => {
   const epreuves: string[] = [];
   function addEpreuve(ep: string) {
     if (!epreuves.includes(ep)) epreuves.push(ep);
