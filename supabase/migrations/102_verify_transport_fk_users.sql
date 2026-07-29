@@ -169,7 +169,7 @@ declare
 begin
   select string_agg(conrelid::regclass::text || '.' ||
     (select attname from pg_attribute where attrelid=c.conrelid and attnum=c.conkey[1])
-    || ' (on_delete=' || c.confdeltype || ')', ', ')
+    || ' (on_delete=' || c.confdeltype::text || ')', ', ')
   into v_wrong
   from pg_constraint c
   join pg_class rel  on rel.oid  = c.conrelid
