@@ -1,0 +1,49 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migration 099 — Suppression des droits d'écriture sur la vue coach_stats
+--
+-- Contexte :
+--   La vue public.coach_stats est SECURITY DEFINER (security_invoker=null, défaut
+--   false) et is_updatable=YES. Le rôle authenticated disposait des grants
+--   INSERT, UPDATE, DELETE sur cette vue.
+--
+--   Démonstration expérimentale sur cluster PostgreSQL 16 local (2026-07-29,
+--   même version que prod) a prouvé :
+--
+--   a) DELETE exploitable :
+--        DELETE FROM coach_stats WHERE user_id = '<victim>';
+--      → DELETE 1 + suppression en cascade via ON DELETE CASCADE des réservations
+--        liées (course_demands.coach_id). La policy coach_profiles_delete_self
+--        (USING: user_id=auth.uid()) est bypassée car la vue s'exécute en tant
+--        que postgres superuser (relforcerowsecurity=false sur coach_profiles).
+--
+--   b) UPDATE : non exploitable pratiquement.
+--      - Colonnes calculées (course_bookings_paid, avg_rating, etc.) refusées par
+--        PostgreSQL : "ne peut pas mettre à jour la colonne X de la vue coach_stats —
+--        Les colonnes des vues qui ne font pas référence à des colonnes de la relation
+--        de base ne sont pas automatiquement modifiables."
+--      - La seule colonne updatable (user_id = PK) est bloquée par FK constraint
+--        (course_demands_coach_id_fkey) dès qu'un coach a des réservations.
+--
+--   c) INSERT partiel possible :
+--        INSERT INTO coach_stats(user_id) VALUES ('<uuid>');
+--      → Crée une entrée dans coach_profiles avec bio/specialties NULL.
+--      En prod, bloqué par FK users.id si l'uuid n'existe pas dans users.
+--      Surface non intentionnelle.
+--
+--   Aucun code frontend ni Edge Function n'écrit via cette vue.
+--
+-- Correction :
+--   REVOKE INSERT, UPDATE, DELETE pour authenticated (cohérence défensive —
+--   UPDATE inclus bien que non exploitable pratiquement).
+--   Le grant SELECT reste intact pour anon et authenticated.
+--
+-- Impact :
+--   - Fonctionnel : aucun (aucune écriture via cette vue dans le code)
+--   - Sécurité : ferme DELETE bypass sur coach_profiles (+ cascade course_demands)
+--   - Escrow / Stripe / payments : aucun
+--   - RLS / policies / triggers : aucun
+--
+-- Rollback : 099_revoke_coach_stats_write_rollback.sql
+-- ─────────────────────────────────────────────────────────────────────────────
+
+REVOKE INSERT, UPDATE, DELETE ON public.coach_stats FROM authenticated;
