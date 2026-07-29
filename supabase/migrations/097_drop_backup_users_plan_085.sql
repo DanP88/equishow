@@ -21,9 +21,10 @@
 --      avait des grants anon (SELECT) et authenticated (SELECT/INSERT/UPDATE/
 --      DELETE) sans RLS activée, exposant des user_id et anciens plans.
 --
--- Rollback : 097_drop_backup_users_plan_085_rollback.sql
---   (recrée la structure vide — les 2 rows sont définitivement perdues ;
---    acceptable car le rollback 085 n'est plus réalisable de toute façon.)
+-- Rollback : aucun fichier fourni.
+--   Un DROP TABLE ne peut pas restaurer les 2 rows supprimées. Le rollback 085
+--   étant lui-même irréalisable (11 migrations par-dessus), la perte est
+--   acceptable. Pas de rollback partiel qui laisserait une table vide orpheline.
 -- ─────────────────────────────────────────────────────────────────────────────
 
 drop table if exists public._backup_users_plan_085;
