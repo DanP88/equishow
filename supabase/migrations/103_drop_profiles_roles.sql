@@ -23,6 +23,93 @@
 --   (toutes colonnes, FK auth.users + roles, RLS, trigger, grants).
 -- ─────────────────────────────────────────────────────────────────────────────
 
+-- ── Étape 0 : corriger le commentaire obsolète dans fn_people_i_know ─────────
+-- La fonction contient un commentaire "→ profiles(id)" (faux positif dans la garde G4
+-- ci-dessous). Il s'agit d'une référence historique incorrecte : mig 102 a confirmé
+-- que transport_reservations.buyer_id/seller_id pointent vers users(id) depuis mig 021.
+-- On remplace le corps de la fonction avec UNIQUEMENT le commentaire corrigé.
+create or replace function public.fn_people_i_know(viewer uuid)
+ returns table(user_id uuid, relation text)
+ language plpgsql
+ stable security definer
+ set search_path to 'public'
+as $function$
+declare
+  v_parts text[] := array[]::text[];
+  v_sql   text;
+begin
+  if viewer is null then
+    return;
+  end if;
+
+  -- Anti-énumération : seul mon propre graphe (sauf admin). Inactif si pas d'auth (harness).
+  if auth.uid() is not null
+     and viewer <> auth.uid()
+     and not exists (select 1 from public.users u where u.id = auth.uid() and u.role = 'admin')
+  then
+    raise exception 'fn_people_i_know: viewer doit être auth.uid()';
+  end if;
+
+  -- Source 1 (toujours) : follows directs.
+  v_parts := array_append(v_parts,
+    $q$ select followee_id as uid, 'following'::text as relation, 1 as prio
+        from public.user_follows where follower_id = $1 $q$);
+
+  -- Source 2 : messagerie (conversations 1:1, mig 038).
+  if to_regclass('public.conversations') is not null then
+    v_parts := array_append(v_parts,
+      $q$ select case when participant_a = $1 then participant_b else participant_a end as uid,
+                 'messaged'::text, 2
+          from public.conversations
+          where $1 in (participant_a, participant_b) $q$);
+  end if;
+
+  -- Source 3 : réservations marketplace (l'AUTRE partie). Box / Stage / Course / Transport.
+  if to_regclass('public.box_reservations') is not null then
+    v_parts := array_append(v_parts,
+      $q$ select case when buyer_id = $1 then seller_id else buyer_id end, 'booked'::text, 3
+          from public.box_reservations where $1 in (buyer_id, seller_id) $q$);
+  end if;
+  if to_regclass('public.stage_reservations') is not null then
+    v_parts := array_append(v_parts,
+      $q$ select case when cavalier_id = $1 then coach_id else cavalier_id end, 'booked'::text, 3
+          from public.stage_reservations where $1 in (cavalier_id, coach_id) $q$);
+  end if;
+  if to_regclass('public.course_demands') is not null then
+    v_parts := array_append(v_parts,
+      $q$ select case when cavalier_id = $1 then coach_id else cavalier_id end, 'booked'::text, 3
+          from public.course_demands where $1 in (cavalier_id, coach_id) $q$);
+  end if;
+  -- transport_reservations.buyer_id/seller_id → users(id) ON DELETE CASCADE (repointé mig 021).
+  if to_regclass('public.transport_reservations') is not null then
+    v_parts := array_append(v_parts,
+      $q$ select case when buyer_id = $1 then seller_id else buyer_id end, 'booked'::text, 3
+          from public.transport_reservations where $1 in (buyer_id, seller_id) $q$);
+  end if;
+
+  -- Source 4 (gardée) : même club. users.club_name ABSENT aujourd'hui → ignorée.
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'users' and column_name = 'club_name'
+  ) then
+    v_parts := array_append(v_parts,
+      $q$ select u2.id, 'club'::text, 4
+          from public.users u1
+          join public.users u2
+            on u1.club_name is not null and u1.club_name = u2.club_name and u2.id <> u1.id
+          where u1.id = $1 $q$);
+  end if;
+
+  v_sql :=
+    'select distinct on (uid) uid::uuid as user_id, relation::text as relation '
+    || 'from ( ' || array_to_string(v_parts, ' union all ') || ' ) src '
+    || 'where uid is not null and uid <> $1 '
+    || 'order by uid, prio';
+
+  return query execute v_sql using viewer;
+end;
+$function$;
+
 -- ── Garde 1 : 0 FK externe pointant vers profiles ────────────────────────────
 -- Vérifie qu'aucune table autre que profiles elle-même ne référence profiles.
 -- (profiles.id → auth.users et profiles.role_id → roles sont des FK SORTANTES
