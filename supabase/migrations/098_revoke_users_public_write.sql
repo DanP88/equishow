@@ -1,0 +1,44 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Migration 098 — Suppression des droits d'écriture sur la vue users_public
+--
+-- Contexte :
+--   La vue public.users_public est SECURITY DEFINER (security_invoker=false,
+--   positionné explicitement) et is_updatable=YES (vue simple SELECT colonne-par-
+--   colonne d'une table unique, sans GROUP BY / DISTINCT / LIMIT / agrégat).
+--
+--   Le rôle authenticated disposait des grants INSERT, UPDATE, DELETE sur cette vue.
+--   Combinés au mode SECURITY DEFINER (exécution en tant que postgres, superuser
+--   bypasse la RLS sur users car relforcerowsecurity=false), ces grants permettaient
+--   à n'importe quel utilisateur authentifié de :
+--
+--   a) UPDATE le profil (nom, prenom, bio, pseudo, avatar_url, region, disciplines)
+--      de n'importe quel autre utilisateur via :
+--        PATCH /rest/v1/users_public?id=eq.<uuid_victime>
+--      La policy users_update_own (USING: id=auth.uid()) était entièrement bypassée.
+--      Seule la colonne role est protégée (trigger trg_users_guard_role, SECURITY
+--      INVOKER). Les autres colonnes publiques ne l'étaient pas.
+--
+--   b) DELETE n'importe quel utilisateur de public.users via :
+--        DELETE /rest/v1/users_public?id=eq.<uuid_victime>
+--      La RLS ne s'appliquant pas à postgres superuser, la suppression réussit.
+--
+--   c) INSERT des rows arbitraires dans users (risque moindre, PK/FK constraint).
+--
+--   Aucun code frontend ni Edge Function n'écrit via cette vue (audit complet du
+--   dépôt : toutes les utilisations sont en lecture seule via .select()).
+--
+-- Correction :
+--   REVOKE INSERT, UPDATE, DELETE sur la vue pour le rôle authenticated.
+--   Le grant SELECT reste intact pour anon et authenticated — le comportement
+--   en lecture (lookups marketplace) est inchangé.
+--
+-- Impact :
+--   - Fonctionnel : aucun (aucune écriture via cette vue dans le code)
+--   - Sécurité : ferme UPDATE/DELETE bypass sur public.users
+--   - Escrow / Stripe / payments : aucun
+--   - RLS / policies / triggers : aucun
+--
+-- Rollback : 098_revoke_users_public_write_rollback.sql
+-- ─────────────────────────────────────────────────────────────────────────────
+
+REVOKE INSERT, UPDATE, DELETE ON public.users_public FROM authenticated;
