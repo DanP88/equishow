@@ -22,7 +22,7 @@ Stack Expo : Expo 54 · RN 0.81 · expo-router 6 · React Native Web · EAS · p
 3. **Push** : expo-notifications ; sender Edge `send-push` prêt ; ⚠️ mobile EAS **en pause** (0 projet, Apple Dev 99 $) → web only.
 4. **Compat** : tester web (Vercel) + viser natif ; SDK54 gotchas (`toReversed` Node 20, `NotificationBehavior` champs).
 5. **Builds** : Node 20 ; cache bundle (hard refresh post-deploy).
-6. **TS** : 18 erreurs pré-existantes (`reserver-transport`, `boost-coach`, `AddressAutocomplete`, `usePushNotifications`) — ne pas en ajouter.
+6. **TS** : 0 erreur active (`npx tsc --noEmit` → exit 0, 1 465 fichiers). 3 suppressions framework dans `reserver-transport.tsx` (params expo-router non typés L343/L773, prop HTML `title` sur `View` L487) — délibérées et documentées, ne pas en ajouter.
 
 ## Livrable attendu
 Reco Expo : **zone (routing/build/push/compat) · cause · correctif · plateformes impactées (iOS/Android/Web) · vérif (tsc + export web vert) · priorité P0–P3**.

@@ -1,7 +1,7 @@
 # CLAUDE.md — Equishow
 
 > **Source de vérité du projet.** Résumé stratégique. Les détails volumineux sont dans `docs/` (liens en bas de chaque section).
-> MAJ : 2026-07-29 · repo `main` @ `8345b9c` · migrations fichiers → **103** (…103 appliquées prod). **0 PR ouverte.**
+> MAJ : 2026-07-31 · repo `main` @ `7cd973e` · migrations fichiers → **103** (…103 appliquées prod). **0 PR ouverte.**
 > Légende : ✅ observé · 🟡 partiel · 🔴 bloquant · _(déduit)_ à confirmer.
 
 ## Session startup
@@ -17,7 +17,7 @@ Marché : 350–400k compétiteurs FR / 1,3M Europe. Marketplace à commission (
 
 # Current Status
 
-🟢 **code prêt** / 🔴 **infra commerciale non prête**. `main` @ `8345b9c`, **0 PR ouverte**.
+🟢 **code prêt** / 🔴 **infra commerciale non prête**. `main` @ `7cd973e`, **0 PR ouverte**.
 
 - ✅ 4 modules marketplace + escrow (box/transport/coach/stage), anti-surbooking, capacité créneau coach.
 - ✅ Stripe Connect + séquestre + crons release/expiration ; litiges + remboursements + alerting.
@@ -28,7 +28,8 @@ Marché : 350–400k compétiteurs FR / 1,3M Europe. Marketplace à commission (
 - ✅ Social / Hub Concours PR1 (PR #65, `422fd50`, **mig 088 appliquée prod**) : graphe **`user_follows`** (suivi **asymétrique Instagram-like**, sans demande/acceptation) + RPC `fn_people_i_know` (« personnes que je connais »). Bouton **Suivre persistant** (profils coach + cavaliers via Communauté/Services câblés sur de vrais `users.id`). **Aucun payments/escrow/Stripe/webhook touché.** Fondation des lots suivants (présence concours, hero « X que vous connaissez »).
 - ✅ Discussions concours LOT2 (PR #71, `main e4a99e7`, **mig 091 appliquée prod**) : ✅ **fil participants** · ✅ **mentions @user** · ✅ **notifications de mention** (`concours_mention`) · ✅ **migration 091 appliquée** · ✅ **en production**. Trigger `fn_notify_concours_mention` (dédup, best-effort) ; jeton typé `@[](user|concours:UUID)` (rétro-compat @concours). CI verte, harness 12/12, recette prod PASS, 0 régression LOT1. Aucun payments/escrow/Stripe/webhook touché.
 - ✅ Sécurité — escalade de privilège fermée + autorisations admin unifiées (2026-07-12/13) : **mig 093 (PR #82, prod)** garde anti auto-promotion `users.role` (trigger `trg_users_guard_role` SECURITY INVOKER) ; **mig 094 (PR #83, prod)** verrou anti-escalade legacy `profiles.role_id` ; **mig 095 (PR #85, prod)** autorisations admin basées sur `users.role` via `is_app_admin()`. Harness 9/9 + 8/8 + 10/10, recettes prod PASS. **Dette sécurité : mig 097 ✅ prod (PR #93, 2026-07-29) ; 098 ✅ ; 099 ✅ ; 100 ✅ ; 101 ✅ (drop `is_admin()`) ; 102 ✅ (FK Transport → users, harness 10/10) ; mig 103 ✅ prod (PR #100 mergée `main 8345b9c`, 2026-07-29 — drop tables legacy `profiles`/`roles`, harness 13/13) — simplification de rôles **COMPLÈTE**.** **Aucun payments/escrow/Stripe/webhook touché.**
-- 🟡 Push mobile EAS en pause (0 projet) ; location van fermée. _(Concours mock→DB : `creer-concours` désormais persisté (PR #74) ; reste PR2-C = édition + publication `brouillon→publie` + affichage des brouillons dans `org-concours`.)_
+- ✅ Concours org — robustesse gestion (PR #91, `7cd973e`, 2026-07-31) : `etat` préservé en édition · ownership check `fetchConcoursForEdit` · PGRST116 mappé · faux état vide supprimé · mutations concurrentes bloquées (`isMutating`) · compare-and-set transitions + `republishConcours`. 0 migration · 0 RLS · 0 Stripe. Tests useConcours.test.ts 10/10.
+- 🟡 Push mobile EAS en pause (0 projet) ; location van fermée. _(Concours mock→DB : `creer-concours` (PR #74) + `coach-concours` (PR #72) + gestion org PR2-C (PR #87/88/91) = ✅ complet. Chantier concours mock→DB **CLÔTURÉ**.)_
 - 🔴 Bloquants lancement : Stripe `sk_live` non confirmé · domaine Resend non vérifié · onboarding vendeur live.
 
 # Stack
@@ -119,9 +120,9 @@ Détail complet : `docs/incidents.md`.
 # Technical Debt
 
 - **P0** — Stripe `sk_live` à confirmer · domaine Resend `equishow.app` non vérifié (~50 % emails échouent) · onboarding vendeur live.
-- **P1** — concours mock→DB : `creer-concours` (PR #74) + `coach-concours` (PR #72) migrés ; **reste PR2-C** (édition + publication `brouillon→publie` + affichage des brouillons dans `org-concours`). _(Discussions LOT2 fil participants + @user + notif mention = ✅ prod mig 091 ; reste seulement le push de mention, replié dans P3 EAS pause.)_
-- **P2** — 18 erreurs TS (surtout `reserver-transport.tsx`) · KPI notifications/rétention · location van (dates/cautions R4/CR6).
-- **P3** — push mobile EAS · 23 fichiers parasites untracked · ~30 branches locales mortes · **simplification système de rôles (095/098/099/100/101/102/103 faits — COMPLÈTE)** : `mig 096` = protection serveur limite d'essai coach (PR #92, prod 2026-07-20) ; `mig 097` = drop `_backup_users_plan_085` ✅ prod (PR #93, 2026-07-29) ; `mig 098` = REVOKE écriture `users_public` ✅ prod (PR #94, 2026-07-29) ; `mig 099` = REVOKE écriture `coach_stats` ✅ prod (PR #95, 2026-07-29) ; `mig 100` = `security_invoker=true` vues analytics ✅ prod (PR #96, 2026-07-29 — 3 alertes Security Advisor fermées) ; `mig 101` = drop `is_admin()` ✅ prod (PR #98, 2026-07-29 — 17 policies `is_app_admin` intactes, 0 ref `is_admin` restante) ; `mig 102` = assertion checkpoint FK Transport → `users(id)` ✅ prod (PR #99, 2026-07-29 — harness 10/10) ; `mig 103` = drop tables legacy `profiles`/`roles` ✅ **prod + main (PR #100 mergée `8345b9c`, 2026-07-29 — harness 13/13)**.
+- **P1** — _(concours mock→DB : ✅ CLÔTURÉ — PR #72/74/87/88/91 mergées.)_ _(Discussions LOT2 : ✅ prod mig 091 ; reste push de mention, replié dans P3 EAS pause.)_
+- **P2** — KPI notifications/rétention · location van (dates/cautions R4/CR6). _(TS : 0 erreur — dette « 18 erreurs reserver-transport.tsx » résolue PR #58, `0362bc6`, 2026-06-24.)_
+- **P3** — push mobile EAS · 23 fichiers parasites untracked · branches locales mortes ✅ **nettoyées (2026-07-31, 39 local + 37 remote supprimées)** · **simplification système de rôles (095/098/099/100/101/102/103 faits — COMPLÈTE)** : `mig 096` = protection serveur limite d'essai coach (PR #92, prod 2026-07-20) ; `mig 097` = drop `_backup_users_plan_085` ✅ prod (PR #93, 2026-07-29) ; `mig 098` = REVOKE écriture `users_public` ✅ prod (PR #94, 2026-07-29) ; `mig 099` = REVOKE écriture `coach_stats` ✅ prod (PR #95, 2026-07-29) ; `mig 100` = `security_invoker=true` vues analytics ✅ prod (PR #96, 2026-07-29 — 3 alertes Security Advisor fermées) ; `mig 101` = drop `is_admin()` ✅ prod (PR #98, 2026-07-29 — 17 policies `is_app_admin` intactes, 0 ref `is_admin` restante) ; `mig 102` = assertion checkpoint FK Transport → `users(id)` ✅ prod (PR #99, 2026-07-29 — harness 10/10) ; `mig 103` = drop tables legacy `profiles`/`roles` ✅ **prod + main (PR #100 mergée `8345b9c`, 2026-07-29 — harness 13/13)**.
 
 # Claude Code Guidance
 
