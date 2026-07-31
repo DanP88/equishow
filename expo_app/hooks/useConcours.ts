@@ -450,17 +450,23 @@ function buildConcoursColumns(input: CreateConcoursInput) {
     departement,
     type_concours: input.discipline,
     liste_epreuves: input.epreuves,
-    etat: 'ouvert',
+    // `etat` est délibérément absent ici : la création le pose à 'ouvert' via INSERT,
+    // et l'édition ne doit jamais l'écraser (valeur posée par admin/import respectée).
     infos,
   };
 }
 
-// Traduit une erreur PostgREST en message utilisateur (RLS refusée / réseau).
-function mapConcoursWriteError(error: { message?: string } | null, fallback: string): string {
-  if (/row-level security|violates row-level|permission denied/i.test(error?.message ?? '')) {
+// Traduit une erreur PostgREST en message utilisateur (RLS refusée / réseau / 0 ligne).
+export function mapConcoursWriteError(error: { code?: string; message?: string } | null, fallback: string): string {
+  if (!error) return fallback;
+  // PGRST116 : .single() a trouvé 0 ligne (RLS a filtré la ligne ou elle n'existe pas).
+  if (error.code === 'PGRST116') {
+    return 'Concours introuvable ou vous n\'êtes pas autorisé à le modifier.';
+  }
+  if (/row-level security|violates row-level|permission denied/i.test(error.message ?? '')) {
     return 'Accès refusé : seul un compte organisateur peut gérer ce concours.';
   }
-  return error?.message || fallback;
+  return error.message || fallback;
 }
 
 export async function createConcours(
@@ -476,6 +482,7 @@ export async function createConcours(
       ...buildConcoursColumns(input),
       organisateur_id: input.organisateurId,
       statut: 'brouillon',
+      etat: 'ouvert',        // posé uniquement à la création (jamais écrasé en édition)
       source_import: 'manual',
     })
     .select('id')
@@ -528,6 +535,9 @@ export function useMyConcours(statut?: ConcoursStatut) {
   const userId = session?.user?.id;
   const [list, setList] = useState<MyConcours[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // null = pas d'erreur ; string = message à afficher avec bouton Réessayer.
+  // En cas d'erreur : la liste précédente est CONSERVÉE (pas de faux état vide).
+  const [error, setError] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     if (!userId) { setList([]); setIsLoading(false); return; }
@@ -537,10 +547,13 @@ export function useMyConcours(statut?: ConcoursStatut) {
       .select('id,nom,statut,date_debut,date_fin,lieu')
       .eq('organisateur_id', userId);
     if (statut) q = q.eq('statut', statut);
-    const { data, error } = await q.order('date_debut', { ascending: true });
-    if (error || !data) {
-      setList([]);
+    const { data, error: fetchError } = await q.order('date_debut', { ascending: true });
+    if (fetchError || !data) {
+      // Ne pas écraser la liste existante : garder les données périmées plutôt
+      // qu'afficher un faux état vide trompeur.
+      setError('Impossible de charger la liste. Vérifiez votre connexion.');
     } else {
+      setError(null);
       setList(
         (data as any[]).map((r) => ({
           id: r.id,
@@ -557,57 +570,93 @@ export function useMyConcours(statut?: ConcoursStatut) {
   }, [userId, statut]);
 
   useEffect(() => { load(); }, [load]);
-  return { concours: list, isLoading, reload: load };
+  return { concours: list, isLoading, error, reload: load };
 }
 
-// Lecture one-shot du row éditable (incl. infos/statut/adresse). null si non-owner (RLS).
+// Lecture one-shot du row éditable (incl. infos/statut/adresse).
+// Filtre explicitement organisateur_id = uid courant : un concours FFE publié (visible
+// par tous en SELECT) ne peut pas pré-remplir le formulaire d'édition d'un autre org.
 export async function fetchConcoursForEdit(id: string): Promise<ConcoursEditableRow | null> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return null;
+
   const { data, error } = await supabase
     .from('concours')
     .select('id,nom,date_debut,date_fin,lieu,adresse,departement,type_concours,liste_epreuves,statut,organisateur_id,infos')
     .eq('id', id)
+    .eq('organisateur_id', uid)
     .maybeSingle();
   if (error || !data) return null;
   return data as ConcoursEditableRow;
 }
 
 // Met à jour un concours existant (édition) SANS créer de nouvelle ligne ni toucher
-// au statut/organisateur_id. `updated_at` géré par le trigger trg_concours_touch.
+// au statut/organisateur_id/etat. `updated_at` géré par le trigger trg_concours_touch.
 export async function updateConcours(
   id: string,
   input: CreateConcoursInput,
 ): Promise<{ ok: boolean; error: string | null }> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from('concours')
     .update(buildConcoursColumns(input))
     .eq('id', id)
     .select('id')
-    .single();
+    .maybeSingle();
   if (error) return { ok: false, error: mapConcoursWriteError(error, "Échec de l'enregistrement.") };
+  if (!data) return { ok: false, error: 'Concours introuvable ou vous n\'êtes pas autorisé à le modifier.' };
   return { ok: true, error: null };
 }
 
-// Publication : change UNIQUEMENT le statut brouillon→publie (rend le concours
-// visible dans les listes publiques via concours_select_visible + filtre statut).
+// ── Transitions de statut avec compare-and-set ────────────────────────────────
+// Chaque transition filtre à la fois par id, organisateur_id ET statut attendu.
+// Si 0 ligne est modifiée → conflit détecté (liste périmée côté client).
+
+async function transitionConcoursStatus({
+  concoursId,
+  expectedStatus,
+  nextStatus,
+}: {
+  concoursId: string;
+  expectedStatus: ConcoursStatut;
+  nextStatus: ConcoursStatut;
+}): Promise<{ ok: boolean; error: string | null }> {
+  const { data: { session } } = await supabase.auth.getSession();
+  const uid = session?.user?.id;
+  if (!uid) return { ok: false, error: 'Session expirée : reconnecte-toi.' };
+
+  const { data, error } = await supabase
+    .from('concours')
+    .update({ statut: nextStatus })
+    .eq('id', concoursId)
+    .eq('organisateur_id', uid)
+    .eq('statut', expectedStatus)
+    .select('id');
+
+  if (error) {
+    const fallbackByTransition: Record<string, string> = {
+      publie: 'Échec de la publication.',
+      archive: "Échec de l'archivage.",
+    };
+    return { ok: false, error: mapConcoursWriteError(error, fallbackByTransition[nextStatus] ?? 'Échec de la mise à jour.') };
+  }
+  if (!data || data.length === 0) {
+    return { ok: false, error: 'Le concours a été modifié entre-temps. Actualisez la liste puis réessayez.' };
+  }
+  return { ok: true, error: null };
+}
+
+// Publication initiale : brouillon → publie.
 export async function publishConcours(id: string): Promise<{ ok: boolean; error: string | null }> {
-  const { error } = await supabase
-    .from('concours')
-    .update({ statut: 'publie' })
-    .eq('id', id)
-    .select('id')
-    .single();
-  if (error) return { ok: false, error: mapConcoursWriteError(error, 'Échec de la publication.') };
-  return { ok: true, error: null };
+  return transitionConcoursStatus({ concoursId: id, expectedStatus: 'brouillon', nextStatus: 'publie' });
 }
 
-// Archivage : statut → archive (retire des listes publiques, conserve la donnée).
+// Republication : archive → publie.
+export async function republishConcours(id: string): Promise<{ ok: boolean; error: string | null }> {
+  return transitionConcoursStatus({ concoursId: id, expectedStatus: 'archive', nextStatus: 'publie' });
+}
+
+// Archivage : publie → archive (retire des listes publiques, conserve la donnée).
 export async function archiveConcours(id: string): Promise<{ ok: boolean; error: string | null }> {
-  const { error } = await supabase
-    .from('concours')
-    .update({ statut: 'archive' })
-    .eq('id', id)
-    .select('id')
-    .single();
-  if (error) return { ok: false, error: mapConcoursWriteError(error, "Échec de l'archivage.") };
-  return { ok: true, error: null };
+  return transitionConcoursStatus({ concoursId: id, expectedStatus: 'publie', nextStatus: 'archive' });
 }
