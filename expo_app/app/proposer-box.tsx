@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal,
@@ -25,6 +25,26 @@ const EQUIPEMENTS = [
   'Parking sécurisé', 'Douche chevaux', 'Manège accès', 'Surveillance 24h',
   'Wi-Fi', 'Toilettes', 'Vétérinaire sur place',
 ];
+
+// équipements/litière n'ont pas de colonne dédiée : repliés en préfixe dans
+// `description` à la sauvegarde, à extraire à l'édition (voir submit()).
+function parseDescFull(raw: string | undefined): { equipements: string[]; litiere: string; description: string } {
+  if (!raw) return { equipements: [], litiere: '', description: '' };
+  const lines = raw.split('\n');
+  let equipements: string[] = [];
+  let litiere = '';
+  let idx = 0;
+  while (idx < lines.length) {
+    if (lines[idx].startsWith('Équipements : ')) {
+      equipements = lines[idx].slice('Équipements : '.length).split(',').map((s) => s.trim()).filter(Boolean);
+      idx++;
+    } else if (lines[idx].startsWith('Litière : ')) {
+      litiere = lines[idx].slice('Litière : '.length).trim();
+      idx++;
+    } else break;
+  }
+  return { equipements, litiere, description: lines.slice(idx).join('\n') };
+}
 
 function ConcoursPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [open, setOpen] = useState(false);
@@ -118,12 +138,32 @@ export default function ProposerBoxScreen() {
   const [litiere, setLitiere] = useState('');
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
+  const [prefilled, setPrefilled] = useState(false);
   const [alertState, setAlertState] = useState<{
     title: string;
     message?: string;
     variant: 'info' | 'success' | 'error';
     onClose: () => void;
   } | null>(null);
+
+  // `annonces` charge en async depuis Supabase : au premier rendu `existing`
+  // est encore undefined (liste vide), donc les useState ci-dessus s'initialisent
+  // vides. On repréremplit dès que l'annonce à éditer est disponible.
+  useEffect(() => {
+    if (!editId || prefilled || !existing) return;
+    const { equipements: parsedEquip, litiere: parsedLitiere, description: parsedDesc } =
+      parseDescFull(existing.description);
+    setLieu(existing.lieu ?? '');
+    setDateDebut(existing.dateDebut);
+    setDateFin(existing.dateFin);
+    setNbBoxes(String(existing.nbBoxes));
+    setPrix(String(existing.prixNuitHT));
+    setConcours(existing.concours ?? '');
+    setEquipements(parsedEquip);
+    setLitiere(parsedLitiere);
+    setDescription(parsedDesc);
+    setPrefilled(true);
+  }, [editId, existing, prefilled]);
 
   const lieuSuggestions = lieu
     ? ADRESSES_POPULAIRES.filter((v) => v.toLowerCase().includes(lieu.toLowerCase())).slice(0, 5)
@@ -202,6 +242,7 @@ export default function ProposerBoxScreen() {
     const nb = joursDisponibles;
     const descFull = [
       equipements.length > 0 ? `Équipements : ${equipements.join(', ')}` : '',
+      litiere ? `Litière : ${litiere}` : '',
       description,
     ].filter(Boolean).join('\n');
 
