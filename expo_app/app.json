@@ -13,7 +13,8 @@
       "backgroundColor": "#F8F7F4"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.equishow.app"
     },
     "android": {
       "adaptiveIcon": {
@@ -29,6 +30,13 @@
     "scheme": "equishow",
     "plugins": [
       "expo-router"
-    ]
+    ],
+    "extra": {
+      "router": {},
+      "eas": {
+        "projectId": "8a2d10c7-112a-460d-9d67-bba7eeb8d19c"
+      }
+    },
+    "owner": "equishow"
   }
 }
