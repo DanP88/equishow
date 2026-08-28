@@ -164,8 +164,14 @@ export function CustomBottomBar() {
   };
 
   const safePadBottom = Math.max(insets.bottom, Platform.OS === 'ios' ? 12 : 8);
+  // Natif : hauteur explicite = contenu (~59) + safe area dynamique. Sans elle,
+  // `height: undefined` laisse Yoga effondrer la rangée d'onglets (enfants
+  // `flex: 1` sans hauteur → 0) sur une build iOS native. Le web/PWA garde son
+  // comportement actuel (hauteur auto, min-content CSS) : on n'y touche pas.
+  const barHeight =
+    Platform.OS === 'web' ? undefined : (Platform.OS === 'ios' ? 59 : 60) + safePadBottom;
   return (
-    <View style={[getContainerStyle(), { paddingBottom: safePadBottom, height: undefined }]}>
+    <View style={[getContainerStyle(), { paddingBottom: safePadBottom, height: barHeight }]}>
       {tabs.map((tab) => (
         <View key={tab.name} style={{ position: 'relative' }}>
           <TouchableOpacity
