@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import * as Notifications from 'expo-notifications';
 import * as Device from 'expo-device';
+import Constants from 'expo-constants';
 import { Platform } from 'react-native';
 import { supabase } from '../data/store';
 
@@ -48,9 +49,16 @@ async function registerForPushNotifications(): Promise<string | null> {
     });
   }
 
-  const tokenData = await Notifications.getExpoPushTokenAsync({
-    projectId: process.env.EXPO_PUBLIC_EXPO_PROJECT_ID,
-  });
+  // projectId EAS : lu depuis la config Expo (app.json → extra.eas.projectId),
+  // avec repli sur easConfig (builds EAS). L'ancienne var d'env
+  // EXPO_PUBLIC_EXPO_PROJECT_ID n'était jamais définie.
+  const projectId =
+    Constants.expoConfig?.extra?.eas?.projectId ??
+    (Constants as any).easConfig?.projectId;
+
+  const tokenData = await Notifications.getExpoPushTokenAsync(
+    projectId ? { projectId } : undefined
+  );
 
   return tokenData.data;
 }
