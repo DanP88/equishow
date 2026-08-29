@@ -23,6 +23,7 @@ interface BoxAnnonceRow {
   nb_boxes: number | null;
   nb_boxes_disponibles: number | null;
   concours: string | null;
+  concours_id: string | null;
   description: string | null;
   created_at: string;
   updated_at: string;
@@ -43,6 +44,7 @@ function rowToAnnonce(r: BoxAnnonceRow): BoxAnnonce {
     nbBoxesDisponibles: r.nb_boxes_disponibles ?? 0,
     prixNuitHT: r.prix_nuit_ht,
     concours: r.concours ?? undefined,
+    concoursId: r.concours_id ?? undefined,
     description: r.description ?? undefined,
   };
 }

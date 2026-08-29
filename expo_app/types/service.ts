@@ -94,6 +94,9 @@ export interface TransportAnnonce {
   nbPlacesDisponibles: number;
   prixHT: number;
   concours?: string;
+  // FK canonique vers public.concours (074). Sert de clé de rattachement fiable
+  // fiche concours ↔ Services (le champ texte `concours` reste un fallback).
+  concoursId?: string;
   description?: string;
   // Nouveaux champs pour transport
   typeTransport?: 'trajet' | 'location'; // trajet classique ou location de van
@@ -130,6 +133,8 @@ export interface BoxAnnonce {
   nbBoxesDisponibles: number;
   prixNuitHT: number;
   concours?: string;
+  // FK canonique vers public.concours (074). Cf. TransportAnnonce.concoursId.
+  concoursId?: string;
   description?: string;
 }
 

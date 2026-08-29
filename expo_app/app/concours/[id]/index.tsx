@@ -54,7 +54,10 @@ export default function ConcoursFicheScreen() {
     // event_type='cta_click' + action dédiée (même convention que click_ffe ;
     // le CHECK user_events.event_type interdit un type custom). Pas d'historique.
     trackCta('concours-fiche', `concours_click_${tab}`, { concours_id: id });
-    router.push({ pathname: '/(tabs)/services', params: { tab, concours: concours.nom } } as any);
+    // concoursId = clé canonique (FK concours_id) : c'est celle qu'utilise le
+    // compteur (useConcoursCounts). `concours` (nom) reste transmis pour
+    // l'affichage du filtre et comme fallback pour les annonces legacy sans FK.
+    router.push({ pathname: '/(tabs)/services', params: { tab, concours: concours.nom, concoursId: id } } as any);
   };
 
   const services: { key: 'box' | 'transport' | 'coach'; tab: 'box' | 'transport' | 'coach'; icon: string; label: string; count: number; reserved: boolean }[] = [

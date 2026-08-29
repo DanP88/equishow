@@ -225,16 +225,16 @@ export function useConcoursCounts(id?: string) {
     setIsLoading(true);
 
     // COUNT read-only par concours_id (head:true => pas de payload, juste count).
-    // LOT 2B : box/transport filtrés sur la dispo réelle ; coach = présence (statut
-    // confirmé = LOT 3). Si concours_id absent (074 non appliquée), l'erreur
-    // "column does not exist" déclenche le fallback mock plus bas.
+    // LOT 2B : box/transport/coach filtrés sur la dispo réelle (> 0 place restante)
+    // → parité avec la liste Services filtrée par concours_id. Si concours_id absent
+    // (074 non appliquée), l'erreur "column does not exist" déclenche le fallback mock.
     const [box, transport, coach] = await Promise.all([
       supabase.from('box_annonces').select('id', { count: 'exact', head: true })
         .eq('concours_id', id).gt('nb_boxes_disponibles', 0),
       supabase.from('transport_annonces').select('id', { count: 'exact', head: true })
         .eq('concours_id', id).gt('nb_places_disponibles', 0),
       supabase.from('coach_annonces').select('id', { count: 'exact', head: true })
-        .eq('concours_id', id),
+        .eq('concours_id', id).gt('places_disponibles', 0),
     ]);
 
     if (isMissingTable(box.error) || isMissingTable(transport.error) || isMissingTable(coach.error)) {

@@ -21,6 +21,7 @@ interface TransportAnnonceRow {
   prix_ht: number;
   price_per_km: number;
   concours: string | null;
+  concours_id: string | null;
   description: string | null;
   type_transport: string;
   adresse_van: string | null;
@@ -57,6 +58,7 @@ function rowToAnnonce(r: TransportAnnonceRow): TransportAnnonce {
     prixHT: r.prix_ht,
     pricePerKm: r.price_per_km ?? undefined,
     concours: r.concours ?? undefined,
+    concoursId: r.concours_id ?? undefined,
     description: r.description ?? undefined,
     typeTransport: (r.type_transport ?? 'trajet') as 'trajet' | 'location',
     adresseVan: r.adresse_van ?? undefined,

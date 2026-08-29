@@ -140,7 +140,8 @@ export default function ConcoursDiscussionScreen() {
     trackCta('concours-discussion', `concours_disc_cta_${key}`, { concours_id: id });
     router.push({
       pathname: '/(tabs)/services',
-      params: { tab: c.tab, ...(c.subTab ? { subTab: c.subTab } : {}), concours: concours?.nom ?? '' },
+      // concoursId (FK) = clé canonique alignée sur le compteur ; nom = affichage/fallback.
+      params: { tab: c.tab, ...(c.subTab ? { subTab: c.subTab } : {}), concours: concours?.nom ?? '', concoursId: id },
     } as any);
   };
 

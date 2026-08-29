@@ -35,29 +35,35 @@ type SortT = 'date_asc' | 'date_desc' | 'prix_asc' | 'prix_desc' | 'places_desc'
 type SortB = 'date_asc' | 'date_desc' | 'prix_asc' | 'prix_desc' | 'boxes_desc';
 type SortC = 'note_desc' | 'prix_asc' | 'prix_desc';
 
+// `concours` = nom (affichage + fallback annonces legacy sans FK).
+// `concoursId` = FK public.concours (074), clé canonique quand on arrive depuis
+// une fiche concours — c'est celle qu'utilise le compteur (useConcoursCounts).
 interface FiltersTransport {
   sort: SortT;
   concours: string;
+  concoursId?: string;
   villeDepart: string;
   placesMin: number;
 }
 interface FiltersBox {
   sort: SortB;
   concours: string;
+  concoursId?: string;
   boxesMin: number;
 }
 interface FiltersCoach {
   sort: SortC;
   concours: string;
+  concoursId?: string;
   discipline: string;
   niveau: string;
   prixMax: number;
   disponibleSeulement: boolean;
 }
 
-const DEFAULT_FT: FiltersTransport = { sort: 'date_asc', concours: '', villeDepart: '', placesMin: 0 };
-const DEFAULT_FB: FiltersBox = { sort: 'date_asc', concours: '', boxesMin: 0 };
-const DEFAULT_FC: FiltersCoach = { sort: 'note_desc', concours: '', discipline: '', niveau: '', prixMax: 999, disponibleSeulement: false };
+const DEFAULT_FT: FiltersTransport = { sort: 'date_asc', concours: '', concoursId: undefined, villeDepart: '', placesMin: 0 };
+const DEFAULT_FB: FiltersBox = { sort: 'date_asc', concours: '', concoursId: undefined, boxesMin: 0 };
+const DEFAULT_FC: FiltersCoach = { sort: 'note_desc', concours: '', concoursId: undefined, discipline: '', niveau: '', prixMax: 999, disponibleSeulement: false };
 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
@@ -65,7 +71,10 @@ function unique(arr: string[]) { return [...new Set(arr.filter(Boolean))]; }
 
 function applyTransportFilters(list: TransportAnnonce[], f: FiltersTransport) {
   let out = [...list];
-  if (f.concours) out = out.filter((t) => t.concours === f.concours);
+  // Priorité à la clé canonique (FK). Fallback sur le nom pour les annonces
+  // legacy sans concours_id et pour la sélection manuelle du filtre.
+  if (f.concoursId) out = out.filter((t) => t.concoursId === f.concoursId);
+  else if (f.concours) out = out.filter((t) => t.concours === f.concours);
   if (f.villeDepart) out = out.filter((t) => t.villeDepart.toLowerCase().includes(f.villeDepart.toLowerCase()));
   if (f.placesMin > 0) out = out.filter((t) => t.nbPlacesDisponibles >= f.placesMin);
   if (f.sort === 'date_asc') out.sort((a, b) => a.dateTrajet.getTime() - b.dateTrajet.getTime());
@@ -78,7 +87,11 @@ function applyTransportFilters(list: TransportAnnonce[], f: FiltersTransport) {
 
 function applyBoxFilters(list: BoxAnnonce[], f: FiltersBox) {
   let out = [...list];
-  if (f.concours) out = out.filter((b) => b.concours === f.concours);
+  // Priorité à la clé canonique (FK) + parité stricte avec le compteur fiche
+  // concours (concours_id + nb_boxes_disponibles > 0). Fallback nom pour le
+  // legacy sans concours_id et la sélection manuelle.
+  if (f.concoursId) out = out.filter((b) => b.concoursId === f.concoursId && b.nbBoxesDisponibles > 0);
+  else if (f.concours) out = out.filter((b) => b.concours === f.concours);
   if (f.boxesMin > 0) out = out.filter((b) => b.nbBoxesDisponibles >= f.boxesMin);
   if (f.sort === 'date_asc') out.sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
   if (f.sort === 'date_desc') out.sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime());
@@ -113,7 +126,7 @@ function applyCoachFilters(list: CoachProfil[], f: FiltersCoach) {
 
 export default function ServicesScreen() {
   useScreenTracking('services');
-  const params = useLocalSearchParams<{ tab?: string; subTab?: string; concours?: string }>();
+  const params = useLocalSearchParams<{ tab?: string; subTab?: string; concours?: string; concoursId?: string }>();
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur';
   const [tab, setTab] = useState<Tab>((params.tab as Tab) ?? 'box');
   const [transportSubTab, setTransportSubTab] = useState<TransportSubTab>((params.subTab as TransportSubTab) ?? 'trajets');
@@ -168,15 +181,17 @@ export default function ServicesScreen() {
     // non régressif. LOT 2 : CTA #stage du fil concours → tab=coach&subTab=stages.
     if (params.subTab === 'trajets' || params.subTab === 'van') setTransportSubTab(params.subTab);
     if (params.tab === 'coach' && params.subTab === 'stages') setCoachTab('stages');
-    // LOT 1 — pré-filtrage par concours (nom) depuis la fiche concours.
-    // Le filtre Services matche le champ texte `concours` existant → non régressif.
-    if (params.concours) {
-      const c = params.concours as string;
-      setFiltersT((f) => ({ ...f, concours: c }));
-      setFiltersB((f) => ({ ...f, concours: c }));
-      setFiltersC((f) => ({ ...f, concours: c }));
+    // Pré-filtrage par concours depuis la fiche concours (ou l'accueil).
+    // `concoursId` (FK) = clé canonique, alignée sur le compteur useConcoursCounts.
+    // `concours` (nom) reste posé pour l'affichage du filtre + fallback legacy.
+    if (params.concours || params.concoursId) {
+      const c = (params.concours as string) ?? '';
+      const cid = (params.concoursId as string) || undefined;
+      setFiltersT((f) => ({ ...f, concours: c, concoursId: cid }));
+      setFiltersB((f) => ({ ...f, concours: c, concoursId: cid }));
+      setFiltersC((f) => ({ ...f, concours: c, concoursId: cid }));
     }
-  }, [params.tab, params.subTab, params.concours]));
+  }, [params.tab, params.subTab, params.concours, params.concoursId]));
 
   function handleCancelTransport(id: string) { setPendingCancel({ kind: 'transport', id }); }
   function handleCancelBox(id: string)       { setPendingCancel({ kind: 'box', id }); }
@@ -231,22 +246,29 @@ export default function ServicesScreen() {
   const disciplinesCoachs = unique(coaches.flatMap((c) => c.disciplines));
   const niveauxCoachs = unique(coaches.flatMap((c) => c.niveaux));
 
-  // Filtrer les annonces et coachs par concours
-  const filteredCoachAnnonces = filtersC.concours
-    ? coachAnnonces.filter((ca) => ca.concours === filtersC.concours)
+  // Filtrer les annonces et coachs par concours. Priorité à la clé canonique
+  // (concours_id, alignée sur le compteur useConcoursCounts) ; fallback sur le
+  // nom pour le legacy sans FK et la sélection manuelle du filtre.
+  const coachConcoursActive = filtersC.concoursId || filtersC.concours;
+  const filteredCoachAnnonces = coachConcoursActive
+    ? coachAnnonces.filter((ca) =>
+        filtersC.concoursId
+          // Parité stricte avec le compteur (concours_id + places_disponibles > 0).
+          ? ca.concoursId === filtersC.concoursId && ca.placesDisponibles > 0
+          : ca.concours === filtersC.concours)
     : coachAnnonces;
 
-  const coachIdsWithSelectedConcours = filtersC.concours
+  const coachIdsWithSelectedConcours = coachConcoursActive
     ? new Set(filteredCoachAnnonces.map((ca) => ca.auteurId))
     : new Set();
 
-  const filteredCoaches = filtersC.concours
+  const filteredCoaches = coachConcoursActive
     ? filteredC.filter((c) => coachIdsWithSelectedConcours.has(c.auteurId))
     : filteredC;
 
-  const activeFiltersT = filtersT.concours || filtersT.villeDepart || filtersT.placesMin > 0 || filtersT.sort !== 'date_asc';
-  const activeFiltersB = filtersB.concours || filtersB.boxesMin > 0 || filtersB.sort !== 'date_asc';
-  const activeFiltersC = filtersC.concours || filtersC.discipline || filtersC.niveau || filtersC.prixMax < 999 || filtersC.disponibleSeulement || filtersC.sort !== 'note_desc';
+  const activeFiltersT = filtersT.concours || filtersT.concoursId || filtersT.villeDepart || filtersT.placesMin > 0 || filtersT.sort !== 'date_asc';
+  const activeFiltersB = filtersB.concours || filtersB.concoursId || filtersB.boxesMin > 0 || filtersB.sort !== 'date_asc';
+  const activeFiltersC = filtersC.concours || filtersC.concoursId || filtersC.discipline || filtersC.niveau || filtersC.prixMax < 999 || filtersC.disponibleSeulement || filtersC.sort !== 'note_desc';
   const hasActiveFilter = tab === 'transport' ? activeFiltersT : tab === 'box' ? activeFiltersB : activeFiltersC;
 
   return (
@@ -314,10 +336,11 @@ export default function ServicesScreen() {
                   activeOpacity={0.85}
                   style={s.concoursRow}
                   onPress={() => {
-                    // Sélection d'un concours → pré-filtre les 3 modules + bascule en vue services.
-                    setFiltersB((f) => ({ ...f, concours: c.nom }));
-                    setFiltersT((f) => ({ ...f, concours: c.nom }));
-                    setFiltersC((f) => ({ ...f, concours: c.nom }));
+                    // Sélection d'un concours → pré-filtre les 3 modules (clé canonique
+                    // concours_id, nom conservé pour l'affichage) + bascule en vue services.
+                    setFiltersB((f) => ({ ...f, concours: c.nom, concoursId: c.id }));
+                    setFiltersT((f) => ({ ...f, concours: c.nom, concoursId: c.id }));
+                    setFiltersC((f) => ({ ...f, concours: c.nom, concoursId: c.id }));
                     setTab('box');
                     setViewMode('tous');
                   }}
@@ -623,7 +646,7 @@ export default function ServicesScreen() {
             <TouchableOpacity
               style={s.dropdownItem}
               onPress={() => {
-                setFiltersC({ ...filtersC, concours: '' });
+                setFiltersC({ ...filtersC, concours: '', concoursId: undefined });
                 setShowConcoursDropdown(false);
               }}
             >
@@ -638,7 +661,7 @@ export default function ServicesScreen() {
                 key={c}
                 style={s.dropdownItem}
                 onPress={() => {
-                  setFiltersC({ ...filtersC, concours: c });
+                  setFiltersC({ ...filtersC, concours: c, concoursId: undefined });
                   setShowConcoursDropdown(false);
                 }}
               >
@@ -693,7 +716,7 @@ function FiltersTransportPanel({ filters, onChange, concoursOptions }: {
         <ChipGroup
           options={[{ label: 'Tous', value: '' }, ...concoursOptions.map((c) => ({ label: c, value: c }))]}
           value={f.concours}
-          onSelect={(v) => onChange({ ...f, concours: v })}
+          onSelect={(v) => onChange({ ...f, concours: v, concoursId: undefined })}
         />
       </FilterSection>
 
@@ -747,7 +770,7 @@ function FiltersBoxPanel({ filters, onChange, concoursOptions }: {
         <ChipGroup
           options={[{ label: 'Tous', value: '' }, ...concoursOptions.map((c) => ({ label: c, value: c }))]}
           value={f.concours}
-          onSelect={(v) => onChange({ ...f, concours: v })}
+          onSelect={(v) => onChange({ ...f, concours: v, concoursId: undefined })}
         />
       </FilterSection>
 
@@ -789,7 +812,7 @@ function FiltersCoachPanel({ filters, onChange, concours, disciplines, niveaux }
         <ChipGroup
           options={[{ label: 'Tous', value: '' }, ...concours.map((c) => ({ label: c, value: c }))]}
           value={f.concours}
-          onSelect={(v) => onChange({ ...f, concours: v })}
+          onSelect={(v) => onChange({ ...f, concours: v, concoursId: undefined })}
         />
       </FilterSection>
 
