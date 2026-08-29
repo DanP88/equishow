@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal,
@@ -9,16 +9,14 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
 import { AlertModal } from '../components/AlertModal';
-import { mockConcours } from '../data/mockConcours';
+import { useConcoursList } from '../hooks/useConcours';
 import { useMyBoxAnnonces } from '../hooks/useBoxes';
 import { BoxAnnonce } from '../types/service';
 
-const CONCOURS_OPTIONS = mockConcours
-  .filter(c => c.statut !== 'brouillon')
-  .map((c) => ({
-    label: `${c.nom} — ${c.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · ${c.lieu}`,
-    value: c.nom,
-  }));
+// Sélection concours : { nom, id }. id = FK public.concours (rattachement fiable
+// fiche concours ↔ Services). id undefined pour une saisie libre / « Aucun ».
+type ConcoursSel = { nom: string; id?: string };
+type ConcoursOption = { id: string; nom: string; sub: string };
 
 const EQUIPEMENTS = [
   'Eau courante', 'Électricité', 'Litière incluse', 'Paddock disponible',
@@ -46,29 +44,32 @@ function parseDescFull(raw: string | undefined): { equipements: string[]; litier
   return { equipements, litiere, description: lines.slice(idx).join('\n') };
 }
 
-function ConcoursPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ConcoursPicker({ valueNom, valueId, options, onChange }: {
+  valueNom: string;
+  valueId?: string;
+  options: ConcoursOption[];
+  onChange: (sel: ConcoursSel) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [autreMode, setAutreMode] = useState(false);
   const [autreText, setAutreText] = useState('');
 
-  function selectOption(val: string) {
-    if (val === '__autre__') { setAutreMode(true); setOpen(false); }
-    else { onChange(val); setAutreMode(false); setOpen(false); }
+  function confirmAutre() {
+    if (autreText.trim()) { onChange({ nom: autreText.trim(), id: undefined }); setAutreMode(false); }
   }
 
-  function confirmAutre() {
-    if (autreText.trim()) { onChange(autreText.trim()); setAutreMode(false); }
-  }
+  // Actif = même id ; à défaut d'id (saisie libre / legacy) on retombe sur le nom.
+  const isActive = (opt: ConcoursOption) => (valueId ? valueId === opt.id : !!valueNom && valueNom === opt.nom);
 
   return (
     <>
       <TouchableOpacity
-        style={[f.input, !!value && f.inputFilled]}
+        style={[f.input, !!valueNom && f.inputFilled]}
         onPress={() => { setAutreMode(false); setOpen(true); }}
         activeOpacity={0.8}
       >
-        <Text style={[f.inputText, !value && f.placeholder]} numberOfLines={1}>
-          {value || 'Sélectionner un concours'}
+        <Text style={[f.inputText, !valueNom && f.placeholder]} numberOfLines={1}>
+          {valueNom || 'Sélectionner un concours'}
         </Text>
         <Text style={f.arrow}>▼</Text>
       </TouchableOpacity>
@@ -78,23 +79,23 @@ function ConcoursPicker({ value, onChange }: { value: string; onChange: (v: stri
           <TouchableOpacity activeOpacity={1} style={cp.sheet}>
             <Text style={cp.title}>Concours associé</Text>
             <ScrollView style={cp.list} showsVerticalScrollIndicator={false}>
-              <TouchableOpacity style={cp.item} onPress={() => { onChange(''); setOpen(false); }}>
+              <TouchableOpacity style={cp.item} onPress={() => { onChange({ nom: '', id: undefined }); setOpen(false); }}>
                 <Text style={[cp.itemText, { color: Colors.textTertiary, fontStyle: 'italic' }]}>— Aucun concours</Text>
               </TouchableOpacity>
-              {CONCOURS_OPTIONS.map((opt) => (
+              {options.map((opt) => (
                 <TouchableOpacity
-                  key={opt.value}
-                  style={[cp.item, value === opt.value && cp.itemActive]}
-                  onPress={() => selectOption(opt.value)}
+                  key={opt.id}
+                  style={[cp.item, isActive(opt) && cp.itemActive]}
+                  onPress={() => { onChange({ nom: opt.nom, id: opt.id }); setAutreMode(false); setOpen(false); }}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={[cp.itemText, value === opt.value && cp.itemTextActive]}>{opt.value}</Text>
-                    <Text style={cp.itemSub}>{opt.label.split(' — ')[1]}</Text>
+                    <Text style={[cp.itemText, isActive(opt) && cp.itemTextActive]}>{opt.nom}</Text>
+                    {!!opt.sub && <Text style={cp.itemSub}>{opt.sub}</Text>}
                   </View>
-                  {value === opt.value && <Text style={cp.check}>✓</Text>}
+                  {isActive(opt) && <Text style={cp.check}>✓</Text>}
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[cp.item, cp.itemAutre]} onPress={() => selectOption('__autre__')}>
+              <TouchableOpacity style={[cp.item, cp.itemAutre]} onPress={() => { setAutreMode(true); setOpen(false); }}>
                 <Text style={cp.itemAutreText}>✏️ Autre concours (saisie libre)</Text>
               </TouchableOpacity>
             </ScrollView>
@@ -126,6 +127,20 @@ export default function ProposerBoxScreen() {
   const { annonces, createAnnonce, updateAnnonce } = useMyBoxAnnonces();
   const existing = editId ? annonces.find((b) => b.id === editId) : undefined;
 
+  // Vrais concours (table public.concours, publiés) — même source que Services /
+  // proposer-coach-annonce. Remplace l'ancienne liste mock.
+  // usingMock : en __DEV__ table concours vide → ids mock non-UUID → on ne stocke
+  // alors PAS de concours_id (évite une FK invalide), on garde le nom seul.
+  const { concours: dbConcours, usingMock: concoursUsingMock } = useConcoursList();
+  const concoursOptions: ConcoursOption[] = useMemo(
+    () => dbConcours.map((c) => ({
+      id: c.id,
+      nom: c.nom,
+      sub: [c.dateLabel, c.lieu].filter(Boolean).join(' · '),
+    })),
+    [dbConcours],
+  );
+
   const [lieu, setLieu] = useState(existing?.lieu ?? '');
   const [showLieuSuggestions, setShowLieuSuggestions] = useState(false);
   const [dateDebut, setDateDebut] = useState<Date | undefined>(existing?.dateDebut);
@@ -133,6 +148,7 @@ export default function ProposerBoxScreen() {
   const [nbBoxes, setNbBoxes] = useState(existing ? String(existing.nbBoxes) : '');
   const [prix, setPrix] = useState(existing ? String(existing.prixNuitHT) : '');
   const [concours, setConcours] = useState(existing?.concours ?? '');
+  const [concoursId, setConcoursId] = useState<string | undefined>(existing?.concoursId);
   const [equipements, setEquipements] = useState<string[]>([]);
   const [description, setDescription] = useState(existing?.description ?? '');
   const [litiere, setLitiere] = useState('');
@@ -159,6 +175,7 @@ export default function ProposerBoxScreen() {
     setNbBoxes(String(existing.nbBoxes));
     setPrix(String(existing.prixNuitHT));
     setConcours(existing.concours ?? '');
+    setConcoursId(existing.concoursId);
     setEquipements(parsedEquip);
     setLitiere(parsedLitiere);
     setDescription(parsedDesc);
@@ -254,6 +271,7 @@ export default function ProposerBoxScreen() {
       nbBoxesDisponibles: nb,
       prixNuitHT: prixRecu,
       concours: concours || undefined,
+      concoursId: concoursId || undefined,
       description: descFull || undefined,
     };
 
@@ -374,7 +392,12 @@ export default function ProposerBoxScreen() {
         </Field>
 
         <Field label="Concours associé">
-          <ConcoursPicker value={concours} onChange={setConcours} />
+          <ConcoursPicker
+            valueNom={concours}
+            valueId={concoursId}
+            options={concoursOptions}
+            onChange={(sel) => { setConcours(sel.nom); setConcoursId(concoursUsingMock ? undefined : sel.id); }}
+          />
         </Field>
 
         <Field label="Équipements disponibles">

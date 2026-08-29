@@ -88,6 +88,7 @@ function annonceToRowPatch(a: Partial<TransportAnnonce>): Partial<TransportAnnon
   if (a.prixHT !== undefined)                  p.prix_ht = a.prixHT;
   if (a.pricePerKm !== undefined)              p.price_per_km = a.pricePerKm ?? 0;
   if (a.concours !== undefined)                p.concours = a.concours ?? null;
+  if (a.concoursId !== undefined)              p.concours_id = a.concoursId ?? null;
   if (a.description !== undefined)             p.description = a.description ?? null;
   if (a.typeTransport !== undefined)           p.type_transport = a.typeTransport;
   if (a.adresseVan !== undefined)              p.adresse_van = a.adresseVan ?? null;

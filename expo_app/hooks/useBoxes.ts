@@ -58,6 +58,7 @@ function annonceToRowPatch(a: Partial<BoxAnnonce>): Partial<BoxAnnonceRow> {
   if (a.nbBoxesDisponibles !== undefined) p.nb_boxes_disponibles = a.nbBoxesDisponibles;
   if (a.prixNuitHT !== undefined)         p.prix_nuit_ht = a.prixNuitHT;
   if (a.concours !== undefined)           p.concours = a.concours ?? null;
+  if (a.concoursId !== undefined)         p.concours_id = a.concoursId ?? null;
   if (a.description !== undefined)        p.description = a.description ?? null;
   return p;
 }
@@ -210,6 +211,7 @@ export function useMyBoxAnnonces() {
         nbBoxesDisponibles: input.nbBoxesDisponibles ?? input.nbBoxes ?? 1,
         prixNuitHT: input.prixNuitHT ?? 0,
         concours: input.concours ?? undefined,
+        concoursId: input.concoursId ?? undefined,
         description: input.description ?? undefined,
       };
       setList((curr) => [optimistic, ...curr]);

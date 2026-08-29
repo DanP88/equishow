@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   TextInput, Modal, ActivityIndicator,
@@ -9,52 +9,44 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/them
 import { DatePickerModal, DateButton, formatDate, MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { AlertModal } from '../components/AlertModal';
-import { mockConcours } from '../data/mockConcours';
+import { useConcoursList } from '../hooks/useConcours';
 import { useMyTransportAnnonces } from '../hooks/useTransports';
 import { VILLES_POPULAIRES } from '../data/mockVilles';
 import { getCommission, TransportAnnonce } from '../types/service';
 
-const CONCOURS_OPTIONS = mockConcours
-  .filter(c => c.statut !== 'brouillon')
-  .map((c) => ({
-    label: `${c.nom} — ${c.dateDebut.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' })} · ${c.lieu}`,
-    value: c.nom,
-  }));
+// Sélection concours : { nom, id }. id = FK public.concours ; undefined pour une
+// saisie libre / « Aucun ».
+type ConcoursSel = { nom: string; id?: string };
+type ConcoursOption = { id: string; nom: string; sub: string };
 
-function ConcoursPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function ConcoursPicker({ valueNom, valueId, options, onChange }: {
+  valueNom: string;
+  valueId?: string;
+  options: ConcoursOption[];
+  onChange: (sel: ConcoursSel) => void;
+}) {
   const [open, setOpen] = useState(false);
   const [autreMode, setAutreMode] = useState(false);
   const [autreText, setAutreText] = useState('');
 
-  function selectOption(val: string) {
-    if (val === '__autre__') {
-      setAutreMode(true);
-      setOpen(false);
-    } else {
-      onChange(val);
-      setAutreMode(false);
-      setOpen(false);
-    }
-  }
-
   function confirmAutre() {
     if (autreText.trim()) {
-      onChange(autreText.trim());
+      onChange({ nom: autreText.trim(), id: undefined });
       setAutreMode(false);
     }
   }
 
-  const displayValue = value || '';
+  const isActive = (opt: ConcoursOption) => (valueId ? valueId === opt.id : !!valueNom && valueNom === opt.nom);
 
   return (
     <>
       <TouchableOpacity
-        style={[f.input, !!value && f.inputFilled]}
+        style={[f.input, !!valueNom && f.inputFilled]}
         onPress={() => { setAutreMode(false); setOpen(true); }}
         activeOpacity={0.8}
       >
-        <Text style={[f.inputText, !value && f.placeholder]} numberOfLines={1}>
-          {displayValue || 'Sélectionner un concours'}
+        <Text style={[f.inputText, !valueNom && f.placeholder]} numberOfLines={1}>
+          {valueNom || 'Sélectionner un concours'}
         </Text>
         <Text style={f.arrow}>▼</Text>
       </TouchableOpacity>
@@ -65,23 +57,23 @@ function ConcoursPicker({ value, onChange }: { value: string; onChange: (v: stri
             <Text style={cp.title}>Concours associé</Text>
             <ScrollView style={cp.list} showsVerticalScrollIndicator={false}>
               {/* Option vide */}
-              <TouchableOpacity style={cp.item} onPress={() => { onChange(''); setOpen(false); }}>
+              <TouchableOpacity style={cp.item} onPress={() => { onChange({ nom: '', id: undefined }); setOpen(false); }}>
                 <Text style={[cp.itemText, { color: Colors.textTertiary, fontStyle: 'italic' }]}>— Aucun concours</Text>
               </TouchableOpacity>
-              {CONCOURS_OPTIONS.map((opt) => (
+              {options.map((opt) => (
                 <TouchableOpacity
-                  key={opt.value}
-                  style={[cp.item, value === opt.value && cp.itemActive]}
-                  onPress={() => selectOption(opt.value)}
+                  key={opt.id}
+                  style={[cp.item, isActive(opt) && cp.itemActive]}
+                  onPress={() => { onChange({ nom: opt.nom, id: opt.id }); setAutreMode(false); setOpen(false); }}
                 >
                   <View style={{ flex: 1 }}>
-                    <Text style={[cp.itemText, value === opt.value && cp.itemTextActive]}>{opt.value}</Text>
-                    <Text style={cp.itemSub}>{opt.label.split(' — ')[1]}</Text>
+                    <Text style={[cp.itemText, isActive(opt) && cp.itemTextActive]}>{opt.nom}</Text>
+                    {!!opt.sub && <Text style={cp.itemSub}>{opt.sub}</Text>}
                   </View>
-                  {value === opt.value && <Text style={cp.check}>✓</Text>}
+                  {isActive(opt) && <Text style={cp.check}>✓</Text>}
                 </TouchableOpacity>
               ))}
-              <TouchableOpacity style={[cp.item, cp.itemAutre]} onPress={() => selectOption('__autre__')}>
+              <TouchableOpacity style={[cp.item, cp.itemAutre]} onPress={() => { setAutreMode(true); setOpen(false); }}>
                 <Text style={cp.itemAutreText}>✏️ Autre concours (saisie libre)</Text>
               </TouchableOpacity>
             </ScrollView>
@@ -214,6 +206,20 @@ export default function ProposerTransportScreen() {
   const { annonces, isLoading: annoncesLoading, createAnnonce, updateAnnonce } = useMyTransportAnnonces();
   const existing = editId ? annonces.find((t) => t.id === editId) : undefined;
 
+  // Vrais concours (public.concours, publiés) — même source que Services. Remplace
+  // l'ancienne liste mock ; permet d'enregistrer un concours_id fiable.
+  // usingMock : cf. proposer-box — en dev sans table concours, on n'enregistre
+  // pas de concours_id (ids mock non-UUID).
+  const { concours: dbConcours, usingMock: concoursUsingMock } = useConcoursList();
+  const concoursOptions: ConcoursOption[] = useMemo(
+    () => dbConcours.map((c) => ({
+      id: c.id,
+      nom: c.nom,
+      sub: [c.dateLabel, c.lieu].filter(Boolean).join(' · '),
+    })),
+    [dbConcours],
+  );
+
   // villeDepart/villeArrivee retirés de l'UI — dérivés des adresses au save.
   const [dateTrajet, setDateTrajet] = useState<Date | undefined>(existing?.dateTrajet);
   const [nbPlaces, setNbPlaces] = useState(existing ? String(existing.nbPlacesTotal) : '');
@@ -249,6 +255,7 @@ export default function ProposerTransportScreen() {
   const [datesDisponibles, setDatesDisponibles] = useState<Date[]>(existing?.datesDisponibles ?? []);
 
   const [concours, setConcours] = useState(existing?.concours ?? '');
+  const [concoursId, setConcoursId] = useState<string | undefined>(existing?.concoursId);
   const [description, setDescription] = useState(existing?.description ?? '');
   const [showDate, setShowDate] = useState(false);
   const [showDateRetour, setShowDateRetour] = useState(false);
@@ -283,6 +290,7 @@ export default function ProposerTransportScreen() {
     setCautionNettoyage(existing.cautionNettoyage ? String(existing.cautionNettoyage) : '');
     setDatesDisponibles(existing.datesDisponibles ?? []);
     setConcours(existing.concours ?? '');
+    setConcoursId(existing.concoursId);
     setDescription(existing.description ?? '');
     // Champs retour (villedepartRetour/villearriveeRetour/nbPlacesRetour) : non
     // persistés en base → non hydratés ici (traité dans le lot aller-retour).
@@ -365,6 +373,7 @@ export default function ProposerTransportScreen() {
       prixHT: prixNum,
       pricePerKm: typeTransport === 'trajet' ? prixNum : 0,
       concours: concours || undefined,
+      concoursId: concoursId || undefined,
       description: description || undefined,
       typeTransport,
       adresseVan: adresseVan || undefined,
@@ -708,7 +717,12 @@ export default function ProposerTransportScreen() {
         )}
 
         <Field label="Concours associé">
-          <ConcoursPicker value={concours} onChange={setConcours} />
+          <ConcoursPicker
+            valueNom={concours}
+            valueId={concoursId}
+            options={concoursOptions}
+            onChange={(sel) => { setConcours(sel.nom); setConcoursId(concoursUsingMock ? undefined : sel.id); }}
+          />
         </Field>
 
         <Field label="Description">
