@@ -1,19 +1,25 @@
 -- ============================================================================
--- ROLLBACK 104 — restaure fn_availability_box dans sa version « contrôle par
--- chevauchement de dates, sans maintien de nb_boxes_disponibles » (état pré-104).
--- Retire les triggers/fonctions de synchronisation.
--- NB : ne « dé-backfill » pas nb_boxes_disponibles (valeur laissée telle quelle).
+-- ROLLBACK 104 — restaure fn_availability_box dans sa version pré-104
+-- (BEFORE UPDATE OF status, contrôle chevauchement, sans maintien du compteur)
+-- et retire les fonctions / triggers / RPC ajoutés.
+-- NB : ne remet pas nb_boxes_disponibles à sa valeur d'avant (laissée telle quelle).
 -- ============================================================================
 
 begin;
 
-drop trigger if exists trg_box_dispo_sync   on public.box_reservations;
+drop trigger if exists trg_box_dispo_sync    on public.box_reservations;
 drop trigger if exists trg_box_annonce_dispo on public.box_annonces;
-drop function if exists public.fn_box_reservation_sync_dispo();
-drop function if exists public.fn_box_annonce_sync_dispo();
-drop function if exists public.fn_box_sync_dispo(uuid);
 
--- fn_availability_box : version d'origine (contrôle daterange, pas d'écriture)
+drop function if exists public.fn_box_reservation_sync_dispo();
+drop function if exists public.fn_box_annonce_guard_dispo();
+drop function if exists public.fn_box_sync_dispo(uuid);
+drop function if exists public.fn_box_dispo_value(uuid);
+drop function if exists public.fn_concours_available_box_annonce_ids(uuid);
+drop function if exists public.fn_concours_box_available_count(uuid);
+drop function if exists public.fn_box_peak_concurrency(uuid, date, date);
+drop function if exists public.fn_box_available(uuid, date, date);
+
+-- fn_availability_box : version d'origine (BEFORE UPDATE OF status uniquement)
 create or replace function public.fn_availability_box()
 returns trigger
 language plpgsql

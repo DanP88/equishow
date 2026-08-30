@@ -225,10 +225,14 @@ export function useConcoursCounts(id?: string) {
     setIsLoading(true);
 
     // COUNT read-only par concours_id (head:true => pas de payload, juste count).
-    // LOT 2B : box/transport/coach filtrés sur la dispo réelle (> 0 place restante)
-    // → parité avec la liste Services filtrée par concours_id. Si concours_id absent
-    // (074 non appliquée), l'erreur "column does not exist" déclenche le fallback mock.
-    const [box, transport, coach] = await Promise.all([
+    // - BOX : compteur DATE-AWARE via RPC fn_concours_box_available_count (mig 104) —
+    //   disponibilité pour les DATES du concours (une box réservée sur d'autres
+    //   dates reste comptée). Repli (RPC absente) : `nb_boxes_disponibles > 0`.
+    //   On expose le nb d'ANNONCES disponibles (cohérent avec transport/coach) ;
+    //   `boxes` (capacité physique totale) est aussi renvoyé par la RPC.
+    // - transport/coach : nb d'annonces avec dispo > 0.
+    const [boxRpc, box, transport, coach] = await Promise.all([
+      supabase.rpc('fn_concours_box_available_count', { p_concours_id: id }),
       supabase.from('box_annonces').select('id', { count: 'exact', head: true })
         .eq('concours_id', id).gt('nb_boxes_disponibles', 0),
       supabase.from('transport_annonces').select('id', { count: 'exact', head: true })
@@ -241,8 +245,13 @@ export function useConcoursCounts(id?: string) {
       // colonne/table absente (074 non appliquée) → fallback mock en dev.
       if (__DEV__ && MOCK_COUNTS[id]) setCounts(MOCK_COUNTS[id]);
     } else {
+      // RPC 104 dispo → sa valeur `annonces` ; sinon repli sur le count legacy.
+      const boxRow = Array.isArray(boxRpc.data) ? boxRpc.data[0] : boxRpc.data;
+      const boxCount = (!boxRpc.error && boxRow && typeof boxRow.annonces === 'number')
+        ? boxRow.annonces
+        : (box.count ?? 0);
       setCounts({
-        box: box.count ?? 0,
+        box: boxCount,
         transport: transport.count ?? 0,
         coach: coach.count ?? 0,
       });
@@ -252,6 +261,31 @@ export function useConcoursCounts(id?: string) {
 
   useEffect(() => { load(); }, [load]);
   return { counts, isLoading, reload: load };
+}
+
+// ── useConcoursAvailableBoxIds — ids des box_annonces RÉELLEMENT disponibles ───
+// pour les DATES du concours (mig 104 : fn_concours_available_box_annonce_ids).
+// Retourne null tant que la RPC n'existe pas (mig 104 non appliquée) OU en cours
+// de chargement → l'appelant retombe alors sur le filtre `nbBoxesDisponibles > 0`.
+export function useConcoursAvailableBoxIds(concoursId?: string): Set<string> | null {
+  const [ids, setIds] = useState<Set<string> | null>(null);
+
+  useEffect(() => {
+    if (!concoursId) { setIds(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.rpc('fn_concours_available_box_annonce_ids', {
+        p_concours_id: concoursId,
+      });
+      if (cancelled) return;
+      // RPC absente (mig 104 pas appliquée) ou erreur → null = fallback côté appelant.
+      if (error || !Array.isArray(data)) { setIds(null); return; }
+      setIds(new Set(data.map((row: any) => (typeof row === 'string' ? row : row?.id ?? String(row)))));
+    })();
+    return () => { cancelled = true; };
+  }, [concoursId]);
+
+  return ids;
 }
 
 // ── useConcoursMyReservations — ce que LE cavalier a déjà réservé ici ──────────

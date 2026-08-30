@@ -8,7 +8,7 @@ import { router, useFocusEffect, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { userStore } from '../../data/store';
-import { useConcoursList } from '../../hooks/useConcours';
+import { useConcoursList, useConcoursAvailableBoxIds } from '../../hooks/useConcours';
 import { countEpreuves } from '../../lib/epreuves';
 import { useTransportAnnonces, useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useBoxAnnonces, useMyBoxAnnonces } from '../../hooks/useBoxes';
@@ -85,13 +85,18 @@ function applyTransportFilters(list: TransportAnnonce[], f: FiltersTransport) {
   return out;
 }
 
-function applyBoxFilters(list: BoxAnnonce[], f: FiltersBox) {
+function applyBoxFilters(list: BoxAnnonce[], f: FiltersBox, availableConcoursBoxIds?: Set<string> | null) {
   let out = [...list];
-  // Priorité à la clé canonique (FK) + parité stricte avec le compteur fiche
-  // concours (concours_id + nb_boxes_disponibles > 0). Fallback nom pour le
-  // legacy sans concours_id et la sélection manuelle.
-  if (f.concoursId) out = out.filter((b) => b.concoursId === f.concoursId && b.nbBoxesDisponibles > 0);
-  else if (f.concours) out = out.filter((b) => b.concours === f.concours);
+  // Priorité à la clé canonique (FK).
+  // - Arrivée depuis un concours : disponibilité DATE-AWARE pour les dates du
+  //   concours (`availableConcoursBoxIds`, RPC fn_concours_available_box_annonce_ids).
+  //   Fallback (RPC absente = mig 104 pas encore appliquée) : `nbBoxesDisponibles > 0`.
+  // - Fallback nom : legacy sans concours_id + sélection manuelle.
+  if (f.concoursId) {
+    out = availableConcoursBoxIds
+      ? out.filter((b) => b.concoursId === f.concoursId && availableConcoursBoxIds.has(b.id))
+      : out.filter((b) => b.concoursId === f.concoursId && b.nbBoxesDisponibles > 0);
+  } else if (f.concours) out = out.filter((b) => b.concours === f.concours);
   if (f.boxesMin > 0) out = out.filter((b) => b.nbBoxesDisponibles >= f.boxesMin);
   if (f.sort === 'date_asc') out.sort((a, b) => a.dateDebut.getTime() - b.dateDebut.getTime());
   if (f.sort === 'date_desc') out.sort((a, b) => b.dateDebut.getTime() - a.dateDebut.getTime());
@@ -232,7 +237,11 @@ export default function ServicesScreen() {
   );
 
   const filteredT = applyTransportFilters(transportsVisible, filtersT);
-  const filteredB = applyBoxFilters(boxes, filtersB);
+  // Arrivée depuis un concours → ids des box réellement dispo pour SES dates
+  // (mig 104). null tant que la RPC n'existe pas → applyBoxFilters retombe sur
+  // le filtre `nbBoxesDisponibles > 0`.
+  const concoursAvailableBoxIds = useConcoursAvailableBoxIds(filtersB.concoursId || undefined);
+  const filteredB = applyBoxFilters(boxes, filtersB, concoursAvailableBoxIds);
   const filteredC = applyCoachFilters(coaches, filtersC);
 
   // Liste complète des concours pour les filtres : tous les concours de la table
