@@ -12,6 +12,7 @@ import { useMyTransportReservations } from '../../hooks/useTransports';
 import { useMyBoxReservations } from '../../hooks/useBoxes';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
+import { selectActiveNotifications } from '../../hooks/useActiveNotifications';
 import { useCoursePayment } from '../../hooks/useCoursePayment';
 import { Notification } from '../../types/notification';
 import { userStore, supabase } from '../../data/store';
@@ -28,8 +29,14 @@ export default function NotificationsScreen() {
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
   const [switchingRole, setSwitchingRole] = useState(false);
 
-  // Filtrer pour ne montrer que les notifications du cavalier actuel (hors messages).
-  const myNotifications = notifications.filter((n) => n.type !== 'message');
+  // Hors messages + filtre auto-cicatrisant CENTRALISÉ (même règle que
+  // coach-notifications.tsx et le badge de la bottom bar) : une notif de demande
+  // « pending » dont la demande n'est plus en attente est masquée.
+  const myNotifications = selectActiveNotifications(notifications, {
+    courseDemands,
+    stageReservations,
+    viewerId: userStore.id,
+  }).filter((n) => n.type !== 'message');
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
 
   // Marquer auto comme lu au focus (RLS bloque déjà l'IDOR côté serveur).

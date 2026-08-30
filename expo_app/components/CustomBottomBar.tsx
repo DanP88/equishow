@@ -4,7 +4,8 @@ import { useRouter, usePathname, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../constants/colors';
 import { useUserRole } from '../hooks/useUserRole';
-import { useUnreadNotificationsCount } from '../hooks/useNotifications';
+import { useNotifications } from '../hooks/useNotifications';
+import { selectActiveNotifications } from '../hooks/useActiveNotifications';
 import { useMyTransportReservations } from '../hooks/useTransports';
 import { useMyBoxReservations } from '../hooks/useBoxes';
 import { userStore } from '../data/store';
@@ -66,11 +67,19 @@ export function CustomBottomBar() {
   const role = useUserRole() as 'cavalier' | 'coach' | 'organisateur' | 'admin';
   const router = useRouter();
   const pathname = usePathname();
-  const notificationCount = useUnreadNotificationsCount();
   const { reservations: transportReservations } = useMyTransportReservations();
   const { reservations: boxReservations } = useMyBoxReservations();
   const { demands: courseDemands } = useMyCourseDemands();
   const { reservations: stageReservations } = useMyStageReservations();
+  // Badge Notifs : notifications RÉELLEMENT actives (obsolètes filtrées via le
+  // prédicat centralisé selectActiveNotifications) → le badge ne peut plus
+  // afficher 1 alors que l'écran Notifications affiche 0.
+  const { notifications: allNotifications } = useNotifications();
+  const notificationCount = selectActiveNotifications(allNotifications, {
+    courseDemands,
+    stageReservations,
+    viewerId: userStore.id,
+  }).filter((n) => !n.lu).length;
   const [demandCount, setDemandCount] = useState(0);
   const [agendaCount, setAgendaCount] = useState(0);
   // Badge messages non lus : source Supabase unique (realtime), tous rôles.

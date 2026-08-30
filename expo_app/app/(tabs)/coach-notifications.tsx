@@ -9,6 +9,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 import { useNotifications } from '../../hooks/useNotifications';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
+import { selectActiveNotifications } from '../../hooks/useActiveNotifications';
 import { userStore } from '../../data/store';
 import { Notification } from '../../types/notification';
 
@@ -19,28 +20,14 @@ export default function CoachNotificationsScreen() {
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
-  // Filtre auto-cicatrisant : une notif « 🎓 Nouvelle demande … » (pending)
-  // est masquée dès que la demande sous-jacente n'est PLUS en attente
-  // (acceptée / payée / refusée). Évite la notif fantôme même pour les notifs
-  // créées avant ce correctif, ou si l'accept s'est fait ailleurs.
-  // NB : les notifs « 💳 Paiement en cours » portent courseDemandId /
-  // stageReservationId (pas annonceId / stageId) → non concernées par ce filtre.
-  const myNotifications = notifications.filter((n) => {
-    if (n.type === 'message') return false;
-    if (n.status === 'pending' && n.type === 'course_request' && n.donnees?.annonceId) {
-      const stillPending = courseDemands.some(
-        (d) => d.coachId === userStore.id && d.annonceId === n.donnees?.annonceId && d.statut === 'pending',
-      );
-      if (!stillPending) return false;
-    }
-    if (n.status === 'pending' && n.type === 'stage_reservation' && n.donnees?.stageId) {
-      const stillPending = stageReservations.some(
-        (r) => r.coachId === userStore.id && r.stageId === n.donnees?.stageId && r.statut === 'pending',
-      );
-      if (!stillPending) return false;
-    }
-    return true;
-  });
+  // Filtre auto-cicatrisant : masque les notifs de demande « pending » dont la
+  // demande n'est plus en attente. Prédicat CENTRALISÉ (selectActiveNotifications)
+  // → même règle que notifications.tsx et le badge de la bottom bar.
+  const myNotifications = selectActiveNotifications(notifications, {
+    courseDemands,
+    stageReservations,
+    viewerId: userStore.id,
+  }).filter((n) => n.type !== 'message');
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
 
   useEffect(() => {
