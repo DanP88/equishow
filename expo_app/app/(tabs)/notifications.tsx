@@ -36,7 +36,7 @@ export default function NotificationsScreen() {
     courseDemands,
     stageReservations,
     viewerId: userStore.id,
-  }).filter((n) => n.type !== 'message');
+  });
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
 
   // Marquer auto comme lu au focus (RLS bloque déjà l'IDOR côté serveur).

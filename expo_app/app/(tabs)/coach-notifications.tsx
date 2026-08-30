@@ -27,7 +27,7 @@ export default function CoachNotificationsScreen() {
     courseDemands,
     stageReservations,
     viewerId: userStore.id,
-  }).filter((n) => n.type !== 'message');
+  });
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
 
   useEffect(() => {

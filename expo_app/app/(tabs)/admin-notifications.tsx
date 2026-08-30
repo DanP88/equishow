@@ -4,6 +4,8 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { AuthGuard } from '../../components/AuthGuard';
 import { useNotifications } from '../../hooks/useNotifications';
+import { selectActiveNotifications } from '../../hooks/useActiveNotifications';
+import { userStore } from '../../data/store';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { Notification } from '../../types/notification';
 
@@ -28,8 +30,12 @@ function adminTarget(n: Notification): string {
 
 function AdminNotificationsContent() {
   useScreenTracking('admin-notifications');
-  const { notifications, markAsRead, markAllAsRead, removeNotification, isLoading } = useNotifications();
+  const { notifications: allNotifs, markAsRead, markAllAsRead, removeNotification, isLoading } = useNotifications();
 
+  // Règle unique (N4/N5) : exclut `message` + notifs de demande obsolètes.
+  const notifications = selectActiveNotifications(allNotifs, {
+    courseDemands: [], stageReservations: [], viewerId: userStore.id,
+  });
   const unreadCount = notifications.filter((n) => !n.lu).length;
 
   function openNotif(n: Notification) {

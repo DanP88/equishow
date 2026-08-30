@@ -7,6 +7,8 @@ import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { useNotifications } from '../../hooks/useNotifications';
+import { selectActiveNotifications } from '../../hooks/useActiveNotifications';
+import { userStore } from '../../data/store';
 import { Notification } from '../../types/notification';
 
 export default function OrgNotificationsScreen() {
@@ -14,7 +16,10 @@ export default function OrgNotificationsScreen() {
   const [deleteModal, setDeleteModal] = useState(false);
   const [deleteNotifId, setDeleteNotifId] = useState<string | null>(null);
 
-  const myNotifications = notifications.filter((n) => n.type !== 'message');
+  // Règle unique (N4/N5) : exclut `message` + notifs de demande obsolètes.
+  const myNotifications = selectActiveNotifications(notifications, {
+    courseDemands: [], stageReservations: [], viewerId: userStore.id,
+  });
   const unreadCount = myNotifications.filter((n) => !n.lu).length;
 
   useEffect(() => {

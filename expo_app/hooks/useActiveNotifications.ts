@@ -40,26 +40,39 @@ export function isNotificationObsolete(
 ): boolean {
   if (!viewerId) return false;
   if (n.status === 'pending' && n.type === 'course_request' && n.donnees?.annonceId) {
-    const stillPending = courseDemands.some(
-      (d) => d.coachId === viewerId && d.annonceId === n.donnees?.annonceId && d.statut === 'pending',
-    );
-    return !stillPending;
+    // On ne conclut « obsolète » QUE si on connaît réellement une demande de ce
+    // coach pour cette annonce (sinon : demandes non chargées, ou pas notre
+    // demande → on garde la notif). Obsolète = aucune de ces demandes n'est pending.
+    const mine = courseDemands.filter((d) => d.coachId === viewerId && d.annonceId === n.donnees?.annonceId);
+    if (mine.length === 0) return false;
+    return !mine.some((d) => d.statut === 'pending');
   }
   if (n.status === 'pending' && n.type === 'stage_reservation' && n.donnees?.stageId) {
-    const stillPending = stageReservations.some(
-      (r) => r.coachId === viewerId && r.stageId === n.donnees?.stageId && r.statut === 'pending',
-    );
-    return !stillPending;
+    const mine = stageReservations.filter((r) => r.coachId === viewerId && r.stageId === n.donnees?.stageId);
+    if (mine.length === 0) return false;
+    return !mine.some((r) => r.statut === 'pending');
   }
   return false;
 }
 
-/** Filtre pur : ne garde que les notifications réellement actives. */
+/**
+ * Types de notif volontairement EXCLUS de la surface « Notifications » (écrans +
+ * badge) : ils ont leur propre canal/badge dédié. `message` → badge Messagerie
+ * (`useUnreadMessagesCount`). Règle unique appliquée partout (N4/N5).
+ */
+export const NOTIF_HIDDEN_TYPES: ReadonlySet<string> = new Set(['message']);
+
+/**
+ * Filtre pur : notifications à afficher/compter dans la surface Notifications.
+ * = actives (non obsolètes) ET pas d'un type à canal dédié (`message`).
+ */
 export function selectActiveNotifications(
   notifications: Notification[],
   ctx: ActiveNotificationsContext,
 ): Notification[] {
-  return notifications.filter((n) => !isNotificationObsolete(n, ctx));
+  return notifications.filter(
+    (n) => !NOTIF_HIDDEN_TYPES.has(n.type) && !isNotificationObsolete(n, ctx),
+  );
 }
 
 /**

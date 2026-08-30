@@ -196,50 +196,7 @@ export function useNotifications() {
   };
 }
 
-// ── Hook léger : juste le count (pour bottom bar, badges) ──────────────────
-export function useUnreadNotificationsCount() {
-  const { profile } = useAuth();
-  const channelId = useId();
-  const [count, setCount] = useState(0);
-
-  const load = useCallback(async () => {
-    if (!profile?.id) {
-      setCount(0);
-      return;
-    }
-    const { count: c, error } = await supabase
-      .from('notifications')
-      .select('id', { count: 'exact', head: true })
-      .eq('destinataire_id', profile.id)
-      .eq('lu', false);
-    if (error) {
-      setCount(0);
-    } else {
-      setCount(c ?? 0);
-    }
-  }, [profile?.id]);
-
-  useAutoRefresh(load);
-
-  useEffect(() => {
-    if (!profile?.id) return;
-    const channel = supabase
-      .channel(`notifications-count-${profile.id}-${channelId}`)
-      .on(
-        'postgres_changes',
-        {
-          event: '*',
-          schema: 'public',
-          table: 'notifications',
-          filter: `destinataire_id=eq.${profile.id}`,
-        },
-        () => load(),
-      )
-      .subscribe();
-    return () => {
-      supabase.removeChannel(channel);
-    };
-  }, [profile?.id, load]);
-
-  return count;
-}
+// NOTE (N4/N5) : `useUnreadNotificationsCount` (comptage brut `lu=false`, sans
+// exclure `message` ni les notifs de demande obsolètes) a été retiré. Utiliser
+// `useActiveNotifications().unreadCount` (hooks/useActiveNotifications.ts) qui
+// applique la règle unique partagée avec les écrans Notifications.
