@@ -16,6 +16,7 @@ drop function if exists public.fn_box_sync_dispo(uuid);
 drop function if exists public.fn_box_dispo_value(uuid);
 drop function if exists public.fn_concours_available_box_annonce_ids(uuid);
 drop function if exists public.fn_concours_box_available_count(uuid);
+drop function if exists public.fn_box_peak_concurrency(uuid, date, date, uuid);
 drop function if exists public.fn_box_peak_concurrency(uuid, date, date);
 drop function if exists public.fn_box_available(uuid, date, date);
 
