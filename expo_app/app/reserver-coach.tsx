@@ -182,7 +182,7 @@ export default function ReserverCoachScreen() {
         titre: `🎓 Nouvelle demande de cours`,
         message: `${userStore.prenom} ${userStore.nom} demande une séance pour "${annonce.titre}"`,
         status: 'pending',
-        actionUrl: '/(tabs)/coach-pending-demands',
+        actionUrl: '/(tabs)/coach-demandes',
         donnees: {
           annonceId: annonce.id,
           annonceTitre: annonce.titre,
