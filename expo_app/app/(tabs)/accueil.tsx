@@ -1,8 +1,9 @@
 /**
  * Onglet ACCUEIL — tableau de bord d'accueil, adapté au rôle (cavalier / coach /
  * organisateur / admin). Récapitule l'essentiel + raccourcis vers les écrans réels.
- * Présentationnel (données illustratives) pour les compteurs détaillés ; le prénom
- * et la navigation sont réels. À brancher progressivement sur les hooks existants.
+ * Cavalier + Coach : compteurs branchés sur les vraies données Supabase (hooks).
+ * Organisateur + Admin : encore présentationnels (données illustratives) — à
+ * brancher progressivement sur les hooks existants.
  */
 import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
@@ -16,6 +17,7 @@ import { useMyChevaux } from '../../hooks/useChevaux';
 import { useChevalConcours, CModuleKey } from '../../hooks/useChevalReservations';
 import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
 import { useMyReservationsSummary, ResaModule } from '../../hooks/useMyReservationsSummary';
+import { useCoachPendingDemands } from '../../hooks/useCoachPendingDemands';
 import { ACCUEIL_DEV_SEED, MOCK_ACCUEIL } from '../../data/mockAccueil';
 
 type Role = 'cavalier' | 'coach' | 'organisateur' | 'admin';
@@ -341,24 +343,97 @@ function Cavalier() {
 
 /* ─────────────── COACH ─────────────── */
 function Coach() {
+  const uid = userStore.id;
+  // Compteur « demandes en attente » = MÊME source que coach-demandes.tsx et le
+  // badge de la bottom bar (selectCoachPendingDemands) → jamais d'écart.
+  const { count, courses: pendingCourses, stages: pendingStages, allCourses, allStages } = useCoachPendingDemands();
+  const { byReservation: escrowByResa } = useMyEscrowPayments();
+
+  const startOfToday = useMemo(() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); }, []);
+
+  // Cours confirmés (accepted/paid) que CE coach anime et pas encore terminés.
+  const coursAVenir = useMemo(
+    () => allCourses.filter(
+      (d) => d.coachId === uid && (d.statut === 'accepted' || d.statut === 'paid') && d.dateFin.getTime() >= startOfToday,
+    ),
+    [allCourses, uid, startOfToday],
+  );
+  // Inscriptions à un stage confirmées que ce coach anime.
+  const stagesConfirmes = useMemo(
+    () => allStages.filter((r) => r.coachId === uid && (r.statut === 'accepted' || r.statut === 'paid')),
+    [allStages, uid],
+  );
+  // Paiements séquestre (held) rattachés aux prestations confirmées de ce coach.
+  const heldCount = useMemo(
+    () => [...coursAVenir, ...stagesConfirmes].filter((r) => escrowByResa[r.id]?.transferState === 'held').length,
+    [coursAVenir, stagesConfirmes, escrowByResa],
+  );
+
+  const fmtDay = (d: Date) => d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' });
+  const courseRow = (d: typeof allCourses[number]) => ({
+    key: `c-${d.id}`, emoji: '🎓',
+    title: `Cours · ${d.cavalierNom || '@' + d.cavalierPseudo}`,
+    sub: `${d.concoursNom ? d.concoursNom + ' · ' : ''}${fmtDay(d.dateDebut)}`,
+  });
+
+  // « Demandes récentes » = les VRAIES demandes/inscriptions en attente (max 3).
+  const demandesRecentes = useMemo(() => [
+    ...pendingCourses.map(courseRow),
+    ...pendingStages.map((r) => ({
+      key: `s-${r.id}`, emoji: '📚',
+      title: `Stage · ${r.stageTitre}`,
+      sub: `${r.nombreParticipants} participant${r.nombreParticipants > 1 ? 's' : ''} demandé${r.nombreParticipants > 1 ? 's' : ''}`,
+    })),
+  ].slice(0, 3), [pendingCourses, pendingStages]);
+
+  // « Prochains rendez-vous » = prestations confirmées à venir (max 3).
+  const prochainsRdv = useMemo(() => [
+    ...coursAVenir.map(courseRow),
+    ...stagesConfirmes.map((r) => ({
+      key: `s-${r.id}`, emoji: '📚',
+      title: `Stage · ${r.stageTitre}`,
+      sub: `${r.nombreParticipants} inscrit${r.nombreParticipants > 1 ? 's' : ''}`,
+    })),
+  ].slice(0, 3), [coursAVenir, stagesConfirmes]);
+
   return (
     <>
-      <Hero kick="TON ACTIVITÉ" title="2 demandes en attente" meta="Réponds vite pour ne pas perdre de réservations" jLabel="●" pct={undefined} onPress={() => go('/(tabs)/coach-demandes')} />
-      <Stats items={[['2', 'demandes'], ['4', 'cours à venir'], ['1', 'stage en cours']]} />
+      <Hero
+        kick="TON ACTIVITÉ"
+        title={count > 0 ? `${count} demande${count > 1 ? 's' : ''} en attente` : 'Aucune demande en attente'}
+        meta={count > 0 ? 'Réponds vite pour ne pas perdre de réservations' : 'Tu es à jour ✓'}
+        jLabel="●"
+        pct={undefined}
+        onPress={() => go('/(tabs)/coach-demandes')}
+      />
+      <Stats items={[
+        [String(count), count > 1 ? 'demandes' : 'demande'],
+        [String(coursAVenir.length), 'cours à venir'],
+        [String(stagesConfirmes.length), stagesConfirmes.length > 1 ? 'inscriptions stage' : 'inscription stage'],
+      ]} />
 
       <SectionRow title="Demandes récentes" link="Voir tout" onLink={() => go('/(tabs)/coach-demandes')} />
-      {[
-        ['🎓', 'Cours CSO · Sarah L.', 'CSO de Saumur · 19 juil.', 'À traiter', Colors.warning, Colors.warningBg],
-        ['📚', 'Stage perfectionnement', '2 places demandées', 'À traiter', Colors.warning, Colors.warningBg],
-      ].map((r, i) => <ResaRow key={i} emoji={r[0]} title={r[1]} sub={r[2]} status={r[3]} color={r[4]} bg={r[5]} />)}
+      {demandesRecentes.length === 0 ? (
+        <View style={[s.resaCard, Shadow.card]}><Text style={s.resaSub}>Aucune demande en attente pour le moment.</Text></View>
+      ) : (
+        demandesRecentes.map((r) => (
+          <ResaRow key={r.key} emoji={r.emoji} title={r.title} sub={r.sub} status="À traiter" color={Colors.warning} bg={Colors.warningBg} />
+        ))
+      )}
 
       <SectionRow title="Prochains rendez-vous" link="Agenda" onLink={() => go('/(tabs)/coach-agenda')} />
-      {[
-        ['📅', 'Coaching · Léa M.', 'Demain 14 h · Grand National Dijon', 'Confirmé', Colors.success, Colors.successBg],
-        ['📚', 'Stage 2 jours', '10–11 juil. · 4 inscrits', 'Confirmé', Colors.success, Colors.successBg],
-      ].map((r, i) => <ResaRow key={i} emoji={r[0]} title={r[1]} sub={r[2]} status={r[3]} color={r[4]} bg={r[5]} />)}
+      {prochainsRdv.length === 0 ? (
+        <View style={[s.resaCard, Shadow.card]}><Text style={s.resaSub}>Aucun rendez-vous confirmé à venir.</Text></View>
+      ) : (
+        prochainsRdv.map((r) => (
+          <ResaRow key={r.key} emoji={r.emoji} title={r.title} sub={r.sub} status="Confirmé" color={Colors.success} bg={Colors.successBg} />
+        ))
+      )}
 
-      <Escrow title="200 € à libérer bientôt" sub="Tes paiements sont versés après chaque prestation accomplie." />
+      <Escrow
+        title={heldCount > 0 ? `${heldCount} paiement${heldCount > 1 ? 's' : ''} en séquestre` : 'Aucun versement en attente'}
+        sub="Tes paiements sont versés après chaque prestation accomplie."
+      />
       <Shortcuts items={[['📬', 'Demandes', '/(tabs)/coach-demandes'], ['🎓', 'Mes services', '/(tabs)/coach-services'], ['🏆', 'Concours', '/(tabs)/coach-concours'], ['💬', 'Messages', '/messagerie']]} />
     </>
   );

@@ -10,6 +10,7 @@ import { useMyBoxReservations } from '../hooks/useBoxes';
 import { userStore } from '../data/store';
 import { useMyCourseDemands } from '../hooks/useCourseDemands';
 import { useMyStageReservations } from '../hooks/useStages';
+import { selectCoachPendingDemands } from '../hooks/useCoachPendingDemands';
 import { useUnreadMessagesCount } from '../hooks/useMessaging';
 import { useOpenSupportCount } from '../hooks/useSupportRequests';
 
@@ -83,13 +84,8 @@ export function CustomBottomBar() {
   const updateNotificationCount = useCallback(() => {
     const uid = userStore.id;
     if (role === 'coach') {
-      const pendingCourses = courseDemands.filter(
-        d => d.coachId === uid && d.statut === 'pending'
-      ).length;
-      const pendingStages = stageReservations.filter(
-        r => r.coachId === uid && r.statut === 'pending'
-      ).length;
-      setDemandCount(pendingCourses + pendingStages);
+      // Source UNIQUE, partagée avec l'accueil coach et coach-demandes.tsx.
+      setDemandCount(selectCoachPendingDemands(courseDemands, stageReservations, uid).count);
     } else if (role === 'cavalier') {
       setDemandCount(0);
       const pendingTransport = transportReservations.filter(

@@ -8,6 +8,7 @@ import { createNotification } from '../../hooks/useNotifications';
 import { sendReservationEmail } from '../../utils/sendReservationEmail';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
+import { selectCoachPendingDemands } from '../../hooks/useCoachPendingDemands';
 import { useChevauxByIds } from '../../hooks/useChevauxByIds';
 import { useCoachAccess } from '../../hooks/useCoachAccess';
 
@@ -56,9 +57,10 @@ export default function CoachDemandesScreen() {
     return true;
   }, [coachAccess.loading, coachAccess.error, coachAccess.canAcceptNew]);
 
-  // Filtrer les demandes EN ATTENTE pour le coach actuel
-  const myCourseDemandes = courseDemandes.filter(d => d.coachId === userStore.id && d.statut === 'pending');
-  const myStageReservations = stageReservations.filter(r => r.coachId === userStore.id && r.statut === 'pending');
+  // Demandes EN ATTENTE pour le coach actuel — source UNIQUE (partagée avec
+  // l'accueil coach et le badge de la bottom bar) : voir useCoachPendingDemands.
+  const { courses: myCourseDemandes, stages: myStageReservations } =
+    selectCoachPendingDemands(courseDemandes, stageReservations, userStore.id);
 
   const handleAcceptCourse = useCallback(async (demandeId: string) => {
     if (!guardAccept()) return;
