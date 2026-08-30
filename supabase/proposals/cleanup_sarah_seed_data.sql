@@ -1,0 +1,104 @@
+-- ============================================================================
+-- ANALYSE + NETTOYAGE — données incohérentes autour de sarah.l@equishow.app
+--
+-- ⚠️ NE RIEN EXÉCUTER SANS FEU VERT EXPLICITE.
+-- ⚠️ CONTRAINTE : Sarah DOIT rester COACH (users.role='coach'). Ne pas toucher.
+--
+-- Sarah id        : 7d9d73e7-0214-42d9-9152-0e70fd9c407a  (role = coach)
+-- Sophie/cavalier2: 93947e0c-3726-4551-b834-a1135d816336  (role = cavalier)
+-- Émilie (coach 2): 49bd56d2-d87b-4f96-bd59-be2afaed8ccd  (role = coach)
+-- ============================================================================
+
+-- ── ÉTAT CONSTATÉ (2026-08-30) — Sarah (coach) porte des données de "vendeur" ─
+--
+--  box_annonces      auteur_id = Sarah : 7  (TOUTES les annonces box de test)
+--                    - 27dcaeb5… / b0f0a80c…  (Lyon, sans concours)
+--                    - b0000000…dea1 / dea2   (Deauville, seed_deauville_lot2.sql — committé)
+--                    - ce5a0000…b1 / b2 / b3  (Fontainebleau / Saumur / La Baule — AD-HOC)
+--
+--  transport_annonces auteur_id = Sarah : 6
+--                    - 70000000…dea1 / dea2   (Deauville, seed_deauville_lot2.sql — committé)
+--                    - 5b273461… / ce5a0000…e1 / 927ba22f… / 89acbf43…  (AD-HOC)
+--
+--  box_reservations   seller_id = Sarah : 4   (buyer = Sophie)
+--                    - ce5a0000…c1 (Fontainebleau, completed)
+--                    - ce5a0000…c2 (Saumur, paid)
+--                    - ce5a0000…c3 (La Baule, accepted)
+--                    - 31c6614d…   (Deauville, completed)
+--
+--  transport_reservations seller_id = Sarah : 3  (buyer = Sophie, toutes completed)
+--                    - e3c4973b… / b1ac88b3… / 96710782…
+--
+--  course_demands     cavalier_id = Sarah : 1
+--                    - 3e2b370d…  (coach = Émilie, status = expired)
+--
+--  box_reservations   buyer_id = Sarah : 0
+--
+-- ── POURQUOI ────────────────────────────────────────────────────────────────
+-- Les scripts de seed committés (scripts/seed-test-accounts.mjs,
+-- supabase/seed/test_accounts.sql, supabase/seed_deauville_lot2.sql) créent
+-- Sarah en `cavalier` et Émilie en `coach`. Sarah a ensuite été passée `coach`
+-- (via l'app ou manuellement) SANS migrer les données créées "en tant que
+-- cavalier/vendeur". Les lignes `ce5a0000-*` viennent d'un script NON committé
+-- (SQL editor).
+--
+-- ── OPTIONS DE NETTOYAGE (choisir) ─────────────────────────────────────────
+--
+-- OPTION 1 — RÉATTRIBUER à Sophie (cavalier2) tout ce que Sarah "vend"
+--   Avantage : conserve le jeu de données ; Sophie devient LA vendeuse/acheteuse.
+--   Risque   : certaines box_reservations ont buyer_id = Sophie ET deviendraient
+--              seller_id = Sophie (buyer = seller). → à SUPPRIMER, pas réattribuer.
+--
+--   -- annonces : réattribution simple
+--   update public.box_annonces
+--      set auteur_id = '93947e0c-3726-4551-b834-a1135d816336',
+--          auteur_nom = 'Sophie Dupont'
+--    where auteur_id = '7d9d73e7-0214-42d9-9152-0e70fd9c407a'
+--      and auteur_nom in ('Sarah Lefebvre','');   -- garde les alias "Écurie de la Touques" etc. ?
+--   update public.transport_annonces
+--      set auteur_id = '93947e0c-3726-4551-b834-a1135d816336', auteur_nom = 'Sophie Dupont'
+--    where auteur_id = '7d9d73e7-0214-42d9-9152-0e70fd9c407a';
+--
+--   -- réservations où Sarah = seller ET Sophie = buyer  → INCOHÉRENTES → delete
+--   delete from public.box_reservations
+--    where seller_id = '7d9d73e7-0214-42d9-9152-0e70fd9c407a'
+--      and buyer_id  = '93947e0c-3726-4551-b834-a1135d816336';
+--   delete from public.transport_reservations
+--    where seller_id = '7d9d73e7-0214-42d9-9152-0e70fd9c407a'
+--      and buyer_id  = '93947e0c-3726-4551-b834-a1135d816336';
+--   -- ⚠️ vérifier d'abord les payments liés (escrow) : voir requête ci-dessous.
+--
+--   -- course_demand où Sarah = cavalier → réattribuer à Sophie
+--   update public.course_demands
+--      set cavalier_id = '93947e0c-3726-4551-b834-a1135d816336'
+--    where cavalier_id = '7d9d73e7-0214-42d9-9152-0e70fd9c407a';
+--
+-- OPTION 2 — REPARTIR PROPRE : supprimer toutes les données AD-HOC ce5a0000-*
+--   + garder uniquement le seed committé (Deauville) + rebâtir avec
+--   supabase/seed_test_reservations.sql (DB-4).
+--
+--   -- ⚠️ ORDRE : réservations → annonces → concours (FK).  payments d'abord (escrow).
+--   select id, transfer_state, box_reservation_id, transport_reservation_id, course_demand_id, stage_reservation_id
+--     from public.payments
+--    where box_reservation_id in ('ce5a0000-0000-0000-0000-0000000000c1','ce5a0000-0000-0000-0000-0000000000c2','ce5a0000-0000-0000-0000-0000000000c3')
+--       or course_demand_id = '455e4aeb-254d-4bfb-8662-d9b49389c673';
+--   -- delete from public.payments where ... (si transfer_state='not_applicable' uniquement — sinon STOP)
+--   delete from public.box_reservations       where id::text like 'ce5a0000-0000-0000-0000-%';
+--   delete from public.course_demands         where id = '455e4aeb-254d-4bfb-8662-d9b49389c673';
+--   delete from public.box_annonces           where id::text like 'ce5a0000-0000-0000-0000-0000000000b_';
+--   delete from public.transport_annonces     where id = 'ce5a0000-0000-0000-0000-0000000000e1';
+--   delete from public.concours               where id::text like 'ce500000-0000-0000-0000-0000000000a_';
+--   -- + notif f8b635ee (traitée par mig 105 backfill de toute façon)
+--
+-- ── VÉRIF ESCROW/PAYMENTS AVANT TOUT DELETE ────────────────────────────────
+--   select p.id, p.transfer_state, p.box_reservation_id, p.transport_reservation_id,
+--          p.course_demand_id, p.stage_reservation_id
+--     from public.payments p
+--    where p.box_reservation_id in (select id from public.box_reservations where seller_id='7d9d73e7-0214-42d9-9152-0e70fd9c407a')
+--       or p.transport_reservation_id in (select id from public.transport_reservations where seller_id='7d9d73e7-0214-42d9-9152-0e70fd9c407a');
+--   -- Si transfer_state ∈ (held, releasing, released) → NE PAS supprimer sans analyse escrow.
+--
+-- ── RECOMMANDATION ─────────────────────────────────────────────────────────
+-- OPTION 2 (repartir propre sur les données AD-HOC ce5a0000-*) + garder Deauville
+-- committé + rebâtir via seed_test_reservations.sql. Plus net qu'une
+-- réattribution partielle. À valider par toi (dépend de ce que tu veux tester).
