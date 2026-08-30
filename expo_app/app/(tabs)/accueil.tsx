@@ -18,6 +18,10 @@ import { useChevalConcours, CModuleKey } from '../../hooks/useChevalReservations
 import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
 import { useMyReservationsSummary, ResaModule } from '../../hooks/useMyReservationsSummary';
 import { useCoachPendingDemands } from '../../hooks/useCoachPendingDemands';
+import { useMarketplaceAnalytics } from '../../hooks/useMarketplaceAnalytics';
+import { useOpenSupportCount } from '../../hooks/useSupportRequests';
+import { useMyConcours } from '../../hooks/useConcours';
+import { useOrgRadar } from '../../hooks/useOrgRadar';
 import { ACCUEIL_DEV_SEED, MOCK_ACCUEIL } from '../../data/mockAccueil';
 
 type Role = 'cavalier' | 'coach' | 'organisateur' | 'admin';
@@ -440,37 +444,131 @@ function Coach() {
 }
 
 /* ─────────────── ORGANISATEUR ─────────────── */
+const ORG_SHORTCUTS: string[][] = [['🏆', 'Concours', '/(tabs)/org-concours'], ['📦', 'Services', '/(tabs)/org-services'], ['👥', 'Communauté', '/(tabs)/communaute'], ['💬', 'Messages', '/messagerie']];
+
 function Organisateur() {
+  // Concours publiés de l'organisateur connecté (source serveur, organisateur_id).
+  const { concours: myConcours } = useMyConcours('publie');
+  const activeConcours = useMemo(() => {
+    if (!myConcours.length) return null;
+    const now = Date.now();
+    const upcoming = [...myConcours]
+      .filter((c) => { const d = c.date_fin ?? c.date_debut; return !!d && new Date(`${d}T23:59:59`).getTime() >= now; })
+      .sort((a, b) => (a.date_debut ?? '').localeCompare(b.date_debut ?? ''));
+    return upcoming[0] ?? [...myConcours].sort((a, b) => (b.date_debut ?? '').localeCompare(a.date_debut ?? ''))[0];
+  }, [myConcours]);
+
+  // Radar réel (agrégats RGPD, mig 076) du concours actif. Jamais les données démo.
+  const { radar, isDemo, error: radarError } = useOrgRadar(activeConcours?.id);
+  const r = (!isDemo && !radarError) ? radar : null;
+
+  if (!activeConcours) {
+    return (
+      <>
+        <View style={[s.heroWrap, Shadow.card]}>
+          <LinearGradient colors={['#FB923C', '#EA580C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
+            <Text style={s.heKick}>ESPACE ORGANISATEUR</Text>
+            <Text style={s.heTitle}>Aucun concours publié</Text>
+            <Text style={s.heDesc}>Revendique ton concours FFE ou crée-le pour suivre sa préparation (Radar RGPD).</Text>
+            <TouchableOpacity activeOpacity={0.85} onPress={() => go('/(tabs)/org-concours')} style={s.heCta}>
+              <Text style={s.heCtaTxt}>Gérer mes concours  →</Text>
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+        <Shortcuts items={ORG_SHORTCUTS} />
+      </>
+    );
+  }
+
+  const jLabel = (() => {
+    if (!activeConcours.date_debut) return '●';
+    const d = Math.ceil((new Date(`${activeConcours.date_debut}T00:00:00`).getTime() - Date.now()) / 86400000);
+    return d > 0 ? `J-${d}` : d === 0 ? 'Jour J' : '●';
+  })();
+  const engaged = r ? (r.engagement.cavaliers_engaged ?? (r.engagement.masked ? '<5' : '0')) : '—';
+  const resaMax = r ? Math.max(r.reservations.total, 1) : 1;
+
   return (
     <>
-      <Hero kick="TON CONCOURS" title="CSO de Saumur" meta="18–20 juil. · Organisateur vérifié ✓" jLabel="J-12" pct={undefined} onPress={() => go('/(tabs)/org-concours')} />
-      <Stats items={[['247', 'vues'], ['38', 'followers'], ['18', 'cavaliers engagés']]} />
+      <Hero
+        kick="TON CONCOURS"
+        title={activeConcours.nom}
+        meta={`${activeConcours.dateLabel}${activeConcours.lieu ? ` · ${activeConcours.lieu}` : ''}`}
+        jLabel={jLabel}
+        pct={undefined}
+        onPress={() => go('/(tabs)/org-concours')}
+      />
+      <Stats items={[
+        [r ? String(r.visibility.views) : '—', 'vues 30 j'],
+        [r ? String(r.interest.followers) : '—', 'followers'],
+        [String(engaged), 'cavaliers engagés'],
+      ]} />
 
       <SectionRow title="Préparation des cavaliers" link="Radar" onLink={() => go('/(tabs)/org-concours')} />
-      <View style={[s.card, Shadow.card, { gap: Spacing.md }]}>
-        {[['🏠 Box réservés', 14, 30, Colors.success], ['🚚 Transport recherché', 9, 30, Colors.info], ['🎓 Coaching demandé', 7, 30, Colors.dressage]].map((b, i) => (
-          <Bar key={i} label={b[0] as string} value={b[1] as number} max={b[2] as number} color={b[3] as string} />
-        ))}
-      </View>
+      {r ? (
+        <View style={[s.card, Shadow.card, { gap: Spacing.md }]}>
+          <Bar label="🏠 Box réservés" value={r.reservations.box} max={resaMax} color={Colors.success} />
+          <Bar label="🚚 Transport réservé" value={r.reservations.transport} max={resaMax} color={Colors.info} />
+          <Bar label="🎓 Coaching réservé" value={r.reservations.coach} max={resaMax} color={Colors.dressage} />
+        </View>
+      ) : (
+        <View style={[s.resaCard, Shadow.card]}><Text style={s.resaSub}>Radar indisponible pour ce concours pour le moment.</Text></View>
+      )}
 
       <Escrow title="Données agrégées (RGPD)" sub="Les segments de moins de 5 cavaliers sont masqués. Aucune donnée nominative." />
-      <Shortcuts items={[['🏆', 'Concours', '/(tabs)/org-concours'], ['📦', 'Services', '/(tabs)/org-services'], ['👥', 'Communauté', '/(tabs)/communaute'], ['💬', 'Messages', '/messagerie']]} />
+      <Shortcuts items={ORG_SHORTCUTS} />
     </>
   );
 }
 
 /* ─────────────── ADMIN ─────────────── */
+function fmtEurosK(cents: number | null | undefined): string {
+  if (cents == null) return '—';
+  const e = cents / 100;
+  if (e >= 1000) return `${(e / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })}k €`;
+  return `${Math.round(e).toLocaleString('fr-FR')} €`;
+}
+
 function Admin() {
+  // Vraies données plateforme (vues analytics + support). Mêmes sources que
+  // admin-analytics.tsx / admin-support.tsx.
+  const { data: mkt } = useMarketplaceAnalytics();
+  const { count: supportOpen } = useOpenSupportCount();
+  const disputesOpen = mkt.disputes?.disputes_open ?? 0;
+  const gmv30 = mkt.revenue?.gmv_net_30d_cents ?? mkt.revenue?.gmv_brut_30d_cents ?? null;
+  const toTreat = disputesOpen + supportOpen;
+
   return (
     <>
-      <Hero kick="PLATEFORME" title="Tout est sous contrôle" meta="Vue d’ensemble en temps réel" jLabel="●" pct={undefined} onPress={() => go('/(tabs)/admin-analytics')} />
-      <Stats items={[['1', 'litige ouvert', Colors.warning], ['3', 'réclamations'], ['12,4k€', 'GMV 30 j']]} />
+      <Hero
+        kick="PLATEFORME"
+        title={toTreat > 0 ? `${toTreat} élément${toTreat > 1 ? 's' : ''} à traiter` : 'Tout est à jour ✓'}
+        meta="Litiges + réclamations en attente"
+        jLabel="●"
+        pct={undefined}
+        onPress={() => go(disputesOpen > 0 ? '/(tabs)/admin-disputes' : supportOpen > 0 ? '/(tabs)/admin-support' : '/(tabs)/admin-analytics')}
+      />
+      <Stats items={[
+        [String(disputesOpen), disputesOpen > 1 ? 'litiges ouverts' : 'litige ouvert', disputesOpen > 0 ? Colors.warning : undefined],
+        [String(supportOpen), supportOpen > 1 ? 'réclamations' : 'réclamation'],
+        [fmtEurosK(gmv30), 'GMV 30 j'],
+      ]} />
 
       <SectionRow title="À traiter" link="Analytics" onLink={() => go('/(tabs)/admin-analytics')} />
-      {[
-        ['⚖️', 'Litige #EQ-1042', 'Transport · ouvert il y a 6 h', 'À traiter', Colors.urgent, Colors.urgentBg],
-        ['📩', '3 réclamations EQ-REC', 'En attente de réponse', 'Ouvert', Colors.warning, Colors.warningBg],
-      ].map((r, i) => <ResaRow key={i} emoji={r[0]} title={r[1]} sub={r[2]} status={r[3]} color={r[4]} bg={r[5]} />)}
+      {toTreat === 0 ? (
+        <View style={[s.resaCard, Shadow.card]}><Text style={s.resaSub}>Aucun litige ni réclamation en attente.</Text></View>
+      ) : (
+        <>
+          {disputesOpen > 0 && (
+            <ResaRow emoji="⚖️" title={`${disputesOpen} litige${disputesOpen > 1 ? 's' : ''} ouvert${disputesOpen > 1 ? 's' : ''}`}
+              sub="À arbitrer" status="À traiter" color={Colors.urgent} bg={Colors.urgentBg} />
+          )}
+          {supportOpen > 0 && (
+            <ResaRow emoji="📩" title={`${supportOpen} réclamation${supportOpen > 1 ? 's' : ''} EQ-REC`}
+              sub="En attente de réponse" status="Ouvert" color={Colors.warning} bg={Colors.warningBg} />
+          )}
+        </>
+      )}
 
       <Shortcuts items={[['📊', 'Analytics', '/(tabs)/admin-analytics'], ['⚖️', 'Litiges', '/(tabs)/admin-disputes'], ['📩', 'Réclamations', '/(tabs)/admin-support'], ['💶', 'Commissions', '/(tabs)/admin-commissions']]} />
     </>
