@@ -269,22 +269,17 @@ export default function ProposerBoxScreen() {
     ].filter(Boolean).join('\n');
 
     // Capacité = nombre de box physiques (≠ nombre de jours, ancien bug N2).
-    // Création : dispo = capacité (aucune réservation).
-    // Édition : on ajuste la dispo par le delta de capacité (best-effort côté
-    //   client) ; une fois DB-1 appliquée, le trigger box_annonces recalcule
-    //   `nb_boxes_disponibles` de façon autoritative sur tout changement de
-    //   `nb_boxes` → cette valeur sera écrasée proprement.
-    const reservedNow = existing ? Math.max(0, existing.nbBoxes - existing.nbBoxesDisponibles) : 0;
-    const nextDispo = existing
-      ? Math.max(0, Math.min(nbBoxesNum, nbBoxesNum - reservedNow))
-      : nbBoxesNum;
-
+    // `nb_boxes_disponibles` est désormais maintenu de façon AUTORITATIVE par la
+    //   DB (migration 104 : trigger `trg_box_annonce_dispo` sur box_annonces +
+    //   `trg_box_dispo_sync` sur box_reservations, formule = nb_boxes − pic de
+    //   concurrence). Le front ne l'envoie plus — il laisserait sinon une valeur
+    //   client entrer en concurrence avec le trigger. À la création, le trigger
+    //   BEFORE INSERT l'initialise à nb_boxes (aucune réservation).
     const payload: Partial<BoxAnnonce> = {
       lieu: lieu.trim(),
       dateDebut,
       dateFin,
       nbBoxes: nbBoxesNum,
-      nbBoxesDisponibles: nextDispo,
       prixNuitHT: prixRecu,
       concours: concours || undefined,
       concoursId: concoursId || undefined,
