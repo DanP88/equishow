@@ -211,6 +211,24 @@ export interface CoachStage {
   region?: string;
 }
 
+/**
+ * Statuts de réservation/demande — source unique côté front.
+ * Aligné sur les CHECK constraints DB (`*_status_check`, migs 054/055/062/063…) :
+ * course_demands / stage_reservations / box_reservations / transport_reservations.
+ * `awaiting_payment` n'existe pas pour course_demands mais est inclus ici pour
+ * un type uniforme (sur-ensemble sûr).
+ */
+export type ReservationStatut =
+  | 'pending'
+  | 'accepted'
+  | 'rejected'
+  | 'awaiting_payment'
+  | 'paid'
+  | 'completed'
+  | 'cancelled'
+  | 'expired'
+  | 'payment_expired';
+
 export interface StageReservation {
   id: string;
   stageId: string;
@@ -226,7 +244,7 @@ export interface StageReservation {
   prixTotal: number;
   prixSeller: number;
   message: string;
-  statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
+  statut: ReservationStatut;
   dateReservation: Date;
   // Cheval concerné (078) — null si non renseigné ou cheval supprimé (FK SET NULL).
   chevalId?: string | null;
@@ -255,7 +273,7 @@ export interface CourseDemande {
   prixParJour: number;
   prix: number;
   prixSeller: number;
-  statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
+  statut: ReservationStatut;
   dateCreation: Date;
 }
 
@@ -290,7 +308,7 @@ export interface TransportReservation {
   prixTotalHT: number;
   commissionPlateform: number;
   prixTotalTTC: number;
-  statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
+  statut: ReservationStatut;
   dateCreation: Date;
   // Date du trajet (jointe depuis l'annonce). Indispensable pour l'agenda : une
   // annonce « complète » est masquée de la liste, donc on ne peut pas la retrouver
@@ -330,7 +348,7 @@ export interface BoxReservation {
   prixTotalHT: number;
   commissionPlateform: number;
   prixTotalTTC: number;
-  statut: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
+  statut: ReservationStatut;
   dateCreation: Date;
   // Cheval concerné (078) — null si non renseigné ou cheval supprimé (FK SET NULL).
   chevalId?: string | null;

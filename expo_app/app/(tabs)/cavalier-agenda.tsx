@@ -77,6 +77,8 @@ function statutStyle(statut: string) {
   if (statut === 'pending') return { label: '● En attente', bg: '#FFF7ED', border: '#F59E0B' };
   if (statut === 'rejected') return { label: '● Refusé', bg: '#FEE2E2', border: '#EF4444' };
   if (statut === 'cancelled') return { label: '● Annulé', bg: Colors.surfaceVariant, border: '#9CA3AF' };
+  if (statut === 'expired') return { label: '● Expirée', bg: Colors.surfaceVariant, border: '#9CA3AF' };
+  if (statut === 'payment_expired') return { label: '● Paiement expiré', bg: '#FEE2E2', border: '#EF4444' };
   if (statut === 'completed') return { label: '● Terminé', bg: '#ECFDF5', border: '#10B981' };
   return { label: statut, bg: Colors.surfaceVariant, border: Colors.border };
 }

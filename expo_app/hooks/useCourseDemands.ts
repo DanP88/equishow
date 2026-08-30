@@ -14,7 +14,7 @@ import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
-import { CourseDemande } from '../types/service';
+import { CourseDemande, ReservationStatut } from '../types/service';
 
 interface CourseDemandRow {
   id: string;
@@ -33,7 +33,7 @@ interface CourseDemandRow {
   total_amount_ht: number;
   platform_commission: number;
   total_amount_ttc: number;
-  status: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
+  status: ReservationStatut;
   concours_nom: string | null;
   created_at: string;
   updated_at: string;

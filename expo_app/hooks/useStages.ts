@@ -18,7 +18,7 @@ import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
-import { CoachStage, StageReservation } from '../types/service';
+import { CoachStage, StageReservation, ReservationStatut } from '../types/service';
 
 // ── DB row shapes ───────────────────────────────────────────────────────────
 
@@ -58,7 +58,7 @@ interface StageReservationRow {
   price_total_ht: number;
   platform_commission: number;
   price_total_ttc: number;
-  status: 'pending' | 'accepted' | 'rejected' | 'awaiting_payment' | 'paid';
+  status: ReservationStatut;
   date_reservation: string | null;
   created_at: string;
   updated_at: string;
