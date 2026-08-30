@@ -145,7 +145,7 @@ export default function ProposerBoxScreen() {
   const [showLieuSuggestions, setShowLieuSuggestions] = useState(false);
   const [dateDebut, setDateDebut] = useState<Date | undefined>(existing?.dateDebut);
   const [dateFin, setDateFin] = useState<Date | undefined>(existing?.dateFin);
-  const [nbBoxes, setNbBoxes] = useState(existing ? String(existing.nbBoxes) : '');
+  const [nbBoxes, setNbBoxes] = useState(existing ? String(existing.nbBoxes) : '1');
   const [prix, setPrix] = useState(existing ? String(existing.prixNuitHT) : '');
   const [concours, setConcours] = useState(existing?.concours ?? '');
   const [concoursId, setConcoursId] = useState<string | undefined>(existing?.concoursId);
@@ -197,10 +197,13 @@ export default function ProposerBoxScreen() {
 
   const prixRecu = parseFloat(prix);
 
-  // Calculer les jours disponibles automatiquement
+  // Calculer les jours disponibles automatiquement (info affichée, ≠ capacité).
   const joursDisponibles = dateDebut && dateFin
     ? Math.max(1, Math.round((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24)))
     : 0;
+
+  // Nombre de box physiques proposés (capacité). Stepper 1..50.
+  const nbBoxesNum = Math.max(1, Math.min(50, parseInt(nbBoxes, 10) || 1));
 
   function showErr(title: string, message: string) {
     setAlertState({ title, message, variant: 'error', onClose: () => setAlertState(null) });
@@ -237,6 +240,9 @@ export default function ProposerBoxScreen() {
         message: `La date de début (${dateDebut.toLocaleDateString('fr-FR')}) est antérieure à aujourd'hui. Choisissez une date future.`,
       };
     }
+    if (!Number.isFinite(parseInt(nbBoxes, 10)) || parseInt(nbBoxes, 10) < 1) {
+      return { title: 'Nombre de box invalide', message: 'Indiquez combien de box vous proposez (au moins 1).' };
+    }
     if (!prix || !prix.trim()) {
       return { title: 'Prix manquant', message: 'Indiquez le prix par box et par nuit.' };
     }
@@ -256,19 +262,29 @@ export default function ProposerBoxScreen() {
       return;
     }
     if (!dateDebut || !dateFin) return;
-    const nb = joursDisponibles;
     const descFull = [
       equipements.length > 0 ? `Équipements : ${equipements.join(', ')}` : '',
       litiere ? `Litière : ${litiere}` : '',
       description,
     ].filter(Boolean).join('\n');
 
+    // Capacité = nombre de box physiques (≠ nombre de jours, ancien bug N2).
+    // Création : dispo = capacité (aucune réservation).
+    // Édition : on ajuste la dispo par le delta de capacité (best-effort côté
+    //   client) ; une fois DB-1 appliquée, le trigger box_annonces recalcule
+    //   `nb_boxes_disponibles` de façon autoritative sur tout changement de
+    //   `nb_boxes` → cette valeur sera écrasée proprement.
+    const reservedNow = existing ? Math.max(0, existing.nbBoxes - existing.nbBoxesDisponibles) : 0;
+    const nextDispo = existing
+      ? Math.max(0, Math.min(nbBoxesNum, nbBoxesNum - reservedNow))
+      : nbBoxesNum;
+
     const payload: Partial<BoxAnnonce> = {
       lieu: lieu.trim(),
       dateDebut,
       dateFin,
-      nbBoxes: nb,
-      nbBoxesDisponibles: nb,
+      nbBoxes: nbBoxesNum,
+      nbBoxesDisponibles: nextDispo,
       prixNuitHT: prixRecu,
       concours: concours || undefined,
       concoursId: concoursId || undefined,
@@ -362,6 +378,33 @@ export default function ProposerBoxScreen() {
             <Text style={s.joursDisponiblesHint}>Les locataires choisissent les jours qu'ils veulent dans cette période</Text>
           </View>
         )}
+
+        <Field label="Nombre de box disponibles *" hint="Le nombre de box physiques que vous proposez pour ce concours">
+          <View style={s.stepperRow}>
+            <TouchableOpacity
+              style={s.stepperBtn}
+              onPress={() => setNbBoxes(String(Math.max(1, nbBoxesNum - 1)))}
+              accessibilityLabel="Retirer un box"
+            >
+              <Text style={s.stepperBtnText}>−</Text>
+            </TouchableOpacity>
+            <TextInput
+              style={s.stepperValue}
+              value={nbBoxes}
+              onChangeText={(v) => setNbBoxes(v.replace(/[^0-9]/g, ''))}
+              keyboardType="number-pad"
+              maxLength={2}
+              textAlign="center"
+            />
+            <TouchableOpacity
+              style={s.stepperBtn}
+              onPress={() => setNbBoxes(String(Math.min(50, nbBoxesNum + 1)))}
+              accessibilityLabel="Ajouter un box"
+            >
+              <Text style={s.stepperBtnText}>+</Text>
+            </TouchableOpacity>
+          </View>
+        </Field>
 
         <Field label="Prix par box / nuit *" hint="Recommandé : 45–80€">
           <View style={f.priceRow}>
@@ -511,6 +554,10 @@ const s = StyleSheet.create({
   joursDisponiblesLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   joursDisponiblesValue: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.primary },
   joursDisponiblesHint: { fontSize: FontSize.xs, color: Colors.primary, fontStyle: 'italic', textAlign: 'center' },
+  stepperRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md },
+  stepperBtn: { width: 44, height: 44, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface, alignItems: 'center', justifyContent: 'center' },
+  stepperBtnText: { fontSize: FontSize.xl, fontWeight: FontWeight.bold, color: Colors.primary },
+  stepperValue: { flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: Spacing.sm + 4, fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, backgroundColor: Colors.surface },
 });
 
 const f = StyleSheet.create({
