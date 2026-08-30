@@ -156,6 +156,9 @@ export default function ReserverStageScreen() {
         status: 'pending',
         actionUrl: '/(tabs)/coach-demandes',
         donnees: {
+          // reservationId = rapprochement précis notif ↔ inscription (DB-2).
+          // stageId = repli.
+          reservationId: reservation.id,
           stageId: stage.id,
           stageTitre: stage.titre,
           nbParticipants,

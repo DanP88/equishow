@@ -184,6 +184,9 @@ export default function ReserverCoachScreen() {
         status: 'pending',
         actionUrl: '/(tabs)/coach-demandes',
         donnees: {
+          // demandId = rapprochement précis notif ↔ demande (DB-2 : sync du
+          // statut de la notif quand la demande change d'état). annonceId = repli.
+          demandId: demand.id,
           annonceId: annonce.id,
           annonceTitre: annonce.titre,
           prixSeller: prixTotalHT,

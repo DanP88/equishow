@@ -23,6 +23,7 @@ export interface Notification {
     prixTotal?: number;
     message?: string;
     demandId?: string;
+    reservationId?: string;
     annonceId?: string;
     annonceTitre?: string;
     transportId?: string;
