@@ -47,6 +47,16 @@ interface RoutePricingResult {
   ownerAddress?: string;
   destinationAddress?: string;
   routeSnapshotJson: unknown;
+  // ── Aller-retour (présent uniquement si annonce.aller_retour) ──────────────
+  // Le retour n'est PAS forcément le miroir de l'aller : il a ses propres
+  // adresses de départ/arrivée (mig 107). Détail chiffré + total réel.
+  outboundDistanceKm?: number;
+  returnStartToPickupKm?: number;
+  returnPickupToEndKm?: number;
+  returnDistanceKm?: number;
+  returnStartAddress?: string;
+  returnEndAddress?: string;
+  returnIsMirror?: boolean; // true = pas d'adresses retour → miroir de l'aller
 }
 
 // ─── Geocoding (ORS) ──────────────────────────────────────────────────────────
@@ -182,7 +192,7 @@ Deno.serve(async (req: Request) => {
     // ── Load annonce server-side (RLS : tout authentifié peut voir) ────────
     const { data: annonce, error: annonceErr } = await supabase
       .from("transport_annonces")
-      .select("id, price_per_km, aller_retour, adresse_van, ville_depart, adresse_arrivee, ville_arrivee, start_lat, start_lng, destination_lat, destination_lng")
+      .select("id, price_per_km, aller_retour, adresse_van, ville_depart, adresse_arrivee, ville_arrivee, start_lat, start_lng, destination_lat, destination_lng, return_start_address, return_start_lat, return_start_lng, return_destination_address, return_destination_lat, return_destination_lng")
       .eq("id", transportId)
       .maybeSingle();
 
@@ -257,12 +267,73 @@ Deno.serve(async (req: Request) => {
 
     const distOwnerToPickupKm = round1(seg1.distanceM / 1000);
     const distPickupToDestKm = round1(seg2.distanceM / 1000);
-    const oneWayKm = distOwnerToPickupKm + distPickupToDestKm;
-    // Aller-retour : on facture le trajet 2 fois (anti-fraud server-side).
+    const outboundKm = round1(distOwnerToPickupKm + distPickupToDestKm);
+    const outboundDurationS = seg1.durationS + seg2.durationS;
+
+    // ── Retour (mig 107) : adresses propres, PAS un simple ×2 ─────────────────
     const isAllerRetour = annonce.aller_retour === true;
-    const tripMultiplier = isAllerRetour ? 2 : 1;
-    const totalDistKm = round1(oneWayKm * tripMultiplier);
-    const totalDurationMin = Math.round(((seg1.durationS + seg2.durationS) * tripMultiplier) / 60);
+    let returnStartToPickupKm: number | undefined;
+    let returnPickupToEndKm: number | undefined;
+    let returnDistanceKm: number | undefined;
+    let returnDurationS = 0;
+    let returnStartAddress: string | undefined;
+    let returnEndAddress: string | undefined;
+    let returnIsMirror = false;
+    let returnRaw: unknown = null;
+
+    if (isAllerRetour) {
+      const hasReturnGeo =
+        isValidLatLng(annonce.return_start_lat, annonce.return_start_lng) ||
+        isValidLatLng(annonce.return_destination_lat, annonce.return_destination_lng);
+
+      if (hasReturnGeo) {
+        try {
+          // Point de départ du retour : coords retour explicites, sinon = concours.
+          const retStart: GeoPoint = isValidLatLng(annonce.return_start_lat, annonce.return_start_lng)
+            ? { lat: annonce.return_start_lat as number, lng: annonce.return_start_lng as number, address: (annonce.return_start_address ?? undefined) as string | undefined }
+            : destination;
+          // Point d'arrivée du retour : coords retour explicites, sinon = domicile owner.
+          const retEnd: GeoPoint = isValidLatLng(annonce.return_destination_lat, annonce.return_destination_lng)
+            ? { lat: annonce.return_destination_lat as number, lng: annonce.return_destination_lng as number, address: (annonce.return_destination_address ?? undefined) as string | undefined }
+            : owner;
+
+          // Trajet retour : retStart → cavalier (dépose cheval) → retEnd
+          const { segments: rSegs, raw: rRaw } = await calculateRoute(
+            [
+              [retStart.lng, retStart.lat],
+              [pickup.lng, pickup.lat],
+              [retEnd.lng, retEnd.lat],
+            ],
+            apiKey,
+          );
+          if (rSegs.length < 2) throw new Error("no return segments");
+          returnStartToPickupKm = round1(rSegs[0].distanceM / 1000);
+          returnPickupToEndKm = round1(rSegs[1].distanceM / 1000);
+          returnDistanceKm = round1(returnStartToPickupKm + returnPickupToEndKm);
+          returnDurationS = rSegs[0].durationS + rSegs[1].durationS;
+          returnStartAddress = retStart.address;
+          returnEndAddress = retEnd.address;
+          returnRaw = rRaw;
+        } catch (e) {
+          // Calcul du retour impossible → on retombe sur le miroir de l'aller
+          // plutôt que d'échouer toute l'estimation.
+          console.error("calculate-route-price return leg fallback:", e instanceof Error ? e.message : e);
+          returnIsMirror = true;
+          returnStartToPickupKm = undefined;
+          returnPickupToEndKm = undefined;
+          returnDistanceKm = outboundKm;
+          returnDurationS = outboundDurationS;
+        }
+      } else {
+        // Pas d'adresses retour renseignées → miroir de l'aller.
+        returnIsMirror = true;
+        returnDistanceKm = outboundKm;
+        returnDurationS = outboundDurationS;
+      }
+    }
+
+    const totalDistKm = round1(outboundKm + (returnDistanceKm ?? 0));
+    const totalDurationMin = Math.round((outboundDurationS + returnDurationS) / 60);
     const totalPrice = round2(totalDistKm * pricePerKm);
 
     const result: RoutePricingResult = {
@@ -279,7 +350,20 @@ Deno.serve(async (req: Request) => {
       pickupLng: pickup.lng,
       ownerAddress: owner.address,
       destinationAddress: destination.address,
-      routeSnapshotJson: raw,
+      routeSnapshotJson: isAllerRetour
+        ? { outbound: raw, return: returnRaw, returnIsMirror }
+        : raw,
+      ...(isAllerRetour
+        ? {
+            outboundDistanceKm: outboundKm,
+            returnStartToPickupKm,
+            returnPickupToEndKm,
+            returnDistanceKm,
+            returnStartAddress,
+            returnEndAddress,
+            returnIsMirror,
+          }
+        : {}),
     };
 
     return new Response(JSON.stringify(result), {

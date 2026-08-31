@@ -31,6 +31,14 @@ interface RouteResult {
   pickupLat: number;
   pickupLng: number;
   routeSnapshotJson: unknown;
+  // Aller-retour (mig 107) — détail du RETOUR (≠ simple ×2 de l'aller).
+  outboundDistanceKm?: number;
+  returnStartToPickupKm?: number;
+  returnPickupToEndKm?: number;
+  returnDistanceKm?: number;
+  returnStartAddress?: string;
+  returnEndAddress?: string;
+  returnIsMirror?: boolean;
 }
 
 export default function ReserverTransportScreen() {
@@ -267,6 +275,11 @@ export default function ReserverTransportScreen() {
           pickupSource,
           distanceOwnerToPickupKm: routeResult.distanceOwnerToPickupKm,
           distancePickupToDestinationKm: routeResult.distancePickupToDestinationKm,
+          outboundDistanceKm: routeResult.outboundDistanceKm,
+          returnStartToPickupKm: routeResult.returnStartToPickupKm,
+          returnPickupToEndKm: routeResult.returnPickupToEndKm,
+          returnDistanceKm: routeResult.returnDistanceKm,
+          returnIsMirror: routeResult.returnIsMirror,
           totalDistanceKm: routeResult.totalDistanceKm,
           estimatedDurationMinutes: routeResult.estimatedDurationMinutes,
           pricePerKmSnapshot: routeResult.pricePerKm,
@@ -561,6 +574,9 @@ export default function ReserverTransportScreen() {
               <View style={s.routeResultCard}>
                 <Text style={s.routeResultTitle}>Estimation du trajet</Text>
 
+                {transport.allerRetour && routeResult.returnDistanceKm != null && (
+                  <Text style={s.routeLegHeader}>Aller</Text>
+                )}
                 <View style={s.routeResultRow}>
                   <Text style={s.routeResultLabel}>Propriétaire → vous</Text>
                   <Text style={s.routeResultVal}>{routeResult.distanceOwnerToPickupKm} km</Text>
@@ -569,9 +585,37 @@ export default function ReserverTransportScreen() {
                   <Text style={s.routeResultLabel}>Vous → concours</Text>
                   <Text style={s.routeResultVal}>{routeResult.distancePickupToDestinationKm} km</Text>
                 </View>
+
+                {transport.allerRetour && routeResult.returnDistanceKm != null && (
+                  <>
+                    <Text style={s.routeLegHeader}>Retour</Text>
+                    {routeResult.returnIsMirror ? (
+                      <View style={s.routeResultRow}>
+                        <Text style={s.routeResultLabel}>Retour (mêmes adresses qu'à l'aller)</Text>
+                        <Text style={s.routeResultVal}>{routeResult.returnDistanceKm} km</Text>
+                      </View>
+                    ) : (
+                      <>
+                        <View style={s.routeResultRow}>
+                          <Text style={s.routeResultLabel}>
+                            {routeResult.returnStartAddress ? displayCity(undefined, routeResult.returnStartAddress) : 'Départ retour'} → vous
+                          </Text>
+                          <Text style={s.routeResultVal}>{routeResult.returnStartToPickupKm} km</Text>
+                        </View>
+                        <View style={s.routeResultRow}>
+                          <Text style={s.routeResultLabel}>
+                            vous → {routeResult.returnEndAddress ? displayCity(undefined, routeResult.returnEndAddress) : 'Arrivée retour'}
+                          </Text>
+                          <Text style={s.routeResultVal}>{routeResult.returnPickupToEndKm} km</Text>
+                        </View>
+                      </>
+                    )}
+                  </>
+                )}
+
                 <View style={[s.routeResultRow, s.routeResultDivider]}>
                   <Text style={s.routeResultLabelBold}>
-                    Distance totale ({transport.allerRetour ? 'Aller-Retour' : 'Aller simple'})
+                    Distance totale ({transport.allerRetour ? 'aller + retour' : 'aller simple'})
                   </Text>
                   <Text style={s.routeResultValBold}>{routeResult.totalDistanceKm} km</Text>
                 </View>
@@ -656,7 +700,7 @@ export default function ReserverTransportScreen() {
               <>
                 <View style={s.prixRow}>
                   <Text style={s.prixLabel}>
-                    Distance totale ({transport.allerRetour ? 'Aller-Retour' : 'Aller simple'})
+                    Distance totale ({transport.allerRetour ? 'aller + retour' : 'aller simple'})
                   </Text>
                   <Text style={s.prixVal}>{routeResult.totalDistanceKm} km</Text>
                 </View>
@@ -928,6 +972,10 @@ const s = StyleSheet.create({
   routeResultTitle: {
     fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary,
     textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 2,
+  },
+  routeLegHeader: {
+    fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary,
+    textTransform: 'uppercase', letterSpacing: 0.5, marginTop: 4,
   },
   routeResultRow: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
