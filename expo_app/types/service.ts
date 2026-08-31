@@ -105,6 +105,16 @@ export interface TransportAnnonce {
   heureDepart?: string; // Heure du départ (ex: "14:30")
   allerRetour?: boolean; // true si aller-retour, false si aller simple
   dateRetour?: Date; // Date du retour si allerRetour
+  // Trajet retour (mig 107) — adresses précises + coordonnées + places.
+  // Valeurs concrètes : si « même adresse que … » coché côté form, la valeur de
+  // l'aller est recopiée à l'enregistrement.
+  retourAdresseDepart?: string;
+  retourDepartLat?: number;
+  retourDepartLng?: number;
+  retourAdresseArrivee?: string;
+  retourArriveeLat?: number;
+  retourArriveeLng?: number;
+  retourNbPlaces?: number;
   // Champs pour location du van
   kmInclus?: number;
   tarifKmSupplémentaire?: number;

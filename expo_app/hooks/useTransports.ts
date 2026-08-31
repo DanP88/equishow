@@ -33,6 +33,13 @@ interface TransportAnnonceRow {
   heure_depart: string | null;
   aller_retour: boolean | null;
   date_retour: string | null;
+  return_start_address: string | null;
+  return_start_lat: number | null;
+  return_start_lng: number | null;
+  return_destination_address: string | null;
+  return_destination_lat: number | null;
+  return_destination_lng: number | null;
+  return_nb_places: number | null;
   km_inclus: number | null;
   tarif_km_supplementaire: number | null;
   caution_reparation: number | null;
@@ -70,6 +77,13 @@ function rowToAnnonce(r: TransportAnnonceRow): TransportAnnonce {
     heureDepart: r.heure_depart ?? undefined,
     allerRetour: r.aller_retour ?? undefined,
     dateRetour: r.date_retour ? new Date(r.date_retour) : undefined,
+    retourAdresseDepart: r.return_start_address ?? undefined,
+    retourDepartLat: r.return_start_lat ?? undefined,
+    retourDepartLng: r.return_start_lng ?? undefined,
+    retourAdresseArrivee: r.return_destination_address ?? undefined,
+    retourArriveeLat: r.return_destination_lat ?? undefined,
+    retourArriveeLng: r.return_destination_lng ?? undefined,
+    retourNbPlaces: r.return_nb_places ?? undefined,
     kmInclus: r.km_inclus ?? undefined,
     tarifKmSupplémentaire: r.tarif_km_supplementaire ?? undefined,
     cautionRéparation: r.caution_reparation ?? undefined,
@@ -100,6 +114,13 @@ function annonceToRowPatch(a: Partial<TransportAnnonce>): Partial<TransportAnnon
   if (a.heureDepart !== undefined)             p.heure_depart = a.heureDepart ?? null;
   if (a.allerRetour !== undefined)             p.aller_retour = a.allerRetour ?? null;
   if (a.dateRetour !== undefined)              p.date_retour = a.dateRetour ? a.dateRetour.toISOString() : null;
+  if (a.retourAdresseDepart !== undefined)     p.return_start_address = a.retourAdresseDepart || null;
+  if (a.retourDepartLat !== undefined)         p.return_start_lat = a.retourDepartLat ?? null;
+  if (a.retourDepartLng !== undefined)         p.return_start_lng = a.retourDepartLng ?? null;
+  if (a.retourAdresseArrivee !== undefined)    p.return_destination_address = a.retourAdresseArrivee || null;
+  if (a.retourArriveeLat !== undefined)        p.return_destination_lat = a.retourArriveeLat ?? null;
+  if (a.retourArriveeLng !== undefined)        p.return_destination_lng = a.retourArriveeLng ?? null;
+  if (a.retourNbPlaces !== undefined)          p.return_nb_places = a.retourNbPlaces ?? null;
   if (a.kmInclus !== undefined)                p.km_inclus = a.kmInclus ?? null;
   if (a.tarifKmSupplémentaire !== undefined)   p.tarif_km_supplementaire = a.tarifKmSupplémentaire ?? null;
   if (a.cautionRéparation !== undefined)       p.caution_reparation = a.cautionRéparation ?? null;

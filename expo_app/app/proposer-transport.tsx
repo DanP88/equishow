@@ -11,7 +11,6 @@ import { AddressAutocomplete } from '../components/AddressAutocomplete';
 import { AlertModal } from '../components/AlertModal';
 import { useConcoursList } from '../hooks/useConcours';
 import { useMyTransportAnnonces } from '../hooks/useTransports';
-import { VILLES_POPULAIRES } from '../data/mockVilles';
 import { getCommission, TransportAnnonce } from '../types/service';
 
 // Sélection concours : { nom, id }. id = FK public.concours ; undefined pour une
@@ -100,84 +99,6 @@ function ConcoursPicker({ valueNom, valueId, options, onChange }: {
   );
 }
 
-function VillesPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
-  const [open, setOpen] = useState(false);
-  const [autreMode, setAutreMode] = useState(false);
-  const [autreText, setAutreText] = useState('');
-
-  function selectVille(v: string) {
-    if (v === '__autre__') {
-      setAutreMode(true);
-      setOpen(false);
-    } else {
-      onChange(v);
-      setAutreMode(false);
-      setOpen(false);
-    }
-  }
-
-  function confirmAutre() {
-    if (autreText.trim()) {
-      onChange(autreText.trim());
-      setAutreMode(false);
-    }
-  }
-
-  return (
-    <>
-      <TouchableOpacity
-        style={[f.input, !!value && f.inputFilled]}
-        onPress={() => { setAutreMode(false); setOpen(true); }}
-        activeOpacity={0.8}
-      >
-        <Text style={[f.inputText, !value && f.placeholder]} numberOfLines={1}>
-          {value || 'Sélectionner une ville'}
-        </Text>
-        <Text style={f.arrow}>▼</Text>
-      </TouchableOpacity>
-
-      <Modal visible={open} transparent animationType="fade">
-        <TouchableOpacity style={vp.backdrop} activeOpacity={1} onPress={() => setOpen(false)}>
-          <TouchableOpacity activeOpacity={1} style={vp.sheet}>
-            <Text style={vp.title}>Sélectionner une ville</Text>
-            <ScrollView style={vp.list} showsVerticalScrollIndicator={false}>
-              {VILLES_POPULAIRES.map((v) => (
-                <TouchableOpacity
-                  key={v}
-                  style={[vp.item, value === v && vp.itemActive]}
-                  onPress={() => selectVille(v)}
-                >
-                  <Text style={[vp.itemText, value === v && vp.itemTextActive]}>{v}</Text>
-                  {value === v && <Text style={vp.check}>✓</Text>}
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity style={[vp.item, vp.itemAutre]} onPress={() => selectVille('__autre__')}>
-                <Text style={vp.itemAutreText}>✏️ Autre ville (saisie libre)</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {autreMode && (
-        <View style={vp.autreRow}>
-          <TextInput
-            style={vp.autreInput}
-            value={autreText}
-            onChangeText={setAutreText}
-            placeholder="ex: Chamonix (74)"
-            placeholderTextColor={Colors.textTertiary}
-            autoFocus
-          />
-          <TouchableOpacity style={vp.autreConfirm} onPress={confirmAutre}>
-            <Text style={vp.autreConfirmText}>OK</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </>
-  );
-}
-
 function Dropdown({ placeholder, value, options, onChange }: {
   placeholder: string; value: string; options: string[]; onChange: (v: string) => void;
 }) {
@@ -237,12 +158,29 @@ export default function ProposerTransportScreen() {
   const [adresseArriveeLng, setAdresseArriveeLng] = useState<number | undefined>(existing?.destinationLng);
   const [heureDepart, setHeureDepart] = useState(existing?.heureDepart ?? '');
 
-  // Retour
+  // Retour (mig 107 : adresses précises persistées)
   const [proposerRetour, setProposerRetour] = useState(existing?.allerRetour ?? false);
-  const [villedepartRetour, setVilledepartRetour] = useState('');
-  const [villearriveeRetour, setVillearriveeRetour] = useState('');
+  // Adresse de DÉPART du retour : par défaut = adresse d'ARRIVÉE de l'aller.
+  const [retourDepartMemeQueArriveeAller, setRetourDepartMemeQueArriveeAller] = useState(true);
+  const [retourAdresseDepart, setRetourAdresseDepart] = useState('');
+  const [retourDepartLat, setRetourDepartLat] = useState<number | undefined>(undefined);
+  const [retourDepartLng, setRetourDepartLng] = useState<number | undefined>(undefined);
+  // Adresse d'ARRIVÉE du retour : par défaut = adresse de DÉPART (van) de l'aller.
+  const [retourArriveeMemeQueDepartAller, setRetourArriveeMemeQueDepartAller] = useState(true);
+  const [retourAdresseArrivee, setRetourAdresseArrivee] = useState('');
+  const [retourArriveeLat, setRetourArriveeLat] = useState<number | undefined>(undefined);
+  const [retourArriveeLng, setRetourArriveeLng] = useState<number | undefined>(undefined);
   const [dateRetour, setDateRetour] = useState<Date | undefined>(existing?.dateRetour);
-  const [nbPlacesRetour, setNbPlacesRetour] = useState('');
+  const [nbPlacesRetour, setNbPlacesRetour] = useState(existing?.retourNbPlaces ? String(existing.retourNbPlaces) : '');
+
+  // Adresses effectives du retour = valeur de l'aller si « même adresse » coché,
+  // sinon la valeur saisie. Recopiées telles quelles en base au save.
+  const effRetourDepart = retourDepartMemeQueArriveeAller
+    ? { addr: adresseArrivee, lat: adresseArriveeLat, lng: adresseArriveeLng }
+    : { addr: retourAdresseDepart, lat: retourDepartLat, lng: retourDepartLng };
+  const effRetourArrivee = retourArriveeMemeQueDepartAller
+    ? { addr: adresseVan, lat: adresseVanLat, lng: adresseVanLng }
+    : { addr: retourAdresseArrivee, lat: retourArriveeLat, lng: retourArriveeLng };
 
   // Propriétaire dans la voiture
   const [prendreProprietaire, setPrendreProprietaire] = useState(false);
@@ -284,6 +222,20 @@ export default function ProposerTransportScreen() {
     setHeureDepart(existing.heureDepart ?? '');
     setProposerRetour(existing.allerRetour ?? false);
     setDateRetour(existing.dateRetour);
+    // Retour (mig 107) : adresses persistées → on ré-hydrate, puis on déduit
+    // l'état des cases « même adresse que … » par comparaison avec l'aller.
+    const rDep = existing.retourAdresseDepart ?? '';
+    const rArr = existing.retourAdresseArrivee ?? '';
+    setRetourAdresseDepart(rDep);
+    setRetourDepartLat(existing.retourDepartLat);
+    setRetourDepartLng(existing.retourDepartLng);
+    setRetourAdresseArrivee(rArr);
+    setRetourArriveeLat(existing.retourArriveeLat);
+    setRetourArriveeLng(existing.retourArriveeLng);
+    setNbPlacesRetour(existing.retourNbPlaces ? String(existing.retourNbPlaces) : '');
+    const hasRetourData = !!(rDep || rArr);
+    setRetourDepartMemeQueArriveeAller(!hasRetourData || rDep === (existing.adresseArrivee ?? ''));
+    setRetourArriveeMemeQueDepartAller(!hasRetourData || rArr === (existing.adresseVan ?? ''));
     setKmInclus(existing.kmInclus ? String(existing.kmInclus) : '');
     setTarifKmSupplémentaire(existing.tarifKmSupplémentaire ? String(existing.tarifKmSupplémentaire) : '');
     setCautionRéparation(existing.cautionRéparation ? String(existing.cautionRéparation) : '');
@@ -292,8 +244,6 @@ export default function ProposerTransportScreen() {
     setConcours(existing.concours ?? '');
     setConcoursId(existing.concoursId);
     setDescription(existing.description ?? '');
-    // Champs retour (villedepartRetour/villearriveeRetour/nbPlacesRetour) : non
-    // persistés en base → non hydratés ici (traité dans le lot aller-retour).
   }, [editId, existing]);
 
   // Les prix sont directement en TTC.
@@ -342,9 +292,9 @@ export default function ProposerTransportScreen() {
       if (!cautionRéparation) { showErr('Caution manquante', 'Indiquez la caution réparation.'); return; }
       if (!cautionNettoyage) { showErr('Caution manquante', 'Indiquez la caution nettoyage.'); return; }
     }
-    if (proposerRetour) {
-      if (!villedepartRetour) { showErr('Retour : ville manquante', 'Indiquez la ville de départ du retour.'); return; }
-      if (!villearriveeRetour) { showErr('Retour : ville manquante', 'Indiquez la ville d\'arrivée du retour.'); return; }
+    if (proposerRetour && typeTransport === 'trajet') {
+      if (!effRetourDepart.addr?.trim()) { showErr('Retour : adresse manquante', 'Indiquez l\'adresse de départ du retour, ou cochez « même adresse que l\'arrivée de l\'aller ».'); return; }
+      if (!effRetourArrivee.addr?.trim()) { showErr('Retour : adresse manquante', 'Indiquez l\'adresse d\'arrivée du retour, ou cochez « même adresse que le départ de l\'aller ».'); return; }
       if (!dateRetour) { showErr('Retour : date manquante', 'Sélectionnez la date du trajet retour.'); return; }
       if (!nbPlacesRetour) { showErr('Retour : places manquantes', 'Indiquez le nombre de places du retour.'); return; }
       if (dateRetour && dateTrajet && dateRetour.getTime() < dateTrajet.getTime()) {
@@ -385,6 +335,15 @@ export default function ProposerTransportScreen() {
       heureDepart: typeTransport === 'trajet' ? heureDepart || undefined : undefined,
       allerRetour: proposerRetour && typeTransport === 'trajet' ? true : false,
       dateRetour: proposerRetour && typeTransport === 'trajet' ? dateRetour : undefined,
+      // Retour (mig 107) : on écrit les adresses effectives (recopie de l'aller si
+      // « même adresse » coché). Retour désactivé → on vide les colonnes ('' → NULL).
+      retourAdresseDepart: proposerRetour && typeTransport === 'trajet' ? (effRetourDepart.addr?.trim() || undefined) : '',
+      retourDepartLat: proposerRetour && typeTransport === 'trajet' ? effRetourDepart.lat : undefined,
+      retourDepartLng: proposerRetour && typeTransport === 'trajet' ? effRetourDepart.lng : undefined,
+      retourAdresseArrivee: proposerRetour && typeTransport === 'trajet' ? (effRetourArrivee.addr?.trim() || undefined) : '',
+      retourArriveeLat: proposerRetour && typeTransport === 'trajet' ? effRetourArrivee.lat : undefined,
+      retourArriveeLng: proposerRetour && typeTransport === 'trajet' ? effRetourArrivee.lng : undefined,
+      retourNbPlaces: proposerRetour && typeTransport === 'trajet' ? (parseInt(nbPlacesRetour, 10) || undefined) : undefined,
       kmInclus: typeTransport === 'location' ? parseInt(kmInclus, 10) : undefined,
       tarifKmSupplémentaire: typeTransport === 'location' ? parseFloat(tarifKmSupplémentaire) : undefined,
       cautionRéparation: typeTransport === 'location' ? parseInt(cautionRéparation, 10) : undefined,
@@ -563,18 +522,68 @@ export default function ProposerTransportScreen() {
 
             {proposerRetour && (
               <View style={s.retourFields}>
-                <View style={s.villesRow}>
-                  <View style={{ flex: 1 }}>
-                    <Field label="Ville de départ retour *" required>
-                      <VillesPicker value={villedepartRetour} onChange={setVilledepartRetour} />
+                {/* Adresse de départ du retour */}
+                <View style={s.retourAddrBlock}>
+                  <TouchableOpacity
+                    style={s.retourSubToggle}
+                    onPress={() => setRetourDepartMemeQueArriveeAller((v) => !v)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.retourSubCheckbox}>{retourDepartMemeQueArriveeAller ? '☑️' : '☐'}</Text>
+                    <Text style={s.retourSubLabel}>Même adresse que l'arrivée de l'aller</Text>
+                  </TouchableOpacity>
+                  {retourDepartMemeQueArriveeAller ? (
+                    <View style={s.retourAddrEcho}>
+                      <Text style={s.retourAddrEchoLabel}>Départ du retour</Text>
+                      <Text style={s.retourAddrEchoText} numberOfLines={2}>
+                        {adresseArrivee || '⚠️ Renseignez d\'abord l\'adresse d\'arrivée de l\'aller'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Field label="Adresse précise de départ du retour *" required hint="Ex: Haras du Pin, 61310 Exmes">
+                      <AddressAutocomplete
+                        value={retourAdresseDepart}
+                        onChange={(addr, lat, lng) => {
+                          setRetourAdresseDepart(addr);
+                          setRetourDepartLat(lat);
+                          setRetourDepartLng(lng);
+                        }}
+                        placeholder="Ex: 12 avenue du Concours, 69006 Lyon"
+                      />
                     </Field>
-                  </View>
-                  <View style={s.arrowPlaceholder} />
-                  <View style={{ flex: 1 }}>
-                    <Field label="Ville d'arrivée retour *" required>
-                      <VillesPicker value={villearriveeRetour} onChange={setVillearriveeRetour} />
+                  )}
+                </View>
+
+                {/* Adresse d'arrivée du retour */}
+                <View style={s.retourAddrBlock}>
+                  <TouchableOpacity
+                    style={s.retourSubToggle}
+                    onPress={() => setRetourArriveeMemeQueDepartAller((v) => !v)}
+                    activeOpacity={0.7}
+                  >
+                    <Text style={s.retourSubCheckbox}>{retourArriveeMemeQueDepartAller ? '☑️' : '☐'}</Text>
+                    <Text style={s.retourSubLabel}>Même adresse que le départ de l'aller</Text>
+                  </TouchableOpacity>
+                  {retourArriveeMemeQueDepartAller ? (
+                    <View style={s.retourAddrEcho}>
+                      <Text style={s.retourAddrEchoLabel}>Arrivée du retour</Text>
+                      <Text style={s.retourAddrEchoText} numberOfLines={2}>
+                        {adresseVan || '⚠️ Renseignez d\'abord l\'adresse précise du van'}
+                      </Text>
+                    </View>
+                  ) : (
+                    <Field label="Adresse précise d'arrivée du retour *" required>
+                      <AddressAutocomplete
+                        value={retourAdresseArrivee}
+                        onChange={(addr, lat, lng) => {
+                          setRetourAdresseArrivee(addr);
+                          setRetourArriveeLat(lat);
+                          setRetourArriveeLng(lng);
+                        }}
+                        placeholder="Ex: 5 rue de la Gare, 75001 Paris"
+                      />
                     </Field>
-                  </View>
+                  )}
                 </View>
 
                 <Field label="Date du retour *" required>
@@ -830,8 +839,6 @@ const s = StyleSheet.create({
   placeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
   placeBtnText: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textSecondary },
   placeBtnTextActive: { color: Colors.textInverse },
-  villesRow: { flexDirection: 'row', alignItems: 'flex-end', gap: Spacing.sm },
-  arrowPlaceholder: { width: 44, height: 44 },
   proprietaireToggle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md },
   proprietaireCheckbox: { fontSize: 18 },
   proprietaireLabel: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary, flex: 1 },
@@ -840,6 +847,13 @@ const s = StyleSheet.create({
   retourCheckbox: { fontSize: 18 },
   retourLabel: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.primary },
   retourFields: { gap: Spacing.md, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.primaryBorder },
+  retourAddrBlock: { gap: Spacing.xs },
+  retourSubToggle: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.xs },
+  retourSubCheckbox: { fontSize: 16 },
+  retourSubLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.medium, color: Colors.textPrimary, flex: 1 },
+  retourAddrEcho: { backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.primaryBorder, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm },
+  retourAddrEchoLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textTertiary, textTransform: 'uppercase', marginBottom: 2 },
+  retourAddrEchoText: { fontSize: FontSize.sm, color: Colors.textSecondary },
   typeTransportRow: { flexDirection: 'row', gap: Spacing.sm },
   typeBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, alignItems: 'center', backgroundColor: Colors.surface },
   typeBtnActive: { backgroundColor: Colors.primary, borderColor: Colors.primary },
@@ -905,20 +919,3 @@ const cp = StyleSheet.create({
   autreConfirmText: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.base },
 });
 
-const vp = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.lg },
-  sheet: { backgroundColor: Colors.surface, borderRadius: Radius.xxl, width: '100%', maxWidth: 400, maxHeight: '80%', padding: Spacing.xl, ...Shadow.modal },
-  title: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.md, textAlign: 'center' },
-  list: { maxHeight: 380 },
-  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  itemActive: { backgroundColor: Colors.primaryLight },
-  itemText: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary, flex: 1 },
-  itemTextActive: { color: Colors.primary },
-  check: { fontSize: FontSize.base, color: Colors.primary, fontWeight: FontWeight.bold },
-  itemAutre: { backgroundColor: Colors.surfaceVariant, borderBottomWidth: 0, marginTop: Spacing.xs, borderRadius: Radius.md },
-  itemAutreText: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  autreRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', marginTop: Spacing.xs },
-  autreInput: { flex: 1, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.primaryLight },
-  autreConfirm: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
-  autreConfirmText: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.base },
-});
