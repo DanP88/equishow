@@ -9,7 +9,7 @@ import { getAuthToken } from '../utils/supabaseAuth';
 import { trackFunnel } from '../lib/analytics';
 
 export default function PaiementTransportScreen() {
-  const { reservationId, titre, montant, nbPlaces, villeDepart, villeArrivee, reference, chevalNom } =
+  const { reservationId, titre, montant, nbPlaces, villeDepart, villeArrivee, itineraireAller, itineraireRetour, reference, chevalNom } =
     useLocalSearchParams<{
       reservationId: string;
       titre: string;
@@ -17,6 +17,8 @@ export default function PaiementTransportScreen() {
       nbPlaces: string;
       villeDepart: string;
       villeArrivee: string;
+      itineraireAller?: string;
+      itineraireRetour?: string;
       reference?: string;
       chevalNom?: string;
     }>();
@@ -49,7 +51,7 @@ export default function PaiementTransportScreen() {
           type: 'transport',
           reservationId,
           amount: parseFloat(montant ?? '0'),
-          description: `Transport ${villeDepart} → ${villeArrivee} (${nbPlaces} place${Number(nbPlaces) > 1 ? 's' : ''})`,
+          description: `Transport ${itineraireRetour ? `${itineraireAller || `${villeDepart} → ${villeArrivee}`} + retour` : (itineraireAller || `${villeDepart} → ${villeArrivee}`)} (${nbPlaces} place${Number(nbPlaces) > 1 ? 's' : ''})`,
         }),
       });
 
@@ -84,9 +86,20 @@ export default function PaiementTransportScreen() {
         {/* Récap commande */}
         <View style={s.orderCard}>
           <Text style={s.orderLabel}>Récapitulatif</Text>
-          <View style={s.orderRow}>
-            <Text style={s.orderDesc}>🚐 {villeDepart} → {villeArrivee}</Text>
-          </View>
+          {itineraireRetour ? (
+            <>
+              <View style={s.orderRow}>
+                <Text style={s.orderDesc}>🚐 Aller : {itineraireAller || `${villeDepart} → ${villeArrivee}`}</Text>
+              </View>
+              <View style={s.orderRow}>
+                <Text style={s.orderDesc}>↩️ Retour : {itineraireRetour}</Text>
+              </View>
+            </>
+          ) : (
+            <View style={s.orderRow}>
+              <Text style={s.orderDesc}>🚐 {itineraireAller || `${villeDepart} → ${villeArrivee}`}</Text>
+            </View>
+          )}
           <View style={s.orderRow}>
             <Text style={s.orderMeta}>{nbPlaces} place{Number(nbPlaces) > 1 ? 's' : ''}</Text>
             <Text style={s.orderAmount}>{montant}€</Text>

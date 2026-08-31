@@ -92,6 +92,22 @@ export default function ReserverTransportScreen() {
   const ttc = prixTTC(transport.prixHT);
   const villeDep = displayCity(transport.villeDepart, transport.adresseVan);
   const villeArr = displayCity(transport.villeArrivee, transport.adresseArrivee);
+  // Ville de prise en charge du cavalier (géoloc ou saisie) — pour l'itinéraire détaillé.
+  const villePickupRaw = displayCity(
+    undefined,
+    geoLabel || (pickupSource === 'manual' ? pickupAddress : '') || routeResult?.pickupAddress || '',
+  );
+  const villePickup = villePickupRaw && villePickupRaw !== '—' ? villePickupRaw : '';
+  const joinRoute = (parts: string[]) => parts.filter((v) => v && v !== '—').join(' → ');
+  // Itinéraire : départ → prise en charge → arrivée (+ retour avec ses adresses propres).
+  const itineraireAller = joinRoute([villeDep, villePickup, villeArr]);
+  const itineraireRetour = transport.allerRetour
+    ? joinRoute([
+        transport.retourAdresseDepart ? displayCity(undefined, transport.retourAdresseDepart) : villeArr,
+        villePickup,
+        transport.retourAdresseArrivee ? displayCity(undefined, transport.retourAdresseArrivee) : villeDep,
+      ])
+    : '';
   const isTrajet = transport.typeTransport === 'trajet';
   const showRoutePricing = isTrajet && ROUTE_PRICING_ENABLED;
 
@@ -353,6 +369,8 @@ export default function ReserverTransportScreen() {
         nbPlaces: String(created.nbPlaces),
         villeDepart: villeDep,
         villeArrivee: villeArr,
+        itineraireAller,
+        ...(itineraireRetour ? { itineraireRetour } : {}),
         reference: transportRef,
         ...(chevalNom ? { chevalNom } : {}),
       },
@@ -782,8 +800,16 @@ export default function ReserverTransportScreen() {
             <View style={s.confirmationDetails}>
               <View style={s.detailRow}>
                 <Text style={s.detailIcon}>🚐</Text>
-                <Text style={s.detailText}>{villeDep} → {villeArr}</Text>
+                <Text style={s.detailText}>
+                  {itineraireRetour ? `Aller : ${itineraireAller}` : itineraireAller}
+                </Text>
               </View>
+              {!!itineraireRetour && (
+                <View style={s.detailRow}>
+                  <Text style={s.detailIcon}>↩️</Text>
+                  <Text style={s.detailText}>Retour : {itineraireRetour}</Text>
+                </View>
+              )}
               <View style={s.detailRow}>
                 <Text style={s.detailIcon}>📅</Text>
                 <Text style={s.detailText}>{transport.dateTrajet.toLocaleDateString('fr-FR')}</Text>
