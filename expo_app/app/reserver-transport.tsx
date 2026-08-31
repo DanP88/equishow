@@ -12,6 +12,7 @@ import { createNotification } from '../hooks/useNotifications';
 import { prixTTC, getCommissionMontant, getCommission } from '../types/service';
 import { MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { displayCity } from '../lib/address';
 import { AlertModal } from '../components/AlertModal';
 import { useScreenTracking } from '../hooks/useScreenTracking';
 import { trackFunnel } from '../lib/analytics';
@@ -81,6 +82,8 @@ export default function ReserverTransportScreen() {
   }
 
   const ttc = prixTTC(transport.prixHT);
+  const villeDep = displayCity(transport.villeDepart, transport.adresseVan);
+  const villeArr = displayCity(transport.villeArrivee, transport.adresseArrivee);
   const isTrajet = transport.typeTransport === 'trajet';
   const showRoutePricing = isTrajet && ROUTE_PRICING_ENABLED;
 
@@ -275,14 +278,14 @@ export default function ReserverTransportScreen() {
         }
       : { routePricingStatus: 'skipped' as const };
 
-    const titre = `Transport ${transport.villeDepart} → ${transport.villeArrivee}`;
+    const titre = `Transport ${villeDep} → ${villeArr}`;
 
     const { data: created, error: createErr } = await createReservation({
       transportId: transport.id,
       sellerId: transport.auteurId,
       titre,
-      villeDepart: transport.villeDepart,
-      villeArrivee: transport.villeArrivee,
+      villeDepart: villeDep,
+      villeArrivee: villeArr,
       nbPlaces: isTrajet ? nbPlaces : 1,
       message: message.trim(),
       prixTotalHT: prixTotal,
@@ -313,7 +316,7 @@ export default function ReserverTransportScreen() {
       destinataireId: transport.auteurId,
       type: 'reservation_request',
       titre: '🚐 Nouvelle réservation de transport',
-      message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${transport.villeDepart} → ${transport.villeArrivee}`,
+      message: `${userStore.prenom} ${userStore.nom} demande une réservation pour ${villeDep} → ${villeArr}`,
       status: 'pending',
       actionUrl: '/transport-pending-demands',
       donnees: {
@@ -335,8 +338,8 @@ export default function ReserverTransportScreen() {
         titre,
         montant: montantPaiement,
         nbPlaces: String(created.nbPlaces),
-        villeDepart: transport.villeDepart,
-        villeArrivee: transport.villeArrivee,
+        villeDepart: villeDep,
+        villeArrivee: villeArr,
         reference: transportRef,
         ...(chevalNom ? { chevalNom } : {}),
       },
@@ -366,9 +369,9 @@ export default function ReserverTransportScreen() {
         <View style={s.transportCard}>
           <View style={s.routeSection}>
             <View>
-              <Text style={s.routeDepart}>{transport.villeDepart}</Text>
+              <Text style={s.routeDepart}>{villeDep}</Text>
               <Text style={s.routeArrow}>↓</Text>
-              <Text style={s.routeArrivee}>{transport.villeArrivee}</Text>
+              <Text style={s.routeArrivee}>{villeArr}</Text>
             </View>
             <View style={s.priceBadge}>
               {!isTrajet ? (
@@ -735,7 +738,7 @@ export default function ReserverTransportScreen() {
             <View style={s.confirmationDetails}>
               <View style={s.detailRow}>
                 <Text style={s.detailIcon}>🚐</Text>
-                <Text style={s.detailText}>{transport.villeDepart} → {transport.villeArrivee}</Text>
+                <Text style={s.detailText}>{villeDep} → {villeArr}</Text>
               </View>
               <View style={s.detailRow}>
                 <Text style={s.detailIcon}>📅</Text>

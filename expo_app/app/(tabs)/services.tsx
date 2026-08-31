@@ -10,6 +10,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 import { userStore } from '../../data/store';
 import { useConcoursList, useConcoursAvailableBoxIds } from '../../hooks/useConcours';
 import { countEpreuves } from '../../lib/epreuves';
+import { displayCity } from '../../lib/address';
 import { useTransportAnnonces, useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useBoxAnnonces, useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useCoachAnnonces, useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
@@ -991,6 +992,8 @@ function TransportCard({ item, onCancel, onModify }: {
   const ttc = prixTTC(item.prixHT);
   const left = item.nbPlacesDisponibles;
   const { average: rating } = useAvisStats(item.auteurId);
+  const villeDep = displayCity(item.villeDepart, item.adresseVan);
+  const villeArr = displayCity(item.villeArrivee, item.adresseArrivee);
   return (
     <View style={s.card}>
       {isOwner && <View style={s.ownerBadge}><Text style={s.ownerBadgeText}>Mon annonce</Text></View>}
@@ -998,12 +1001,16 @@ function TransportCard({ item, onCancel, onModify }: {
         <View style={{ flex: 1 }}>
           {item.typeTransport === 'trajet' ? (
             <>
-              <Text style={s.routeDepart}>{item.villeDepart}</Text>
+              <Text style={s.routeDepart}>{villeDep}</Text>
               <Text style={s.routeArrow}>→</Text>
-              <Text style={s.routeArrivee}>{item.villeArrivee}</Text>
+              <Text style={s.routeArrivee}>{villeArr}</Text>
+              {!!item.concours && <Text style={s.routeConcours}>🏆 {item.concours}</Text>}
             </>
           ) : (
-            <Text style={s.routeDepart}>📍 {item.villeDepart}</Text>
+            <>
+              <Text style={s.routeDepart}>📍 {villeDep}</Text>
+              {!!item.concours && <Text style={s.routeConcours}>🏆 {item.concours}</Text>}
+            </>
           )}
         </View>
         <View style={{ alignItems: 'flex-end', gap: 4 }}>
@@ -1014,10 +1021,10 @@ function TransportCard({ item, onCancel, onModify }: {
                 <Text style={s.priceTTC}>par jour</Text>
               </>
             ) : (
-              <>
-                <Text style={s.priceHT}>{item.pricePerKm ?? item.prixHT}€/km</Text>
-                <Text style={s.priceTTC}>prix au kilomètre</Text>
-              </>
+              <Text style={s.priceKmLine} numberOfLines={1}>
+                <Text style={s.priceKmValue}>{item.pricePerKm ?? item.prixHT}€/km</Text>
+                <Text style={s.priceKmLabel}>  ·  prix au kilomètre</Text>
+              </Text>
             )}
           </View>
           {rating > 0 && <Text style={s.ratingMini}>⭐ {rating.toFixed(1)}</Text>}
@@ -1494,8 +1501,12 @@ const s = StyleSheet.create({
   routeDepart: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   routeArrow: { fontSize: FontSize.xs, color: Colors.primary },
   routeArrivee: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  routeConcours: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.primary, marginTop: 2 },
   priceBadge: { alignItems: 'flex-end' },
   priceHT: { fontSize: FontSize.xs, color: Colors.textTertiary },
+  priceKmLine: { textAlign: 'right' },
+  priceKmValue: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  priceKmLabel: { fontSize: FontSize.xs, color: Colors.textTertiary },
   priceTTC: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.primary },
   ratingMini: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: '#92400E', backgroundColor: '#FEF3C7', paddingHorizontal: 6, paddingVertical: 2, borderRadius: Radius.sm },
   tagRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.xs },

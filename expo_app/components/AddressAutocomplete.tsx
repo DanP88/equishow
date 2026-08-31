@@ -14,6 +14,7 @@ interface Suggestion {
   label: string;
   lat: number;
   lng: number;
+  city: string;
 }
 
 interface InputRect {
@@ -25,7 +26,9 @@ interface InputRect {
 
 interface Props {
   value: string;
-  onChange: (address: string, lat?: number, lng?: number) => void;
+  // `city` = commune structurée (Nominatim addressdetails) quand l'utilisateur
+  // choisit une suggestion ; absent quand il tape à la main.
+  onChange: (address: string, lat?: number, lng?: number, city?: string) => void;
   placeholder?: string;
   disabled?: boolean;
   style?: object;
@@ -43,6 +46,8 @@ async function searchAddresses(query: string): Promise<Suggestion[]> {
     label: item.display_name as string,
     lat: parseFloat(item.lat),
     lng: parseFloat(item.lon),
+    city: (item.address?.city || item.address?.town || item.address?.village
+      || item.address?.municipality || item.address?.county || '') as string,
   }));
 }
 
@@ -105,7 +110,7 @@ export function AddressAutocomplete({ value, onChange, placeholder, disabled, st
   }, [onChange]);
 
   const handleSelect = useCallback((s: Suggestion) => {
-    onChange(s.label, s.lat, s.lng);
+    onChange(s.label, s.lat, s.lng, s.city);
     setSuggestions([]);
     setOpen(false);
   }, [onChange]);

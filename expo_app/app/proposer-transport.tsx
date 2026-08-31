@@ -8,6 +8,7 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate, MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { extractCityFromAddress } from '../lib/address';
 import { AlertModal } from '../components/AlertModal';
 import { useConcoursList } from '../hooks/useConcours';
 import { useMyTransportAnnonces } from '../hooks/useTransports';
@@ -153,9 +154,12 @@ export default function ProposerTransportScreen() {
   const [adresseVan, setAdresseVan] = useState(existing?.adresseVan ?? '');
   const [adresseVanLat, setAdresseVanLat] = useState<number | undefined>(existing?.startLat);
   const [adresseVanLng, setAdresseVanLng] = useState<number | undefined>(existing?.startLng);
+  // Commune (Nominatim addressdetails) — sert à `ville_depart` / `ville_arrivee`.
+  const [villeDepart, setVilleDepart] = useState(existing?.villeDepart ?? '');
   const [adresseArrivee, setAdresseArrivee] = useState(existing?.adresseArrivee ?? '');
   const [adresseArriveeLat, setAdresseArriveeLat] = useState<number | undefined>(existing?.destinationLat);
   const [adresseArriveeLng, setAdresseArriveeLng] = useState<number | undefined>(existing?.destinationLng);
+  const [villeArrivee, setVilleArrivee] = useState(existing?.villeArrivee ?? '');
   const [heureDepart, setHeureDepart] = useState(existing?.heureDepart ?? '');
 
   // Retour (mig 107 : adresses précises persistées)
@@ -216,9 +220,11 @@ export default function ProposerTransportScreen() {
     setAdresseVan(existing.adresseVan ?? '');
     setAdresseVanLat(existing.startLat);
     setAdresseVanLng(existing.startLng);
+    setVilleDepart(existing.villeDepart ?? '');
     setAdresseArrivee(existing.adresseArrivee ?? '');
     setAdresseArriveeLat(existing.destinationLat);
     setAdresseArriveeLng(existing.destinationLng);
+    setVilleArrivee(existing.villeArrivee ?? '');
     setHeureDepart(existing.heureDepart ?? '');
     setProposerRetour(existing.allerRetour ?? false);
     setDateRetour(existing.dateRetour);
@@ -308,16 +314,17 @@ export default function ProposerTransportScreen() {
       ? (datesDisponibles.length > 0 ? datesDisponibles[0] : new Date())
       : dateTrajet!;
 
-    // ville_depart / ville_arrivee : dérivés des adresses (champ legacy DB NOT NULL).
-    // On garde le dernier segment après virgule (typiquement "75001 Paris").
-    const extractCity = (addr: string): string => {
-      const parts = (addr || '').split(',').map((p) => p.trim()).filter(Boolean);
-      return parts[parts.length - 1] || addr.trim() || '—';
-    };
+    // ville_depart / ville_arrivee (champ DB NOT NULL, utilisés pour l'étiquette
+    // de l'annonce) : commune structurée Nominatim si dispo, sinon repli
+    // heuristique sur l'adresse complète.
+    const villeDepFinal = villeDepart.trim() || extractCityFromAddress(adresseVan) || '—';
+    const villeArrFinal = typeTransport === 'location'
+      ? ''
+      : (villeArrivee.trim() || extractCityFromAddress(adresseArrivee) || '—');
     const payload: Partial<TransportAnnonce> = {
       dateTrajet: dateTrajetFinal,
-      villeDepart: extractCity(adresseVan),
-      villeArrivee: typeTransport === 'location' ? '' : extractCity(adresseArrivee),
+      villeDepart: villeDepFinal,
+      villeArrivee: villeArrFinal,
       nbPlacesTotal: nb,
       nbPlacesDisponibles: nb,
       prixHT: prixNum,
@@ -445,10 +452,11 @@ export default function ProposerTransportScreen() {
           <Field label="Adresse précise d'arrivée *" required hint="Ex: Haras du Pin, 61310 Exmes">
             <AddressAutocomplete
               value={adresseArrivee}
-              onChange={(addr, lat, lng) => {
+              onChange={(addr, lat, lng, city) => {
                 setAdresseArrivee(addr);
                 setAdresseArriveeLat(lat);
                 setAdresseArriveeLng(lng);
+                setVilleArrivee(city || extractCityFromAddress(addr));
               }}
               placeholder="Ex: 12 avenue du Concours, 69006 Lyon"
             />
@@ -462,10 +470,11 @@ export default function ProposerTransportScreen() {
         <Field label="Adresse précise du van *" required>
           <AddressAutocomplete
             value={adresseVan}
-            onChange={(addr, lat, lng) => {
+            onChange={(addr, lat, lng, city) => {
               setAdresseVan(addr);
               setAdresseVanLat(lat);
               setAdresseVanLng(lng);
+              setVilleDepart(city || extractCityFromAddress(addr));
             }}
             placeholder="Ex: 5 rue de la Gare, 75001 Paris"
           />
