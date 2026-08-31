@@ -8,97 +8,12 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate, MultiDatePickerModal } from '../components/DatePickerModal';
 import { AddressAutocomplete } from '../components/AddressAutocomplete';
+import { ConcoursAutocomplete, ConcoursOption } from '../components/ConcoursAutocomplete';
 import { extractCityFromAddress } from '../lib/address';
 import { AlertModal } from '../components/AlertModal';
 import { useConcoursList } from '../hooks/useConcours';
 import { useMyTransportAnnonces } from '../hooks/useTransports';
 import { getCommission, TransportAnnonce } from '../types/service';
-
-// Sélection concours : { nom, id }. id = FK public.concours ; undefined pour une
-// saisie libre / « Aucun ».
-type ConcoursSel = { nom: string; id?: string };
-type ConcoursOption = { id: string; nom: string; sub: string };
-
-function ConcoursPicker({ valueNom, valueId, options, onChange }: {
-  valueNom: string;
-  valueId?: string;
-  options: ConcoursOption[];
-  onChange: (sel: ConcoursSel) => void;
-}) {
-  const [open, setOpen] = useState(false);
-  const [autreMode, setAutreMode] = useState(false);
-  const [autreText, setAutreText] = useState('');
-
-  function confirmAutre() {
-    if (autreText.trim()) {
-      onChange({ nom: autreText.trim(), id: undefined });
-      setAutreMode(false);
-    }
-  }
-
-  const isActive = (opt: ConcoursOption) => (valueId ? valueId === opt.id : !!valueNom && valueNom === opt.nom);
-
-  return (
-    <>
-      <TouchableOpacity
-        style={[f.input, !!valueNom && f.inputFilled]}
-        onPress={() => { setAutreMode(false); setOpen(true); }}
-        activeOpacity={0.8}
-      >
-        <Text style={[f.inputText, !valueNom && f.placeholder]} numberOfLines={1}>
-          {valueNom || 'Sélectionner un concours'}
-        </Text>
-        <Text style={f.arrow}>▼</Text>
-      </TouchableOpacity>
-
-      <Modal visible={open} transparent animationType="fade">
-        <TouchableOpacity style={cp.backdrop} activeOpacity={1} onPress={() => setOpen(false)}>
-          <TouchableOpacity activeOpacity={1} style={cp.sheet}>
-            <Text style={cp.title}>Concours associé</Text>
-            <ScrollView style={cp.list} showsVerticalScrollIndicator={false}>
-              {/* Option vide */}
-              <TouchableOpacity style={cp.item} onPress={() => { onChange({ nom: '', id: undefined }); setOpen(false); }}>
-                <Text style={[cp.itemText, { color: Colors.textTertiary, fontStyle: 'italic' }]}>— Aucun concours</Text>
-              </TouchableOpacity>
-              {options.map((opt) => (
-                <TouchableOpacity
-                  key={opt.id}
-                  style={[cp.item, isActive(opt) && cp.itemActive]}
-                  onPress={() => { onChange({ nom: opt.nom, id: opt.id }); setAutreMode(false); setOpen(false); }}
-                >
-                  <View style={{ flex: 1 }}>
-                    <Text style={[cp.itemText, isActive(opt) && cp.itemTextActive]}>{opt.nom}</Text>
-                    {!!opt.sub && <Text style={cp.itemSub}>{opt.sub}</Text>}
-                  </View>
-                  {isActive(opt) && <Text style={cp.check}>✓</Text>}
-                </TouchableOpacity>
-              ))}
-              <TouchableOpacity style={[cp.item, cp.itemAutre]} onPress={() => { setAutreMode(true); setOpen(false); }}>
-                <Text style={cp.itemAutreText}>✏️ Autre concours (saisie libre)</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {autreMode && (
-        <View style={cp.autreRow}>
-          <TextInput
-            style={cp.autreInput}
-            value={autreText}
-            onChangeText={setAutreText}
-            placeholder="Nom du concours..."
-            placeholderTextColor={Colors.textTertiary}
-            autoFocus
-          />
-          <TouchableOpacity style={cp.autreConfirm} onPress={confirmAutre}>
-            <Text style={cp.autreConfirmText}>OK</Text>
-          </TouchableOpacity>
-        </View>
-      )}
-    </>
-  );
-}
 
 function Dropdown({ placeholder, value, options, onChange }: {
   placeholder: string; value: string; options: string[]; onChange: (v: string) => void;
@@ -735,7 +650,7 @@ export default function ProposerTransportScreen() {
         )}
 
         <Field label="Concours associé">
-          <ConcoursPicker
+          <ConcoursAutocomplete
             valueNom={concours}
             valueId={concoursId}
             options={concoursOptions}
@@ -909,22 +824,4 @@ const f = StyleSheet.create({
   dropItemTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
 });
 
-const cp = StyleSheet.create({
-  backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.lg },
-  sheet: { backgroundColor: Colors.surface, borderRadius: Radius.xxl, width: '100%', maxWidth: 400, maxHeight: '80%', padding: Spacing.xl, ...Shadow.modal },
-  title: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginBottom: Spacing.md, textAlign: 'center' },
-  list: { maxHeight: 380 },
-  item: { flexDirection: 'row', alignItems: 'center', paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  itemActive: { backgroundColor: Colors.primaryLight },
-  itemText: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary, flex: 1 },
-  itemTextActive: { color: Colors.primary },
-  itemSub: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
-  check: { fontSize: FontSize.base, color: Colors.primary, fontWeight: FontWeight.bold },
-  itemAutre: { backgroundColor: Colors.surfaceVariant, borderBottomWidth: 0, marginTop: Spacing.xs, borderRadius: Radius.md },
-  itemAutreText: { fontSize: FontSize.base, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  autreRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', marginTop: Spacing.xs },
-  autreInput: { flex: 1, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.primaryLight },
-  autreConfirm: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
-  autreConfirmText: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.base },
-});
 
