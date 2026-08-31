@@ -1004,16 +1004,15 @@ function TransportCard({ item, onCancel, onModify }: {
               <Text style={s.routeDepart}>{villeDep}</Text>
               <Text style={s.routeArrow}>→</Text>
               <Text style={s.routeArrivee}>{villeArr}</Text>
-              {!!item.concours && <Text style={s.routeConcours}>🏆 {item.concours}</Text>}
             </>
           ) : (
-            <>
-              <Text style={s.routeDepart}>📍 {villeDep}</Text>
-              {!!item.concours && <Text style={s.routeConcours}>🏆 {item.concours}</Text>}
-            </>
+            <Text style={s.routeDepart}>📍 {villeDep}</Text>
           )}
         </View>
-        <View style={{ alignItems: 'flex-end', gap: 4 }}>
+        <View style={{ alignItems: 'flex-end', gap: 4, maxWidth: '52%' }}>
+          {!!item.concours && (
+            <Text style={s.cardConcours} numberOfLines={2}>🏆 {item.concours}</Text>
+          )}
           <View style={s.priceBadge}>
             {item.typeTransport === 'location' ? (
               <>
@@ -1023,7 +1022,7 @@ function TransportCard({ item, onCancel, onModify }: {
             ) : (
               <Text style={s.priceKmLine} numberOfLines={1}>
                 <Text style={s.priceKmValue}>{item.pricePerKm ?? item.prixHT}€/km</Text>
-                <Text style={s.priceKmLabel}>  ·  prix au kilomètre</Text>
+                <Text style={s.priceKmLabel}> · prix au kilomètre</Text>
               </Text>
             )}
           </View>
@@ -1501,7 +1500,7 @@ const s = StyleSheet.create({
   routeDepart: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   routeArrow: { fontSize: FontSize.xs, color: Colors.primary },
   routeArrivee: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  routeConcours: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.primary, marginTop: 2 },
+  cardConcours: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary, textAlign: 'right' },
   priceBadge: { alignItems: 'flex-end' },
   priceHT: { fontSize: FontSize.xs, color: Colors.textTertiary },
   priceKmLine: { textAlign: 'right' },
