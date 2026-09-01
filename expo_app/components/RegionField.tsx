@@ -57,6 +57,12 @@ export function RegionField({ label = 'Région', value, onChangeText, placeholde
     };
   }, [open]);
 
+  // Valeurs héritées où la région vide était stockée comme « Non défini » :
+  // on les remet à vide pour retrouver la liste complète.
+  useEffect(() => {
+    if (value === 'Non défini' || value === 'Non renseigné') onChangeText('');
+  }, [value, onChangeText]);
+
   const handleChange = useCallback((text: string) => {
     onChangeText(text);
     measureWrapper();

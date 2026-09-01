@@ -60,7 +60,7 @@ const createUserStore = (): UserStore => {
     email: user.email,
     role: user.role as 'cavalier' | 'coach' | 'organisateur' | 'admin',
     plan: 'Gratuit',
-    region: user.region || 'Non défini',
+    region: user.region || '',
     disciplines: user.disciplines,
     bio: '',
     avatarColor: getAvatarColorForRole(user.role),
@@ -85,7 +85,7 @@ const createUserStore = (): UserStore => {
       this.pseudo = `${newUser.prenom}${newUser.nom.charAt(0)}`;
       this.email = newUser.email;
       this.role = newUser.role as 'cavalier' | 'coach' | 'organisateur' | 'admin';
-      this.region = newUser.region || 'Non défini';
+      this.region = newUser.region || '';
       this.disciplines = newUser.disciplines;
       this.avatarColor = getAvatarColorForRole(newUser.role);
 
@@ -107,7 +107,7 @@ const createUserStore = (): UserStore => {
       this.pseudo = `${remote.prenom}${(remote.nom ?? '').charAt(0)}`;
       this.email = remote.email;
       this.role = remote.role;
-      this.region = remote.region || 'Non défini';
+      this.region = remote.region || '';
       this.disciplines = remote.disciplines || [];
       // plan : source de vérité = DB ; fallback 'Gratuit' si absent (sécurité).
       this.plan = remote.plan || 'Gratuit';
