@@ -51,9 +51,14 @@ export default function ProposerStageScreen() {
     setPrefilled(true);
   }, [stageId, stages, prefilled]);
 
-  // Calculer le nombre de jours
+  // Nombre de jours du stage = compte INCLUSIF (01/09 → 04/09 = 4 jours).
+  // On normalise à minuit pour ne pas être faussé par l'heure des dates.
   const nbJours = dateDebut && dateFin
-    ? Math.max(1, Math.round((dateFin.getTime() - dateDebut.getTime()) / (1000 * 60 * 60 * 24)))
+    ? (() => {
+        const d0 = new Date(dateDebut); d0.setHours(0, 0, 0, 0);
+        const d1 = new Date(dateFin); d1.setHours(0, 0, 0, 0);
+        return Math.max(1, Math.round((d1.getTime() - d0.getTime()) / 86400000) + 1);
+      })()
     : 1;
 
   function toggleDiscipline(discipline: string) {
@@ -143,7 +148,7 @@ export default function ProposerStageScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         {/* Titre */}
         <View style={s.field}>
           <Text style={s.fieldLabel}>Titre du stage *</Text>
