@@ -67,13 +67,17 @@ const firstConcours = (annonce: any): { id: string | null; nom: string | null; d
 export function useChevalConcours(chevalId?: string | string[]) {
   const [items, setItems] = useState<ChevalConcours[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  // Clé effectivement chargée : permet de savoir SYNCHRONEMENT (sans attendre
+  // l'effet async) qu'un rechargement est dû quand la liste de chevaux change
+  // (évite le flash « état vide » pendant que les chevaux arrivent).
+  const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
   // Clé stable pour les deps (un tableau change d'identité à chaque rendu).
   const idsKey = (Array.isArray(chevalId) ? chevalId : chevalId ? [chevalId] : []).join(',');
 
   const load = useCallback(async () => {
     const chevalIds = idsKey ? idsKey.split(',') : [];
-    if (chevalIds.length === 0) { setItems([]); setIsLoading(false); return; }
+    if (chevalIds.length === 0) { setItems([]); setIsLoading(false); setLoadedKey(idsKey); return; }
     setIsLoading(true);
 
     type Raw = { resaKey: string; concoursId: string | null; concoursNom: string | null; dateFin: string | null; lieu: string | null; departement: string | null; reserved: ReservedItem };
@@ -176,8 +180,10 @@ export function useChevalConcours(chevalId?: string | string[]) {
 
     setItems(out);
     setIsLoading(false);
+    setLoadedKey(idsKey);
   }, [idsKey]);
 
   useEffect(() => { load(); }, [load]);
-  return { items, isLoading, reload: load };
+  // `isLoading` sans "trou" : vrai tant que la clé courante n'a pas été chargée.
+  return { items, isLoading: isLoading || loadedKey !== idsKey, reload: load };
 }
