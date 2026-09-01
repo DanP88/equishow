@@ -7,6 +7,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
 import { DatePickerModal, DateButton, formatDate } from '../components/DatePickerModal';
+import { ConcoursAutocomplete } from '../components/ConcoursAutocomplete';
 import { AlertModal } from '../components/AlertModal';
 import { userStore } from '../data/store';
 import { Disponibilite, prixTTC as calculatePrixTTC, getTVAMontant } from '../types/service';
@@ -71,8 +72,16 @@ export default function ProposerCoachAnnonceScreen() {
   const { annonce: annonceToEdit } = useCoachAnnonce(editAnnonceId);
   const isEditing = !!annonceToEdit;
 
-  // Liste RÉELLE des concours (table public.concours, 074) pour le menu déroulant.
+  // Liste RÉELLE des concours (table public.concours, 074) pour le champ type-ahead.
   const { concours: concoursReels } = useConcoursList();
+  const concoursOptions = useMemo(
+    () => concoursReels.map((c) => ({
+      id: c.id,
+      nom: c.nom,
+      sub: [c.dateLabel, c.lieu].filter(Boolean).join(' · '),
+    })),
+    [concoursReels],
+  );
 
   // Concours présélectionné (deep-link) : lu depuis la table public.concours (DB,
   // hook useConcours) — plus le mock concoursStore. `preHub` est null tant que le
@@ -140,7 +149,6 @@ export default function ProposerCoachAnnonceScreen() {
 
   const [showDateDebut, setShowDateDebut] = useState(false);
   const [showDateFin, setShowDateFin] = useState(false);
-  const [openConcours, setOpenConcours] = useState(false);
   const [disponibilites, setDisponibilites] = useState<Disponibilite[]>(annonceToEdit?.disponibilites || []);
   const [showConfirmation, setShowConfirmation] = useState(false);
   const [alertState, setAlertState] = useState<{ title: string; message: string; variant: 'info' | 'error' } | null>(null);
@@ -246,7 +254,7 @@ export default function ProposerCoachAnnonceScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         <View style={s.infoCard}>
           <Text style={s.infoIcon}>💡</Text>
           <Text style={s.infoText}>Publiez une annonce pour proposer une séance, un stage ou un service spécifique à vos cavaliers.</Text>
@@ -290,46 +298,14 @@ export default function ProposerCoachAnnonceScreen() {
               </Text>
             </View>
           ) : (
-            <TouchableOpacity
-              style={[f.input, !!concours && f.inputFilled]}
-              onPress={() => setOpenConcours(true)}
-              activeOpacity={0.8}
-            >
-              <Text style={[f.inputText, !concours && f.placeholder]} numberOfLines={1}>
-                {concours || 'Sélectionner un concours (optionnel)'}
-              </Text>
-              <Text style={f.arrow}>▼</Text>
-            </TouchableOpacity>
+            <ConcoursAutocomplete
+              valueNom={concours}
+              valueId={selectedConcoursId}
+              options={concoursOptions}
+              onChange={(sel) => { setConcours(sel.nom); setSelectedConcoursId(sel.id); }}
+              placeholder="Tapez le nom du concours (optionnel)…"
+            />
           )}
-
-          <Modal visible={openConcours} transparent animationType="fade">
-            <TouchableOpacity style={c.backdrop} activeOpacity={1} onPress={() => setOpenConcours(false)}>
-              <TouchableOpacity activeOpacity={1} style={c.sheet}>
-                <Text style={c.title}>Concours associé</Text>
-                <ScrollView style={c.list} showsVerticalScrollIndicator={false}>
-                  <TouchableOpacity style={c.item} onPress={() => { setConcours(''); setSelectedConcoursId(undefined); setOpenConcours(false); }}>
-                    <Text style={[c.itemText, { color: Colors.textTertiary, fontStyle: 'italic' }]}>— Aucun concours</Text>
-                  </TouchableOpacity>
-                  {concoursReels.length === 0 && (
-                    <Text style={[c.itemSub, { padding: Spacing.md }]}>Aucun concours disponible pour le moment.</Text>
-                  )}
-                  {concoursReels.map((opt) => (
-                    <TouchableOpacity
-                      key={opt.id}
-                      style={[c.item, selectedConcoursId === opt.id && c.itemActive]}
-                      onPress={() => { setConcours(opt.nom); setSelectedConcoursId(opt.id); setOpenConcours(false); }}
-                    >
-                      <View style={{ flex: 1 }}>
-                        <Text style={[c.itemText, selectedConcoursId === opt.id && c.itemTextActive]}>{opt.nom}</Text>
-                        <Text style={c.itemSub}>{[opt.dateLabel, opt.lieu].filter(Boolean).join(' · ')}</Text>
-                      </View>
-                      {selectedConcoursId === opt.id && <Text style={c.check}>✓</Text>}
-                    </TouchableOpacity>
-                  ))}
-                </ScrollView>
-              </TouchableOpacity>
-            </TouchableOpacity>
-          </Modal>
         </View>
 
         <View style={s.field}>
