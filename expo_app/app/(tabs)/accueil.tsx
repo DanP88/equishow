@@ -5,14 +5,16 @@
  * Organisateur + Admin : encore présentationnels (données illustratives) — à
  * brancher progressivement sur les hooks existants.
  */
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Platform } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { useUserRole } from '../../hooks/useUserRole';
+import { useAuth } from '../../hooks/useAuth';
 import { userStore } from '../../data/store';
+import { getHeroSnapshot, setHeroSnapshot } from '../../lib/heroSnapshot';
 import { useMyChevaux } from '../../hooks/useChevaux';
 import { useChevalConcours, CModuleKey } from '../../hooks/useChevalReservations';
 import { useMyEscrowPayments } from '../../hooks/useMyEscrowPayments';
@@ -152,7 +154,23 @@ function Cavalier() {
   // SEED DEV (front-only, __DEV__ uniquement) : remplace les sorties des hooks par
   // des données d'exemple pour tester l'accueil sans écrire en base. Cf. data/mockAccueil.
   const seed = __DEV__ && ACCUEIL_DEV_SEED;
-  const concoursItems = seed ? MOCK_ACCUEIL.concours : cc.items;
+  const { profile } = useAuth();
+  // `cc.items` est déjà ré-hydraté depuis le cache (clé = ids chevaux) pour la
+  // navigation entre onglets. Reste le cold start (surtout web : chaque refresh
+  // repart de zéro, aucune donnée synchrone) : tant que le hook n'a rien, on
+  // part du dernier récap connu, lu de façon SYNCHRONE → la bonne carte est
+  // peinte dès le 1er frame, aucun flash.
+  const concoursItems = useMemo(() => {
+    if (seed) return MOCK_ACCUEIL.concours;
+    if (cc.items.length) return cc.items;
+    return getHeroSnapshot(profile?.id) ?? cc.items;
+  }, [seed, cc.items, profile?.id]);
+
+  // Mémorise le récap dès qu'il est résolu, pour les démarrages suivants.
+  useEffect(() => {
+    if (seed || cc.isLoading) return;
+    setHeroSnapshot(profile?.id, cc.items);
+  }, [seed, cc.isLoading, cc.items, profile?.id]);
   const resa = seed ? MOCK_ACCUEIL.resa : rs.items;
   const toPay = seed ? MOCK_ACCUEIL.resa.filter((r) => r.needsPayment) : rs.toPay;
   const heldCount = seed ? MOCK_ACCUEIL.heldCount : heldCountReal;
