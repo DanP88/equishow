@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
-  Modal, TextInput, Alert,
+  Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { router, useFocusEffect } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -209,10 +209,13 @@ export default function ProfilScreen() {
 
       {/* Edit Modal */}
       <Modal visible={showEdit} transparent animationType="slide">
-        <View style={styles.editBackdrop}>
+        <KeyboardAvoidingView
+          style={styles.editBackdrop}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+        >
           <View style={styles.editSheet}>
             <Text style={styles.editTitle}>Modifier mon profil</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
               <Field label="Prénom" value={draft.prenom} onChangeText={(v) => setDraft({ ...draft, prenom: v })} />
               <Field label="Nom" value={draft.nom} onChangeText={(v) => setDraft({ ...draft, nom: v })} />
               <Field
@@ -240,7 +243,7 @@ export default function ProfilScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {/* Follow List Modal */}

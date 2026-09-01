@@ -248,7 +248,7 @@ export default function CreerConcoursScreen() {
           <Text style={s.loadingTxt}>Chargement du concours…</Text>
         </View>
       ) : (
-      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         {/* INFORMATIONS GÉNÉRALES */}
         <Text style={s.sectionTitle}>📝 Informations générales</Text>
 

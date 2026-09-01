@@ -157,7 +157,7 @@ export default function ReserverBoxScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         {/* Box card */}
         <View style={s.boxCard}>
           <View style={s.locationSection}>

@@ -316,7 +316,7 @@ export default function ProposerBoxScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         <View style={s.infoCard}>
           <Text style={s.infoIcon}>💡</Text>
           <Text style={s.infoText}>

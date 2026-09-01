@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Modal, TextInput } from 'react-native';
+import { View, Text, ScrollView, StyleSheet, SafeAreaView, TouchableOpacity, Modal, TextInput, KeyboardAvoidingView, Platform } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
@@ -240,10 +240,10 @@ export default function ProfilCoachScreen() {
 
       {/* Edit Modal */}
       <Modal visible={showEdit} transparent animationType="slide">
-        <View style={styles.editBackdrop}>
+        <KeyboardAvoidingView style={styles.editBackdrop} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
           <View style={styles.editSheet}>
             <Text style={styles.editTitle}>Modifier mon profil</Text>
-            <ScrollView showsVerticalScrollIndicator={false}>
+            <ScrollView showsVerticalScrollIndicator={false} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets>
               <Field label="Prénom" value={draft.prenom} onChangeText={(v) => setDraft({ ...draft, prenom: v })} />
               <Field label="Nom" value={draft.nom} onChangeText={(v) => setDraft({ ...draft, nom: v })} />
               <Field label="Email" value={draft.email} onChangeText={(v) => setDraft({ ...draft, email: v })} />
@@ -259,7 +259,7 @@ export default function ProfilCoachScreen() {
               </TouchableOpacity>
             </View>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {followModal && (

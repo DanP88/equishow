@@ -394,7 +394,7 @@ export default function ReserverTransportScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
 
         {/* Récap annonce */}
         <View style={s.transportCard}>

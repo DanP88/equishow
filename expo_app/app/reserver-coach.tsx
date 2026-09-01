@@ -214,7 +214,7 @@ export default function ReserverCoachScreen() {
         <View style={{ width: 40 }} />
       </View>
 
-      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled">
+      <ScrollView contentContainerStyle={s.container} keyboardShouldPersistTaps="handled" automaticallyAdjustKeyboardInsets keyboardDismissMode="interactive">
         {/* Annonce card */}
         <View style={s.coachCard}>
           <View style={[s.coachAvatar, { backgroundColor: annonce.auteurCouleur }]}>
