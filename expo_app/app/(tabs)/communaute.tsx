@@ -626,10 +626,13 @@ export default function CommunauteScreen() {
       </ScrollView>
       )} {/* fin mainTab === 'communaute' */}
 
-      {/* FAB nouveau post */}
-      <TouchableOpacity style={styles.fab} onPress={() => setShowNew(true)} activeOpacity={0.85}>
-        <Text style={styles.fabText}>+ Publier</Text>
-      </TouchableOpacity>
+      {/* FAB nouveau post — uniquement sur le fil Communauté (pas sur Info concours,
+          Contact concours, Discussions, Messages où « publier » n'a pas de sens). */}
+      {mainTab === 'communaute' && (
+        <TouchableOpacity style={styles.fab} onPress={() => setShowNew(true)} activeOpacity={0.85}>
+          <Text style={styles.fabText}>+ Publier</Text>
+        </TouchableOpacity>
+      )}
 
       {/* Modal nouveau post */}
       <Modal visible={showNew} transparent animationType="fade">
