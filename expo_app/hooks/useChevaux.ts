@@ -112,10 +112,15 @@ interface ChevalResult {
 }
 
 // ── Hook : tous les chevaux du user courant ────────────────────────────────
+// Cache module par utilisateur : les chevaux changent peu et sont lus par
+// beaucoup d'écrans (accueil, agenda, réservations, pickers…).
+const _chevauxCache = new Map<string, Cheval[]>();
+
 export function useMyChevaux() {
   const { profile } = useAuth();
   const channelId = useId();
-  const [list, setList] = useState<Cheval[]>([]);
+  const [list, setList] = useState<Cheval[]>(() =>
+    (profile?.id && _chevauxCache.get(profile.id)) || []);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -124,7 +129,10 @@ export function useMyChevaux() {
       setList([]);
       return;
     }
-    setIsLoading(true);
+    // Affiche le cache immédiatement (revalidation en tâche de fond ci-dessous).
+    const cached = _chevauxCache.get(profile.id);
+    if (cached) setList(cached);
+    setIsLoading(!cached);
     const { data, error: queryErr } = await supabase
       .from('chevaux')
       .select('*')
@@ -132,10 +140,12 @@ export function useMyChevaux() {
       .order('created_at', { ascending: true });
     if (queryErr) {
       setError(queryErr.message);
-      setList([]);
+      if (!cached) setList([]);
     } else {
       setError(null);
-      setList(((data ?? []) as ChevalRow[]).map(rowToCheval));
+      const rows = ((data ?? []) as ChevalRow[]).map(rowToCheval);
+      _chevauxCache.set(profile.id, rows);
+      setList(rows);
     }
     setIsLoading(false);
   }, [profile?.id]);

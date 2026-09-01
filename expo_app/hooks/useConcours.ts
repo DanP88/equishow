@@ -145,13 +145,28 @@ const MOCK_COUNTS: Record<string, ConcoursCounts> = Object.fromEntries(
 
 // ── hooks ───────────────────────────────────────────────────────────────────
 
+// Cache module partagé entre toutes les instances de useConcoursList (la table
+// concours est quasi statique — ~300 lignes). Évite un refetch complet à chaque
+// écran (accueil, services, communauté, formulaires…). TTL 90 s.
+let _concoursListCache: { list: ConcoursHub[]; usingMock: boolean } | null = null;
+let _concoursListAt = 0;
+const CONCOURS_LIST_TTL = 90_000;
+
 export function useConcoursList() {
-  const [list, setList] = useState<ConcoursHub[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [usingMock, setUsingMock] = useState(false);
+  const [list, setList] = useState<ConcoursHub[]>(() => _concoursListCache?.list ?? []);
+  const [isLoading, setIsLoading] = useState(() => _concoursListCache === null);
+  const [usingMock, setUsingMock] = useState(() => _concoursListCache?.usingMock ?? false);
 
   const load = useCallback(async () => {
-    setIsLoading(true);
+    // Cache encore frais → on garde, pas de round-trip ni de spinner.
+    if (_concoursListCache && Date.now() - _concoursListAt < CONCOURS_LIST_TTL) {
+      setList(_concoursListCache.list);
+      setUsingMock(_concoursListCache.usingMock);
+      setIsLoading(false);
+      return;
+    }
+    // Spinner uniquement si on n'a vraiment rien à montrer.
+    setIsLoading(_concoursListCache === null);
     // select('*') : ramène followers_count si 075 appliquée, sinon colonne absente
     // → rowToHub applique `?? 0`. Évite l'erreur "column does not exist".
     // PR2-B : découverte = flux PUBLIC → on ne remonte QUE les concours publiés.
@@ -169,19 +184,25 @@ export function useConcoursList() {
         // 074 non appliquée → shim mock pour visualisation locale.
         setList(MOCK_HUBS);
         setUsingMock(true);
-      } else {
+        _concoursListCache = { list: MOCK_HUBS, usingMock: true };
+        _concoursListAt = Date.now();
+      } else if (_concoursListCache === null) {
         setList([]);
       }
+      // erreur transitoire avec un cache existant → on garde l'ancien.
     } else {
       const rows = (data as ConcoursRow[]).map(rowToHub);
       // Table vide en dev → on montre quand même le mock pour démo.
       if (__DEV__ && rows.length === 0) {
         setList(MOCK_HUBS);
         setUsingMock(true);
+        _concoursListCache = { list: MOCK_HUBS, usingMock: true };
       } else {
         setList(rows);
         setUsingMock(false);
+        _concoursListCache = { list: rows, usingMock: false };
       }
+      _concoursListAt = Date.now();
     }
     setIsLoading(false);
   }, []);
