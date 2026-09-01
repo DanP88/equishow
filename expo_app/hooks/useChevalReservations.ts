@@ -8,6 +8,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import { useCallback, useEffect, useState } from 'react';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { supabase } from '../lib/supabase';
 
 export type CModuleKey = 'box' | 'transport' | 'coach' | 'stage';
@@ -44,6 +45,54 @@ const PRICE_COL: Record<CModuleKey, { table: string; col: string }> = {
 
 const today = () => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; };
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Cache du récap concours (module + AsyncStorage).
+//
+// Objectif : l'accueil doit réafficher IMMÉDIATEMENT le dernier récap connu
+// (donc la bonne carte : « prochain concours » détaillé OU « on s'occupe de
+// tout »), sans skeleton ni flash, puis le rafraîchir silencieusement.
+//
+//  - `_ccMem` : survit à la navigation entre onglets (le hook se démonte/remonte).
+//  - AsyncStorage : survit à un cold start ; hydraté une fois au chargement du
+//    module (best-effort). Clé = liste TRIÉE des ids de chevaux.
+// ─────────────────────────────────────────────────────────────────────────────
+const _ccMem = new Map<string, ChevalConcours[]>();
+// Un seul blob { [memKey]: ChevalConcours[] } — évite l'énumération de clés.
+const CC_STORE_KEY = 'cc_snapshot_v1';
+const CC_MAX_ENTRIES = 6;
+let _ccHydrated = false;
+
+const ccKey = (idsKey: string) =>
+  idsKey.split(',').filter(Boolean).sort().join(',');
+
+async function hydrateCcCache(): Promise<void> {
+  if (_ccHydrated) return;
+  _ccHydrated = true;
+  try {
+    const raw = await AsyncStorage.getItem(CC_STORE_KEY);
+    if (!raw) return;
+    const blob = JSON.parse(raw) as Record<string, ChevalConcours[]>;
+    for (const [k, v] of Object.entries(blob)) {
+      if (Array.isArray(v)) _ccMem.set(k, v);
+    }
+  } catch { /* stockage indisponible : on continue sans cache persistant */ }
+}
+hydrateCcCache();
+
+function persistCc(memKey: string, items: ChevalConcours[]): void {
+  _ccMem.delete(memKey); // re-set en fin de Map → ordre LRU pour l'éviction
+  _ccMem.set(memKey, items);
+  // Borne la taille : on ne garde que les dernières clés utilisées.
+  while (_ccMem.size > CC_MAX_ENTRIES) {
+    const oldest = _ccMem.keys().next().value;
+    if (oldest === undefined) break;
+    _ccMem.delete(oldest);
+  }
+  const blob: Record<string, ChevalConcours[]> = {};
+  for (const [k, v] of _ccMem) blob[k] = v;
+  AsyncStorage.setItem(CC_STORE_KEY, JSON.stringify(blob)).catch(() => { /* ignore */ });
+}
+
 const MODULE_META: Record<CModuleKey, { icon: string; label: string }> = {
   box: { icon: '📦', label: 'Box' },
   transport: { icon: '🚐', label: 'Transport' },
@@ -65,20 +114,27 @@ const firstConcours = (annonce: any): { id: string | null; nom: string | null; d
 // l'ensemble des chevaux). On agrège alors les réservations de tous les chevaux,
 // regroupées par concours.
 export function useChevalConcours(chevalId?: string | string[]) {
-  const [items, setItems] = useState<ChevalConcours[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  // Clé stable pour les deps (un tableau change d'identité à chaque rendu).
+  const idsKey = (Array.isArray(chevalId) ? chevalId : chevalId ? [chevalId] : []).join(',');
+  const memKey = ccKey(idsKey);
+
+  // État initial = dernier récap connu (cache module, sinon cache persistant
+  // déjà hydraté). Sur navigation entre onglets, `hero` est donc CORRECT dès le
+  // 1er render → aucune carte provisoire, aucun skeleton, aucun flash.
+  const [items, setItems] = useState<ChevalConcours[]>(() => _ccMem.get(memKey) ?? []);
+  const [isLoading, setIsLoading] = useState(() => !_ccMem.has(memKey));
   // Clé effectivement chargée : permet de savoir SYNCHRONEMENT (sans attendre
   // l'effet async) qu'un rechargement est dû quand la liste de chevaux change
   // (évite le flash « état vide » pendant que les chevaux arrivent).
   const [loadedKey, setLoadedKey] = useState<string | null>(null);
 
-  // Clé stable pour les deps (un tableau change d'identité à chaque rendu).
-  const idsKey = (Array.isArray(chevalId) ? chevalId : chevalId ? [chevalId] : []).join(',');
-
   const load = useCallback(async () => {
     const chevalIds = idsKey ? idsKey.split(',') : [];
     if (chevalIds.length === 0) { setItems([]); setIsLoading(false); setLoadedKey(idsKey); return; }
-    setIsLoading(true);
+    // Affiche le dernier état connu tout de suite ; revalidation en tâche de fond.
+    const cached = _ccMem.get(memKey);
+    if (cached) setItems(cached);
+    setIsLoading(!cached);
 
     type Raw = { resaKey: string; concoursId: string | null; concoursNom: string | null; dateFin: string | null; lieu: string | null; departement: string | null; reserved: ReservedItem };
     const raws: Raw[] = [];
@@ -179,11 +235,26 @@ export function useChevalConcours(chevalId?: string | string[]) {
     });
 
     setItems(out);
+    persistCc(memKey, out);
     setIsLoading(false);
     setLoadedKey(idsKey);
-  }, [idsKey]);
+  }, [idsKey, memKey]);
 
   useEffect(() => { load(); }, [load]);
-  // `isLoading` sans "trou" : vrai tant que la clé courante n'a pas été chargée.
-  return { items, isLoading: isLoading || loadedKey !== idsKey, reload: load };
+
+  // Cold start : `idsKey` passe de '' à 'id1,id2' APRÈS le 1er render, donc
+  // l'initialiseur de `useState` n'a pas pu lire le cache de la bonne clé.
+  // Dès que la liste de chevaux est connue, on ré-ensemence depuis le snapshot
+  // (le `load()` en cours écrasera avec des données fraîches juste après).
+  useEffect(() => {
+    if (loadedKey === idsKey) return;
+    const cached = _ccMem.get(memKey);
+    if (cached) { setItems(cached); setIsLoading(false); }
+  }, [memKey, idsKey, loadedKey]);
+
+  // `isLoading` : on ne signale un chargement que si AUCUN snapshot n'est
+  // disponible pour la clé courante (sinon on affiche le cache et on revalide
+  // en silence → pas de skeleton).
+  const loading = (isLoading || loadedKey !== idsKey) && !_ccMem.has(memKey);
+  return { items, isLoading: loading, reload: load };
 }

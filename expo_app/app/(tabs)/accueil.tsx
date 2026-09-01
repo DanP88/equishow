@@ -71,6 +71,15 @@ function jLabel(days: number | null): string {
   if (days === 0) return "Aujourd'hui"; if (days < 0) return 'En cours';
   return `J-${days}`;
 }
+// « Passé ? » recalculé depuis la date au moment du rendu — robuste si le récap
+// vient d'un cache local créé un autre jour (le flag `past` figé pourrait mentir).
+function isConcoursPast(i: { dateFin: string | null; past?: boolean }): boolean {
+  if (i.dateFin) {
+    const d = new Date(`${i.dateFin}T00:00:00`);
+    if (!isNaN(+d)) { const t = new Date(); t.setHours(0, 0, 0, 0); return d < t; }
+  }
+  return !!i.past;
+}
 function formatHeroDate(dateStr: string): string {
   const d = new Date(`${dateStr}T00:00:00`);
   if (isNaN(+d)) return '';
@@ -148,12 +157,11 @@ function Cavalier() {
   const toPay = seed ? MOCK_ACCUEIL.resa.filter((r) => r.needsPayment) : rs.toPay;
   const heldCount = seed ? MOCK_ACCUEIL.heldCount : heldCountReal;
 
-  const upcoming = useMemo(() => concoursItems.filter((i) => !i.past && i.concoursNom), [concoursItems]);
+  const upcoming = useMemo(
+    () => concoursItems.filter((i) => i.concoursNom && !isConcoursPast(i)),
+    [concoursItems],
+  );
   const hero = upcoming[0];
-  // Tant que le récap concours n'est pas chargé, on n'affiche PAS l'état vide
-  // « On s'occupe de tout » (évite le flash d'1 s avant que le prochain concours
-  // n'apparaisse). En mode seed (__DEV__), pas de chargement.
-  const heroLoading = !seed && cc.isLoading && !hero;
   const heroPrep = useMemo(() => {
     if (!hero) return { pct: 0, reserved: new Set<CModuleKey>() };
     const reserved = new Set<CModuleKey>(hero.reserved.map((r) => r.module));
@@ -253,16 +261,6 @@ function Cavalier() {
             )}
           </LinearGradient>
         </TouchableOpacity>
-      ) : heroLoading ? (
-        // Chargement du récap concours : squelette neutre (pas l'état vide).
-        <View style={[s.heroWrap, Shadow.card]}>
-          <LinearGradient colors={['#FB923C', '#EA580C']} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={s.hero}>
-            <Text style={s.heroKick}>PROCHAIN CONCOURS</Text>
-            <View style={s.heroSkelLine} />
-            <View style={[s.heroSkelLine, { width: '55%', height: 12, marginTop: 8 }]} />
-            <View style={[s.heroSkelLine, { width: '80%', height: 44, marginTop: 20, borderRadius: 12 }]} />
-          </LinearGradient>
-        </View>
       ) : (
         // État vide (aucun concours suivi) — V1 « Trio rassurant » : promesse
         // rendue tangible (les 3 services) + CTA unique + réassurance escrow.
@@ -695,7 +693,6 @@ const s = StyleSheet.create({
   hero: { padding: Spacing.xl },
   heroTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   heroKick: { color: 'rgba(255,255,255,0.85)', fontSize: 10, fontWeight: FontWeight.extrabold, letterSpacing: 1.5 },
-  heroSkelLine: { backgroundColor: 'rgba(255,255,255,0.28)', height: 22, borderRadius: 6, marginTop: 12, width: '70%' },
   heroJ: { backgroundColor: 'rgba(255,255,255,0.22)', borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   heroJTxt: { color: '#FFF', fontSize: FontSize.sm, fontWeight: FontWeight.bold },
   heroName: { color: '#FFF', fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, marginTop: 10 },
