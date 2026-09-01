@@ -6,6 +6,7 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 import { userStore, getFollowers, getFollowing } from '../../data/store';
 import { useAvisStats } from '../../hooks/useAvis';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
+import { RegionField } from '../../components/RegionField';
 import { AvisSection } from '../../components/AvisSection';
 import { FollowListModal } from '../../components/FollowListModal';
 import { useAuth } from '../../hooks/useAuth';
@@ -247,7 +248,7 @@ export default function ProfilCoachScreen() {
               <Field label="Prénom" value={draft.prenom} onChangeText={(v) => setDraft({ ...draft, prenom: v })} />
               <Field label="Nom" value={draft.nom} onChangeText={(v) => setDraft({ ...draft, nom: v })} />
               <Field label="Email" value={draft.email} onChangeText={(v) => setDraft({ ...draft, email: v })} />
-              <Field label="Région" value={draft.region} onChangeText={(v) => setDraft({ ...draft, region: v })} />
+              <RegionField value={draft.region} onChangeText={(v) => setDraft({ ...draft, region: v })} />
               <Field label="Disciplines" value={draft.disciplines.join(', ')} onChangeText={(v) => setDraft({ ...draft, disciplines: v.split(',').map(d => d.trim()) })} placeholder="ex: CSO, Dressage" />
             </ScrollView>
             <View style={styles.editActions}>

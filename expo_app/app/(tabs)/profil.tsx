@@ -10,6 +10,7 @@ import { userStore, getFollowers, getFollowing } from '../../data/store';
 import { useAvisStats } from '../../hooks/useAvis';
 import { useMyChevauxCount } from '../../hooks/useChevaux';
 import { FollowListModal } from '../../components/FollowListModal';
+import { RegionField } from '../../components/RegionField';
 import { PhotoAvatar } from '../../components/PhotoAvatar';
 import { AvisSection } from '../../components/AvisSection';
 import { TEST_ACCOUNTS } from '../../data/mockUsers';
@@ -225,7 +226,7 @@ export default function ProfilScreen() {
                 placeholder="ex: SarahL_CSO"
               />
               <Field label="Email" value={draft.email} onChangeText={(v) => setDraft({ ...draft, email: v })} />
-              <Field label="Région" value={draft.region} onChangeText={(v) => setDraft({ ...draft, region: v })} />
+              <RegionField value={draft.region} onChangeText={(v) => setDraft({ ...draft, region: v })} />
               <Field
                 label="Bio"
                 value={draft.bio}
