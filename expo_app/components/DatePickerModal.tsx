@@ -30,8 +30,17 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
     return true;
   };
 
+  // Robuste : `value` peut arriver en string/number (dates issues du JSON
+  // Supabase). On coerce en `Date` valide, sinon on l'ignore — sans quoi
+  // `initRaw.getDate()` plus bas lève « undefined is not a function ».
+  const safeValue: Date | undefined = (() => {
+    if (value == null) return undefined;
+    const d = value instanceof Date ? value : new Date(value as unknown as string);
+    return Number.isNaN(d.getTime()) ? undefined : d;
+  })();
+
   // Init : si value fournie et dans la plage, l'utiliser. Sinon clamp à minDate (ou today).
-  const initRaw = value ?? minDate ?? new Date();
+  const initRaw = safeValue ?? minDate ?? new Date();
   const init = inRange(initRaw) ? initRaw : (minDate ?? initRaw);
   const [day, setDay] = useState(init.getDate());
   const [month, setMonth] = useState(init.getMonth() + 1);

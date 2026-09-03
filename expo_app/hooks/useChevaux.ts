@@ -2,6 +2,7 @@ import { useEffect, useId, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabase';
 import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
+import { reviveSanteDates } from '../lib/santeDates';
 import {
   Cheval,
   TypeCheval,
@@ -72,7 +73,9 @@ function rowToCheval(r: ChevalRow): Cheval {
     niveauTravail: (r.niveau_travail ?? undefined) as NiveauTravail | undefined,
     frequenceTravail: (r.frequence_travail ?? undefined) as FrequenceTravail | undefined,
     objectifs: r.objectifs ?? undefined,
-    sante: r.sante ?? {},
+    // JSONB → dates relues en string ISO : on les reconstruit en `Date` pour
+    // respecter le type `SuiviSante` (sinon crash côté DatePickerModal).
+    sante: reviveSanteDates(r.sante),
     gestion: r.gestion ?? {},
     concours: r.concours ?? [],
   };
