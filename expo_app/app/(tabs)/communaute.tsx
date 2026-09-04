@@ -12,6 +12,9 @@ import { getUserById } from '../../data/mockUsers';
 import { ConcoursCSV } from '../../types/concours';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { useCommunautePosts } from '../../hooks/useCommunautePosts';
+import { useAuth } from '../../hooks/useAuth';
+import { NewPostModal } from '../../components/NewPostModal';
+import { PostImages } from '../../components/PostImages';
 import { useConcoursList, ConcoursHub } from '../../hooks/useConcours';
 import { useConcoursDiscussionsFeed } from '../../hooks/useConcoursDiscussion';
 import { useUnreadMessagesCount, useConversations } from '../../hooks/useMessaging';
@@ -76,7 +79,7 @@ export default function CommunauteScreen() {
   const { posts, createPost, toggleLike: hookToggleLike, addComment: hookAddComment, toggleCommentLike: hookToggleCommentLike } = useCommunautePosts('community');
   const [mainTab, setMainTab] = useState<MainTab>('communaute');
   const [showNew, setShowNew] = useState(false);
-  const [newText, setNewText] = useState('');
+  const { profile } = useAuth();
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
   const { concours: dbConcours, reload: reloadConcours } = useConcoursList();
@@ -115,18 +118,6 @@ export default function CommunauteScreen() {
     }
   }
 
-  async function handlePost() {
-    if (!newText.trim()) return;
-    const { error } = await createPost(newText.trim());
-    if (error) {
-      const msg = `Erreur publication : ${error}`;
-      if (typeof window !== 'undefined' && typeof window.alert === 'function') window.alert(msg);
-      else Alert.alert('Erreur publication', error);
-      return;
-    }
-    setNewText('');
-    setShowNew(false);
-  }
 
   async function addComment(postId: string) {
     if (!commentText.trim()) return;
@@ -606,7 +597,8 @@ export default function CommunauteScreen() {
                   <Text style={styles.date}>{timeAgo(post.date)}</Text>
                 </View>
               </View>
-              <Text style={styles.contenu}>{post.contenu}</Text>
+              {!!post.contenu && <Text style={styles.contenu}>{post.contenu}</Text>}
+              <PostImages paths={post.imageUrls} />
               <View style={styles.actions}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => toggleLike(post.id)}>
                   <Text style={[styles.actionIcon, liked && { color: Colors.urgent }]}>
@@ -634,32 +626,15 @@ export default function CommunauteScreen() {
         </TouchableOpacity>
       )}
 
-      {/* Modal nouveau post */}
-      <Modal visible={showNew} transparent animationType="fade">
-        <View style={styles.overlay}>
-          <View style={styles.newPostModal}>
-            <Text style={styles.modalTitle}>Nouveau post</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={newText}
-              onChangeText={setNewText}
-              placeholder="Partagez quelque chose..."
-              placeholderTextColor={Colors.textTertiary}
-              multiline
-              numberOfLines={4}
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowNew(false)}>
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={handlePost}>
-                <Text style={styles.modalConfirmText}>Publier</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      {/* Modal nouveau post (partagé — texte + 0 à 10 photos) */}
+      <NewPostModal
+        visible={showNew}
+        onClose={() => setShowNew(false)}
+        title="Nouveau post"
+        placeholder="Partagez quelque chose..."
+        userId={profile?.id}
+        createPost={createPost}
+      />
 
       {/* Modal commentaires */}
       <Modal visible={!!openComments} transparent animationType="slide">

@@ -178,6 +178,7 @@ export interface CommunautePost {
   initiales: string;
   couleur: string;
   contenu: string;
+  imageUrls: string[]; // 108 — chemins Storage (bucket community-photos), 0 à 10, ordre d'affichage
   date: Date;
   likes: number;
   likedBy: string[]; // userIds qui ont aimé

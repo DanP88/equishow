@@ -10,6 +10,9 @@ import { userStore } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
 import { useCommunautePosts } from '../../hooks/useCommunautePosts';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
+import { useAuth } from '../../hooks/useAuth';
+import { NewPostModal } from '../../components/NewPostModal';
+import { PostImages } from '../../components/PostImages';
 
 function timeAgo(date: Date): string {
   const diff = Date.now() - date.getTime();
@@ -27,7 +30,7 @@ export default function CommunauteOrgScreen() {
   useScreenTracking('communaute-org');
   const { posts, createPost, toggleLike: hookToggleLike, addComment: hookAddComment, toggleCommentLike: hookToggleCommentLike } = useCommunautePosts('organisateur');
   const [showNew, setShowNew] = useState(false);
-  const [newText, setNewText] = useState('');
+  const { profile } = useAuth();
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
@@ -47,12 +50,6 @@ export default function CommunauteOrgScreen() {
     }
   }
 
-  async function handlePost() {
-    if (!newText.trim()) return;
-    await createPost(newText.trim());
-    setNewText('');
-    setShowNew(false);
-  }
 
   async function addComment(postId: string) {
     if (!commentText.trim()) return;
@@ -105,7 +102,8 @@ export default function CommunauteOrgScreen() {
                   <Text style={styles.date}>{timeAgo(post.date)}</Text>
                 </View>
               </TouchableOpacity>
-              <Text style={styles.contenu}>{post.contenu}</Text>
+              {!!post.contenu && <Text style={styles.contenu}>{post.contenu}</Text>}
+              <PostImages paths={post.imageUrls} />
               <View style={styles.actions}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => toggleLike(post.id)}>
                   <Text style={[styles.actionIcon, liked && { color: Colors.urgent }]}>
@@ -128,31 +126,14 @@ export default function CommunauteOrgScreen() {
         <Text style={styles.fabText}>+ Publier</Text>
       </TouchableOpacity>
 
-      <Modal visible={showNew} transparent animationType="fade">
-        <View style={styles.overlay}>
-          <View style={styles.newPostModal}>
-            <Text style={styles.modalTitle}>Nouveau post (Organisateurs)</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={newText}
-              onChangeText={setNewText}
-              placeholder="Partagez quelque chose entre organisateurs..."
-              placeholderTextColor={Colors.textTertiary}
-              multiline
-              numberOfLines={4}
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowNew(false)}>
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={handlePost}>
-                <Text style={styles.modalConfirmText}>Publier</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <NewPostModal
+        visible={showNew}
+        onClose={() => setShowNew(false)}
+        title="Nouveau post (Organisateurs)"
+        placeholder="Partagez quelque chose entre organisateurs..."
+        userId={profile?.id}
+        createPost={createPost}
+      />
 
       <Modal visible={!!openComments} transparent animationType="slide">
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>

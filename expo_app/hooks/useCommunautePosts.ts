@@ -16,6 +16,7 @@ import { supabase } from '../lib/supabase';
 import { useAutoRefresh } from './useAutoRefresh';
 import { useAuth } from './useAuth';
 import { CommunautePost, CommunauteComment } from '../data/store';
+import { cleanupPostPhotos } from '../lib/communityPhotos';
 
 export type PostScope = 'community' | 'coach' | 'organisateur';
 
@@ -26,6 +27,7 @@ interface PostRow {
   auteur_initiales: string | null;
   auteur_couleur: string | null;
   contenu: string;
+  image_urls: string[] | null;
   liked_by: string[];
   created_at: string;
   updated_at: string;
@@ -52,6 +54,7 @@ function rowToPost(r: PostRow, comments: CommunauteComment[] = []): CommunautePo
     initiales: r.auteur_initiales ?? '',
     couleur: r.auteur_couleur ?? '#7C3AED',
     contenu: r.contenu,
+    imageUrls: r.image_urls ?? [],
     date: new Date(r.created_at),
     likes: (r.liked_by ?? []).length,
     likedBy: r.liked_by ?? [],
@@ -131,7 +134,10 @@ export function useCommunautePosts(scope: PostScope) {
     return () => { supabase.removeChannel(channel); };
   }, [postsTable, commentsTable, load, channelId]);
 
-  const createPost = useCallback(async (contenu: string): Promise<{ data: CommunautePost | null; error: string | null }> => {
+  const createPost = useCallback(async (
+    contenu: string,
+    imagePaths: string[] = [],
+  ): Promise<{ data: CommunautePost | null; error: string | null }> => {
     if (!profile?.id) return { data: null, error: 'Non authentifié' };
     const auteur_nom = `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim();
     const auteur_initiales = `${((profile as any).prenom?.[0] ?? '').toUpperCase()}${((profile as any).nom?.[0] ?? '').toUpperCase()}`;
@@ -144,12 +150,15 @@ export function useCommunautePosts(scope: PostScope) {
         auteur_initiales,
         auteur_couleur,
         contenu,
+        image_urls: imagePaths,
         liked_by: [],
       })
       .select('*')
       .single();
     if (error || !data) {
       console.error(`[useCommunautePosts] INSERT ${postsTable} error:`, error);
+      // Post non créé → on nettoie les images déjà uploadées (pas d'orphelins).
+      if (imagePaths.length) await cleanupPostPhotos(imagePaths);
       return { data: null, error: error?.message ?? 'Erreur création' };
     }
     const created = rowToPost(data as PostRow);
@@ -159,9 +168,16 @@ export function useCommunautePosts(scope: PostScope) {
 
   const deletePost = useCallback(async (id: string): Promise<{ error: string | null }> => {
     let snapshot: CommunautePost[] = [];
-    setPosts((curr) => { snapshot = curr; return curr.filter((p) => p.id !== id); });
+    let removedImages: string[] = [];
+    setPosts((curr) => {
+      snapshot = curr;
+      removedImages = curr.find((p) => p.id === id)?.imageUrls ?? [];
+      return curr.filter((p) => p.id !== id);
+    });
     const { error } = await supabase.from(postsTable).delete().eq('id', id);
     if (error) { setPosts(snapshot); return { error: error.message }; }
+    // Post supprimé → nettoyage des photos (best-effort, ne bloque pas).
+    if (removedImages.length) await cleanupPostPhotos(removedImages);
     return { error: null };
   }, [postsTable]);
 

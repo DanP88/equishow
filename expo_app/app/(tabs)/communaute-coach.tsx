@@ -9,6 +9,9 @@ import { Spacing, Radius, FontSize, FontWeight, CommonStyles, Shadow } from '../
 import { userStore } from '../../data/store';
 import { createNotification } from '../../hooks/useNotifications';
 import { useCommunautePosts } from '../../hooks/useCommunautePosts';
+import { useAuth } from '../../hooks/useAuth';
+import { NewPostModal } from '../../components/NewPostModal';
+import { PostImages } from '../../components/PostImages';
 import { useScreenTracking } from '../../hooks/useScreenTracking';
 
 function timeAgo(date: Date): string {
@@ -27,7 +30,7 @@ export default function CommunauteCoachScreen() {
   useScreenTracking('communaute-coach');
   const { posts, createPost, toggleLike: hookToggleLike, addComment: hookAddComment, toggleCommentLike: hookToggleCommentLike } = useCommunautePosts('coach');
   const [showNew, setShowNew] = useState(false);
-  const [newText, setNewText] = useState('');
+  const { profile } = useAuth();
   const [openComments, setOpenComments] = useState<string | null>(null);
   const [commentText, setCommentText] = useState('');
 
@@ -47,12 +50,6 @@ export default function CommunauteCoachScreen() {
     }
   }
 
-  async function handlePost() {
-    if (!newText.trim()) return;
-    await createPost(newText.trim());
-    setNewText('');
-    setShowNew(false);
-  }
 
   async function addComment(postId: string) {
     if (!commentText.trim()) return;
@@ -105,7 +102,8 @@ export default function CommunauteCoachScreen() {
                   <Text style={styles.date}>{timeAgo(post.date)}</Text>
                 </View>
               </TouchableOpacity>
-              <Text style={styles.contenu}>{post.contenu}</Text>
+              {!!post.contenu && <Text style={styles.contenu}>{post.contenu}</Text>}
+              <PostImages paths={post.imageUrls} />
               <View style={styles.actions}>
                 <TouchableOpacity style={styles.actionBtn} onPress={() => toggleLike(post.id)}>
                   <Text style={[styles.actionIcon, liked && { color: Colors.urgent }]}>
@@ -128,31 +126,14 @@ export default function CommunauteCoachScreen() {
         <Text style={styles.fabText}>+ Publier</Text>
       </TouchableOpacity>
 
-      <Modal visible={showNew} transparent animationType="fade">
-        <View style={styles.overlay}>
-          <View style={styles.newPostModal}>
-            <Text style={styles.modalTitle}>Nouveau post (Coachs)</Text>
-            <TextInput
-              style={styles.modalInput}
-              value={newText}
-              onChangeText={setNewText}
-              placeholder="Partagez quelque chose entre coachs..."
-              placeholderTextColor={Colors.textTertiary}
-              multiline
-              numberOfLines={4}
-              autoFocus
-            />
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.modalCancel} onPress={() => setShowNew(false)}>
-                <Text style={styles.modalCancelText}>Annuler</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.modalConfirm} onPress={handlePost}>
-                <Text style={styles.modalConfirmText}>Publier</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <NewPostModal
+        visible={showNew}
+        onClose={() => setShowNew(false)}
+        title="Nouveau post (Coachs)"
+        placeholder="Partagez quelque chose entre coachs..."
+        userId={profile?.id}
+        createPost={createPost}
+      />
 
       <Modal visible={!!openComments} transparent animationType="slide">
         <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : undefined}>
