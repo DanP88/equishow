@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView,
   Modal, TextInput, Alert,
@@ -69,6 +69,30 @@ const DEFAULT_FC: FiltersCoach = { sort: 'note_desc', concours: '', concoursId: 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
 function unique(arr: string[]) { return [...new Set(arr.filter(Boolean))]; }
+
+// L'import CSV FFE a construit `concours.nom` = « CLUB — <type> — <numéro FFE> ».
+// Quand la colonne « type » était vide côté source, pandas l'a sérialisée en NaN
+// → la string littérale « nan » s'est retrouvée dans le nom (et dans
+// `type_concours`). Purement cosmétique : on retire ce segment à l'affichage,
+// sans toucher aux données ni au numéro FFE.
+function cleanConcoursNom(nom: string | null | undefined): string {
+  if (!nom) return '';
+  return nom
+    .split(' — ')
+    .filter((seg) => seg.trim().toLowerCase() !== 'nan')
+    .join(' — ');
+}
+
+// Un concours est « à venir » tant qu'il n'est pas terminé : date_fin >=
+// aujourd'hui, ou à défaut date_debut >= aujourd'hui. Comparaison en minuit
+// LOCAL des deux côtés (le `T00:00:00` sans « Z » force l'heure locale) → pas
+// de décalage UTC. Un concours qui se termine aujourd'hui reste visible.
+function isConcoursUpcoming(c: { date_debut: string | null; date_fin: string | null }, todayLocalMidnightMs: number): boolean {
+  const d = c.date_fin ?? c.date_debut;
+  if (!d) return true; // date inconnue → on ne masque pas
+  const t = new Date(`${d}T00:00:00`).getTime();
+  return Number.isNaN(t) ? true : t >= todayLocalMidnightMs;
+}
 
 function applyTransportFilters(list: TransportAnnonce[], f: FiltersTransport) {
   let out = [...list];
@@ -157,6 +181,13 @@ export default function ServicesScreen() {
   // pour rattacher une annonce à un concours réel (concours_id FK valide) + ouvrir
   // la fiche concours DB (épreuves importées). Filtré « à venir » côté rendu.
   const { concours: dbConcours } = useConcoursList();
+  // Section « VOS CONCOURS À VENIR » (mode « Par concours ») : la liste DB
+  // contient TOUS les concours publiés (passés inclus). On ne garde que ceux
+  // qui ne sont pas terminés. `dbConcours` reste inchangé pour le reste.
+  const upcomingConcours = useMemo(() => {
+    const todayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+    return (dbConcours ?? []).filter((c) => isConcoursUpcoming(c, todayMs));
+  }, [dbConcours]);
 
   const [filtersT, setFiltersT] = useState<FiltersTransport>(DEFAULT_FT);
   const [filtersB, setFiltersB] = useState<FiltersBox>(DEFAULT_FB);
@@ -332,7 +363,7 @@ export default function ServicesScreen() {
           </TouchableOpacity>
 
           <Text style={s.concoursListLbl}>VOS CONCOURS À VENIR</Text>
-          {dbConcours.length === 0 ? (
+          {upcomingConcours.length === 0 ? (
             <View style={s.concoursEmpty}>
               <Text style={s.concoursEmptyIcon}>🏆</Text>
               <Text style={s.concoursEmptyTxt}>Aucun concours pour le moment.</Text>
@@ -340,7 +371,7 @@ export default function ServicesScreen() {
             </View>
           ) : (
             <>
-              {dbConcours.map((c) => (
+              {upcomingConcours.map((c) => (
                 <TouchableOpacity
                   key={c.id}
                   activeOpacity={0.85}
@@ -357,7 +388,7 @@ export default function ServicesScreen() {
                 >
                   <View style={s.concoursBar} />
                   <View style={{ flex: 1 }}>
-                    <Text style={s.concoursRowName}>🏆 {c.nom}</Text>
+                    <Text style={s.concoursRowName}>🏆 {cleanConcoursNom(c.nom)}</Text>
                     <Text style={s.concoursMeta}>
                       {c.dateLabel}{c.departement ? ` · ${c.departement}` : ''}{c.lieu ? ` · ${c.lieu}` : ''}
                     </Text>
@@ -469,11 +500,11 @@ export default function ServicesScreen() {
                               activeOpacity={0.7}
                               onPress={() => router.push(`/concours/${concours.id}` as any)}
                             >
-                              <Text style={s.concoursName}>{concours.nom}</Text>
+                              <Text style={s.concoursName}>{cleanConcoursNom(concours.nom)}</Text>
                               <Text style={s.concoursDate}>
                                 📅 {concours.dateLabel}{concours.lieu ? ` · ${concours.lieu}` : ''}
                               </Text>
-                              {!!concours.type_concours && (
+                              {!!concours.type_concours && concours.type_concours.trim().toLowerCase() !== 'nan' && (
                                 <Text style={s.concoursDetail}>🎯 {concours.type_concours}</Text>
                               )}
                               {nbEpreuves > 0 && (
