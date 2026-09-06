@@ -1,10 +1,11 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// /v2-dev — POINT D'ENTRÉE DEV de la V2 (LOT F1).
+// /v2-dev — POINT D'ENTRÉE DEV de la V2 (LOT F1 + complément parcours d'entrée).
 //
 // Route ADDITIVE : ne modifie aucun écran V1. Accessible uniquement en __DEV__
 // (sinon redirige vers l'accueil). Sert à visualiser/tester :
+//   - le parcours d'entrée V2 (bienvenue / se connecter / créer un compte) ;
 //   - le panneau Capacités (7 combinaisons) ;
-//   - le nouvel onboarding omni-activités.
+//   - l'onboarding omni-activités (utilisateur déjà connecté).
 //
 // Naviguer vers cette page : ouvrir l'URL /v2-dev (web) ou `router.push('/v2-dev')`.
 // ─────────────────────────────────────────────────────────────────────────────
@@ -15,15 +16,19 @@ import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../constants/theme';
 import { DevCapabilitiesPanel } from '../v2/screens/DevCapabilitiesPanel';
 import { OnboardingV2 } from '../v2/screens/OnboardingV2';
+import { V2EntryFlow } from '../v2/screens/V2EntryFlow';
 import { useCapabilities, CAPABILITY_LABEL } from '../v2/capabilities';
+import { useV2Session } from '../v2/auth';
 
-type DevView = 'menu' | 'panel' | 'onboarding';
+type DevView = 'menu' | 'entry' | 'panel' | 'onboarding';
 
 export default function V2DevScreen() {
   if (!__DEV__) return <Redirect href={'/(tabs)/accueil' as any} />;
   const [view, setView] = useState<DevView>('menu');
   const c = useCapabilities();
+  const session = useV2Session();
 
+  if (view === 'entry') return <Back onBack={() => setView('menu')}><V2EntryFlow onExit={() => setView('menu')} /></Back>;
   if (view === 'panel') return <Back onBack={() => setView('menu')}><DevCapabilitiesPanel /></Back>;
   if (view === 'onboarding') return <Back onBack={() => setView('menu')}><OnboardingV2 onDone={() => setView('menu')} /></Back>;
 
@@ -35,13 +40,25 @@ export default function V2DevScreen() {
 
         <View style={s.summary}>
           <Text style={s.summaryLine}>
+            Session : <Text style={s.b}>{session.kind === 'real' ? 'compte réel connecté' : session.kind === 'simulated' ? 'compte simulé' : 'aucune'}</Text>
+            {session.identity?.email ? `  ·  ${session.identity.email}` : ''}
+          </Text>
+          <Text style={s.summaryLine}>
             Capacités actives : <Text style={s.b}>{c.capabilities.map((x) => CAPABILITY_LABEL[x]).join(' · ') || '—'}</Text>
           </Text>
           <Text style={s.summaryLine}>
-            Source : <Text style={s.b}>{c.source}</Text>   ·   Vrai rôle : <Text style={s.b}>{c.realRole}</Text>
+            Source capacités : <Text style={s.b}>{c.source}</Text>   ·   Vrai rôle : <Text style={s.b}>{c.realRole}</Text>
           </Text>
           {c.isPending('organisateur') && <Text style={[s.summaryLine, { color: Colors.warning }]}>Organisateur : en attente de validation</Text>}
+          {session.kind === 'simulated' && (
+            <TouchableOpacity onPress={session.signOut}><Text style={s.signout}>Se déconnecter (simulé)</Text></TouchableOpacity>
+          )}
         </View>
+
+        <TouchableOpacity style={s.card} onPress={() => setView('entry')} activeOpacity={0.85}>
+          <Text style={s.cardTitle}>🆕  Parcours nouvel utilisateur</Text>
+          <Text style={s.cardSub}>Bienvenue → Se connecter / Créer un compte → identifiants → activités → infos complémentaires → compte créé & connecté (tout simulé).</Text>
+        </TouchableOpacity>
 
         <TouchableOpacity style={s.card} onPress={() => setView('panel')} activeOpacity={0.85}>
           <Text style={s.cardTitle}>🎛  Panneau Capacités</Text>
@@ -49,7 +66,7 @@ export default function V2DevScreen() {
         </TouchableOpacity>
 
         <TouchableOpacity style={s.card} onPress={() => setView('onboarding')} activeOpacity={0.85}>
-          <Text style={s.cardTitle}>🚀  Onboarding V2</Text>
+          <Text style={s.cardTitle}>🚀  Onboarding V2 (utilisateur déjà connecté)</Text>
           <Text style={s.cardSub}>Sélection multiple Cavalier / Coach / Organisateur, étapes adaptatives, validation organisateur simulée.</Text>
         </TouchableOpacity>
 
@@ -59,7 +76,7 @@ export default function V2DevScreen() {
 
         <Text style={s.note}>
           F1 n’a modifié aucun écran V1. Le reste de l’app est inchangé
-          (V2_ENABLED = false). Aucune écriture PROD, aucun change_user_role.
+          (V2_ENABLED = false). Aucun Supabase Auth, aucun email, aucune écriture PROD.
         </Text>
       </View>
     </SafeAreaView>
@@ -85,6 +102,7 @@ const s = StyleSheet.create({
   summary: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, gap: 4 },
   summaryLine: { fontSize: FontSize.sm, color: Colors.textSecondary },
   b: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  signout: { fontSize: FontSize.sm, color: Colors.urgent, fontWeight: FontWeight.bold, marginTop: 4 },
   card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: 4 },
   cardTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   cardSub: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },

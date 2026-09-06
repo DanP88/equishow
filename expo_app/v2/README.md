@@ -54,14 +54,29 @@ v2/
   flags.ts        interrupteur unique + garde-fou anti-écriture PROD
   README.md       ce fichier
   capabilities/   F1 — useCapabilities() : Set<'cavalier'|'coach'|'organisateur'>
+  auth/           F1 — useV2Session() : session SIMULÉE (signup/login local,
+                  AUCUN Supabase Auth) fusionnée avec la vraie session useAuth
   nav/            F2 — bottom bar + navConfig + accueil omni
-  screens/        écrans V2
+  screens/        écrans V2 (OnboardingV2, V2EntryFlow, DevCapabilitiesPanel)
+  components/     composants V2 (OrganisateurPendingModal…)
   adapters/       wrappent les hooks V1 réels + fusionnent avec des mocks
   mocks/          données simulées — préfixe MOCK_ + champ __mock:true
   fixtures/       jeux de démo réalistes (concours à venir, élèves coach…)
   design/         F11 — icônes, tokens, composants pill/chip/status
-  lib/            helpers V2 (ex: calcul statut vaccination)
+  lib/            helpers V2 (persist.ts = surcouche AsyncStorage préfixe v2:)
 ```
+
+## Parcours d'entrée V2 (F1)
+
+`app/v2-dev.tsx` (route `__DEV__`) → 3 entrées :
+- **Parcours nouvel utilisateur** (`V2EntryFlow`) : Bienvenue → Se connecter /
+  Créer un compte → identifiants (prénom, nom, email, tél, mot de passe ×2) →
+  activités multi-select → infos complémentaires adaptatives → « compte créé et
+  connecté » — **100 % simulé**, session dans `v2:session` (AsyncStorage).
+- **Panneau Capacités** (`DevCapabilitiesPanel`) : 7 combinaisons + toggles.
+- **Onboarding V2** (`OnboardingV2`) : cas « déjà connecté, choix des activités ».
+
+Clés AsyncStorage V2 : `v2:capabilities`, `v2:session`, `v2:onboarding:draft`.
 
 Chaque objet simulé porte `__mock: true`. Inventaire exhaustif tenu à jour dans
 `v2/mocks/INVENTORY.md` (livré en F12).

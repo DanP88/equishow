@@ -45,7 +45,18 @@ const EMPTY_DRAFT: Draft = {
   region: '', disciplines: [], coachLevels: [], coachTarif: '', orgStructure: '',
 };
 
-export function OnboardingV2({ onDone }: { onDone?: () => void }) {
+/**
+ * `known` = informations DÉJÀ collectées en amont (ex. étape « Créer un compte »
+ * du parcours nouvel utilisateur). Les étapes correspondantes sont alors
+ * masquées → aucune info n'est redemandée.
+ */
+export interface OnboardingV2Props {
+  onDone?: () => void;
+  known?: { prenom?: string; nom?: string; telephone?: string; email?: string };
+  kicker?: string;
+}
+
+export function OnboardingV2({ onDone, known, kicker = 'Onboarding V2 · prototype' }: OnboardingV2Props) {
   const { profile } = useAuth();
   const caps = useCapabilities();
   const [d, setD] = useState<Draft>(EMPTY_DRAFT);
@@ -53,22 +64,25 @@ export function OnboardingV2({ onDone }: { onDone?: () => void }) {
   const [showOrgModal, setShowOrgModal] = useState(false);
   const [finished, setFinished] = useState(false);
 
-  // Pré-remplissage depuis le vrai profil (lecture seule) + brouillon local.
+  const identityKnown = !!(known?.prenom?.trim() && known?.nom?.trim());
+
+  // Pré-remplissage : `known` (amont) > brouillon local > vrai profil (lecture seule).
   useEffect(() => {
     void (async () => {
       const saved = await loadJSON<Draft | null>('onboarding:draft', null);
       setD({
         ...EMPTY_DRAFT,
         ...(saved ?? {}),
-        prenom: saved?.prenom || (profile as any)?.prenom || '',
-        nom: saved?.nom || (profile as any)?.nom || '',
+        prenom: known?.prenom || saved?.prenom || (profile as any)?.prenom || '',
+        nom: known?.nom || saved?.nom || (profile as any)?.nom || '',
+        telephone: known?.telephone || saved?.telephone || '',
         region: saved?.region || (profile as any)?.region || '',
         disciplines: saved?.disciplines?.length ? saved.disciplines : ((profile as any)?.disciplines ?? []),
         caps: saved?.caps?.length ? saved.caps : (caps.held.length ? caps.held : []),
       });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [profile]);
+  }, [profile, known?.prenom, known?.nom, known?.telephone]);
 
   const patch = (p: Partial<Draft>) => setD((prev) => {
     const next = { ...prev, ...p };
@@ -85,14 +99,15 @@ export function OnboardingV2({ onDone }: { onDone?: () => void }) {
   // ── Étapes adaptatives ────────────────────────────────────────────────────
   const steps = useMemo(() => {
     const s: { key: string; title: string }[] = [{ key: 'caps', title: 'Vos activités' }];
-    if (d.caps.length > 0) s.push({ key: 'identite', title: 'Vos informations' });
+    // Étape identité masquée si prénom/nom déjà collectés en amont (parcours signup).
+    if (d.caps.length > 0 && !identityKnown) s.push({ key: 'identite', title: 'Vos informations' });
     if (d.caps.includes('cavalier') || d.caps.includes('coach') || d.caps.includes('organisateur'))
       s.push({ key: 'profilCommun', title: 'Discipline & région' });
     if (d.caps.includes('coach')) s.push({ key: 'coach', title: 'Votre coaching' });
     if (d.caps.includes('organisateur')) s.push({ key: 'org', title: 'Votre structure' });
     s.push({ key: 'recap', title: 'Récapitulatif' });
     return s;
-  }, [d.caps]);
+  }, [d.caps, identityKnown]);
 
   const current = steps[Math.min(step, steps.length - 1)];
   const isLast = step >= steps.length - 1;
@@ -112,7 +127,7 @@ export function OnboardingV2({ onDone }: { onDone?: () => void }) {
   return (
     <SafeAreaView style={s.root}>
       <View style={s.header}>
-        <Text style={s.headerKicker}>Onboarding V2 · prototype</Text>
+        <Text style={s.headerKicker}>{kicker}</Text>
         <Text style={s.headerTitle}>{current.title}</Text>
         <View style={s.progress}>
           {steps.map((st, i) => (
@@ -213,6 +228,7 @@ export function OnboardingV2({ onDone }: { onDone?: () => void }) {
             <Text style={s.sub}>Vérifiez avant de terminer.</Text>
             <RecapRow label="Activités" value={d.caps.map((c) => CAPABILITY_LABEL[c]).join(' · ') || '—'} />
             <RecapRow label="Identité" value={`${d.prenom} ${d.nom}`.trim() || '—'} />
+            {known?.email ? <RecapRow label="Email" value={known.email} /> : null}
             {d.telephone ? <RecapRow label="Téléphone" value={d.telephone} /> : null}
             {(d.caps.includes('cavalier') || d.caps.includes('coach')) && <RecapRow label="Disciplines" value={d.disciplines.join(', ') || '—'} />}
             <RecapRow label="Région" value={d.region || '—'} />
