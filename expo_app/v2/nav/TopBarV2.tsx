@@ -9,16 +9,17 @@ import { Colors } from '../../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { V2_TOPBAR } from './navConfig';
 import { useV2Session } from '../auth';
-import { MOCK_ACTIONS, MOCK_CONVERSATIONS } from '../mocks/f2';
+import { useV2Notifications } from '../adapters/notifications';
+import { useV2Conversations } from '../adapters/messaging';
 
 export function TopBarV2() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { identity } = useV2Session();
+  const { unreadCount: notifCount } = useV2Notifications();
+  const { unreadCount: msgCount } = useV2Conversations();
 
   const initials = ((identity?.prenom?.[0] ?? '') + (identity?.nom?.[0] ?? '')).toUpperCase() || 'EQ';
-  const notifCount = MOCK_ACTIONS.length;                         // mock F2
-  const msgCount = MOCK_CONVERSATIONS.reduce((n, c) => n + c.unread, 0); // mock F2
 
   return (
     <View style={[s.bar, { paddingTop: insets.top + Spacing.sm }]}>

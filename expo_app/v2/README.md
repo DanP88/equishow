@@ -11,7 +11,9 @@ derrière `V2_ENABLED` / `isV2(flag)`.
   Tags : `v1.0.0-testflight-12`, `backup-before-equishow-v2-front`.
   Poussée sur `origin`.
 - **V2** : branche `feature/equishow-v2-front`, worktree `/Users/dan/equishow-v2-front`.
-- **LOT courant** : F0 · F1 · F1+ · **F2** terminés. F3 non commencé.
+- **LOT courant** : F0 · F1 · F1+ · F2 · **F3** terminés. F4 non commencé.
+  - F3 = Agenda / Notifications / Messagerie branchés sur les **moteurs réels V1**
+    (lecture seule) via `v2/adapters/*` ; repli sur données de démo sans session.
   - F2 = nouvelle navigation V2 : groupe de routes `app/(v2)/`, bottom bar +
     top bar fixes, Accueil omni, Concours + sous-onglets, fiche concours centre
     de contrôle, Je cherche / Je propose, opt-in Coach, Chevaux adaptatif,

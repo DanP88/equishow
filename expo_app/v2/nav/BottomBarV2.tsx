@@ -8,17 +8,15 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { FontWeight } from '../../constants/theme';
 import { V2_TABS } from './navConfig';
-import { MOCK_ACTIONS } from '../mocks/f2';
-import { useCapabilities } from '../capabilities';
+import { useV2Agenda } from '../adapters/agenda';
 
 export function BottomBarV2() {
   const pathname = usePathname();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const caps = useCapabilities();
 
-  // Badge Agenda = nb d'actions « à traiter » de type paiement/attente (mock F2).
-  const agendaBadge = MOCK_ACTIONS.filter((a) => a.cap === 'cavalier' && caps.has('cavalier')).length;
+  // Badge Agenda = évènements imminents à traiter (indicatif, lecture seule).
+  const { pendingCount: agendaBadge } = useV2Agenda();
 
   const isActive = (t: (typeof V2_TABS)[number]) =>
     t.match.some((m) => pathname === m || pathname.startsWith(m));

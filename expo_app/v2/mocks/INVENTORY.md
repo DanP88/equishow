@@ -26,6 +26,16 @@ Chaque entrée = ce qui est simulé côté front + ce qui la remplacera.
 | `ServiceV2` (les 3 kinds) | formulaires & résultats = maquette de structure | F5 Transport · F6 Box · F7 Coach |
 | `(v2)/concours/creer`, `(v2)/chevaux/nouveau` | placeholders | F8 (cheval) / lot org (création) |
 
+## F3 — moteurs réels branchés (lecture seule, repli démo si vide)
+| adapter | hooks V1 réutilisés | repli si vide |
+|---|---|---|
+| `v2/adapters/agenda.ts` | useMyTransportReservations · useMyBoxReservations · useMyCourseDemands · useMyStageReservations · useConcoursList + concoursLocal | MOCK_AGENDA |
+| `v2/adapters/notifications.ts` | useActiveNotifications (= useNotifications + selectActiveNotifications) | MOCK interne |
+| `v2/adapters/messaging.ts` | useConversations | MOCK interne |
+
+Non branché en Phase 1 (écritures) : « marquer lu », envoi de message, dépôt d'avis.
+Sans session réelle → les 3 adapters retombent sur la démo (badge « démonstration »).
+
 ## Données RÉELLES utilisées en F2 (lecture seule, aucun write)
 - `useConcoursList()` — liste des concours (Accueil hero, Concours › Découvrir/Suivis)
 - `useConcours(id)` — identité d'un concours (fiche)
