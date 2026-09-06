@@ -55,6 +55,11 @@ export default function V2DevScreen() {
           )}
         </View>
 
+        <TouchableOpacity style={[s.card, s.cardHi]} onPress={() => router.replace('/(v2)/accueil' as any)} activeOpacity={0.85}>
+          <Text style={s.cardTitle}>▶  Entrer dans la V2  (LOT F2)</Text>
+          <Text style={s.cardSub}>Nouvelle navigation : bottom bar fixe (Accueil · Concours · Chevaux · Agenda · Profil), top bar, fiche concours centre de contrôle, Je cherche / Je propose, opt-in Coach…</Text>
+        </TouchableOpacity>
+
         <TouchableOpacity style={s.card} onPress={() => setView('entry')} activeOpacity={0.85}>
           <Text style={s.cardTitle}>🆕  Parcours nouvel utilisateur</Text>
           <Text style={s.cardSub}>Bienvenue → Se connecter / Créer un compte → identifiants → activités → infos complémentaires → compte créé & connecté (tout simulé).</Text>
@@ -104,6 +109,7 @@ const s = StyleSheet.create({
   b: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
   signout: { fontSize: FontSize.sm, color: Colors.urgent, fontWeight: FontWeight.bold, marginTop: 4 },
   card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: 4 },
+  cardHi: { borderColor: Colors.primary, borderWidth: 2, backgroundColor: Colors.primaryLight },
   cardTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   cardSub: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
   link: { paddingVertical: Spacing.sm },
