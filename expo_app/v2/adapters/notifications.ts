@@ -7,6 +7,7 @@
 // Repli sur un jeu de démo si aucune notification réelle.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
+import { useAuth } from '../../hooks/useAuth';
 import { useActiveNotifications } from '../../hooks/useActiveNotifications';
 import { relativeDayLabel } from '../lib/dates';
 import type { Notification } from '../../types/notification';
@@ -32,6 +33,7 @@ const MOCK: V2Notif[] = [
 ];
 
 export function useV2Notifications() {
+  const { isSignedIn } = useAuth();
   const { notifications } = useActiveNotifications() as { notifications: Notification[] };
 
   return useMemo(() => {
@@ -42,7 +44,8 @@ export function useV2Notifications() {
       label: n.titre || n.message || 'Notification',
       unread: !n.lu,
     }));
-    const demo = real.length === 0;
+    // Repli DÉMO uniquement SANS session réelle. Vrai compte sans notif → vide réel.
+    const demo = !isSignedIn;
     const list = demo ? MOCK : real;
     const groups: V2NotifGroup[] = [];
     for (const it of list) {
@@ -51,5 +54,5 @@ export function useV2Notifications() {
       g.items.push(it);
     }
     return { groups, demo, unreadCount: list.filter((x) => x.unread).length };
-  }, [notifications]);
+  }, [notifications, isSignedIn]);
 }

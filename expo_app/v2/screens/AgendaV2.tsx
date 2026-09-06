@@ -34,8 +34,9 @@ export function AgendaV2() {
         ...d,
         events: d.events.filter((e) => {
           if (filter === 'tous') return e.cap === 'concours' || caps.has(e.cap as any);
-          if (filter === 'organisateur') return e.cap === 'concours';
-          return e.cap === filter;
+          if (filter === 'organisateur') return e.cap === 'organisateur';
+          if (filter === 'cavalier') return e.cap === 'cavalier' || e.cap === 'concours';
+          return e.cap === filter; // coach
         }),
       }))
       .filter((d) => d.events.length > 0);

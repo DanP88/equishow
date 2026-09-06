@@ -8,6 +8,7 @@
 // changement d'identité. Repli sur un jeu de démo si aucune conversation.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
+import { useAuth } from '../../hooks/useAuth';
 import { useConversations } from '../../hooks/useMessaging';
 
 export interface V2Conversation {
@@ -45,6 +46,7 @@ const MOCK: V2Conversation[] = [
 ];
 
 export function useV2Conversations() {
+  const { isSignedIn } = useAuth();
   const { conversations } = useConversations();
 
   return useMemo(() => {
@@ -62,8 +64,10 @@ export function useV2Conversations() {
         unread: c.unread,
       };
     });
-    const demo = real.length === 0;
+    // Repli DÉMO uniquement SANS session réelle. Vrai compte sans conversation
+    // → « Aucune conversation » (jamais de mocks).
+    const demo = !isSignedIn;
     const list = demo ? MOCK : real;
     return { conversations: list, demo, unreadCount: list.filter((c) => c.unread).length };
-  }, [conversations]);
+  }, [conversations, isSignedIn]);
 }

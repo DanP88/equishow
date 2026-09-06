@@ -19,7 +19,7 @@ import { useMyTransportReservations } from '../../hooks/useTransports';
 import { useMyBoxReservations } from '../../hooks/useBoxes';
 import { useMyCourseDemands } from '../../hooks/useCourseDemands';
 import { useMyStageReservations } from '../../hooks/useStages';
-import { useConcoursList } from '../../hooks/useConcours';
+import { useConcoursList, useMyConcours } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { dayKey, dayLabel, timeLabel } from '../lib/dates';
 import { MOCK_AGENDA } from '../mocks/f2';
@@ -46,6 +46,7 @@ export function useV2Agenda() {
   const { demands: course } = useMyCourseDemands();
   const { reservations: stage } = useMyStageReservations();
   const { concours } = useConcoursList();
+  const { concours: organised } = useMyConcours(); // concours dont JE suis l'organisateur (lecture seule)
   const local = useConcoursLocal();
 
   return useMemo(() => {
@@ -79,15 +80,25 @@ export function useV2Agenda() {
       if (!d || DEAD.has(String(st.statut ?? st.status))) continue;
       ev.push({ id: `s-${st.id}`, when: d, time: timeLabel(d), icon: '📚', label: `Stage — ${st.titre ?? st.title ?? 'stage'}`, cap: 'cavalier' });
     }
-    // Concours suivis / "J'y serai"
+    // Concours organisés par moi (activité ORGANISATEUR) — lecture seule useMyConcours.
+    const organisedIds = new Set<string>();
+    for (const oc of organised) {
+      organisedIds.add(oc.id);
+      if (!oc.date_debut) continue;
+      const d = new Date(`${oc.date_debut}T00:00:00`);
+      ev.push({ id: `o-${oc.id}`, when: d, time: 'journée', icon: '🏟', label: oc.nom, sub: `${oc.statut === 'publie' ? 'publié' : oc.statut} · vous organisez`, cap: 'organisateur' });
+    }
+    // Concours suivis / "J'y serai" (activité CAVALIER) — hors ceux que j'organise.
     const followed = new Set([...local.followingIds, ...local.goingIds]);
     for (const cc of concours) {
-      if (!followed.has(cc.id) || !cc.date_debut) continue;
+      if (!followed.has(cc.id) || organisedIds.has(cc.id) || !cc.date_debut) continue;
       const d = new Date(`${cc.date_debut}T00:00:00`);
       ev.push({ id: `k-${cc.id}`, when: d, time: 'journée', icon: '🏆', label: cc.nom, sub: cc.lieu || undefined, cap: 'concours' });
     }
 
-    const demo = ev.length === 0;
+    // Repli DÉMO uniquement si AUCUNE session réelle. Un vrai compte sans données
+    // → agenda réellement vide (jamais de mocks).
+    const demo = !me;
     const source: V2AgendaEvent[] = demo
       ? MOCK_AGENDA.map((m) => ({
           id: m.id,
@@ -103,8 +114,8 @@ export function useV2Agenda() {
       byDay.get(k)!.events.push(e);
     }
     const days = [...byDay.values()].sort((a, b) => a.key - b.key);
-    const pendingCount = ev.filter((e) => e.cap === 'coach').length; // demandes à traiter côté coach (indicatif)
+    const pendingCount = ev.filter((e) => e.cap === 'coach').length; // séances à animer (indicatif)
 
     return { days, demo, pendingCount, hasSession: !!me };
-  }, [me, transport, box, course, stage, concours, local.followingIds, local.goingIds]);
+  }, [me, transport, box, course, stage, concours, organised, local.followingIds, local.goingIds]);
 }
