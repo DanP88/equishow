@@ -25,6 +25,7 @@ import { useScreenTracking } from '../../hooks/useScreenTracking';
 import { trackFunnel } from '../../lib/analytics';
 import { ConfirmModal } from '../../components/ConfirmModal';
 import { AlertModal } from '../../components/AlertModal';
+import { ConcoursAutocomplete, ConcoursOption } from '../../components/ConcoursAutocomplete';
 
 type Tab = 'transport' | 'box' | 'coach';
 type TransportSubTab = 'trajets' | 'van';
@@ -69,6 +70,9 @@ const DEFAULT_FC: FiltersCoach = { sort: 'note_desc', concours: '', concoursId: 
 /* ─── Helpers ──────────────────────────────────────────────────────────────── */
 
 function unique(arr: string[]) { return [...new Set(arr.filter(Boolean))]; }
+
+const normStr = (s: string) =>
+  (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 // L'import CSV FFE a construit `concours.nom` = « CLUB — <type> — <numéro FFE> ».
 // Quand la colonne « type » était vide côté source, pandas l'a sérialisée en NaN
@@ -193,7 +197,6 @@ export default function ServicesScreen() {
   const [filtersB, setFiltersB] = useState<FiltersBox>(DEFAULT_FB);
   const [filtersC, setFiltersC] = useState<FiltersCoach>(DEFAULT_FC);
   const [showFilters, setShowFilters] = useState(false);
-  const [showConcoursDropdown, setShowConcoursDropdown] = useState(false);
   const [pendingCancel, setPendingCancel] = useState<{
     kind: 'transport' | 'box' | 'coach';
     id: string;
@@ -283,9 +286,49 @@ export default function ServicesScreen() {
   const dbConcoursNames = (dbConcours ?? []).map((c) => c.nom).filter(Boolean);
   const concoursTransport = unique([...dbConcoursNames, ...transports.map((t) => t.concours ?? '')].filter(Boolean));
   const concoursBoxes = unique([...dbConcoursNames, ...boxes.map((b) => b.concours ?? '')].filter(Boolean));
-  const concoursCoaches = unique([...dbConcoursNames, ...coachAnnonces.map((ca) => ca.concours ?? '')].filter(Boolean));
   const disciplinesCoachs = unique(coaches.flatMap((c) => c.disciplines));
   const niveauxCoachs = unique(coaches.flatMap((c) => c.niveaux));
+
+  // Options du champ type-ahead « Filtrer par concours » (onglet Coach).
+  // Concours DB à venir d'abord (nom nettoyé du segment « nan » + date/lieu en
+  // sous-titre), puis les concours passés, puis les noms libres portés
+  // uniquement par des annonces (legacy sans FK). L'id `nom:*` marque une entrée
+  // sans concours DB → traitée comme un filtre par nom.
+  const coachConcoursOptions = useMemo<ConcoursOption[]>(() => {
+    const todayMs = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d.getTime(); })();
+    const sorted = [...(dbConcours ?? [])].sort((a, b) => {
+      const ua = isConcoursUpcoming(a, todayMs) ? 0 : 1;
+      const ub = isConcoursUpcoming(b, todayMs) ? 0 : 1;
+      if (ua !== ub) return ua - ub;
+      return (a.date_debut ?? '').localeCompare(b.date_debut ?? '');
+    });
+    const opts: ConcoursOption[] = [];
+    const seenNoms = new Set<string>();
+    for (const c of sorted) {
+      const nom = cleanConcoursNom(c.nom);
+      if (!nom) continue;
+      seenNoms.add(normStr(nom));
+      opts.push({ id: c.id, nom, sub: [c.dateLabel, c.lieu].filter(Boolean).join(' · ') || undefined });
+    }
+    for (const ca of coachAnnonces) {
+      if (!ca.concours || ca.concoursId) continue;
+      const key = normStr(ca.concours);
+      if (seenNoms.has(key)) continue;
+      seenNoms.add(key);
+      opts.push({ id: `nom:${ca.concours}`, nom: ca.concours });
+    }
+    return opts;
+  }, [dbConcours, coachAnnonces]);
+
+  // Nom affiché dans le champ : si un concours DB est sélectionné (concoursId),
+  // on montre son nom nettoyé plutôt que la valeur brute d'un deep-link.
+  const coachFilterNom = useMemo(() => {
+    if (filtersC.concoursId) {
+      const hit = (dbConcours ?? []).find((c) => c.id === filtersC.concoursId);
+      if (hit) return cleanConcoursNom(hit.nom);
+    }
+    return filtersC.concours;
+  }, [filtersC.concoursId, filtersC.concours, dbConcours]);
 
   // Filtrer les annonces et coachs par concours. Priorité à la clé canonique
   // (concours_id, alignée sur le compteur useConcoursCounts) ; fallback sur le
@@ -556,20 +599,20 @@ export default function ServicesScreen() {
                 {/* Onglet CONCOURS */}
                 {coachTab === 'concours' && (
                   <>
-                    {/* Filtre concours */}
-                    {concoursCoaches.length > 0 && (
+                    {/* Filtre concours — champ type-ahead (saisie du nom) */}
+                    {coachConcoursOptions.length > 0 && (
                       <View style={s.concoursFilterContainer}>
                         <Text style={s.concoursFilterLabel}>Filtrer par concours</Text>
-                        <TouchableOpacity
-                          style={s.concoursDropdown}
-                          activeOpacity={0.7}
-                          onPress={() => setShowConcoursDropdown(true)}
-                        >
-                          <Text style={s.concoursDropdownText}>
-                            {filtersC.concours || 'Tous les concours'}
-                          </Text>
-                          <Text style={s.concoursDropdownIcon}>▼</Text>
-                        </TouchableOpacity>
+                        <ConcoursAutocomplete
+                          valueNom={coachFilterNom}
+                          valueId={filtersC.concoursId}
+                          options={coachConcoursOptions}
+                          onChange={(sel) => {
+                            const realId = sel.id && !sel.id.startsWith('nom:') ? sel.id : undefined;
+                            setFiltersC((f) => ({ ...f, concours: sel.nom, concoursId: realId }));
+                          }}
+                          placeholder="Tous les concours — tapez un nom…"
+                        />
                       </View>
                     )}
 
@@ -650,7 +693,6 @@ export default function ServicesScreen() {
                 <FiltersCoachPanel
                   filters={filtersC}
                   onChange={setFiltersC}
-                  concours={concoursCoaches}
                   disciplines={disciplinesCoachs}
                   niveaux={niveauxCoachs}
                 />
@@ -672,46 +714,6 @@ export default function ServicesScreen() {
                 <Text style={s.applyText}>Appliquer</Text>
               </TouchableOpacity>
             </View>
-          </TouchableOpacity>
-        </TouchableOpacity>
-      </Modal>
-
-      {/* Modal dropdown concours */}
-      <Modal visible={showConcoursDropdown} transparent animationType="fade">
-        <TouchableOpacity
-          style={s.dropdownBackdrop}
-          activeOpacity={1}
-          onPress={() => setShowConcoursDropdown(false)}
-        >
-          <TouchableOpacity activeOpacity={1} style={s.dropdownMenu}>
-            <TouchableOpacity
-              style={s.dropdownItem}
-              onPress={() => {
-                setFiltersC({ ...filtersC, concours: '', concoursId: undefined });
-                setShowConcoursDropdown(false);
-              }}
-            >
-              <Text style={[s.dropdownItemText, !filtersC.concours && s.dropdownItemTextActive]}>
-                Tous les concours
-              </Text>
-              {!filtersC.concours && <Text style={s.dropdownCheckmark}>✓</Text>}
-            </TouchableOpacity>
-
-            {concoursCoaches.map((c) => (
-              <TouchableOpacity
-                key={c}
-                style={s.dropdownItem}
-                onPress={() => {
-                  setFiltersC({ ...filtersC, concours: c, concoursId: undefined });
-                  setShowConcoursDropdown(false);
-                }}
-              >
-                <Text style={[s.dropdownItemText, filtersC.concours === c && s.dropdownItemTextActive]}>
-                  {c}
-                </Text>
-                {filtersC.concours === c && <Text style={s.dropdownCheckmark}>✓</Text>}
-              </TouchableOpacity>
-            ))}
           </TouchableOpacity>
         </TouchableOpacity>
       </Modal>
@@ -831,8 +833,8 @@ function FiltersBoxPanel({ filters, onChange, concoursOptions }: {
   );
 }
 
-function FiltersCoachPanel({ filters, onChange, concours, disciplines, niveaux }: {
-  filters: FiltersCoach; onChange: (f: FiltersCoach) => void; concours: string[]; disciplines: string[]; niveaux: string[];
+function FiltersCoachPanel({ filters, onChange, disciplines, niveaux }: {
+  filters: FiltersCoach; onChange: (f: FiltersCoach) => void; disciplines: string[]; niveaux: string[];
 }) {
   const f = filters;
   return (
@@ -849,13 +851,8 @@ function FiltersCoachPanel({ filters, onChange, concours, disciplines, niveaux }
         />
       </FilterSection>
 
-      <FilterSection title="Concours">
-        <ChipGroup
-          options={[{ label: 'Tous', value: '' }, ...concours.map((c) => ({ label: c, value: c }))]}
-          value={f.concours}
-          onSelect={(v) => onChange({ ...f, concours: v, concoursId: undefined })}
-        />
-      </FilterSection>
+      {/* Le filtre par concours est le champ type-ahead affiché au-dessus de la
+          liste (toujours visible) — inutile de le dupliquer ici. */}
 
       <FilterSection title="Spécialité / Discipline">
         <ChipGroup
@@ -1621,9 +1618,6 @@ const s = StyleSheet.create({
   // Filtre concours
   concoursFilterContainer: { gap: Spacing.sm, marginBottom: Spacing.md },
   concoursFilterLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  concoursDropdown: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', backgroundColor: Colors.surface, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md },
-  concoursDropdownText: { fontSize: FontSize.base, color: Colors.textPrimary, flex: 1 },
-  concoursDropdownIcon: { fontSize: FontSize.xs, color: Colors.textTertiary, marginLeft: Spacing.sm },
 
   // Carte concours pour coachs
   concoursCard: { backgroundColor: Colors.surface, borderRadius: Radius.lg, padding: Spacing.lg, borderWidth: 1, borderColor: Colors.border, ...Shadow.card, flexDirection: 'row', alignItems: 'flex-start', gap: Spacing.md },
@@ -1633,14 +1627,6 @@ const s = StyleSheet.create({
   concoursDetail: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: Spacing.xs },
   concoursCreateBtn: { backgroundColor: Colors.primary, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, justifyContent: 'center' },
   concoursCreateBtnText: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textInverse, textAlign: 'center' },
-
-  // Dropdown menu
-  dropdownBackdrop: { flex: 1, backgroundColor: 'rgba(0, 0, 0, 0.4)', justifyContent: 'center', alignItems: 'center' },
-  dropdownMenu: { backgroundColor: Colors.surface, borderRadius: Radius.lg, marginHorizontal: Spacing.lg, overflow: 'hidden', ...Shadow.card },
-  dropdownItem: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: Spacing.lg, paddingVertical: Spacing.md, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  dropdownItemText: { fontSize: FontSize.base, color: Colors.textSecondary },
-  dropdownItemTextActive: { color: Colors.primary, fontWeight: FontWeight.bold },
-  dropdownCheckmark: { color: Colors.primary, fontWeight: FontWeight.bold, fontSize: FontSize.base },
 
   // Filtres modal
   filtersBackdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.45)', justifyContent: 'flex-end' },
