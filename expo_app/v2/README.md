@@ -11,9 +11,15 @@ derrière `V2_ENABLED` / `isV2(flag)`.
   Tags : `v1.0.0-testflight-12`, `backup-before-equishow-v2-front`.
   Poussée sur `origin`.
 - **V2** : branche `feature/equishow-v2-front`, worktree `/Users/dan/equishow-v2-front`.
-- **LOT courant** : F0 · F1 · F1+ · F2 · **F3** terminés. F4 non commencé.
-  - F3 = Agenda / Notifications / Messagerie branchés sur les **moteurs réels V1**
-    (lecture seule) via `v2/adapters/*` ; repli sur données de démo sans session.
+- **LOT courant** : F0 · F1 · F1+ · F2 · F3 · **F4** terminés. F5 non commencé.
+  - F3 = Agenda / Notifications / Messagerie sur les moteurs réels V1 (lecture
+    seule) via `v2/adapters/*` ; repli démo uniquement sans session.
+  - F4 = fiche concours = **tableau de bord personnel** : J'y serai → ✅ J'y
+    participe → Mon concours (préparation X/5, Cheval / Épreuves / Transport /
+    Box / Coach + état) → Préparer (cartes indépendantes) → passerelles
+    contextualisées vers les services (concours + lieu + dates + cheval
+    préremplis). Tout LOCAL (`v2:concours-local`). Les activités organisateur /
+    coach cohabitent sur la même fiche, sans sélecteur de rôle.
   - F2 = nouvelle navigation V2 : groupe de routes `app/(v2)/`, bottom bar +
     top bar fixes, Accueil omni, Concours + sous-onglets, fiche concours centre
     de contrôle, Je cherche / Je propose, opt-in Coach, Chevaux adaptatif,

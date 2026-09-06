@@ -15,6 +15,7 @@ import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Segment, Card, Row, Placeholder, EmptyState } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
 import { useConcours } from '../../hooks/useConcours';
+import { useMyChevaux } from '../../hooks/useChevaux';
 import { MOCK_COACHES_ON_CONCOURS, MOCK_COACH_DEMANDS, MOCK_STUDENT_HORSES } from '../mocks/f2';
 
 type Kind = 'transport' | 'box' | 'coach';
@@ -25,10 +26,12 @@ const META: Record<Kind, { title: string; icon: string; v1: string; lot: string 
 };
 
 export function ServiceV2() {
-  const { kind, concoursId, face } = useLocalSearchParams<{ kind: Kind; concoursId?: string; face?: string }>();
+  const { kind, concoursId, face, chevalId } = useLocalSearchParams<{ kind: Kind; concoursId?: string; face?: string; chevalId?: string }>();
   const k: Kind = (kind === 'box' || kind === 'coach') ? kind : 'transport';
   const caps = useCapabilities();
   const { concours } = useConcours(concoursId);
+  const { chevaux } = useMyChevaux();
+  const chevalNom = chevalId ? (chevaux.find((c) => c.id === chevalId)?.nom ?? null) : null;
   const m = META[k];
 
   const faces = [
@@ -42,7 +45,14 @@ export function ServiceV2() {
     <Screen>
       <TouchableOpacity onPress={() => router.back()}><Text style={s.back}>← Retour</Text></TouchableOpacity>
       <Text style={s.h1}>{m.icon} {m.title}</Text>
-      {concours && <Text style={s.ctx}>Concours : {concours.nom} · {concours.dateLabel} · {concours.lieu}</Text>}
+      {concours && (
+        <View style={s.ctxCard}>
+          <Text style={s.ctxTitle}>Contexte prérempli</Text>
+          <Text style={s.ctxLine}>🏆 {concours.nom}</Text>
+          <Text style={s.ctxLine}>📍 {concours.lieu || '—'}   ·   📅 {concours.dateLabel || '—'}</Text>
+          {chevalNom ? <Text style={s.ctxLine}>🐴 {chevalNom}</Text> : null}
+        </View>
+      )}
 
       <Segment options={faces} value={tab} onChange={setTab} />
 
@@ -50,7 +60,7 @@ export function ServiceV2() {
         <>
           <Card>
             <Text style={s.formTitle}>Ce qu’on te demandera</Text>
-            {k !== 'coach' && <Row label="Cheval" value="à choisir" />}
+            {k !== 'coach' && <Row label="Cheval" value={chevalNom ?? 'à choisir'} />}
             {k === 'transport' && <Row label="Lieu de départ" value="—" />}
             <Row label="Destination" value={concours ? `${concours.lieu} (du concours)` : 'libre'} />
             <Row label="Dates" value={concours ? 'autour du concours' : 'à définir'} />
@@ -125,6 +135,9 @@ const s = StyleSheet.create({
   back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
   h1: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   ctx: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  ctxCard: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder, borderWidth: 1, borderRadius: 14, padding: Spacing.md, gap: 3 },
+  ctxTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.6, textTransform: 'uppercase' },
+  ctxLine: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
   formTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   resTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   resSub: { fontSize: FontSize.sm, color: Colors.textSecondary },

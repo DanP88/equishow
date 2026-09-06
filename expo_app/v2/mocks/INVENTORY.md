@@ -26,6 +26,22 @@ Chaque entrée = ce qui est simulé côté front + ce qui la remplacera.
 | `ServiceV2` (les 3 kinds) | formulaires & résultats = maquette de structure | F5 Transport · F6 Box · F7 Coach |
 | `(v2)/concours/creer`, `(v2)/chevaux/nouveau` | placeholders | F8 (cheval) / lot org (création) |
 
+## F4 — fiche concours = tableau de bord (état LOCAL, lecture seule côté réel)
+| Élément | Réel (lecture seule) | Local (`v2:concours-local`) |
+|---|---|---|
+| identité concours | `useConcours(id)` | — |
+| « Vous organisez ce concours » | `useMyConcours()` (id ∈ mes concours) | — |
+| chevaux à sélectionner | `useMyChevaux()` | `chevalId` choisi |
+| J'y serai / Suivre | — | `going` / `following` |
+| épreuves | `concours.liste_epreuves` (référence) | `epreuves[]` saisis |
+| Transport / Box / Coach — état | — | `needTransport/Box/Coach` : done · searching · offering · unset · none |
+| préparation X/5 | — | dérivée de l'état local |
+| « Vous y coachez » (séances) | — | mock F2 (rebranché F7) |
+| Radar organisateur | lien vers écrans V1 | mock F2 (rebranché F10) |
+
+Passerelles : `/(v2)/service/[kind]?concoursId=…&face=…&chevalId=…` — le service
+reçoit le contexte (concours + lieu + dates + cheval) déjà prérempli.
+
 ## F3 — moteurs réels branchés (lecture seule, repli démo si vide)
 | adapter | hooks V1 réutilisés | repli si vide |
 |---|---|---|
