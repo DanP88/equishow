@@ -4,11 +4,11 @@
 //   - « Mes chevaux »            → toujours, avec empty state informatif
 // Onglet jamais renommé, jamais masqué. (cf. reco §17 des wireframes)
 // ─────────────────────────────────────────────────────────────────────────────
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { Screen, H1, Section, Card, Row, EmptyState, Placeholder } from '../ui/kit';
+import { Screen, H1, Section, Card, Row, RowGroup, EmptyState, Placeholder } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
 import { useMyChevaux } from '../../hooks/useChevaux';
 import { MOCK_STUDENT_HORSES } from '../mocks/f2';
@@ -25,15 +25,19 @@ export function ChevauxV2() {
 
   return (
     <Screen>
-      <View style={s.head}><H1>Chevaux</H1><Text style={s.add} onPress={() => router.push('/(v2)/chevaux/nouveau' as any)}>＋</Text></View>
+      <View style={s.head}><H1>Chevaux</H1>
+        <TouchableOpacity onPress={() => router.push('/(v2)/chevaux/nouveau' as any)} hitSlop={8}><Text style={s.add}>＋</Text></TouchableOpacity>
+      </View>
 
       {/* Section COACH — chevaux des élèves */}
       {caps.has('coach') && (
-        <Section title={`Chevaux que je coache (${MOCK_STUDENT_HORSES.length})`}>
-          {MOCK_STUDENT_HORSES.map((h) => (
-            <Row key={h.id} icon="🐴" label={`${h.horse} — ${h.rider}`} value={h.discipline} onPress={() => {}} />
-          ))}
-          <Placeholder note="Chevaux des élèves = mock F2. Source réelle (via course_demands / cavaliers coachés) branchée au lot Coach (F7)." />
+        <Section title={`Chevaux que je coache · ${MOCK_STUDENT_HORSES.length}`}>
+          <RowGroup>
+            {MOCK_STUDENT_HORSES.map((h) => (
+              <Row key={h.id} icon="🐴" label={`${h.horse} — ${h.rider}`} value={h.discipline} onPress={() => {}} />
+            ))}
+          </RowGroup>
+          <Placeholder note="chevaux des élèves rebranchés en F7" />
         </Section>
       )}
 
@@ -48,21 +52,19 @@ export function ChevauxV2() {
             onCta={() => router.push('/(v2)/chevaux/nouveau' as any)}
           />
         ) : (
-          chevaux.map((c) => (
-            <Card key={c.id} onPress={() => router.push(`/cheval/${c.id}` as any)}>
-              <Text style={s.name}>{c.nom}</Text>
-              <Text style={s.sub}>{[c.race, c.anneeNaissance ? `${new Date().getFullYear() - c.anneeNaissance} ans` : null, c.disciplines?.[0]].filter(Boolean).join(' · ')}</Text>
-            </Card>
-          ))
+          <View style={{ gap: 10 }}>
+            {chevaux.map((c) => (
+              <Card key={c.id} onPress={() => router.push(`/cheval/${c.id}` as any)}>
+                <Text style={s.name}>{c.nom}</Text>
+                <Text style={s.sub}>{[c.race, c.anneeNaissance ? `${new Date().getFullYear() - c.anneeNaissance} ans` : null, c.disciplines?.[0]].filter(Boolean).join(' · ')}</Text>
+              </Card>
+            ))}
+          </View>
         )}
       </Section>
 
       {chevaux.length > 0 && (
-        <Placeholder
-          note="Fiche cheval recentrée (Sport · Concours · Logistique) + repli « Suivi du cheval » = LOT F8. Ici : liste réelle (useMyChevaux) + lien vers la fiche V1."
-          v1Path="/(tabs)/chevaux"
-          v1Label="Ouvrir Chevaux (V1)"
-        />
+        <Placeholder note="fiche cheval recentrée (Sport · Concours · Logistique) = F8" v1Path="/(tabs)/chevaux" v1Label="chevaux actuels" />
       )}
 
       {caps.has('organisateur') && !caps.has('cavalier') && !caps.has('coach') && (

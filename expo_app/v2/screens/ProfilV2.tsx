@@ -8,7 +8,7 @@ import { View, Text, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { Screen, Card, Row, Section, Placeholder } from '../ui/kit';
+import { Screen, Card, Row, RowGroup, Section, Placeholder } from '../ui/kit';
 import { useCapabilities, CAPABILITY_LABEL } from '../capabilities';
 import { useV2Session } from '../auth';
 import { useAvisStats } from '../../hooks/useAvis';
@@ -39,38 +39,46 @@ export function ProfilV2() {
 
       {caps.has('cavalier') && (
         <Section title="Cavalier">
-          <Row icon="🐴" label="Mes chevaux" onPress={() => router.replace('/(v2)/chevaux' as any)} />
-          <Row icon="🏆" label="Mes concours (suivis / à venir)" onPress={() => router.push('/(v2)/concours?tab=suivis' as any)} />
-          <Row icon="🎫" label="Mes réservations & paiements" onPress={() => router.replace('/(v2)/agenda' as any)} />
-          <Row icon="⭐" label="Mes avis déposés" onPress={() => {}} />
+          <RowGroup>
+            <Row icon="🐴" label="Mes chevaux" onPress={() => router.replace('/(v2)/chevaux' as any)} />
+            <Row icon="🏆" label="Mes concours (suivis / à venir)" onPress={() => router.push('/(v2)/concours?tab=suivis' as any)} />
+            <Row icon="🎫" label="Mes réservations & paiements" onPress={() => router.replace('/(v2)/agenda' as any)} />
+            <Row icon="⭐" label="Mes avis déposés" onPress={() => {}} />
+          </RowGroup>
         </Section>
       )}
 
       {caps.has('coach') && (
         <Section title="Coach">
-          <Row icon="🎓" label="Mes annonces de coaching" onPress={() => router.push('/(v2)/service/coach?face=propose' as any)} />
-          <Row icon="👥" label="Mes élèves & demandes" onPress={() => router.push('/(v2)/service/coach?face=eleves' as any)} />
-          <Row icon="💶" label="Mes revenus (commission 9 %)" onPress={() => {}} />
+          <RowGroup>
+            <Row icon="🎓" label="Mes annonces de coaching" onPress={() => router.push('/(v2)/service/coach?face=propose' as any)} />
+            <Row icon="👥" label="Mes élèves & demandes" onPress={() => router.push('/(v2)/service/coach?face=eleves' as any)} />
+            <Row icon="💶" label="Mes revenus (commission 9 %)" onPress={() => {}} />
+          </RowGroup>
         </Section>
       )}
       {caps.isPending('coach') && <Text style={s.pending}>Activité Coach : en attente (prototype)</Text>}
 
       {(caps.has('organisateur') || caps.isPending('organisateur')) && (
         <Section title="Organisateur">
-          <Row icon="🏟" label="Mes concours organisés" onPress={() => router.push('/(v2)/concours?tab=organises' as any)} />
-          <Row icon="📊" label="Radar (agrégats RGPD)" onPress={() => router.push('/(tabs)/org-radar' as any)} />
-          <Row icon="🏠" label="Mes box proposés" onPress={() => router.push('/(v2)/service/box?face=propose' as any)} />
-          <Row icon="⏳" label="Statut" value={caps.isPending('organisateur') ? 'en attente de validation' : 'validé'} />
+          <RowGroup>
+            <Row icon="🏟" label="Mes concours organisés" onPress={() => router.push('/(v2)/concours?tab=organises' as any)} />
+            <Row icon="📊" label="Radar (agrégats RGPD)" onPress={() => router.push('/(tabs)/org-radar' as any)} />
+            <Row icon="🏠" label="Mes box proposés" onPress={() => router.push('/(v2)/service/box?face=propose' as any)} />
+            <Row icon="⏳" label="Statut" value={caps.isPending('organisateur') ? 'en attente' : 'validé'} />
+          </RowGroup>
         </Section>
       )}
 
       <Section title="Compte">
-        <Row icon="🧩" label="Mes activités" value={caps.held.length ? `${caps.held.length}` : '0'} onPress={() => router.push('/v2-dev' as any)} />
-        <Row icon="⚙️" label="Paramètres" onPress={() => {}} />
-        <Row icon="❓" label="Aide & contact" onPress={() => {}} />
+        <RowGroup>
+          <Row icon="🧩" label="Mes activités" value={String(caps.held.length)} onPress={() => router.push('/v2-dev' as any)} />
+          <Row icon="⚙️" label="Paramètres" onPress={() => {}} />
+          <Row icon="❓" label="Aide & contact" onPress={() => {}} />
+        </RowGroup>
       </Section>
 
-      <Placeholder note="Fusion des 3 profils V1 (profil / profil-coach / profil-org) + compteurs d’activité réels + « Mes revenus » = affinés aux lots F9 / F10. Ici : structure + identité réelle + note réelle (useAvisStats)." v1Path="/(tabs)/profil" v1Label="Profil V1" />
+      <Placeholder note="fusion des 3 profils V1 + compteurs réels affinés en F9" v1Path="/(tabs)/profil" v1Label="profil actuel" />
     </Screen>
   );
 }

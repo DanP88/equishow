@@ -9,7 +9,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { Screen, Placeholder, Row } from '../ui/kit';
+import { Screen, Placeholder, Row, RowGroup } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
 import { MOCK_ACTIONS } from '../mocks/f2';
 
@@ -32,19 +32,21 @@ export function NotificationsV2() {
       <TouchableOpacity onPress={() => router.back()}><Text style={s.back}>← Retour</Text></TouchableOpacity>
       <View style={s.head}>
         <Text style={s.h1}>Notifications</Text>
-        <Text style={s.allRead}>Tout marquer lu</Text>
+        <TouchableOpacity hitSlop={6}><Text style={s.allRead}>Tout marquer lu</Text></TouchableOpacity>
       </View>
 
       {groups.map((g) => (
         <View key={g} style={s.group}>
           <Text style={s.groupTitle}>{g.toUpperCase()}</Text>
-          {list.filter((n) => n.group === g).map((n) => (
-            <Row key={n.id} icon={n.icon} label={n.label} onPress={() => {}} />
-          ))}
+          <RowGroup>
+            {list.filter((n) => n.group === g).map((n) => (
+              <Row key={n.id} icon={n.icon} label={n.label} onPress={() => {}} />
+            ))}
+          </RowGroup>
         </View>
       ))}
 
-      <Placeholder note={`Une seule liste, agrégée par user id (useNotifications + selectActiveNotifications V1, déjà agnostiques du rôle). Contenu simulé en F2 (${MOCK_ACTIONS.length} items de démo), branchement réel + « marquer lu » = F3.`} v1Path="/(tabs)/notifications" v1Label="Notifications V1" />
+      <Placeholder note={`liste unique agrégée par personne · ${MOCK_ACTIONS.length} items simulés · branchement réel en F3`} v1Path="/(tabs)/notifications" v1Label="notifications actuelles" />
     </Screen>
   );
 }

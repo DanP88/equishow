@@ -10,12 +10,12 @@
 // seul écran composé par capacités.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { Screen, Section, Card, Row, Tile, V2, PrimaryButton } from '../ui/kit';
-import { useCapabilities, CAPABILITY_LABEL } from '../capabilities';
+import { Spacing, FontSize, FontWeight } from '../../constants/theme';
+import { Screen, Section, Card, Row, RowGroup, Tile, PrimaryButton } from '../ui/kit';
+import { useCapabilities } from '../capabilities';
 import { useConcoursList } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { MOCK_ACTIONS, MOCK_COMMUNITY } from '../mocks/f2';
@@ -82,10 +82,12 @@ export function AccueilV2() {
 
       {/* 2 — À TRAITER (conditionnel) */}
       {actions.length > 0 && (
-        <Section title={`À traiter (${actions.length})`}>
-          {actions.map((a) => (
-            <Row key={a.id} icon={a.icon} label={a.label} onPress={() => router.push(a.target as any)} />
-          ))}
+        <Section title={`À traiter · ${actions.length}`}>
+          <RowGroup>
+            {actions.map((a) => (
+              <Row key={a.id} icon={a.icon} label={a.label} onPress={() => router.push(a.target as any)} />
+            ))}
+          </RowGroup>
         </Section>
       )}
 
@@ -106,11 +108,11 @@ export function AccueilV2() {
       </View>
 
       {/* 5 — APERÇU COMMUNAUTÉ (secondaire, 2 lignes) */}
-      <Section title="Communauté" action="Voir toute la communauté" onAction={() => router.push('/(v2)/communaute' as any)}>
+      <Section title="Communauté" action="Tout voir" onAction={() => router.push('/(v2)/communaute' as any)}>
         <Card>
-          {MOCK_COMMUNITY.slice(0, 2).map((p) => (
-            <Text key={p.id} style={h.post} numberOfLines={1}>
-              <Text style={h.postAuthor}>{p.author} · </Text>{p.text}
+          {MOCK_COMMUNITY.slice(0, 2).map((p, i) => (
+            <Text key={p.id} style={[h.post, i > 0 && { marginTop: 6 }]} numberOfLines={1}>
+              <Text style={h.postAuthor}>{p.author} — </Text>{p.text}
             </Text>
           ))}
         </Card>
@@ -119,9 +121,11 @@ export function AccueilV2() {
       {/* 6 — AUTRES CONCOURS À VENIR (sous le pli) */}
       {upcoming.length > 1 && (
         <Section title="Autres concours à venir" action="Tout voir" onAction={() => router.replace('/(v2)/concours' as any)}>
-          {upcoming.filter((c) => c.id !== hero?.id).slice(0, 3).map((c) => (
-            <Row key={c.id} icon="🏆" label={c.nom} value={c.dateLabel} onPress={() => router.push(`/(v2)/concours/${c.id}` as any)} />
-          ))}
+          <RowGroup>
+            {upcoming.filter((c) => c.id !== hero?.id).slice(0, 3).map((c) => (
+              <Row key={c.id} icon="🏆" label={c.nom} value={c.dateLabel} onPress={() => router.push(`/(v2)/concours/${c.id}` as any)} />
+            ))}
+          </RowGroup>
         </Section>
       )}
     </Screen>
@@ -130,24 +134,24 @@ export function AccueilV2() {
 
 function Sc({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
   return (
-    <View style={h.sc}>
-      <Text style={h.scIcon} onPress={onPress}>{icon}</Text>
-      <Text style={h.scLabel} onPress={onPress}>{label}</Text>
-    </View>
+    <TouchableOpacity style={h.sc} onPress={onPress} activeOpacity={0.7}>
+      <Text style={h.scIcon}>{icon}</Text>
+      <Text style={h.scLabel}>{label}</Text>
+    </TouchableOpacity>
   );
 }
 
 const h = StyleSheet.create({
-  kicker: { fontSize: FontSize.xs, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.6 },
-  title: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
+  kicker: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.8, textTransform: 'uppercase' },
+  title: { fontSize: 21, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, letterSpacing: -0.3, marginTop: 2 },
   meta: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
-  relRow: { gap: 2, marginTop: 2 },
-  rel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  prep: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.bold, marginTop: 2 },
-  shortcuts: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.md, marginTop: Spacing.lg },
-  sc: { alignItems: 'center', gap: 3 },
-  scIcon: { fontSize: 20 },
-  scLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  post: { fontSize: FontSize.sm, color: Colors.textSecondary, paddingVertical: 3 },
+  relRow: { gap: 3, marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.primaryBorder },
+  rel: { fontSize: FontSize.sm, color: Colors.primaryDark, fontWeight: FontWeight.semibold },
+  prep: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.bold, marginTop: 4 },
+  shortcuts: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: '#ECEBE7', paddingVertical: Spacing.md + 2, marginTop: Spacing.xl },
+  sc: { alignItems: 'center', gap: 4, flex: 1 },
+  scIcon: { fontSize: 19 },
+  scLabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
+  post: { fontSize: FontSize.sm, color: Colors.textSecondary },
   postAuthor: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
 });

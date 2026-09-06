@@ -76,7 +76,7 @@ export function AgendaV2() {
         <Text style={s.waitLine}>Paiement transport La Baule — à régler</Text>
       </Card>
 
-      <Placeholder note="Timeline = mock F2. Moteur réel (cavalier-agenda.tsx V1, déjà agrégé par user id : réservations + coachings animés + dates concours) rebranché en F3, avec les chips de filtre par-dessus." v1Path="/(tabs)/cavalier-agenda" v1Label="Ouvrir l’agenda (V1)" />
+      <Placeholder note="timeline simulée · moteur agenda réel (déjà agrégé par personne) rebranché en F3" v1Path="/(tabs)/cavalier-agenda" v1Label="Ouvrir l’agenda (V1)" />
     </Screen>
   );
 }

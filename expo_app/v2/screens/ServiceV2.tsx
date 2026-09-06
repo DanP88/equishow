@@ -76,7 +76,7 @@ export function ServiceV2() {
               onCta={() => {}}
             />
           )}
-          <Placeholder note={`Parcours « Je cherche » complet (recherche réelle, réservation, paiement, messagerie) = LOT ${m.lot}.`} v1Path={m.v1} v1Label={`Voir le marché ${m.title} (V1)`} />
+          <Placeholder note={`parcours « Je cherche » complet = LOT ${m.lot}`} v1Path={m.v1} v1Label="marché actuel" />
         </>
       )}
 
@@ -89,7 +89,7 @@ export function ServiceV2() {
             {k === 'coach' && <><Row label="Type (concours / régulier)" /><Row label="Discipline · niveaux" /><Row label="Dates · places · prix/séance" /></>}
             <Row label="Concours associé" value={concours ? concours.nom : 'aucun'} />
           </Card>
-          <Placeholder note={`Formulaire « Je propose » réel + wording revu + contrôles de cohérence (destination/dates ≠ concours) = LOT ${m.lot}.`} v1Path={k === 'coach' ? '/proposer-coach' : k === 'box' ? '/proposer-box' : '/proposer-transport'} v1Label={`Ouvrir « Proposer ${m.title} » (V1)`} />
+          <Placeholder note={`formulaire « Je propose » + contrôles de cohérence = LOT ${m.lot}`} v1Path={k === 'coach' ? '/proposer-coach' : k === 'box' ? '/proposer-box' : '/proposer-transport'} v1Label="version actuelle" />
         </>
       )}
 
@@ -114,7 +114,7 @@ export function ServiceV2() {
               <Row key={h.id} icon="🐴" label={`${h.horse} — ${h.rider}`} value={h.discipline} />
             ))}
           </Card>
-          <Placeholder note="Gestion élèves / demandes / séances réelle (course_demands, accept/refuse, paiement post-acceptation) = LOT F7." v1Path="/(tabs)/coach-demandes" v1Label="Ouvrir « Demandes » coach (V1)" />
+          <Placeholder note="gestion élèves / demandes / séances = LOT F7" v1Path="/(tabs)/coach-demandes" v1Label="demandes actuelles" />
         </>
       )}
     </Screen>

@@ -1,8 +1,9 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// v2/ui/kit — primitives d'interface partagées par les écrans V2 (F2).
+// v2/ui/kit — primitives d'interface partagées par les écrans V2.
 //
-// Objectif : des écrans courts, cohérents, mobile-first. Design intermédiaire
-// (polish final = F11). Réutilise les tokens V1 (constants/colors, theme).
+// Passe de PROPRETÉ visuelle (avant F11) : cartes légères, moins de bordures,
+// orange réservé au CTA, encarts « prototype » réduits à une note discrète.
+// Le polish final (iconographie, tokens, densité) reste le LOT F11.
 // ─────────────────────────────────────────────────────────────────────────────
 import React from 'react';
 import {
@@ -14,12 +15,24 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 
 export const V2 = { Colors, Spacing, Radius, FontSize, FontWeight, Shadow };
 
-// Enveloppe d'écran (scroll + safe area + padding bas pour la bottom bar).
+// Palette locale : neutres calmes + orange uniquement pour l'action primaire.
+const C = {
+  bg: Colors.background,
+  card: Colors.surface,
+  line: '#ECEBE7',        // hairline très douce
+  ink: Colors.textPrimary,
+  sub: Colors.textSecondary,
+  faint: Colors.textTertiary,
+  cta: Colors.primary,
+  ctaSoft: Colors.primaryLight,
+  ctaLine: Colors.primaryBorder,
+};
+
 export function Screen({ children, scroll = true }: { children: React.ReactNode; scroll?: boolean }) {
   const inner = <View style={k.screenInner}>{children}</View>;
   return (
     <SafeAreaView style={k.screen}>
-      {scroll ? <ScrollView contentContainerStyle={k.scrollPad} keyboardShouldPersistTaps="handled">{inner}</ScrollView> : inner}
+      {scroll ? <ScrollView contentContainerStyle={k.scrollPad} keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false}>{inner}</ScrollView> : inner}
     </SafeAreaView>
   );
 }
@@ -35,27 +48,41 @@ export function Section({
     <View style={[k.section, tight && { marginTop: Spacing.md }]}>
       <View style={k.sectionHead}>
         <Text style={k.sectionTitle}>{title}</Text>
-        {action ? <TouchableOpacity onPress={onAction}><Text style={k.sectionAction}>{action}</Text></TouchableOpacity> : null}
+        {action ? <TouchableOpacity onPress={onAction} hitSlop={8}><Text style={k.sectionAction}>{action}</Text></TouchableOpacity> : null}
       </View>
       {children}
     </View>
   );
 }
 
-export function Card({ children, onPress, hero }: { children: React.ReactNode; onPress?: () => void; hero?: boolean }) {
+export function Card({ children, onPress, hero, pad = true }: { children: React.ReactNode; onPress?: () => void; hero?: boolean; pad?: boolean }) {
   const Body = onPress ? TouchableOpacity : View;
-  return <Body style={[k.card, hero && k.cardHero]} onPress={onPress} activeOpacity={0.85}>{children}</Body>;
+  return <Body style={[k.card, pad && k.cardPad, hero && k.cardHero]} onPress={onPress} activeOpacity={0.9}>{children}</Body>;
+}
+
+// Groupe de lignes dans UNE carte (au lieu d'une bordure par ligne).
+export function RowGroup({ children }: { children: React.ReactNode }) {
+  const items = React.Children.toArray(children).filter(Boolean);
+  return (
+    <View style={k.card}>
+      {items.map((c, i) => (
+        <View key={i} style={i > 0 ? k.rowDivider : undefined}>{c}</View>
+      ))}
+    </View>
+  );
 }
 
 export function Row({
-  icon, label, value, onPress, right, danger,
-}: { icon?: string; label: string; value?: string; onPress?: () => void; right?: React.ReactNode; danger?: boolean }) {
+  icon, label, value, onPress, right, danger, sub,
+}: { icon?: string; label: string; value?: string; onPress?: () => void; right?: React.ReactNode; danger?: boolean; sub?: string }) {
   const Body = onPress ? TouchableOpacity : View;
   return (
-    <Body style={k.row} onPress={onPress} activeOpacity={0.7}>
+    <Body style={k.row} onPress={onPress} activeOpacity={0.6}>
       {icon ? <Text style={k.rowIcon}>{icon}</Text> : null}
-      <Text style={[k.rowLabel, danger && { color: Colors.urgent }]}>{label}</Text>
-      <View style={{ flex: 1 }} />
+      <View style={{ flex: 1 }}>
+        <Text style={[k.rowLabel, danger && { color: Colors.urgent }]}>{label}</Text>
+        {sub ? <Text style={k.rowSub}>{sub}</Text> : null}
+      </View>
       {value ? <Text style={k.rowValue}>{value}</Text> : null}
       {right}
       {onPress ? <Text style={k.chev}>›</Text> : null}
@@ -78,7 +105,7 @@ export function Segment({
     <View style={k.segment}>
       {options.map((o) => (
         <TouchableOpacity key={o.key} style={[k.segBtn, value === o.key && k.segBtnOn]} onPress={() => onChange(o.key)} activeOpacity={0.85}>
-          <Text style={[k.segTxt, value === o.key && k.segTxtOn]}>{o.label}</Text>
+          <Text style={[k.segTxt, value === o.key && k.segTxtOn]} numberOfLines={1}>{o.label}</Text>
         </TouchableOpacity>
       ))}
     </View>
@@ -87,7 +114,7 @@ export function Segment({
 
 export function Tile({ icon, title, sub, onPress }: { icon: string; title: string; sub?: string; onPress?: () => void }) {
   return (
-    <TouchableOpacity style={k.tile} onPress={onPress} activeOpacity={0.85}>
+    <TouchableOpacity style={k.tile} onPress={onPress} activeOpacity={0.9}>
       <Text style={k.tileIcon}>{icon}</Text>
       <Text style={k.tileTitle}>{title}</Text>
       {sub ? <Text style={k.tileSub}>{sub}</Text> : null}
@@ -101,29 +128,28 @@ export function EmptyState({ icon, title, body, ctaLabel, onCta }: { icon: strin
       <Text style={k.emptyIcon}>{icon}</Text>
       <Text style={k.emptyTitle}>{title}</Text>
       {body ? <Text style={k.emptyBody}>{body}</Text> : null}
-      {ctaLabel ? <TouchableOpacity style={k.btn} onPress={onCta}><Text style={k.btnTxt}>{ctaLabel}</Text></TouchableOpacity> : null}
+      {ctaLabel ? <TouchableOpacity style={k.btn} onPress={onCta} activeOpacity={0.9}><Text style={k.btnTxt}>{ctaLabel}</Text></TouchableOpacity> : null}
     </View>
   );
 }
 
-// Encart « cette partie sera détaillée au LOT Fx » + lien vers l'écran V1.
+// Note discrète « donnée simulée / à venir au lot Fx » — plus d'encart jaune.
 export function Placeholder({ note, v1Path, v1Label }: { note: string; v1Path?: string; v1Label?: string }) {
   return (
     <View style={k.ph}>
-      <Text style={k.phTag}>PROTOTYPE F2 — structure</Text>
-      <Text style={k.phNote}>{note}</Text>
-      {v1Path ? (
-        <TouchableOpacity style={k.phLink} onPress={() => router.push(v1Path as any)}>
-          <Text style={k.phLinkTxt}>↗ {v1Label ?? 'Voir l’écran actuel (V1)'}</Text>
-        </TouchableOpacity>
-      ) : null}
+      <Text style={k.phNote}>
+        <Text style={k.phDot}>· </Text>{note}
+        {v1Path ? (
+          <Text style={k.phLink} onPress={() => router.push(v1Path as any)}>{`  ${v1Label ?? 'voir la version actuelle'} ›`}</Text>
+        ) : null}
+      </Text>
     </View>
   );
 }
 
 export function PrimaryButton({ label, onPress, disabled }: { label: string; onPress?: () => void; disabled?: boolean }) {
   return (
-    <TouchableOpacity style={[k.btn, disabled && k.btnOff]} onPress={onPress} disabled={disabled} activeOpacity={0.85}>
+    <TouchableOpacity style={[k.btn, disabled && k.btnOff]} onPress={onPress} disabled={disabled} activeOpacity={0.9}>
       <Text style={k.btnTxt}>{label}</Text>
     </TouchableOpacity>
   );
@@ -137,46 +163,57 @@ export function GhostButton({ label, onPress }: { label: string; onPress?: () =>
 }
 
 const k = StyleSheet.create({
-  screen: { flex: 1, backgroundColor: Colors.background },
+  screen: { flex: 1, backgroundColor: C.bg },
   screenInner: { flex: 1 },
-  scrollPad: { padding: Spacing.lg, paddingBottom: Spacing.xxxl, gap: Spacing.md },
-  h1: { fontSize: FontSize.xxxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
-  section: { gap: Spacing.sm, marginTop: Spacing.lg },
-  sectionHead: { flexDirection: 'row', alignItems: 'baseline', justifyContent: 'space-between' },
-  sectionTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.6 },
-  sectionAction: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
-  card: { backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: Spacing.sm, ...Shadow.card },
-  cardHero: { borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
-  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.sm + 4, paddingHorizontal: Spacing.md },
-  rowIcon: { fontSize: 16 },
-  rowLabel: { fontSize: FontSize.base, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
-  rowValue: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  chev: { fontSize: 20, color: Colors.textTertiary, marginLeft: 2 },
-  chip: { paddingVertical: Spacing.xs + 2, paddingHorizontal: Spacing.md, borderRadius: 999, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
-  chipOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
-  chipTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  chipTxtOn: { color: Colors.textInverse },
-  segment: { flexDirection: 'row', backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: 3 },
-  segBtn: { flex: 1, paddingVertical: Spacing.sm + 2, borderRadius: Radius.sm, alignItems: 'center' },
-  segBtnOn: { backgroundColor: Colors.surface, ...Shadow.card },
-  segTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  segTxtOn: { color: Colors.textPrimary, fontWeight: FontWeight.bold },
-  tile: { flex: 1, backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, gap: 3, ...Shadow.card },
-  tileIcon: { fontSize: 20 },
-  tileTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  tileSub: { fontSize: FontSize.xs, color: Colors.textSecondary },
-  empty: { alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, borderStyle: 'dashed', padding: Spacing.xl },
-  emptyIcon: { fontSize: 30 },
-  emptyTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, textAlign: 'center' },
-  emptyBody: { fontSize: FontSize.sm, color: Colors.textSecondary, textAlign: 'center', lineHeight: 19 },
-  ph: { backgroundColor: Colors.warningBg, borderColor: Colors.warningBorder, borderWidth: 1, borderRadius: Radius.md, padding: Spacing.md, gap: 6 },
-  phTag: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.warning, letterSpacing: 0.5 },
-  phNote: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
-  phLink: { alignSelf: 'flex-start' },
-  phLinkTxt: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
-  btn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 2, alignItems: 'center', paddingHorizontal: Spacing.lg },
-  btnOff: { backgroundColor: Colors.borderMedium },
+  scrollPad: { padding: Spacing.lg, paddingBottom: 44, gap: Spacing.md },
+  h1: { fontSize: 26, fontWeight: FontWeight.extrabold, color: C.ink, letterSpacing: -0.4 },
+
+  section: { gap: Spacing.sm, marginTop: Spacing.xl },
+  sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
+  sectionTitle: { fontSize: 11, fontWeight: FontWeight.bold, color: C.faint, textTransform: 'uppercase', letterSpacing: 0.8 },
+  sectionAction: { fontSize: FontSize.sm, color: C.cta, fontWeight: FontWeight.semibold },
+
+  card: { backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line },
+  cardPad: { padding: Spacing.lg, gap: Spacing.sm },
+  cardHero: { borderColor: C.ctaLine, backgroundColor: C.ctaSoft },
+
+  rowDivider: { borderTopWidth: 1, borderTopColor: C.line },
+  row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
+  rowIcon: { fontSize: 16, width: 22, textAlign: 'center' },
+  rowLabel: { fontSize: FontSize.base, color: C.ink, fontWeight: FontWeight.semibold },
+  rowSub: { fontSize: FontSize.xs, color: C.faint, marginTop: 1 },
+  rowValue: { fontSize: FontSize.sm, color: C.sub },
+  chev: { fontSize: 18, color: C.faint, marginLeft: 2 },
+
+  chip: { paddingVertical: 7, paddingHorizontal: Spacing.md, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.card },
+  chipOn: { backgroundColor: C.ctaSoft, borderColor: C.ctaLine },
+  chipTxt: { fontSize: FontSize.sm, color: C.sub, fontWeight: FontWeight.semibold },
+  chipTxtOn: { color: Colors.primaryDark },
+
+  segment: { flexDirection: 'row', backgroundColor: C.bg, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: C.line },
+  segBtn: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
+  segBtnOn: { backgroundColor: C.card, ...Shadow.card },
+  segTxt: { fontSize: FontSize.sm, color: C.sub, fontWeight: FontWeight.semibold },
+  segTxtOn: { color: C.ink, fontWeight: FontWeight.bold },
+
+  tile: { flex: 1, backgroundColor: C.card, borderRadius: 14, borderWidth: 1, borderColor: C.line, padding: Spacing.md, gap: 3 },
+  tileIcon: { fontSize: 18 },
+  tileTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: C.ink },
+  tileSub: { fontSize: FontSize.xs, color: C.sub },
+
+  empty: { alignItems: 'center', gap: 6, backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg },
+  emptyIcon: { fontSize: 26, opacity: 0.7 },
+  emptyTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: C.ink, textAlign: 'center' },
+  emptyBody: { fontSize: FontSize.sm, color: C.sub, textAlign: 'center', lineHeight: 19 },
+
+  ph: { paddingHorizontal: 2, paddingTop: 2 },
+  phNote: { fontSize: FontSize.xs, color: C.faint, lineHeight: 16, fontStyle: 'italic' },
+  phDot: { color: C.faint },
+  phLink: { color: C.cta, fontStyle: 'normal', fontWeight: FontWeight.semibold },
+
+  btn: { backgroundColor: C.cta, borderRadius: 14, paddingVertical: Spacing.md + 2, alignItems: 'center', paddingHorizontal: Spacing.lg },
+  btnOff: { backgroundColor: '#E7E5E1' },
   btnTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
-  btnGhost: { borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.md + 2, alignItems: 'center' },
-  btnGhostTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.base },
+  btnGhost: { borderRadius: 14, borderWidth: 1, borderColor: C.line, paddingVertical: Spacing.md + 2, alignItems: 'center', backgroundColor: C.card },
+  btnGhostTxt: { color: C.sub, fontWeight: FontWeight.bold, fontSize: FontSize.base },
 });

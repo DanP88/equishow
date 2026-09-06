@@ -14,7 +14,7 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { Screen, Section, Card, Row, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
+import { Screen, Section, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
 import { useConcours } from '../../hooks/useConcours';
 import { useMyConcours } from '../../hooks/useConcours';
@@ -57,7 +57,7 @@ export function FicheConcoursV2() {
             <Text style={s.radarTitle}>📊 Radar (agrégats, masquage &lt; 5)</Text>
             <Text style={s.radarLine}>👥 34 participants · 🐴 41 chevaux</Text>
             <Text style={s.radarLine}>🚚 3 trajets · 🏠 6/11 box réservés · 🎓 2 coachs</Text>
-            <Placeholder note="Radar réel = fn_org_concours_radar (V1). Chiffres ci-dessus simulés en F2." v1Path="/(tabs)/org-radar" v1Label="Ouvrir le Radar (V1)" />
+            <Placeholder note="Radar réel rebranché en F10" v1Path="/(tabs)/org-radar" v1Label="Radar actuel" />
           </View>
         </Card>
       )}
@@ -74,19 +74,21 @@ export function FicheConcoursV2() {
       {!entry.going ? (
         <PrimaryButton label="🟢 J'y serai" onPress={() => { setGoing(true); router.push(`/(v2)/concours/${id}/preparer` as any); }} />
       ) : (
-        <Card>
+        <Card pad={false}>
           <View style={s.mcHead}>
             <Text style={s.mcTitle}>MON CONCOURS</Text>
-            <TouchableOpacity onPress={() => setGoing(false)}><Text style={s.mcModif}>Retirer ma présence</Text></TouchableOpacity>
+            <TouchableOpacity onPress={() => setGoing(false)} hitSlop={6}><Text style={s.mcModif}>Retirer</Text></TouchableOpacity>
           </View>
-          <Row icon="🐴" label="Cheval" value={entry.chevalId ? 'Choisi' : 'à choisir'} onPress={() => router.push(`/(v2)/concours/${id}/preparer` as any)} />
+          <Row icon="🐴" label="Cheval" value={entry.chevalId ? 'choisi' : 'à choisir'} onPress={() => router.push(`/(v2)/concours/${id}/preparer` as any)} />
           <Row icon="📋" label="Épreuve(s)" value={entry.epreuves.length ? entry.epreuves.join(', ') : 'à préciser'} onPress={() => router.push(`/(v2)/concours/${id}/preparer` as any)} />
           <Row icon="🚚" label="Transport" value={needLabel[entry.needTransport]} right={entry.needTransport === 'searching' || entry.needTransport === 'unset' ? <TouchableOpacity onPress={() => openService('transport')}><Text style={s.miniCta}>Chercher</Text></TouchableOpacity> : undefined} />
           <Row icon="🏠" label="Box" value={needLabel[entry.needBox]} right={entry.needBox === 'searching' || entry.needBox === 'unset' ? <TouchableOpacity onPress={() => openService('box')}><Text style={s.miniCta}>Chercher</Text></TouchableOpacity> : undefined} />
           <Row icon="🎓" label="Coach" value={needLabel[entry.needCoach]} right={entry.needCoach === 'searching' || entry.needCoach === 'unset' ? <TouchableOpacity onPress={() => openService('coach')}><Text style={s.miniCta}>Chercher</Text></TouchableOpacity> : undefined} />
-          <Text style={s.prep}>Préparation ◕ {prepScore}/5</Text>
-          <PrimaryButton label="Compléter ma préparation" onPress={() => router.push(`/(v2)/concours/${id}/preparer` as any)} />
-          <TouchableOpacity onPress={() => router.replace('/(v2)/agenda' as any)}><Text style={s.link}>📅 Voir ce concours dans mon agenda</Text></TouchableOpacity>
+          <View style={s.mcFoot}>
+            <Text style={s.prep}>Préparation ◕ {prepScore}/5</Text>
+            <PrimaryButton label="Compléter ma préparation" onPress={() => router.push(`/(v2)/concours/${id}/preparer` as any)} />
+            <TouchableOpacity onPress={() => router.replace('/(v2)/agenda' as any)} hitSlop={6}><Text style={s.link}>📅 Voir dans mon agenda</Text></TouchableOpacity>
+          </View>
         </Card>
       )}
 
@@ -99,7 +101,7 @@ export function FicheConcoursV2() {
               <GhostButton label="Gérer mes séances" onPress={() => router.push('/(v2)/service/coach?face=eleves' as any)} />
               <GhostButton label="Proposer un créneau ici" onPress={() => openService('coach', 'propose')} />
             </View>
-            <Placeholder note="Séances de coaching sur ce concours = mock F2. Flux réel (course_demands) rebranché en F7." />
+            <Placeholder note="séances de coaching sur ce concours rebranchées en F7" />
           </Card>
         </Section>
       )}
@@ -108,31 +110,37 @@ export function FicheConcoursV2() {
       <Section title="Présence">
         <Card>
           <Text style={s.presence}>👥 12 participants · 🐴 9 chevaux</Text>
-          <Text style={s.presenceSub}>Que vous connaissez · 3 — Marie L. (Ideal) · Coach Émilie …</Text>
-          <TouchableOpacity><Text style={s.link}>Voir tous les participants (12) ›</Text></TouchableOpacity>
-          <Placeholder note="Présence & « personnes que vous connaissez » = concours_presence + fn_people_i_know (V1). Chiffres simulés en F2." />
+          <Text style={s.presenceSub}>Que vous connaissez · 3 — Marie L. (Ideal) · Coach Émilie</Text>
+          <TouchableOpacity hitSlop={6}><Text style={s.link}>Voir tous les participants (12) ›</Text></TouchableOpacity>
+          <Placeholder note="présence & connaissances communes rebranchées en F10" />
         </Card>
       </Section>
 
       {/* ORGANISE TON DÉPLACEMENT */}
       <Section title="Organise ton déplacement">
-        <Row icon="🚚" label="Transport" value="3 offres" onPress={() => openService('transport')} />
-        <Row icon="🏠" label="Box" value="5 offres" onPress={() => openService('box')} />
-        <Row icon="🎓" label="Coachs présents" value={String(MOCK_COACHES_ON_CONCOURS.length)} onPress={() => openService('coach')} />
+        <RowGroup>
+          <Row icon="🚚" label="Transport" value="3 offres" onPress={() => openService('transport')} />
+          <Row icon="🏠" label="Box" value="5 offres" onPress={() => openService('box')} />
+          <Row icon="🎓" label="Coachs présents" value={String(MOCK_COACHES_ON_CONCOURS.length)} onPress={() => openService('coach')} />
+        </RowGroup>
       </Section>
 
       {/* INFOS CONCOURS */}
       <Section title="Infos concours">
-        <Row icon="🌤" label="Météo (J–3 → J+1)" />
-        <Row icon="📋" label={`Épreuves (${concours.liste_epreuves.length})`} onPress={() => {}} />
-        <Row icon="🕓" label="Horaires" value="non publiés" />
-        <Placeholder note="Météo (Open-Meteo), épreuves (liste_epreuves), catégories FFE = déjà en V1. Horaires structurés & résultats = pas de source aujourd’hui (documenté)." v1Path={`/concours/${id}`} v1Label="Ouvrir la fiche concours V1" />
+        <RowGroup>
+          <Row icon="🌤" label="Météo (J–3 → J+1)" />
+          <Row icon="📋" label={`Épreuves · ${concours.liste_epreuves.length}`} onPress={() => {}} />
+          <Row icon="🕓" label="Horaires" value="non publiés" />
+        </RowGroup>
+        <Placeholder note="météo & épreuves reprises de la V1 ; horaires structurés = pas de source" v1Path={`/concours/${id}`} v1Label="fiche concours actuelle" />
       </Section>
 
       {/* ÉCHANGES */}
       <Section title="Échanges">
-        <Row icon="💬" label="Discussion du concours" value="12" onPress={() => router.push(`/concours/${id}/discussion` as any)} />
-        {entry.going && <Row icon="🧵" label="Fil des participants" onPress={() => router.push(`/concours/${id}/participants` as any)} />}
+        <RowGroup>
+          <Row icon="💬" label="Discussion du concours" value="12" onPress={() => router.push(`/concours/${id}/discussion` as any)} />
+          {entry.going ? <Row icon="🧵" label="Fil des participants" onPress={() => router.push(`/concours/${id}/participants` as any)} /> : null}
+        </RowGroup>
       </Section>
 
       {/* SUIVRE */}
@@ -149,12 +157,13 @@ const s = StyleSheet.create({
   h1: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   meta: { fontSize: FontSize.base, color: Colors.textSecondary },
   metaDim: { fontSize: FontSize.xs, color: Colors.textTertiary },
-  mcHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
-  mcTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.6 },
-  mcModif: { fontSize: FontSize.xs, color: Colors.urgent, fontWeight: FontWeight.bold },
-  miniCta: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.bold, borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.xs, paddingHorizontal: 8, paddingVertical: 3, overflow: 'hidden' },
-  prep: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginTop: 4 },
-  link: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginTop: 6 },
+  mcHead: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: Spacing.lg, paddingTop: Spacing.md, paddingBottom: 4 },
+  mcTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.8 },
+  mcModif: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
+  mcFoot: { padding: Spacing.lg, gap: 8, borderTopWidth: 1, borderTopColor: '#ECEBE7' },
+  miniCta: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.bold, backgroundColor: Colors.primaryLight, borderRadius: 8, paddingHorizontal: 10, paddingVertical: 4, overflow: 'hidden' },
+  prep: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  link: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
   coachHere: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
   rowBtns: { gap: Spacing.sm },
   presence: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },

@@ -9,7 +9,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { Screen, H1, Segment, Row, Chip, EmptyState, Placeholder } from '../ui/kit';
+import { Screen, H1, Segment, Row, RowGroup, Chip, EmptyState, Placeholder } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
 import { useConcoursList, useMyConcours } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
@@ -73,19 +73,21 @@ export function ConcoursV2() {
           body={tab === 'suivis' ? 'Ouvre une fiche concours et appuie sur « Suivre » ou « J’y serai ».' : 'Essaie d’élargir les filtres.'}
         />
       ) : (
-        list.slice(0, 40).map((c) => (
-          <Row
-            key={c.id}
-            icon="🏆"
-            label={c.nom}
-            value={c.dateLabel || undefined}
-            onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}
-          />
-        ))
+        <RowGroup>
+          {list.slice(0, 40).map((c) => (
+            <Row
+              key={c.id}
+              icon="🏆"
+              label={c.nom}
+              sub={[c.dateLabel, c.lieu].filter(Boolean).join(' · ') || undefined}
+              onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}
+            />
+          ))}
+        </RowGroup>
       )}
 
       {tab === 'decouvrir' && (
-        <Placeholder note="Filtres avancés (discipline / région / dates) et cartes riches (compteurs d’offres, participants connus) = affinés au design F11. Ici : liste + filtre à venir/passés." />
+        <Placeholder note="filtres discipline / région / dates et cartes détaillées = design F11" />
       )}
     </Screen>
   );
@@ -115,11 +117,7 @@ function OrganisesTab({ mine }: { mine: { id: string; nom: string; statut: strin
           </View>
         ))
       )}
-      <Placeholder
-        note="Création / édition / publication réelles = déjà en V1 (creer-concours, useMyConcours). Le wrap V2 rebranche ces flux en lot ultérieur."
-        v1Path="/(tabs)/org-concours"
-        v1Label="Ouvrir la gestion concours (V1)"
-      />
+      <Placeholder note="création / édition / publication rebranchées au lot org" v1Path="/(tabs)/org-concours" v1Label="gestion concours actuelle" />
     </View>
   );
 }
@@ -129,9 +127,9 @@ const s = StyleSheet.create({
   fab: { backgroundColor: Colors.primary, borderRadius: 999, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, ...Shadow.fab },
   fabTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.sm },
   filterRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
-  orgCard: { backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, gap: 4 },
+  orgCard: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: '#ECEBE7', padding: Spacing.lg, gap: 4 },
   orgName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   orgMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  orgActions: { flexDirection: 'row', gap: Spacing.lg, marginTop: 4 },
+  orgActions: { flexDirection: 'row', gap: Spacing.lg, marginTop: 8 },
   orgAction: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
 });
