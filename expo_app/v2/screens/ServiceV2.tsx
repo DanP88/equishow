@@ -9,7 +9,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { router, useLocalSearchParams } from 'expo-router';
+import { router, useLocalSearchParams, Redirect } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Segment, Card, Row, Placeholder, EmptyState } from '../ui/kit';
@@ -33,6 +33,16 @@ export function ServiceV2() {
   const { chevaux } = useMyChevaux();
   const chevalNom = chevalId ? (chevaux.find((c) => c.id === chevalId)?.nom ?? null) : null;
   const m = META[k];
+
+  // TRANSPORT (F5) : parcours dédié → redirection vers /(v2)/transport.
+  // ((k as string) : ne pas laisser TS restreindre `k` pour la suite du fichier)
+  if ((k as string) === 'transport') {
+    const q = new URLSearchParams();
+    if (concoursId) q.set('concoursId', concoursId);
+    if (face) q.set('face', face);
+    if (chevalId) q.set('chevalId', chevalId);
+    return <Redirect href={`/(v2)/transport${q.toString() ? `?${q.toString()}` : ''}` as any} />;
+  }
 
   const faces = [
     { key: 'cherche', label: '🔍 Je cherche' },

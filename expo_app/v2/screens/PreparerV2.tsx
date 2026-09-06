@@ -32,7 +32,9 @@ export function PreparerV2() {
   const openService = (kind: 'transport' | 'box' | 'coach', face: 'cherche' | 'propose') => {
     const q = new URLSearchParams({ concoursId: id, face });
     if (entry.chevalId) q.set('chevalId', entry.chevalId);
-    router.push(`/(v2)/service/${kind}?${q.toString()}` as any);
+    // Transport (F5) = parcours dédié ; box/coach = écran service générique (F6/F7).
+    const path = kind === 'transport' ? '/(v2)/transport' : `/(v2)/service/${kind}`;
+    router.push(`${path}?${q.toString()}` as any);
   };
 
   // Libellés d'action exacts par service.

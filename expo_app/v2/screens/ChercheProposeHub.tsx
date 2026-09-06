@@ -30,7 +30,8 @@ export function ChercheProposeHub({ mode }: { mode: 'cherche' | 'propose' }) {
       return;
     }
     const q = concoursId ? `?concoursId=${concoursId}&face=${isCherche ? 'cherche' : 'propose'}` : `?face=${isCherche ? 'cherche' : 'propose'}`;
-    router.push(`/(v2)/service/${kind}${q}` as any);
+    const path = kind === 'transport' ? '/(v2)/transport' : `/(v2)/service/${kind}`;
+    router.push(`${path}${q}` as any);
   };
 
   const services: { kind: 'transport' | 'box' | 'coach'; icon: string; title: string; sub: string }[] = isCherche

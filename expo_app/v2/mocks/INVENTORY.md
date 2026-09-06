@@ -26,6 +26,21 @@ Chaque entrée = ce qui est simulé côté front + ce qui la remplacera.
 | `ServiceV2` (les 3 kinds) | formulaires & résultats = maquette de structure | F5 Transport · F6 Box · F7 Coach |
 | `(v2)/concours/creer`, `(v2)/chevaux/nouveau` | placeholders | F8 (cheval) / lot org (création) |
 
+## F5 — Transport V2
+| Élément | Réel (lecture seule) | Local (`v2:transport`) |
+|---|---|---|
+| résultats « Je cherche » | `useTransportAnnonces()` (trajets, places > 0, filtre concours ± 3 j) via `v2/adapters/transport.ts` | — |
+| commission affichée | `getCommission('trajet')` (lecture seule) | — |
+| résultats démo | — (mocks `v2/mocks/transport.ts`, **prototype non connecté uniquement**, tag « démo ») |
+| recherche publiée (« aucun résultat ») | — | `searches[]` |
+| annonce publiée (« Je propose ») | — | `offers[]` |
+| réservation simulée | — | `bookings[]` (aucun Stripe, aucun paiement) |
+| synchro « Mon concours » | — | `concoursLocal.needTransport` (searching / offering / done, resync → unset) |
+
+**Backend requis Phase 2** : table `transport_demandes` (recherches) + RLS + anti-spam ;
+réservation réelle via le flux `transport_reservations` + escrow existant ; masquage
+d'adresse tant que non mis en relation. Rien de tout ça en F5.
+
 ## F4 — fiche concours = tableau de bord (état LOCAL, lecture seule côté réel)
 | Élément | Réel (lecture seule) | Local (`v2:concours-local`) |
 |---|---|---|

@@ -91,6 +91,15 @@ function setEntry(id: string, patch: Partial<ConcoursLocalEntry>) {
   persist();
 }
 
+/** Setter brut inter-stores (ex: transportLocal resynchronise « Mon concours »). */
+export function setConcoursEntry(id: string, patch: Partial<ConcoursLocalEntry>) {
+  setEntry(id, patch);
+}
+/** Lecture brute d'une entrée (hors composant). */
+export function getConcoursEntry(id: string): ConcoursLocalEntry {
+  return state.map[id] ?? EMPTY;
+}
+
 let initialized = false;
 function initOnce() {
   if (initialized) return;

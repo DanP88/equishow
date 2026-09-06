@@ -14,12 +14,17 @@ derrière `V2_ENABLED` / `isV2(flag)`.
 - **LOT courant** : F0 · F1 · F1+ · F2 · F3 · **F4** terminés. F5 non commencé.
   - F3 = Agenda / Notifications / Messagerie sur les moteurs réels V1 (lecture
     seule) via `v2/adapters/*` ; repli démo uniquement sans session.
-  - F4 = fiche concours = **tableau de bord personnel** : J'y serai → ✅ J'y
-    participe → Mon concours (préparation X/5, Cheval / Épreuves / Transport /
-    Box / Coach + état) → Préparer (cartes indépendantes) → passerelles
-    contextualisées vers les services (concours + lieu + dates + cheval
-    préremplis). Tout LOCAL (`v2:concours-local`). Les activités organisateur /
-    coach cohabitent sur la même fiche, sans sélecteur de rôle.
+  - F4 = fiche concours = **tableau de bord personnel** (J'y serai → Mon
+    concours X/5 → Préparer → passerelles contextualisées). Tout LOCAL
+    (`v2:concours-local`).
+  - F5 = **parcours Transport V2** complet, front-only : `🔎 Je cherche` /
+    `📣 Je propose` (poids égal) · contexte concours prérempli · résultats
+    (annonces réelles `useTransportAnnonces` en lecture seule + démo si non
+    connecté) · aucun résultat → « Publier ma recherche » (LOCAL) · détail ·
+    **réservation SIMULÉE** (récap + commission + confirmation, aucun Stripe) ·
+    `Mes transports` (recherches / propositions / réservations, tout local
+    `v2:transport`) · synchro « Mon concours » (Transport → ✅ Prêt / 🔎
+    Recherche / 📣 Je propose / 🟠 À organiser).
   - F2 = nouvelle navigation V2 : groupe de routes `app/(v2)/`, bottom bar +
     top bar fixes, Accueil omni, Concours + sous-onglets, fiche concours centre
     de contrôle, Je cherche / Je propose, opt-in Coach, Chevaux adaptatif,
