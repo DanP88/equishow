@@ -30,6 +30,7 @@ import { isTestAccessExpired } from '../config/testExpiration';
 import { userStore } from '../data/store';
 import { usePushNotifications } from '../hooks/usePushNotifications';
 import { usePlatformSettings } from '../hooks/usePlatformSettings';
+import { V2_ENABLED, V2_FLAGS } from '../v2/flags';
 
 // Scrub sensitive patterns from any string before it leaves the device.
 // Audit P25-bis : on évite que tokens / clés / cartes / emails fuient dans Sentry.
@@ -185,7 +186,14 @@ function RootLayout() {
     'proto-services',
   ]);
   const isProto = !!segments[0] && PROTO_ROUTES.has(segments[0]);
-  if (!isSignedIn && !inAuthGroup && !isStripeReturn && !isProto) {
+  // V2 (prototype) — en build de DÉVELOPPEMENT et V2 activée, le groupe de routes
+  // (v2) + /v2-dev + la racine (qui redirige vers la V2) sont accessibles SANS
+  // session, comme les galeries `proto`. Aucun effet en production (`__DEV__`
+  // faux) ni quand V2_ENABLED/navigation sont à false → comportement V1 exact.
+  const v2DevOpen =
+    __DEV__ && V2_ENABLED && V2_FLAGS.navigation &&
+    (segments[0] === undefined || segments[0] === '(v2)' || segments[0] === 'v2-dev');
+  if (!isSignedIn && !inAuthGroup && !isStripeReturn && !isProto && !v2DevOpen) {
     return <Redirect href="/login" />;
   }
 
@@ -214,7 +222,7 @@ function RootLayout() {
               <GestureHandlerRootView style={{ flex: 1 }}>
                 <StatusBar style="dark" />
                 <Stack screenOptions={{ headerShown: false }}>
-                  {!isSignedIn ? (
+                  {!isSignedIn && !v2DevOpen ? (
                     <Stack.Screen name="(auth)" options={{ headerShown: false }} />
                   ) : (
                     <>

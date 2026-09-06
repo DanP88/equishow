@@ -20,8 +20,15 @@
 // tag v1.0.0-testflight-12) reste intacte, aucune opération backend requise.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Interrupteur général. false = V1 stricte. */
-export const V2_ENABLED = false;
+/**
+ * Interrupteur général. false = V1 stricte.
+ *
+ * ⚠️ ACTIVÉ sur la branche feature/equishow-v2-front UNIQUEMENT (worktree
+ * /Users/dan/equishow-v2-front) pour rendre la V2 testable sans manipulation.
+ * La branche est isolée : ceci n'atteint jamais `main` ni la V1
+ * (/Users/dan/equishow). Repasser à `false` restaure le comportement V1 exact.
+ */
+export const V2_ENABLED = true;
 
 /**
  * Sous-flags par surface. Ignorés tant que V2_ENABLED est false.
@@ -30,10 +37,11 @@ export const V2_ENABLED = false;
 export const V2_FLAGS = {
   capabilities: false, // F1 — compte omni-activités + onboarding
   // F2 — bottom bar + top bar + Accueil omni + groupe de routes (v2).
-  //   false (défaut) : l'app démarre en V1 (app/index.tsx → /(tabs)/chevaux).
-  //   true            : app/index.tsx redirige vers /(v2)/accueil.
-  //   Dans les 2 cas la V2 reste accessible via /v2-dev › « Entrer dans la V2 ».
-  navigation: false,
+  //   false : l'app démarre en V1 (app/index.tsx → /(tabs)/chevaux).
+  //   true  : app/index.tsx redirige vers /(v2)/accueil ; en __DEV__ la V2 est
+  //           accessible SANS connexion (cf. app/_layout.tsx : garde d'auth
+  //           assouplie pour le groupe (v2) uniquement en dev + V2 activée).
+  navigation: true,
   agenda: false,       // F3 — agenda omni + notifications + messagerie
   monConcours: false,  // F4 — J'y serai + Mon concours + préparation
   transport: false,    // F5 — Je cherche / Je propose

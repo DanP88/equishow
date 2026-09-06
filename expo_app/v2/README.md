@@ -35,12 +35,27 @@ derrière `V2_ENABLED` / `isV2(flag)`.
 6. Pas de `search/replace` global sur le rôle : chaque point de dépendance au
    rôle reçoit un adaptateur V2 opt-in.
 
-## Activer / désactiver la V2
+## Tester la V2 (worktree feature/equishow-v2-front)
+
+```
+cd /Users/dan/equishow-v2-front/expo_app
+npx expo start --web --port 8092
+```
+Ouvrir **http://localhost:8092** → l'app entre directement dans la V2
+(`/(v2)/accueil`), **sans connexion** (build de dev). Le panneau capacités
+(7 combinaisons) est sur **http://localhost:8092/v2-dev**.
+
+Sur cette branche : `V2_ENABLED = true`, `V2_FLAGS.navigation = true`.
+`app/_layout.tsx` exempte le groupe `(v2)` de la garde d'auth **uniquement en
+`__DEV__` + V2 activée** (comme les galeries `proto`). Aucun effet en prod, aucun
+effet si les flags repassent à `false` (→ comportement V1 exact). La V1
+(`/Users/dan/equishow`, `main`) n'est pas touchée.
+
+## Activer / désactiver la V2 (autres branches)
 
 Éditer `v2/flags.ts` :
-- `V2_ENABLED = false` → l'app est **exactement** la V1 (défaut).
-- `V2_ENABLED = true` + sous-flags `V2_FLAGS.*` → la V2 prend la main surface
-  par surface.
+- `V2_ENABLED = false` → l'app est **exactement** la V1.
+- `V2_ENABLED = true` + `V2_FLAGS.navigation = true` → l'app démarre dans la V2.
 
 ## Supprimer entièrement la V2 (retour V1 total)
 

@@ -10,6 +10,10 @@ import { useAuth } from '../../hooks/useAuth';
 import { TEST_ACCOUNTS } from '../../data/mockUsers';
 import { userStore } from '../../data/store';
 import { loginLimiter } from '../../lib/rateLimiter';
+import { V2_ENABLED, V2_FLAGS } from '../../v2/flags';
+
+// V2 (prototype) activée → après connexion on entre dans la nouvelle navigation.
+const V2_NAV = V2_ENABLED && V2_FLAGS.navigation;
 
 const SCREEN_BY_ROLE: Record<string, string> = {
   cavalier: '/(tabs)/chevaux',
@@ -26,6 +30,7 @@ export default function LoginScreen() {
 
   function handleTestAccountLogin(accountKey: string, role: string) {
     userStore.switchAccount(accountKey as any);
+    if (V2_NAV) { router.replace('/(v2)/accueil' as any); return; }
     const screen = SCREEN_BY_ROLE[role] || '/(tabs)/chevaux';
     router.replace(screen as any);
   }
@@ -51,6 +56,7 @@ export default function LoginScreen() {
       return;
     }
     await loginLimiter.reset();
+    if (V2_NAV) { router.replace('/(v2)/accueil' as any); return; }
     const screen = (user?.role && SCREEN_BY_ROLE[user.role]) || '/(tabs)/chevaux';
     router.replace(screen as any);
   }
@@ -73,6 +79,18 @@ export default function LoginScreen() {
           <Text style={styles.appName}>EQUISHOW</Text>
           <Text style={styles.tagline}>La plateforme des cavaliers</Text>
         </View>
+
+        {/* V2 (prototype) — entrée directe sans compte, build de dev uniquement */}
+        {__DEV__ && V2_NAV && (
+          <TouchableOpacity
+            style={styles.v2Btn}
+            onPress={() => router.replace('/(v2)/accueil' as any)}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.v2BtnText}>▶  Tester la V2 (sans compte)</Text>
+            <Text style={styles.v2BtnSub}>nouvelle navigation F2 · panneau capacités : /v2-dev</Text>
+          </TouchableOpacity>
+        )}
 
         {/* Comptes de test — visibles uniquement en build de dev */}
         {__DEV__ && TEST_ACCOUNTS.length > 0 && (
@@ -198,6 +216,24 @@ const styles = StyleSheet.create({
     fontSize: FontSize.sm,
     color: Colors.textSecondary,
     marginTop: 4,
+  },
+  v2Btn: {
+    backgroundColor: Colors.primary,
+    borderRadius: Radius.lg,
+    padding: Spacing.md,
+    alignItems: 'center',
+    marginBottom: Spacing.lg,
+    gap: 2,
+  },
+  v2BtnText: {
+    color: Colors.textInverse,
+    fontSize: FontSize.base,
+    fontWeight: FontWeight.extrabold,
+  },
+  v2BtnSub: {
+    color: Colors.textInverse,
+    fontSize: FontSize.xs,
+    opacity: 0.9,
   },
   testSection: {
     marginBottom: Spacing.xl,
