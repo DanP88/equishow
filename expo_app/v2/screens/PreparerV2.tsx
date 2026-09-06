@@ -35,6 +35,18 @@ export function PreparerV2() {
     router.push(`/(v2)/service/${kind}?${q.toString()}` as any);
   };
 
+  // Libellés d'action exacts par service.
+  const CHERCHE_LABEL: Record<'transport' | 'box' | 'coach', string> = {
+    transport: '🔎  Ouvrir la recherche de transport',
+    box: '🔎  Ouvrir la recherche de box',
+    coach: "🔎  Ouvrir la recherche d'un coach",
+  };
+  const PROPOSE_LABEL: Record<'transport' | 'box' | 'coach', string> = {
+    transport: '📣  Proposer des places dans mon van',
+    box: '📣  Proposer un box',
+    coach: '📣  Proposer du coaching',
+  };
+
   const ServiceCard = ({
     kind, icon, title, field,
   }: { kind: 'transport' | 'box' | 'coach'; icon: string; title: string; field: 'needTransport' | 'needBox' | 'needCoach' }) => {
@@ -53,11 +65,12 @@ export function PreparerV2() {
             <Chip key={st} label={st === 'done' ? doneLabel : NEED_LABEL[st]} on={val === st} onPress={() => update({ [field]: st } as any)} />
           ))}
         </View>
+        {/* Bouton d'action — apparaît IMMÉDIATEMENT au choix (état local réactif). */}
         {val === 'searching' && (
-          <GhostButton label={`Ouvrir la recherche ${title.toLowerCase()}`} onPress={() => openService(kind, 'cherche')} />
+          <PrimaryButton label={CHERCHE_LABEL[kind]} onPress={() => openService(kind, 'cherche')} />
         )}
         {val === 'offering' && (
-          <GhostButton label={`Publier une annonce ${title.toLowerCase()}`} onPress={() => openService(kind, 'propose')} />
+          <PrimaryButton label={PROPOSE_LABEL[kind]} onPress={() => openService(kind, 'propose')} />
         )}
       </Card>
     );
