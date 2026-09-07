@@ -80,7 +80,7 @@ export function BoxHubV2() {
 
 // ═══════════════════════ JE CHERCHE ═══════════════════════
 export function BoxChercheV2() {
-  const { concoursId } = useLocalSearchParams<{ concoursId?: string; chevalId?: string }>();
+  const { concoursId, concoursNom } = useLocalSearchParams<{ concoursId?: string; chevalId?: string; concoursNom?: string }>();
   const { concours } = useConcours(concoursId);
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
@@ -117,6 +117,7 @@ export function BoxChercheV2() {
       <TouchableOpacity onPress={() => backTo(concoursId)} hitSlop={8}><Text style={s.back}>← Box</Text></TouchableOpacity>
       <Text style={s.h1}>🔎 Je cherche un box</Text>
 
+      {!concours && concoursNom ? <Text style={s.forHorses}>🏆 {concoursNom} (saisie libre)</Text> : null}
       {concours && (
         <View style={s.ctxCard}>
           <Text style={s.ctxTitle}>Contexte du concours</Text>

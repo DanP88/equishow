@@ -24,6 +24,7 @@ import { useCapabilities } from '../capabilities';
 import { useConcoursLocal, NeedChoice, NeedModule, needStatus, NEED_LABEL } from '../state/concoursLocal';
 import { useV2AllHorses, useV2ContestHorses, horseSubtitle } from '../state/contestHorses';
 import { epreuveOptions } from '../lib/epreuves';
+import { V2MultiSelectField } from '../components/V2MultiSelectField';
 
 // « À organiser » en premier — c'est l'état par défaut.
 const BASE_STATES: NeedChoice[] = ['unset', 'searching', 'offering', 'done', 'none'];
@@ -57,9 +58,6 @@ export function PreparerV2() {
     coach: 'Proposer du coaching',
   };
 
-  const toggleEpreuve = (e: string) =>
-    update({ epreuves: entry.epreuves.includes(e) ? entry.epreuves.filter((x) => x !== e) : [...entry.epreuves, e] });
-
   return (
     <Screen>
       <TouchableOpacity onPress={() => router.replace(`/(v2)/concours/${id}` as any)} hitSlop={8}>
@@ -79,8 +77,8 @@ export function PreparerV2() {
         <Text style={s.hint}>Quels chevaux emmènes-tu à ce concours ? Plusieurs possibles — Transport, Box et Coach s'appuieront sur ce choix.</Text>
         {pool.all.length === 0 ? (
           <View style={s.empty}>
-            <Text style={s.emptyTxt}>Tu n'as pas encore de cheval.</Text>
-            <GhostButton label="Ajouter un cheval" onPress={() => router.push('/(v2)/chevaux/nouveau' as any)} />
+            <Text style={s.emptyTxt}>Aucun cheval enregistré. Ajoute-en un depuis l'onglet Chevaux, puis reviens ici pour le sélectionner.</Text>
+            <GhostButton label="Ouvrir l'onglet Chevaux" onPress={() => router.replace('/(v2)/chevaux' as any)} />
           </View>
         ) : (
           <>
@@ -100,12 +98,11 @@ export function PreparerV2() {
               })}
             </View>
             {ch.hasSelection && <Text style={s.selSummary}>✅ {ch.summary}</Text>}
-            <GhostButton label="＋ Ajouter un cheval" onPress={() => router.push('/(v2)/chevaux/nouveau' as any)} />
           </>
         )}
       </Card>
 
-      {/* 2 — ÉPREUVES (multi-sélection) */}
+      {/* 2 — ÉPREUVES (menu déroulant multi-sélection) */}
       <Card>
         <View style={s.cardHead}>
           <Text style={s.cardTitle}>📝  Épreuves</Text>
@@ -113,30 +110,18 @@ export function PreparerV2() {
         </View>
         <Text style={s.hint}>
           {epr.source === 'concours'
-            ? `Épreuves proposées par ce concours${epr.discipline ? ` · ${epr.discipline}` : ''} — coche celles que tu prépares.`
-            : `Ce concours n'a pas publié ses épreuves — liste type${epr.discipline ? ` (${epr.discipline})` : ''}, à confirmer sur la FFE.`}
+            ? `Épreuves proposées par ce concours${epr.discipline ? ` · ${epr.discipline}` : ''}.`
+            : `Ce concours n'a pas publié ses épreuves${epr.discipline ? ` — liste type ${epr.discipline}` : ''}.`}
         </Text>
         {epr.source === 'type' && <Text style={s.simTag}>simulation — pas les vraies épreuves du concours</Text>}
-
-        {entry.epreuves.length > 0 && (
-          <View style={s.opts}>
-            {entry.epreuves.map((e) => (
-              <Chip key={e} label={`${e}  ✕`} on onPress={() => toggleEpreuve(e)} />
-            ))}
-          </View>
-        )}
-
-        <View style={{ gap: 6, marginTop: Spacing.sm }}>
-          {epr.list.map((e) => {
-            const on = entry.epreuves.includes(e);
-            return (
-              <TouchableOpacity key={e} style={[s.checkRow, on && s.checkRowOn]} activeOpacity={0.85} onPress={() => toggleEpreuve(e)}>
-                <Text style={s.check}>{on ? '☑' : '☐'}</Text>
-                <Text style={s.checkName}>{e}</Text>
-              </TouchableOpacity>
-            );
-          })}
-        </View>
+        <V2MultiSelectField
+          label="Épreuves préparées"
+          options={epr.list}
+          value={entry.epreuves}
+          onChange={(v) => update({ epreuves: v })}
+          placeholder="Choisir des épreuves"
+          emptyNote={epr.source === 'type' ? 'Liste type FFE — à confirmer sur la FFE.' : undefined}
+        />
       </Card>
 
       {/* 3·4·5 — TRANSPORT / BOX / COACH */}

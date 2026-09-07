@@ -13,9 +13,10 @@ import { useSyncExternalStore } from 'react';
 import { loadJSON, saveJSON } from '../lib/persist';
 
 const KEY = 'concours-local';
-// F14 : bump → l'ancien état local (dont les données de smoke F8/F13 qui
-// forçaient « La Baule » en suivi) est ignoré au chargement.
-const SCHEMA_VERSION = 2;
+// F14 → v2 : ignore l'état non versionné (smokes F8/F13).
+// F14.1 → v3 : `setGoing` ne force plus `following` (bug « La Baule reste suivi
+//   après avoir retiré « J'y serai » »). Bump → repart d'un état propre.
+const SCHEMA_VERSION = 3;
 
 export type NeedModule = 'transport' | 'box' | 'coach';
 
@@ -210,9 +211,12 @@ export function useConcoursLocal(concoursId?: string) {
     setEntry(concoursId, { following: !(state.map[concoursId]?.following) });
   }, [concoursId]);
 
+  // F14.1 — « J'y serai » et « Suivre » sont DEUX intentions indépendantes.
+  // `setGoing` ne touche PLUS `following` (sinon un concours restait « suivi »
+  // à vie après un simple aller-retour sur « J'y serai »).
   const setGoing = useCallback((going: boolean) => {
     if (!concoursId) return;
-    setEntry(concoursId, { going, following: going || state.map[concoursId]?.following || false });
+    setEntry(concoursId, { going });
   }, [concoursId]);
 
   const update = useCallback((patch: Partial<ConcoursLocalEntry>) => {
