@@ -22,6 +22,8 @@ import { useConcoursLocal } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
 import { V2DateRange, todayStart } from '../components/V2DateField';
+import { V2DestinationField } from '../components/V2DestinationField';
+import { useAutoDestination } from '../state/autoDestination';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -88,7 +90,7 @@ export function BoxChercheV2() {
   const ch = useV2ContestHorses(concoursId, 'box');
 
   // Prérempli depuis le contexte concours + cheval.
-  const [lieu, setLieu] = useState(concours?.lieu ?? '');
+  const dest = useAutoDestination(concoursId, concours);
   const [dateDebut, setDateDebut] = useState(concours?.date_debut ?? '');
   const [dateFin, setDateFin] = useState(concours?.date_fin ?? '');
   const [nbBox, setNbBox] = useState(ch.count > 0 ? String(ch.count) : '1');
@@ -96,13 +98,13 @@ export function BoxChercheV2() {
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
 
-  const { results, demo } = useV2BoxResults({ concoursId, lieu, dateDebut, dateFin });
+  const { results, demo } = useV2BoxResults({ concoursId, lieu: dest.value, dateDebut, dateFin });
   const alreadyPublished = !!(bl.context.search || (publishedId && bl.searches.some((x) => x.id === publishedId)));
 
   const publishSearch = () => {
     const rec = bl.publishSearch({
       concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
-      lieu: lieu.trim() || '—',
+      lieu: dest.value.trim() || '—',
       dateDebut: dateDebut || undefined, dateFin: dateFin || undefined,
       nbBox: parseInt(nbBox, 10) || 1, litiereIncluse: litiere,
     });
@@ -130,7 +132,7 @@ export function BoxChercheV2() {
       {ch.count === 1 && <Text style={s.forHorses}>{ch.label}</Text>}
 
       <Card>
-        <Field label={`Secteur${concours ? ' (autour du concours)' : ''}`}><TextInput style={s.input} value={lieu} onChangeText={setLieu} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
+        <V2DestinationField label="Secteur recherché" auto={dest} placeholder="Ville / commune" concoursNom={!concours ? concoursNom : undefined} />
         <V2DateRange
           startLabel="Arrivée" endLabel="Départ"
           start={dateDebut} end={dateFin}
@@ -329,7 +331,7 @@ export function BoxProposeV2() {
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
 
-  const [lieu, setLieu] = useState(concours?.lieu ?? '');
+  const dest = useAutoDestination(concoursId, concours);
   const [adresse, setAdresse] = useState('');
   const [dateDebut, setDateDebut] = useState(concours?.date_debut ?? '');
   const [dateFin, setDateFin] = useState(concours?.date_fin ?? '');
@@ -345,7 +347,7 @@ export function BoxProposeV2() {
   const publish = () => {
     bl.publishOffer({
       concoursId, concoursNom: concours?.nom,
-      lieu: lieu.trim() || '—', adresse: adresse.trim() || undefined,
+      lieu: dest.value.trim() || '—', adresse: adresse.trim() || undefined,
       dateDebut: dateDebut || undefined, dateFin: dateFin || undefined,
       nbBox: parseInt(nbBox, 10) || 1, prixNuit: parseInt(prixNuit, 10) || 0,
       litiereIncluse: litiere, equipements: equipements.trim() || undefined,
@@ -364,7 +366,7 @@ export function BoxProposeV2() {
           <Text style={s.sub}>Annonce enregistrée localement (prototype).</Text>
         </View>
         <RowGroup>
-          <Row icon="📍" label="Lieu" value={existing?.lieu ?? lieu} />
+          <Row icon="📍" label="Lieu" value={existing?.lieu ?? dest.value} />
           <Row icon="📅" label="Période" value={fmtPeriode(existing?.dateDebut ?? dateDebut, existing?.dateFin ?? dateFin)} />
           <Row icon="🚪" label="Box" value={String(existing?.nbBox ?? nbBox)} />
           <Row icon="💶" label="Prix / nuit" value={`${existing?.prixNuit ?? prixNuit} €`} />
@@ -388,7 +390,7 @@ export function BoxProposeV2() {
       )}
 
       <Card>
-        <Field label={`Lieu${concours ? ' (secteur du concours)' : ''}`}><TextInput style={s.input} value={lieu} onChangeText={setLieu} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
+        <V2DestinationField label="Secteur" auto={dest} placeholder="Ville / commune" />
         <Field label="Adresse de l'écurie"><TextInput style={s.input} value={adresse} onChangeText={setAdresse} placeholder="Visible une fois la mise en relation faite" placeholderTextColor={Colors.textTertiary} /></Field>
         <V2DateRange
           startLabel="Disponible du" endLabel="au"

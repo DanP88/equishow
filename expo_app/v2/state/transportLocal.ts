@@ -41,7 +41,9 @@ export interface TransportOffer {
   date?: string;
   heure?: string;
   places: number;
-  prix: number;             // € par place (simulation)
+  prix: number;             // € par place (simulation) OU sous-total estimé si pricePerKm
+  pricePerKm?: number;      // €/km (logique V1 « trajet ») — estimation front
+  estimKm?: number;         // distance estimée départ → concours (info)
   peutTransporterCavalier: boolean;
   description?: string;
   createdAt: string;

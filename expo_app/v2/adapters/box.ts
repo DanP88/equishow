@@ -11,6 +11,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useBoxAnnonces } from '../../hooks/useBoxes';
 import { getCommission } from '../../types/service';
 import { MOCK_BOXES } from '../mocks/box';
+import { placeMatches } from '../lib/concoursDestination';
 
 export interface V2BoxResult {
   src: 'real' | 'demo';
@@ -96,7 +97,7 @@ export function useV2BoxResults(ctx: BoxSearchCtx) {
 
     // Prototype non connecté : démonstration.
     const demo: V2BoxResult[] = MOCK_BOXES
-      .filter((m) => (ctx.lieu ? m.lieu.toLowerCase().includes(ctx.lieu.toLowerCase()) || !ctx.lieu : true))
+      .filter((m) => placeMatches(m.lieu, ctx.lieu))
       .map((m) => ({
         src: 'demo' as const,
         id: m.id, hote: m.hote, initiales: m.initiales, couleur: m.couleur,

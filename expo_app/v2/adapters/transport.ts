@@ -10,6 +10,7 @@ import { useAuth } from '../../hooks/useAuth';
 import { useTransportAnnonces } from '../../hooks/useTransports';
 import { getCommission } from '../../types/service';
 import { MOCK_TRANSPORTS } from '../mocks/transport';
+import { placeMatches } from '../lib/concoursDestination';
 
 export interface V2TransportResult {
   src: 'real' | 'demo';
@@ -26,6 +27,7 @@ export interface V2TransportResult {
   allerRetour: boolean;
   places: number;
   prix: number;          // € par place (approx pour trajets réels : prix_ht)
+  pricePerKm?: number;    // €/km de l'annonce (logique V1 « trajet ») si dispo
   concoursNom?: string;
   concoursId?: string;
   peutTransporterCavalier: boolean;
@@ -72,6 +74,7 @@ export function useV2TransportResults(ctx: TransportSearchCtx) {
         allerRetour: !!t.allerRetour,
         places: t.nbPlacesDisponibles ?? 0,
         prix: Math.round(Number(t.prixHT) || 0),
+        pricePerKm: typeof t.pricePerKm === 'number' && t.pricePerKm > 0 ? t.pricePerKm : undefined,
         concoursNom: t.concours || undefined,
         concoursId: t.concoursId || undefined,
         peutTransporterCavalier: false,
@@ -85,13 +88,13 @@ export function useV2TransportResults(ctx: TransportSearchCtx) {
 
     // Prototype non connecté : démonstration.
     const demo: V2TransportResult[] = MOCK_TRANSPORTS
-      .filter((m) => (ctx.destination ? m.destination.toLowerCase().includes(ctx.destination.toLowerCase()) || !ctx.destination : true))
+      .filter((m) => placeMatches(m.destination, ctx.destination))
       .map((m) => ({
         src: 'demo' as const,
         id: m.id, conducteur: m.conducteur, initiales: m.initiales, couleur: m.couleur,
         note: m.note, trajets: m.trajets, depart: m.depart, destination: m.destination,
         date: m.date, heure: m.heure, allerRetour: m.allerRetour, places: m.places,
-        prix: m.prix, concoursNom: m.concoursNom, peutTransporterCavalier: m.peutTransporterCavalier,
+        prix: m.prix, pricePerKm: 0.8, concoursNom: m.concoursNom, peutTransporterCavalier: m.peutTransporterCavalier,
         description: m.description,
       }));
     return { results: [...real, ...demo], demo: true, commission: COMMISSION() };

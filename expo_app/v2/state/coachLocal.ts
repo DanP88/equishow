@@ -26,6 +26,7 @@ export interface CoachSearch {
   niveau: string;
   dateSouhaitee?: string;   // 'YYYY-MM-DD' (facultatif, surtout « régulier »)
   nbSeances: number;
+  lieu?: string;            // lieu du coaching — pré-rempli depuis le concours si lié
   message?: string;
   status: 'open' | 'closed';
   createdAt: string;
@@ -42,6 +43,7 @@ export interface CoachOffer {
   dateFin?: string;
   prixSeance: number;       // € par séance (simulation)
   places: number;
+  lieu?: string;            // lieu / zone du coaching — pré-rempli depuis le concours si lié
   description?: string;
   createdAt: string;
 }

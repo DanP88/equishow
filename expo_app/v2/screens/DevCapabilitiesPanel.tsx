@@ -14,9 +14,13 @@ import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/t
 import {
   ALL_CAPABILITIES, CAPABILITY_COLOR, CAPABILITY_LABEL, CAPABILITY_PRESETS, useCapabilities,
 } from '../capabilities';
+import { useV2Session } from '../auth';
+import { applyTestProfile, clearTestProfile, TEST_PROFILES } from '../dev/testProfiles';
 
 export function DevCapabilitiesPanel() {
   const c = useCapabilities();
+  const session = useV2Session();
+  const activeProfile = TEST_PROFILES.find((p) => p.email === session.identity?.email);
 
   const activeKey = CAPABILITY_PRESETS.find(
     (p) => p.caps.length === c.held.length && p.caps.every((x) => c.held.includes(x)),
@@ -40,6 +44,34 @@ export function DevCapabilitiesPanel() {
           <Row k="Multi-capacité ?" v={c.isMultiCapability ? 'oui' : 'non'} />
           <Row k="Hydraté ?" v={c.ready ? 'oui' : '…'} />
         </View>
+
+        {/* Comptes de test (F15) — 100 % simulés */}
+        <Text style={s.section}>Comptes de test (simulés)</Text>
+        <View style={s.presetGrid}>
+          {TEST_PROFILES.map((p) => {
+            const on = activeProfile?.key === p.key;
+            return (
+              <TouchableOpacity
+                key={p.key}
+                style={[s.preset, on && s.presetOn]}
+                onPress={() => applyTestProfile(p)}
+                activeOpacity={0.85}
+              >
+                <Text style={[s.presetTxt, on && s.presetTxtOn]}>Compte {p.key} — {p.label}</Text>
+                <Text style={s.testEmail}>{p.email}</Text>
+              </TouchableOpacity>
+            );
+          })}
+          {activeProfile && (
+            <TouchableOpacity style={[s.actionBtn, s.actionBtnDanger]} onPress={clearTestProfile}>
+              <Text style={[s.actionTxt, { color: Colors.urgent }]}>↩︎ Déconnecter le compte de test</Text>
+            </TouchableOpacity>
+          )}
+        </View>
+        <Text style={s.footNote}>
+          Aucune Auth Supabase, aucun email : identité en `v2:session`, capacités en
+          `v2:capabilities`. Emails en `.test` (jamais résolus).
+        </Text>
 
         {/* Presets */}
         <Text style={s.section}>Les 7 combinaisons</Text>
@@ -129,6 +161,7 @@ const s = StyleSheet.create({
   presetOn: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight, borderWidth: 2 },
   presetTxt: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
   presetTxtOn: { color: Colors.primary, fontWeight: FontWeight.bold },
+  testEmail: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.sm + 2, paddingHorizontal: Spacing.md },
   dot: { width: 10, height: 10, borderRadius: 5 },
   toggleLabel: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary, flex: 1 },

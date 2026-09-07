@@ -21,6 +21,11 @@ import { useV2ContestHorses } from '../state/contestHorses';
 import { useTransportLocal } from '../state/transportLocal';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
+import { V2DestinationField } from '../components/V2DestinationField';
+import { useAutoDestination } from '../state/autoDestination';
+import {
+  RECOMMENDED_PRICE_PER_KM, geocodeFr, buildEstimate, type TransportEstimate,
+} from '../lib/transportPricing';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -84,7 +89,7 @@ export function TransportChercheV2() {
 
   // Prérempli depuis le contexte concours + cheval.
   const [depart, setDepart] = useState('');
-  const [destination, setDestination] = useState(concours?.lieu ?? '');
+  const dest = useAutoDestination(concoursId, concours);
   const [dateAller, setDateAller] = useState(concours?.date_debut ?? '');
   const [dateRetour, setDateRetour] = useState(concours?.date_fin ?? '');
   const [nbChevaux, setNbChevaux] = useState(ch.count > 0 ? String(ch.count) : '1');
@@ -92,14 +97,14 @@ export function TransportChercheV2() {
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
 
-  const { results, demo } = useV2TransportResults({ concoursId, destination, dateAller });
+  const { results, demo } = useV2TransportResults({ concoursId, destination: dest.value, dateAller });
   // Recherche déjà publiée : rattachée au concours OU publiée pendant cette session.
   const alreadyPublished = !!(tl.context.search || (publishedId && tl.searches.some((x) => x.id === publishedId)));
 
   const publishSearch = () => {
     const rec = tl.publishSearch({
       concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
-      depart: depart.trim() || '—', destination: destination.trim() || '—',
+      depart: depart.trim() || '—', destination: dest.value.trim() || '—',
       dateAller: dateAller || undefined, dateRetour: dateRetour || undefined,
       nbChevaux: parseInt(nbChevaux, 10) || 1, avecCavalier,
     });
@@ -128,7 +133,7 @@ export function TransportChercheV2() {
 
       <Card>
         <Field label="Lieu de départ"><TextInput style={s.input} value={depart} onChangeText={setDepart} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
-        <Field label={`Destination${concours ? ' (du concours)' : ''}`}><TextInput style={s.input} value={destination} onChangeText={setDestination} placeholder="Ville d'arrivée" placeholderTextColor={Colors.textTertiary} /></Field>
+        <V2DestinationField label="Destination" auto={dest} placeholder="Ville d'arrivée" concoursNom={!concours ? concoursNom : undefined} />
         <V2DateRange
           startLabel="Date aller" endLabel="Date retour"
           start={dateAller} end={dateRetour}
@@ -189,7 +194,7 @@ function ResultCard({ r, concoursId, chevalId }: { r: V2TransportResult; concour
         📅 {fmtDate(r.date)}{r.heure ? ` · ${r.heure}` : ''} · {r.allerRetour ? 'aller-retour' : 'aller simple'}
       </Text>
       <Text style={s.resultMeta}>
-        {r.places} place{r.places > 1 ? 's' : ''} disponible{r.places > 1 ? 's' : ''} · ~{r.prix} €{r.concoursNom ? ` · 🏆 ${r.concoursNom}` : ''}
+        {r.places} place{r.places > 1 ? 's' : ''} disponible{r.places > 1 ? 's' : ''} · {r.pricePerKm && r.pricePerKm > 0 ? `${r.pricePerKm.toFixed(2)} €/km` : `~${r.prix} €`}{r.concoursNom ? ` · 🏆 ${r.concoursNom}` : ''}
       </Text>
       <Text style={s.resultCta}>Voir le détail ›</Text>
     </TouchableOpacity>
@@ -220,7 +225,9 @@ export function TransportDetailV2() {
         <Row icon="📅" label="Quand" value={`${fmtDate(r.date)}${r.heure ? ` · ${r.heure}` : ''}`} sub={r.allerRetour ? 'aller-retour' : 'aller simple'} />
         {r.concoursNom ? <Row icon="🏆" label="Concours" value={r.concoursNom} /> : null}
         <Row icon="💺" label="Places disponibles" value={String(r.places)} />
-        <Row icon="💶" label="Prix" value={`~${r.prix} € / place`} />
+        {r.pricePerKm && r.pricePerKm > 0
+          ? <Row icon="🛣" label="Tarif au km" value={`${r.pricePerKm.toFixed(2)} €/km`} sub="prix final calculé selon ton adresse (logique V1)" />
+          : <Row icon="💶" label="Prix" value={`~${r.prix} € / place`} />}
         <Row icon="🧍" label="Voyager avec son cheval" value={r.peutTransporterCavalier ? 'possible' : 'non proposé'} />
       </RowGroup>
 
@@ -243,10 +250,42 @@ export function TransportReserverV2() {
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
 
+  // ── Logique tarif au km (reprise V1) ──────────────────────────────────────
+  // V1 : le cavalier saisit son adresse de prise en charge → l'Edge calcule
+  // distance(transporteur → cavalier → concours) × price_per_km. Ici : même
+  // formule, distance ESTIMÉE côté front (Phase 2 = trajet routier exact).
+  const [pickup, setPickup] = useState('');
+  const [estimate, setEstimate] = useState<TransportEstimate | null>(null);
+  const [estimating, setEstimating] = useState(false);
+  const [estimateErr, setEstimateErr] = useState<string | null>(null);
+  const kmMode = !!(r && r.pricePerKm && r.pricePerKm > 0);
+
   if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /></View></Screen>;
 
-  const totalCommission = Math.round(r.prix * commission);
-  const total = r.prix + totalCommission;
+  const runEstimate = async () => {
+    if (!r.pricePerKm || !pickup.trim()) { setEstimateErr('Saisis ton adresse de prise en charge.'); return; }
+    setEstimating(true); setEstimateErr(null); setEstimate(null);
+    try {
+      const [a, p, b] = await Promise.all([
+        geocodeFr(r.depart), geocodeFr(pickup), geocodeFr(r.destination),
+      ]);
+      if (!a || !p || !b) { setEstimateErr('Adresse introuvable — vérifie ta saisie.'); setEstimating(false); return; }
+      setEstimate(buildEstimate({
+        depart: { ...a, label: r.depart },
+        pickup: { ...p, label: pickup.trim() },
+        concours: { ...b, label: r.destination },
+        pricePerKm: r.pricePerKm, nbPlaces: 1, allerRetour: r.allerRetour,
+      }));
+    } catch {
+      setEstimateErr('Estimation impossible pour le moment.');
+    }
+    setEstimating(false);
+  };
+
+  // Sous-total = estimation km si calculée, sinon prix forfaitaire de l'annonce.
+  const sousTotal = kmMode && estimate ? estimate.price : r.prix;
+  const totalCommission = Math.round(sousTotal * commission);
+  const total = Math.round((sousTotal + totalCommission) * 100) / 100;
 
   const confirm = () => {
     tl.book({
@@ -297,15 +336,45 @@ export function TransportReserverV2() {
           : <Row icon="🐴" label="Cheval" value="non précisé" sub="défini dans « Préparer mon concours »" />}
         <Row icon="👤" label="Conducteur" value={`${r.conducteur}${r.note ? ` · ★ ${r.note}` : ''}`} />
         <Row icon="💺" label="Places" value="1" />
+        {kmMode ? <Row icon="🛣" label="Tarif au km" value={`${r.pricePerKm!.toFixed(2)} €/km`} /> : null}
       </RowGroup>
 
+      {kmMode && (
+        <Card>
+          <Text style={s.fieldLabel}>Ton adresse de prise en charge</Text>
+          <TextInput
+            style={s.input} value={pickup} onChangeText={setPickup}
+            placeholder="Ville / adresse de départ du cheval" placeholderTextColor={Colors.textTertiary}
+          />
+          <Text style={s.sub}>
+            Prix calculé sur la distance totale : {r.depart} → toi → {r.destination} · {r.pricePerKm!.toFixed(2)} €/km (logique V1).
+          </Text>
+          <GhostButton label={estimating ? 'Calcul…' : 'Estimer mon prix'} onPress={runEstimate} />
+          {estimateErr ? <Text style={s.demoLine}>{estimateErr}</Text> : null}
+          {estimate ? (
+            <View style={{ marginTop: Spacing.sm }}>
+              {estimate.legs.map((l, i) => <Row key={i} label={`${l.from} → ${l.to}`} value={`${l.km} km`} />)}
+              <Row label={`Distance totale estimée${estimate.allerRetour ? ' (aller-retour)' : ''}`} value={`${estimate.distanceKm} km`} />
+              <Row label="Sous-total transport" value={`${estimate.price} €`} />
+            </View>
+          ) : null}
+          <Text style={s.simTag}>
+            Estimation front (distance à vol d'oiseau × 1,3). Le trajet routier exact est calculé à la réservation réelle — Phase 2.
+          </Text>
+        </Card>
+      )}
+
       <Card>
-        <Row label="Prix de la place" value={`${r.prix} €`} />
+        <Row label={kmMode ? `Sous-total transport${estimate ? ' (estimé)' : ''}` : 'Prix de la place'} value={`${sousTotal} €`} />
         <Row label={`Commission plateforme (${Math.round(commission * 100)} %)`} value={`${totalCommission} €`} />
         <View style={s.totalRow}><Text style={s.totalLabel}>Total</Text><Text style={s.totalValue}>{total} €</Text></View>
       </Card>
 
-      <PrimaryButton label="Confirmer la réservation" onPress={confirm} />
+      <PrimaryButton
+        label={kmMode && !estimate ? 'Estime ton prix pour continuer' : 'Confirmer la réservation'}
+        onPress={confirm}
+        disabled={kmMode && !estimate}
+      />
       <Placeholder note="F5 : confirmation LOCALE simulée — pas de Stripe, pas de paiement, pas d'écriture PROD" />
     </Screen>
   );
@@ -319,23 +388,49 @@ export function TransportProposeV2() {
   const tl = useTransportLocal(concoursId);
 
   const [depart, setDepart] = useState('');
-  const [destination, setDestination] = useState(concours?.lieu ?? '');
+  const dest = useAutoDestination(concoursId, concours);
   const [date, setDate] = useState(concours?.date_debut ?? '');
   const [heure, setHeure] = useState('');
   const [places, setPlaces] = useState('2');
-  const [prix, setPrix] = useState('');
+  const [pxKm, setPxKm] = useState(String(RECOMMENDED_PRICE_PER_KM)); // logique V1 : tarif au km
   const [peutCavalier, setPeutCavalier] = useState(false);
   const [description, setDescription] = useState('');
   const [done, setDone] = useState(false);
+
+  // Estimation indicative « départ → concours » (hors détour prise en charge).
+  const [estimate, setEstimate] = useState<TransportEstimate | null>(null);
+  const [estimating, setEstimating] = useState(false);
+  const [estimateErr, setEstimateErr] = useState<string | null>(null);
+  const pricePerKm = parseFloat(pxKm.replace(',', '.')) || RECOMMENDED_PRICE_PER_KM;
+
+  const runEstimate = async () => {
+    if (!depart.trim() || !dest.value.trim()) { setEstimateErr('Renseigne le départ et la destination.'); return; }
+    setEstimating(true); setEstimateErr(null); setEstimate(null);
+    try {
+      const [a, b] = await Promise.all([geocodeFr(depart), geocodeFr(dest.value)]);
+      if (!a || !b) { setEstimateErr('Adresse introuvable — vérifie ta saisie.'); setEstimating(false); return; }
+      setEstimate(buildEstimate({
+        depart: { ...a, label: depart.trim() },
+        concours: { ...b, label: dest.value.trim() },
+        pricePerKm, nbPlaces: 1, allerRetour: false,
+      }));
+    } catch {
+      setEstimateErr('Estimation impossible pour le moment.');
+    }
+    setEstimating(false);
+  };
 
   const existing = tl.context.offer;
 
   const publish = () => {
     tl.publishOffer({
       concoursId, concoursNom: concours?.nom,
-      depart: depart.trim() || '—', destination: destination.trim() || '—',
+      depart: depart.trim() || '—', destination: dest.value.trim() || '—',
       date: date || undefined, heure: heure || undefined,
-      places: parseInt(places, 10) || 1, prix: parseInt(prix, 10) || 0,
+      places: parseInt(places, 10) || 1,
+      prix: estimate?.price ?? 0,
+      pricePerKm,
+      estimKm: estimate?.distanceKm,
       peutTransporterCavalier: peutCavalier, description: description.trim() || undefined,
     });
     if (concoursId && cl.entry.needTransport === 'unset') cl.update({ needTransport: 'offering' });
@@ -351,10 +446,13 @@ export function TransportProposeV2() {
           <Text style={s.sub}>Annonce enregistrée localement (prototype).</Text>
         </View>
         <RowGroup>
-          <Row icon="🛣" label="Trajet" value={`${existing?.depart ?? depart} → ${existing?.destination ?? destination}`} />
+          <Row icon="🛣" label="Trajet" value={`${existing?.depart ?? depart} → ${existing?.destination ?? dest.value}`} />
           <Row icon="📅" label="Date" value={fmtDate(existing?.date ?? date)} />
           <Row icon="💺" label="Places" value={String(existing?.places ?? places)} />
-          <Row icon="💶" label="Prix / place" value={`${existing?.prix ?? prix} €`} />
+          <Row icon="🛣" label="Tarif au km" value={`${(existing?.pricePerKm ?? pricePerKm).toFixed(2)} €/km`} />
+          {(existing?.estimKm ?? estimate?.distanceKm) != null
+            ? <Row icon="💶" label="Sous-total estimé" value={`~${existing?.prix ?? estimate?.price} € (${existing?.estimKm ?? estimate?.distanceKm} km)`} />
+            : null}
         </RowGroup>
         <PrimaryButton label="Voir dans Mes transports" onPress={() => router.replace('/(v2)/transport/mes-transports' as any)} />
         <GhostButton label={concoursId ? 'Retour à Mon concours' : 'Retour'} onPress={() => router.replace((concoursId ? `/(v2)/concours/${concoursId}` : '/(v2)/transport') as any)} />
@@ -376,15 +474,25 @@ export function TransportProposeV2() {
 
       <Card>
         <Field label="Lieu de départ"><TextInput style={s.input} value={depart} onChangeText={setDepart} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
-        <Field label={`Destination${concours ? ' (du concours)' : ''}`}><TextInput style={s.input} value={destination} onChangeText={setDestination} placeholder="Ville d'arrivée" placeholderTextColor={Colors.textTertiary} /></Field>
+        <V2DestinationField label="Destination" auto={dest} placeholder="Ville d'arrivée" />
         <View style={s.rowFields}>
           <V2DateField label="Date" value={date} onChange={setDate} minDate={todayStart()} style={s.flex1} />
           <Field label="Heure de départ"><TextInput style={s.input} value={heure} onChangeText={setHeure} placeholder="07:00" placeholderTextColor={Colors.textTertiary} /></Field>
         </View>
         <View style={s.rowFields}>
           <Field label="Places chevaux disponibles"><TextInput style={s.input} value={places} onChangeText={setPlaces} keyboardType="number-pad" /></Field>
-          <Field label="Prix / place (€)"><TextInput style={s.input} value={prix} onChangeText={setPrix} keyboardType="number-pad" placeholder="45" placeholderTextColor={Colors.textTertiary} /></Field>
+          <Field label="Prix au kilomètre (€/km)"><TextInput style={s.input} value={pxKm} onChangeText={setPxKm} keyboardType="decimal-pad" placeholder="0.8" placeholderTextColor={Colors.textTertiary} /></Field>
         </View>
+        <Text style={s.sub}>Logique V1 : distance totale (départ → cavalier → concours) × ce tarif. Recommandé : 0,8 €/km.</Text>
+        <GhostButton label={estimating ? 'Calcul…' : 'Estimer le prix vers le concours'} onPress={runEstimate} />
+        {estimateErr ? <Text style={s.demoLine}>{estimateErr}</Text> : null}
+        {estimate ? (
+          <View style={s.estimBox}>
+            <Row label={`${estimate.legs[0].from} → ${estimate.legs[0].to}`} value={`~${estimate.distanceKm} km`} />
+            <Row label="Prix indicatif (1 cheval)" value={`~${estimate.price} €`} />
+            <Text style={s.simTag}>Indicatif, hors détour de prise en charge d'un cavalier. Distance à vol d'oiseau × 1,3 — trajet routier exact à la réservation (Phase 2).</Text>
+          </View>
+        ) : null}
         <TouchableOpacity style={s.check} onPress={() => setPeutCavalier((v) => !v)}>
           <Text style={s.checkBox}>{peutCavalier ? '☑' : '☐'}</Text>
           <Text style={s.checkTxt}>Je peux également transporter le cavalier</Text>
@@ -435,6 +543,8 @@ const s = StyleSheet.create({
   resultTrajet: { fontSize: FontSize.sm, color: Colors.textSecondary },
   resultMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
   resultCta: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginTop: 2 },
+  simTag: { fontSize: FontSize.xs, color: Colors.warning, fontStyle: 'italic', marginTop: 4, lineHeight: 16 },
+  estimBox: { marginTop: Spacing.sm, gap: 2, backgroundColor: Colors.infoBg, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.infoBorder, padding: Spacing.sm },
   demoTag: { backgroundColor: Colors.warningBg, borderColor: Colors.warningBorder, borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
   demoTagTxt: { fontSize: 9, color: Colors.warning, fontWeight: FontWeight.bold },
   demoLine: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.semibold },

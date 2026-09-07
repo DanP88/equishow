@@ -27,6 +27,8 @@ import { useConcoursLocal } from '../state/concoursLocal';
 import { useCoachLocal } from '../state/coachLocal';
 import { useV2CoachResults, useV2CoachDemands, V2CoachResult } from '../adapters/coach';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
+import { V2DestinationField } from '../components/V2DestinationField';
+import { useAutoDestination } from '../state/autoDestination';
 import { MOCK_STUDENT_HORSES } from '../mocks/f2';
 
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Hunter', 'Autre'];
@@ -115,6 +117,7 @@ export function CoachChercheV2() {
   const [niveau, setNiveau] = useState('Amateur');
   const [nbSeances, setNbSeances] = useState(1);
   const [dateSouhaitee, setDateSouhaitee] = useState('');
+  const dest = useAutoDestination(concoursId, concours);
   const [message, setMessage] = useState('');
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
@@ -128,6 +131,7 @@ export function CoachChercheV2() {
       concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       type, discipline, niveau, nbSeances,
       dateSouhaitee: dateSouhaitee || undefined,
+      lieu: dest.value.trim() || undefined,
       message: message.trim() || undefined,
     });
     setPublishedId(rec.id);
@@ -165,6 +169,12 @@ export function CoachChercheV2() {
             <V2DateField label="Quand ? (facultatif)" value={dateSouhaitee} onChange={setDateSouhaitee} optional minDate={todayStart()} style={s.flex1} />
           )}
         </View>
+        <V2DestinationField
+          label={concours ? 'Lieu du coaching' : 'Lieu / zone du coaching'}
+          auto={dest}
+          placeholder={concours ? 'Carrière, paddock… (précision)' : 'Ville / commune'}
+          concoursNom={!concours ? concoursNom : undefined}
+        />
         <Field label="Message au coach (facultatif)">
           <TextInput style={[s.input, s.multiline]} value={message} onChangeText={setMessage} placeholder="Objectif, cheval, horaires…" placeholderTextColor={Colors.textTertiary} multiline />
         </Field>
@@ -349,6 +359,7 @@ export function CoachProposeV2() {
 
   const [type, setType] = useState<'concours' | 'regulier'>(concoursId ? 'concours' : 'regulier');
   const [discipline, setDiscipline] = useState('CSO');
+  const dest = useAutoDestination(concoursId, concours);
   const [niveaux, setNiveaux] = useState<string[]>(['Club', 'Amateur']);
   const [dateDebut, setDateDebut] = useState(concours?.date_debut ?? '');
   const [dateFin, setDateFin] = useState(concours?.date_fin ?? '');
@@ -371,6 +382,7 @@ export function CoachProposeV2() {
       dateDebut: type === 'concours' ? (concours?.date_debut ?? undefined) : (dateDebut || undefined),
       dateFin: type === 'concours' ? (concours?.date_fin ?? undefined) : (dateFin || undefined),
       prixSeance: parseInt(prixSeance, 10) || 0, places: parseInt(places, 10) || 1,
+      lieu: dest.value.trim() || undefined,
       description: description.trim() || undefined,
     });
     if (concoursId && cl.entry.needCoach === 'unset') cl.update({ needCoach: 'offering' });
@@ -425,6 +437,11 @@ export function CoachProposeV2() {
         <Field label="Niveaux encadrés">
           <View style={s.chips}>{NIVEAUX.map((n) => <Chip key={n} label={n} on={niveaux.includes(n)} onPress={() => toggleNiveau(n)} />)}</View>
         </Field>
+        <V2DestinationField
+          label={concours ? 'Lieu du coaching' : 'Zone du coaching'}
+          auto={dest}
+          placeholder={concours ? 'Carrière, paddock… (précision)' : 'Ville / secteur'}
+        />
         {type === 'regulier' && !concoursId && (
           <V2DateRange startLabel="Disponible du" endLabel="au" start={dateDebut} end={dateFin} onChangeStart={setDateDebut} onChangeEnd={setDateFin} minDate={todayStart()} />
         )}
