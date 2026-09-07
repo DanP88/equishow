@@ -15,10 +15,11 @@ import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator 
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { Screen, Card, Chip, Row, RowGroup, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
+import { Screen, Card, Chip, Row, RowGroup, Section, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
 import { useCheval } from '../../hooks/useChevaux';
 import { useChevauxLocal, isLocalHorseId, LocalChevalInput } from '../state/chevauxLocal';
 import { V2SelectField } from '../components/V2SelectField';
+import { vaccinStatus, soinStatus, SanteStatus } from '../lib/santeStatus';
 
 const SEXES = ['Hongre', 'Jument', 'Étalon'];
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Hunter', 'Endurance', 'Autre'];
@@ -108,6 +109,8 @@ export function ChevalV2() {
 
       {c.objectifs ? <Card><Text style={s.sub}>{c.objectifs}</Text></Card> : null}
 
+      <SanteSection sante={c.sante} />
+
       <Placeholder note="fiche en LECTURE SEULE dans la V2 — la modification d'un cheval réel passe par l'app actuelle" v1Path={`/cheval/${id}`} v1Label="ouvrir la fiche V1" />
     </Screen>
   );
@@ -175,6 +178,43 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <View style={s.field}><Text style={s.fieldLabel}>{label}</Text>{children}</View>;
 }
 
+// ── Santé — statut RÉEL (corrige le « Valide » en dur de la V1) ──────────────
+function fmtSanteDate(d?: Date) {
+  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+}
+function SanteLine({ label, date, st }: { label: string; date?: Date; st: SanteStatus }) {
+  const dot = st.level === 'ok' ? Colors.success : st.level === 'soon' ? Colors.warning : st.level === 'late' ? Colors.urgent : Colors.textTertiary;
+  return (
+    <View style={s.santeRow}>
+      <View style={[s.santeDot, { backgroundColor: dot }]} />
+      <View style={{ flex: 1 }}>
+        <Text style={s.santeLabel}>{label}</Text>
+        <Text style={s.santeDate}>{fmtSanteDate(date)}{st.ageLabel ? ` · ${st.ageLabel}` : ''}</Text>
+      </View>
+      <Text style={[s.santeStatus, { color: st.color }]}>{st.label}</Text>
+    </View>
+  );
+}
+function SanteSection({ sante }: { sante?: any }) {
+  if (!sante) return null;
+  const items: { label: string; date?: Date; st: SanteStatus }[] = [];
+  if (sante.dateVaccinGrippe) items.push({ label: 'Vaccin grippe', date: sante.dateVaccinGrippe, st: vaccinStatus(sante.dateVaccinGrippe) });
+  if (sante.dateVaccinRhino) items.push({ label: 'Vaccin rhino', date: sante.dateVaccinRhino, st: vaccinStatus(sante.dateVaccinRhino) });
+  if (sante.dateVermifuge) items.push({ label: 'Vermifuge', date: sante.dateVermifuge, st: soinStatus(sante.dateVermifuge, 4) });
+  if (sante.dateMarechal) items.push({ label: 'Maréchal-ferrant', date: sante.dateMarechal, st: soinStatus(sante.dateMarechal, 2) });
+  if (sante.dateDentiste) items.push({ label: 'Dentiste', date: sante.dateDentiste, st: soinStatus(sante.dateDentiste, 12) });
+  if (sante.dateOsteo) items.push({ label: 'Ostéopathe', date: sante.dateOsteo, st: soinStatus(sante.dateOsteo, 12) });
+  if (items.length === 0) return null;
+  return (
+    <Section title="Santé">
+      <RowGroup>
+        {items.map((it) => <SanteLine key={it.label} label={it.label} date={it.date} st={it.st} />)}
+      </RowGroup>
+      <Text style={s.santeNote}>Statut calculé d'après la date du dernier rappel (rappel annuel pour les vaccins).</Text>
+    </Section>
+  );
+}
+
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
   back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginBottom: 4 },
@@ -185,8 +225,15 @@ const s = StyleSheet.create({
   localTag: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.semibold },
   field: { gap: 4, marginTop: Spacing.sm },
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
+  input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   rowFields: { flexDirection: 'row', gap: Spacing.md },
   flex1: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
+
+  santeRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
+  santeDot: { width: 8, height: 8, borderRadius: 4 },
+  santeLabel: { fontSize: FontSize.base, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
+  santeDate: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
+  santeStatus: { fontSize: FontSize.sm, fontWeight: FontWeight.bold },
+  santeNote: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic', marginTop: 4 },
 });

@@ -15,11 +15,11 @@ export interface V2Tab {
 }
 
 export const V2_TABS: V2Tab[] = [
-  { key: 'accueil', label: 'Accueil', icon: '🏠', route: '/(v2)/accueil', match: ['/accueil'] },
-  { key: 'concours', label: 'Concours', icon: '🏆', route: '/(v2)/concours', match: ['/concours', '/(v2)/concours'] },
-  { key: 'chevaux', label: 'Chevaux', icon: '🐴', route: '/(v2)/chevaux', match: ['/chevaux'] },
-  { key: 'agenda', label: 'Agenda', icon: '📅', route: '/(v2)/agenda', match: ['/agenda'] },
-  { key: 'profil', label: 'Profil', icon: '👤', route: '/(v2)/profil', match: ['/profil'] },
+  { key: 'accueil', label: 'Accueil', icon: 'home-variant-outline', route: '/(v2)/accueil', match: ['/accueil'] },
+  { key: 'concours', label: 'Concours', icon: 'trophy-outline', route: '/(v2)/concours', match: ['/concours', '/(v2)/concours'] },
+  { key: 'chevaux', label: 'Chevaux', icon: 'horse', route: '/(v2)/chevaux', match: ['/chevaux'] },
+  { key: 'agenda', label: 'Agenda', icon: 'calendar-blank-outline', route: '/(v2)/agenda', match: ['/agenda'] },
+  { key: 'profil', label: 'Profil', icon: 'account-outline', route: '/(v2)/profil', match: ['/profil'] },
 ];
 
 export const V2_TOPBAR = {

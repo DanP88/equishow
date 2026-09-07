@@ -404,7 +404,7 @@ const s = StyleSheet.create({
   link: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginTop: Spacing.md },
 
   door: { borderRadius: 16, borderWidth: 1, padding: Spacing.lg, gap: 4, marginTop: Spacing.md },
-  doorSearch: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
+  doorSearch: { backgroundColor: Colors.infoBg, borderColor: Colors.infoBorder },
   doorOffer: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder },
   doorIcon: { fontSize: 22 },
   doorTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
@@ -417,7 +417,7 @@ const s = StyleSheet.create({
 
   field: { gap: 4, marginTop: Spacing.sm },
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
+  input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   multiline: { minHeight: 64, textAlignVertical: 'top' },
   rowFields: { flexDirection: 'row', gap: Spacing.md },
   flex1: { flex: 1 },
@@ -426,7 +426,7 @@ const s = StyleSheet.create({
   checkTxt: { fontSize: FontSize.sm, color: Colors.textPrimary, flex: 1 },
 
   resultsTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary, marginTop: Spacing.md },
-  result: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: '#ECEBE7', padding: Spacing.md, gap: 4, marginTop: Spacing.sm },
+  result: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, gap: 4, marginTop: Spacing.sm },
   resultHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { color: '#fff', fontWeight: FontWeight.bold, fontSize: FontSize.sm },
@@ -443,7 +443,7 @@ const s = StyleSheet.create({
   rowBtns: { gap: Spacing.sm },
 
   desc: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#ECEBE7', paddingTop: Spacing.sm, marginTop: 4 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
   totalLabel: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   totalValue: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primaryDark },
 

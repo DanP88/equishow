@@ -7,6 +7,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
+import { Icon } from '../ui/Icon';
 import { V2_TOPBAR } from './navConfig';
 import { useV2Session } from '../auth';
 import { useV2Notifications } from '../adapters/notifications';
@@ -27,8 +28,8 @@ export function TopBarV2() {
         <Text style={s.logo}>EquiShow</Text>
       </TouchableOpacity>
       <View style={{ flex: 1 }} />
-      <IconBtn label="🔔" count={notifCount} onPress={() => router.push(V2_TOPBAR.notifications as any)} />
-      <IconBtn label="💬" count={msgCount} onPress={() => router.push(V2_TOPBAR.messagerie as any)} />
+      <IconBtn name="bell-outline" count={notifCount} onPress={() => router.push(V2_TOPBAR.notifications as any)} />
+      <IconBtn name="message-outline" count={msgCount} onPress={() => router.push(V2_TOPBAR.messagerie as any)} />
       <TouchableOpacity style={s.avatar} onPress={() => router.replace(V2_TOPBAR.profil as any)} activeOpacity={0.8}>
         <Text style={s.avatarTxt}>{initials}</Text>
       </TouchableOpacity>
@@ -36,10 +37,10 @@ export function TopBarV2() {
   );
 }
 
-function IconBtn({ label, count, onPress }: { label: string; count: number; onPress: () => void }) {
+function IconBtn({ name, count, onPress }: { name: string; count: number; onPress: () => void }) {
   return (
     <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.7}>
-      <Text style={s.icon}>{label}</Text>
+      <Icon name={name} size={21} color={Colors.textPrimary} />
       {count > 0 && <View style={s.badge}><Text style={s.badgeTxt}>{count > 9 ? '9+' : count}</Text></View>}
     </TouchableOpacity>
   );

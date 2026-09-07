@@ -114,6 +114,14 @@ gating avis réel `reservation.status = 'completed'` + INSERT `avis`. Rien en F9
 
 **Backend requis Phase 2** : validation organisateur réelle (`organisateur_requests` + email admin) ; création/édition concours V2 (`concours` INSERT/UPDATE + RLS) ; publication de posts (`posts_*` INSERT + RLS) + likes + commentaires.
 
+## F11 — Passe design
+| Élément | Détail |
+|---|---|
+| iconographie | `v2/ui/Icon.tsx` — `<Icon>` sur **MaterialCommunityIcons** (une famille, cross-platform). `resolveIconName()` + map `EMOJI_ICON`. `kit.Row`/`EmptyState`/`Tile` + `BottomBarV2`/`TopBarV2` migrés. Reste : emojis en **titre d'écran** (`<Text style={h1}>🏆 …</Text>`) et **métadonnées inline** dans des phrases — non structurels, F12. |
+| tokens couleur | hex codés en dur retirés de `v2/` → `Colors.*` (`border` / `infoBg` / `infoBorder` / `successBg` / `successBorder`). |
+| statut santé | `v2/lib/santeStatus.ts` (`vaccinStatus` / `soinStatus`) — calcul RÉEL d'après la date du dernier rappel (**corrige le « Valide » codé en dur de la V1**, non touchée). Section « Santé » dans `ChevalV2` (fiche réelle). |
+| densité | tokens kit déjà calibrés (F2 `30cb91c`) — pas de changement. |
+
 ## F2 — `ServiceV2` = shim de redirection
 Depuis F5/F6/F7, `app/(v2)/service/[kind]` ne fait plus que rediriger vers
 `/(v2)/transport` · `/(v2)/box` · `/(v2)/coach` (contexte conservé). Les mocks

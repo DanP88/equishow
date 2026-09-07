@@ -121,7 +121,7 @@ const s = StyleSheet.create({
   label: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   trigger: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3,
     backgroundColor: Colors.surface,
   },
@@ -134,7 +134,7 @@ const s = StyleSheet.create({
   sheet: { backgroundColor: Colors.surface, borderRadius: 16, width: '100%', maxWidth: 380, maxHeight: '80%', padding: Spacing.lg },
   sheetTitle: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center', textTransform: 'capitalize' },
   list: { maxHeight: 380 },
-  item: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm, borderBottomWidth: 1, borderBottomColor: '#F1F0EC' },
+  item: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   itemActive: { backgroundColor: Colors.primaryLight, borderRadius: 8 },
   itemText: { fontSize: FontSize.base, color: Colors.textPrimary },
   itemTextActive: { color: Colors.primaryDark, fontWeight: FontWeight.bold },
@@ -142,7 +142,7 @@ const s = StyleSheet.create({
   check: { fontSize: FontSize.base, color: Colors.primary, fontWeight: FontWeight.bold },
 
   otherBox: { gap: Spacing.md, paddingTop: Spacing.sm },
-  otherInput: { borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
+  otherInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   otherBtns: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   otherCancel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   otherOk: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },

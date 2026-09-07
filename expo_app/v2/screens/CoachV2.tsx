@@ -495,9 +495,9 @@ const s = StyleSheet.create({
   section: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.8, marginTop: Spacing.lg },
 
   door: { borderRadius: 16, borderWidth: 1, padding: Spacing.lg, gap: 4, marginTop: Spacing.md },
-  doorSearch: { backgroundColor: '#EFF6FF', borderColor: '#BFDBFE' },
+  doorSearch: { backgroundColor: Colors.infoBg, borderColor: Colors.infoBorder },
   doorOffer: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder },
-  doorEleves: { backgroundColor: '#F0FDF4', borderColor: '#BBF7D0' },
+  doorEleves: { backgroundColor: Colors.successBg, borderColor: Colors.successBorder },
   doorIcon: { fontSize: 22 },
   doorTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   doorSub: { fontSize: FontSize.sm, color: Colors.textSecondary },
@@ -509,19 +509,19 @@ const s = StyleSheet.create({
 
   field: { gap: 4, marginTop: Spacing.sm },
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
-  input: { borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
+  input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   multiline: { minHeight: 64, textAlignVertical: 'top' },
   rowFields: { flexDirection: 'row', gap: Spacing.md, alignItems: 'flex-start' },
   flex1: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
 
-  stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingVertical: 6, paddingHorizontal: Spacing.md, alignSelf: 'flex-start', backgroundColor: Colors.surface },
+  stepper: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: 6, paddingHorizontal: Spacing.md, alignSelf: 'flex-start', backgroundColor: Colors.surface },
   stepBtn: { width: 26, height: 26, borderRadius: 13, backgroundColor: Colors.primaryLight, alignItems: 'center', justifyContent: 'center' },
   stepTxt: { fontSize: 16, fontWeight: FontWeight.extrabold, color: Colors.primaryDark },
   stepVal: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, minWidth: 16, textAlign: 'center' },
 
   resultsTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary, marginTop: Spacing.md },
-  result: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: '#ECEBE7', padding: Spacing.md, gap: 4, marginTop: Spacing.sm },
+  result: { backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md, gap: 4, marginTop: Spacing.sm },
   resultHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   avatar: { width: 36, height: 36, borderRadius: 18, alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { color: '#fff', fontWeight: FontWeight.bold, fontSize: FontSize.sm },
@@ -537,7 +537,7 @@ const s = StyleSheet.create({
   publishedTxt: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.success },
 
   desc: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
-  totalRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: '#ECEBE7', paddingTop: Spacing.sm, marginTop: 4 },
+  totalRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
   totalLabel: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   totalValue: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primaryDark },
 
@@ -550,7 +550,7 @@ const s = StyleSheet.create({
   demandBtns: { flexDirection: 'row', gap: Spacing.sm, marginTop: 6 },
   acceptBtn: { backgroundColor: Colors.primary, borderRadius: 8, paddingHorizontal: Spacing.md, paddingVertical: 7 },
   acceptTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  rejectBtn: { borderWidth: 1, borderColor: '#ECEBE7', borderRadius: 8, paddingHorizontal: Spacing.md, paddingVertical: 7 },
+  rejectBtn: { borderWidth: 1, borderColor: Colors.border, borderRadius: 8, paddingHorizontal: Spacing.md, paddingVertical: 7 },
   rejectTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   handledTxt: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, marginTop: 6 },
   accepted: { color: Colors.success },

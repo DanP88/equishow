@@ -7,6 +7,7 @@ import { usePathname, useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Colors } from '../../constants/colors';
 import { FontWeight } from '../../constants/theme';
+import { Icon } from '../ui/Icon';
 import { V2_TABS } from './navConfig';
 import { useV2Agenda } from '../adapters/agenda';
 
@@ -29,7 +30,7 @@ export function BottomBarV2() {
         return (
           <TouchableOpacity key={t.key} style={s.tab} activeOpacity={0.8} onPress={() => router.replace(t.route as any)}>
             <View>
-              <Text style={s.icon}>{t.icon}</Text>
+              <Icon name={t.icon} size={23} color={active ? Colors.primary : Colors.textTertiary} />
               {badge > 0 && <View style={s.badge}><Text style={s.badgeTxt}>{badge > 9 ? '9+' : badge}</Text></View>}
             </View>
             <Text style={[s.label, active && s.labelOn]}>{t.label}</Text>

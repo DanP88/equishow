@@ -148,7 +148,7 @@ const h = StyleSheet.create({
   relRow: { gap: 3, marginTop: 6, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.primaryBorder },
   rel: { fontSize: FontSize.sm, color: Colors.primaryDark, fontWeight: FontWeight.semibold },
   prep: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.bold, marginTop: 4 },
-  shortcuts: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: '#ECEBE7', paddingVertical: Spacing.md + 2, marginTop: Spacing.xl },
+  shortcuts: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.md + 2, marginTop: Spacing.xl },
   sc: { alignItems: 'center', gap: 4, flex: 1 },
   scIcon: { fontSize: 19 },
   scLabel: { fontSize: 11, color: Colors.textSecondary, fontWeight: FontWeight.semibold },

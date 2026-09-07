@@ -130,7 +130,7 @@ const s = StyleSheet.create({
   label: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   trigger: {
     flexDirection: 'row', alignItems: 'center', gap: Spacing.sm,
-    borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md,
+    borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md,
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3,
     backgroundColor: Colors.surface,
   },

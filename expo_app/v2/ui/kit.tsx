@@ -12,6 +12,15 @@ import {
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
+import { Icon, resolveIconName } from './Icon';
+
+/** Icône (famille MCI) si résoluble, sinon le glyphe brut en texte (repli sûr). */
+function GlyphIcon({ glyph, size, color }: { glyph?: string; size: number; color: string }) {
+  if (!glyph) return null;
+  return resolveIconName(glyph)
+    ? <Icon name={glyph} size={size} color={color} />
+    : <Text style={{ fontSize: size - 1, color }}>{glyph}</Text>;
+}
 
 export const V2 = { Colors, Spacing, Radius, FontSize, FontWeight, Shadow };
 
@@ -19,7 +28,7 @@ export const V2 = { Colors, Spacing, Radius, FontSize, FontWeight, Shadow };
 const C = {
   bg: Colors.background,
   card: Colors.surface,
-  line: '#ECEBE7',        // hairline très douce
+  line: Colors.border,    // hairline très douce (token)
   ink: Colors.textPrimary,
   sub: Colors.textSecondary,
   faint: Colors.textTertiary,
@@ -78,7 +87,7 @@ export function Row({
   const Body = onPress ? TouchableOpacity : View;
   return (
     <Body style={k.row} onPress={onPress} activeOpacity={0.6}>
-      {icon ? <Text style={k.rowIcon}>{icon}</Text> : null}
+      {icon ? <View style={k.rowIcon}><GlyphIcon glyph={icon} size={17} color={C.faint} /></View> : null}
       <View style={{ flex: 1 }}>
         <Text style={[k.rowLabel, danger && { color: Colors.urgent }]}>{label}</Text>
         {sub ? <Text style={k.rowSub}>{sub}</Text> : null}
@@ -115,7 +124,7 @@ export function Segment({
 export function Tile({ icon, title, sub, onPress }: { icon: string; title: string; sub?: string; onPress?: () => void }) {
   return (
     <TouchableOpacity style={k.tile} onPress={onPress} activeOpacity={0.9}>
-      <Text style={k.tileIcon}>{icon}</Text>
+      <GlyphIcon glyph={icon} size={20} color={C.cta} />
       <Text style={k.tileTitle}>{title}</Text>
       {sub ? <Text style={k.tileSub}>{sub}</Text> : null}
     </TouchableOpacity>
@@ -125,7 +134,7 @@ export function Tile({ icon, title, sub, onPress }: { icon: string; title: strin
 export function EmptyState({ icon, title, body, ctaLabel, onCta }: { icon: string; title: string; body?: string; ctaLabel?: string; onCta?: () => void }) {
   return (
     <View style={k.empty}>
-      <Text style={k.emptyIcon}>{icon}</Text>
+      <View style={k.emptyIcon}><GlyphIcon glyph={icon} size={26} color={C.faint} /></View>
       <Text style={k.emptyTitle}>{title}</Text>
       {body ? <Text style={k.emptyBody}>{body}</Text> : null}
       {ctaLabel ? <TouchableOpacity style={k.btn} onPress={onCta} activeOpacity={0.9}><Text style={k.btnTxt}>{ctaLabel}</Text></TouchableOpacity> : null}
@@ -179,7 +188,7 @@ const k = StyleSheet.create({
 
   rowDivider: { borderTopWidth: 1, borderTopColor: C.line },
   row: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
-  rowIcon: { fontSize: 16, width: 22, textAlign: 'center' },
+  rowIcon: { width: 22, alignItems: 'center', justifyContent: 'center' },
   rowLabel: { fontSize: FontSize.base, color: C.ink, fontWeight: FontWeight.semibold },
   rowSub: { fontSize: FontSize.xs, color: C.faint, marginTop: 1 },
   rowValue: { fontSize: FontSize.sm, color: C.sub },
@@ -202,7 +211,7 @@ const k = StyleSheet.create({
   tileSub: { fontSize: FontSize.xs, color: C.sub },
 
   empty: { alignItems: 'center', gap: 6, backgroundColor: C.card, borderRadius: 16, borderWidth: 1, borderColor: C.line, paddingVertical: Spacing.xl, paddingHorizontal: Spacing.lg },
-  emptyIcon: { fontSize: 26, opacity: 0.7 },
+  emptyIcon: { opacity: 0.85, marginBottom: 2 },
   emptyTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: C.ink, textAlign: 'center' },
   emptyBody: { fontSize: FontSize.sm, color: C.sub, textAlign: 'center', lineHeight: 19 },
 

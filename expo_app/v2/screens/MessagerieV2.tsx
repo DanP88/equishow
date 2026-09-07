@@ -50,7 +50,7 @@ const s = StyleSheet.create({
   back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: 4 },
   empty: { fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic', marginTop: Spacing.md },
-  conv: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: '#ECEBE7', padding: Spacing.md },
+  conv: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md },
   avatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { color: '#fff', fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   row1: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: Spacing.sm },

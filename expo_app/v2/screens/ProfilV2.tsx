@@ -12,6 +12,7 @@ import { Screen, Card, Row, RowGroup, Section, Placeholder } from '../ui/kit';
 import { useCapabilities, CAPABILITY_LABEL } from '../capabilities';
 import { useV2Session } from '../auth';
 import { useV2ActivityCounts } from '../state/activityCounts';
+import { Icon } from '../ui/Icon';
 
 export function ProfilV2() {
   const caps = useCapabilities();
@@ -21,13 +22,13 @@ export function ProfilV2() {
   const name = `${identity?.prenom ?? ''} ${identity?.nom ?? ''}`.trim() || 'Utilisateur EquiShow';
   const activities = caps.held.map((c) => CAPABILITY_LABEL[c] + (caps.isPending(c) ? ' (en attente)' : '')).join(' · ') || '—';
 
-  const counters = [
-    a.chevaux ? `🐴 ${a.chevaux}` : null,
-    a.concoursSuivis ? `🏆 ${a.concoursSuivis}` : null,
-    a.transports ? `🚚 ${a.transports}` : null,
-    a.box ? `🏠 ${a.box}` : null,
-    a.coachings ? `🎓 ${a.coachings}` : null,
-  ].filter(Boolean).join('  ·  ');
+  const counters: { icon: string; n: number }[] = [
+    { icon: 'horse', n: a.chevaux },
+    { icon: 'trophy-outline', n: a.concoursSuivis },
+    { icon: 'truck-outline', n: a.transports },
+    { icon: 'home-variant-outline', n: a.box },
+    { icon: 'school-outline', n: a.coachings },
+  ].filter((c) => c.n > 0);
 
   const reservations = a.transports + a.box + a.coachings;
 
@@ -44,7 +45,17 @@ export function ProfilV2() {
             <Text style={s.activities}>Activités : {activities}</Text>
           </View>
         </View>
-        <Text style={s.counters}>{counters || 'Aucune activité pour le moment'}{a.demo ? '  · aperçu' : ''}</Text>
+        <View style={s.counters}>
+          {counters.length === 0
+            ? <Text style={s.counterEmpty}>Aucune activité pour le moment</Text>
+            : counters.map((c) => (
+                <View key={c.icon} style={s.counterItem}>
+                  <Icon name={c.icon} size={15} color={Colors.textSecondary} />
+                  <Text style={s.counterN}>{c.n}</Text>
+                </View>
+              ))}
+          {a.demo && counters.length > 0 ? <Text style={s.counterAperçu}>· aperçu</Text> : null}
+        </View>
       </Card>
 
       {caps.has('cavalier') && (
@@ -111,6 +122,10 @@ const s = StyleSheet.create({
   name: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   verif: { fontSize: FontSize.sm, color: Colors.textSecondary },
   activities: { fontSize: FontSize.sm, color: Colors.primaryDark, fontWeight: FontWeight.semibold, marginTop: 2 },
-  counters: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
+  counters: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flexWrap: 'wrap', marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
+  counterItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  counterN: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.bold },
+  counterEmpty: { fontSize: FontSize.sm, color: Colors.textTertiary },
+  counterAperçu: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
   pending: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.bold },
 });

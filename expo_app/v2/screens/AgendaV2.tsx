@@ -89,7 +89,7 @@ const s = StyleSheet.create({
   day: { gap: Spacing.xs, marginTop: Spacing.lg },
   dayTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.textTertiary, letterSpacing: 0.8 },
   event: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md, paddingHorizontal: Spacing.lg },
-  eventDiv: { borderTopWidth: 1, borderTopColor: '#ECEBE7' },
+  eventDiv: { borderTopWidth: 1, borderTopColor: Colors.border },
   time: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textSecondary, width: 54 },
   eIcon: { fontSize: 15 },
   eLabel: { fontSize: FontSize.sm, fontWeight: FontWeight.semibold, color: Colors.textPrimary },

@@ -188,7 +188,7 @@ const s = StyleSheet.create({
   orgCta: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginTop: 2 },
 
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
-  stat: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: '#ECEBE7', borderRadius: 12, padding: Spacing.md, minWidth: 100, flexGrow: 1, gap: 2 },
+  stat: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, padding: Spacing.md, minWidth: 100, flexGrow: 1, gap: 2 },
   statValue: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   statLabel: { fontSize: FontSize.xs, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   statSub: { fontSize: 10, color: Colors.textTertiary },

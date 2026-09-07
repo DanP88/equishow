@@ -128,7 +128,7 @@ const s = StyleSheet.create({
   fab: { backgroundColor: Colors.primary, borderRadius: 999, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, ...Shadow.fab },
   fabTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.sm },
   filterRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
-  orgCard: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: '#ECEBE7', padding: Spacing.lg, gap: 4 },
+  orgCard: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: 4 },
   orgName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   orgMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
   orgActions: { flexDirection: 'row', gap: Spacing.lg, marginTop: 8 },

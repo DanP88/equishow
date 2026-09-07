@@ -72,7 +72,7 @@ const s = StyleSheet.create({
   bucketHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   bucketTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   bucketNote: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primaryDark },
-  avis: { borderTopWidth: 1, borderTopColor: '#F1F0EC', paddingTop: Spacing.sm, marginTop: Spacing.sm, gap: 2 },
+  avis: { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: Spacing.sm, gap: 2 },
   avisHead: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   avisTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
 });
