@@ -90,6 +90,17 @@ gestion réelle accept/refus + planning des séances ; gating capacité Coach r�
 **Backend requis Phase 2** : `concours_presence` + colonne chevaux du concours ;
 création cheval réelle (INSERT `chevaux` + RLS + Storage photo). Rien de tout ça en F8.
 
+## F9 — Profil unique (compteurs + avis)
+| Élément | Réel (lecture seule) | Local (`v2:*`) / démo |
+|---|---|---|
+| compteurs d'activité | `useMy{Transport,Box,Stage}Reservations` / `useMyCourseDemands` (filtrés sur mon id) · `useMyConcours` · `useAvisStats` · `useMyAvisRefs` — via `v2/state/activityCounts.ts` (`useV2ActivityCounts`) | + bookings/offers des stores `v2:{transport,box,coach}` · chevaux `useV2AllHorses` · concours suivis `concoursLocal` |
+| avis reçus / déposés | `useAvis(me)` / `useAvisStats` / `useMyAvisRefs` regroupés par contexte — `v2/adapters/avis.ts` (`useV2Avis`) | — |
+| dépôt d'avis | — | **impossible en V2** (flux « réservation completed », Phase 2) — écran `AvisV2` en lecture seule |
+| aperçu si non connecté ET vide | — | compteurs + avis de démonstration (étiquetés « aperçu » / « démonstration ») |
+
+**Backend requis Phase 2** : vue `v_user_activity_counts` (ou agrégat serveur) ;
+gating avis réel `reservation.status = 'completed'` + INSERT `avis`. Rien en F9.
+
 ## F2 — `ServiceV2` = shim de redirection
 Depuis F5/F6/F7, `app/(v2)/service/[kind]` ne fait plus que rediriger vers
 `/(v2)/transport` · `/(v2)/box` · `/(v2)/coach` (contexte conservé). Les mocks
