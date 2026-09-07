@@ -137,6 +137,7 @@ export function ChevalFormV2() {
 
   const canSave = nom.trim().length > 0;
   const today = todayStart();
+  const santeFloor = new Date(NOW_YEAR - 10, 0, 1); // rappels au-delà de 10 ans = hors sujet
 
   const save = () => {
     const santeClean = Object.fromEntries(Object.entries(sante).filter(([, v]) => !!v));
@@ -181,16 +182,16 @@ export function ChevalFormV2() {
       <Text style={s.sub}>Date du dernier rappel — le statut (à jour / rappel à prévoir / dépassé) est calculé automatiquement.</Text>
       <Card>
         <View style={s.rowFields}>
-          <V2DateField label="Vaccin grippe" value={sante.grippe ?? ''} onChange={setSanteKey('grippe')} optional maxDate={today} style={s.flex1} />
-          <V2DateField label="Vaccin rhino" value={sante.rhino ?? ''} onChange={setSanteKey('rhino')} optional maxDate={today} style={s.flex1} />
+          <V2DateField label="Vaccin grippe" value={sante.grippe ?? ''} onChange={setSanteKey('grippe')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
+          <V2DateField label="Vaccin rhino" value={sante.rhino ?? ''} onChange={setSanteKey('rhino')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
         </View>
         <View style={s.rowFields}>
-          <V2DateField label="Vermifuge" value={sante.vermifuge ?? ''} onChange={setSanteKey('vermifuge')} optional maxDate={today} style={s.flex1} />
-          <V2DateField label="Maréchal-ferrant" value={sante.marechal ?? ''} onChange={setSanteKey('marechal')} optional maxDate={today} style={s.flex1} />
+          <V2DateField label="Vermifuge" value={sante.vermifuge ?? ''} onChange={setSanteKey('vermifuge')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
+          <V2DateField label="Maréchal-ferrant" value={sante.marechal ?? ''} onChange={setSanteKey('marechal')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
         </View>
         <View style={s.rowFields}>
-          <V2DateField label="Dentiste" value={sante.dentiste ?? ''} onChange={setSanteKey('dentiste')} optional maxDate={today} style={s.flex1} />
-          <V2DateField label="Ostéopathe" value={sante.osteo ?? ''} onChange={setSanteKey('osteo')} optional maxDate={today} style={s.flex1} />
+          <V2DateField label="Dentiste" value={sante.dentiste ?? ''} onChange={setSanteKey('dentiste')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
+          <V2DateField label="Ostéopathe" value={sante.osteo ?? ''} onChange={setSanteKey('osteo')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
         </View>
       </Card>
 

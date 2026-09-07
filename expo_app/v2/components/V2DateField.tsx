@@ -50,6 +50,11 @@ export function todayStart(): Date {
 function defaultMax(): Date {
   return new Date(new Date().getFullYear() + 3, 11, 31);
 }
+/** Plancher par défaut : ~30 ans en arrière — sinon la colonne « Année » du
+ *  DatePickerModal se réduit à l'année courante quand seul `maxDate` est fourni. */
+function defaultMin(): Date {
+  return new Date(new Date().getFullYear() - 30, 0, 1);
+}
 
 // ── champ date simple ─────────────────────────────────────────────────────
 export function V2DateField({
@@ -85,7 +90,7 @@ export function V2DateField({
       <DatePickerModal
         visible={open}
         value={ymdToDate(value)}
-        minDate={minDate}
+        minDate={minDate ?? defaultMin()}
         maxDate={maxDate ?? defaultMax()}
         title={label}
         onConfirm={(d) => onChange(dateToYmd(d))}
