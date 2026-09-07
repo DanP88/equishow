@@ -5,33 +5,38 @@
 // RÉEL du concours (via useAutoDestination) et l'utilisateur voit clairement
 // d'où elle vient. Il peut la modifier (précision) : un lien permet de revenir
 // au lieu du concours. « Autre concours » / aucun concours → champ 100 % manuel.
+//
+// Saisie assistée : suggestions de villes / adresses (Nominatim, sans clé).
 // ─────────────────────────────────────────────────────────────────────────────
-import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
-import { Radius, FontSize, FontWeight, Spacing } from '../../constants/theme';
+import { FontSize, FontWeight, Spacing } from '../../constants/theme';
 import type { AutoDestination } from '../state/autoDestination';
+import { V2AddressAutocomplete } from './V2AddressAutocomplete';
 
 export function V2DestinationField({
   label,
   auto,
   placeholder = 'Ville / commune',
   concoursNom,
+  kind = 'city',
 }: {
   label: string;
   auto: AutoDestination;
   placeholder?: string;
   /** Nom du concours saisi librement (« Autre concours »), sans lieu connu. */
   concoursNom?: string;
+  /** 'city' (suggestions de communes) ou 'address' (adresses complètes). */
+  kind?: 'city' | 'address';
 }) {
   return (
     <View style={s.wrap}>
       <Text style={s.label}>{label}</Text>
-      <TextInput
-        style={s.input}
+      <V2AddressAutocomplete
         value={auto.value}
         onChangeText={auto.onChange}
         placeholder={placeholder}
-        placeholderTextColor={Colors.textTertiary}
+        kind={kind}
       />
       {auto.fromConcours ? (
         <Text style={s.fromConcours}>
@@ -58,16 +63,6 @@ const s = StyleSheet.create({
     color: Colors.textTertiary,
     textTransform: 'uppercase',
     letterSpacing: 0.5,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Radius.md,
-    paddingHorizontal: Spacing.md,
-    paddingVertical: Spacing.sm + 3,
-    fontSize: FontSize.base,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.surface,
   },
   fromConcours: { fontSize: FontSize.xs, color: Colors.primaryDark, fontWeight: FontWeight.semibold },
   reset: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.bold },

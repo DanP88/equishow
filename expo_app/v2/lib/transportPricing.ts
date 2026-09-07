@@ -123,27 +123,42 @@ export function buildEstimate(opts: {
   };
 }
 
-// ── Géocodage front (open-meteo — sans clé, provider déjà utilisé V2) ────────
+// ── Géocodage front (Base Adresse Nationale — service public FR, sans clé) ───
+// Repli open-meteo (déjà utilisé par la météo concours V2) si BAN indisponible.
 const _geoCache = new Map<string, LatLng | null>();
+
+async function geocodeBAN(q: string): Promise<LatLng | null> {
+  try {
+    const res = await fetch(`https://api-adresse.data.gouv.fr/search/?q=${encodeURIComponent(q)}&limit=1`);
+    if (!res.ok) return null;
+    const j = await res.json();
+    const c = j?.features?.[0]?.geometry?.coordinates;
+    return Array.isArray(c) ? { lat: c[1], lng: c[0] } : null;
+  } catch {
+    return null;
+  }
+}
+
+async function geocodeOpenMeteo(q: string): Promise<LatLng | null> {
+  try {
+    const res = await fetch(
+      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}&count=1&language=fr&format=json`,
+    );
+    if (!res.ok) return null;
+    const j = await res.json();
+    const hit = j?.results?.[0];
+    return hit ? { lat: hit.latitude as number, lng: hit.longitude as number } : null;
+  } catch {
+    return null;
+  }
+}
 
 export async function geocodeFr(query: string): Promise<LatLng | null> {
   const q = query.trim();
   if (!q) return null;
   const key = q.toLowerCase();
   if (_geoCache.has(key)) return _geoCache.get(key) ?? null;
-  try {
-    const url =
-      `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(q)}` +
-      `&count=1&language=fr&format=json&countryCode=FR`;
-    const res = await fetch(url);
-    if (!res.ok) { _geoCache.set(key, null); return null; }
-    const j = await res.json();
-    const hit = j?.results?.[0];
-    const out = hit ? { lat: hit.latitude as number, lng: hit.longitude as number } : null;
-    _geoCache.set(key, out);
-    return out;
-  } catch {
-    _geoCache.set(key, null);
-    return null;
-  }
+  const out = (await geocodeBAN(q)) ?? (await geocodeOpenMeteo(q));
+  _geoCache.set(key, out);
+  return out;
 }

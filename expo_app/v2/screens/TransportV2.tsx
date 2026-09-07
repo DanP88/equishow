@@ -22,6 +22,7 @@ import { useTransportLocal } from '../state/transportLocal';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
+import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 import {
@@ -141,7 +142,7 @@ export function TransportChercheV2() {
           hint={concoursId ? 'Repris de « Préparer mon concours » — modifiable pour cette recherche.' : undefined}
         />
         {ch.hasSelection && <Text style={s.forHorses}>{ch.count > 1 ? `${ch.count} chevaux` : '1 cheval'} · {ch.label}</Text>}
-        <Field label="Lieu de départ"><TextInput style={s.input} value={depart} onChangeText={setDepart} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
+        <Field label="Lieu de départ"><V2AddressAutocomplete value={depart} onChangeText={setDepart} kind="city" placeholder="Ville / commune" /></Field>
         <V2DestinationField label="Destination" auto={dest} placeholder="Ville d'arrivée" concoursNom={!concours ? concoursNom : undefined} />
         <V2DateRange
           startLabel="Date aller" endLabel="Date retour"
@@ -349,9 +350,9 @@ export function TransportReserverV2() {
       {kmMode && (
         <Card>
           <Text style={s.fieldLabel}>Ton adresse de prise en charge</Text>
-          <TextInput
-            style={s.input} value={pickup} onChangeText={setPickup}
-            placeholder="Ville / adresse de départ du cheval" placeholderTextColor={Colors.textTertiary}
+          <V2AddressAutocomplete
+            value={pickup} onChangeText={setPickup} kind="address"
+            placeholder="Ville / adresse de départ du cheval"
           />
           <Text style={s.sub}>
             Prix calculé sur la distance totale : {r.depart} → toi → {r.destination} · {r.pricePerKm!.toFixed(2)} €/km (logique V1).
@@ -480,7 +481,7 @@ export function TransportProposeV2() {
       )}
 
       <Card>
-        <Field label="Lieu de départ"><TextInput style={s.input} value={depart} onChangeText={setDepart} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
+        <Field label="Lieu de départ"><V2AddressAutocomplete value={depart} onChangeText={setDepart} kind="city" placeholder="Ville / commune" /></Field>
         <V2DestinationField label="Destination" auto={dest} placeholder="Ville d'arrivée" />
         <View style={s.rowFields}>
           <V2DateField label="Date" value={date} onChange={setDate} minDate={todayStart()} style={s.flex1} />

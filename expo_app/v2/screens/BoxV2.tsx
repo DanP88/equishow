@@ -23,6 +23,7 @@ import { useBoxLocal } from '../state/boxLocal';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
 import { V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
+import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 
@@ -398,7 +399,7 @@ export function BoxProposeV2() {
 
       <Card>
         <V2DestinationField label="Secteur" auto={dest} placeholder="Ville / commune" />
-        <Field label="Adresse de l'écurie"><TextInput style={s.input} value={adresse} onChangeText={setAdresse} placeholder="Visible une fois la mise en relation faite" placeholderTextColor={Colors.textTertiary} /></Field>
+        <Field label="Adresse de l'écurie"><V2AddressAutocomplete value={adresse} onChangeText={setAdresse} kind="address" placeholder="Numéro et voie, ville" /></Field>
         <V2DateRange
           startLabel="Disponible du" endLabel="au"
           start={dateDebut} end={dateFin}
