@@ -20,7 +20,7 @@ export interface MockActionItem {
 export const MOCK_ACTIONS: MockActionItem[] = [
   { __mock: true, id: 'a1', icon: '⚠', label: '1 paiement transport en attente', cap: 'cavalier', target: '/(v2)/agenda' },
   { __mock: true, id: 'a2', icon: '💬', label: 'Réponse de Caroline (coaching)', cap: 'cavalier', target: '/(v2)/messagerie' },
-  { __mock: true, id: 'a3', icon: '🎓', label: '2 demandes de coaching reçues', cap: 'coach', target: '/(v2)/service/coach?face=eleves' },
+  { __mock: true, id: 'a3', icon: '🎓', label: '2 demandes de coaching reçues', cap: 'coach', target: '/(v2)/coach?face=eleves' },
   { __mock: true, id: 'a4', icon: '📋', label: '1 concours en brouillon à publier', cap: 'organisateur', target: '/(v2)/concours?tab=organises' },
 ];
 

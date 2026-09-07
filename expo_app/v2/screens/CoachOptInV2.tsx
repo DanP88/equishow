@@ -39,7 +39,7 @@ export function CoachOptInV2() {
           </Text>
           <Text style={s.simTag}>PROTOTYPE — capacité ajoutée localement (aucun backend)</Text>
         </Card>
-        <PrimaryButton label="Publier une annonce de coaching" onPress={() => router.replace('/(v2)/service/coach?face=propose' as any)} />
+        <PrimaryButton label="Publier une annonce de coaching" onPress={() => router.replace('/(v2)/coach?face=propose' as any)} />
         <GhostButton label="Retour" onPress={() => router.replace('/(v2)/propose' as any)} />
       </Screen>
     );

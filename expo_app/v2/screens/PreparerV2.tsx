@@ -32,8 +32,8 @@ export function PreparerV2() {
   const openService = (kind: 'transport' | 'box' | 'coach', face: 'cherche' | 'propose') => {
     const q = new URLSearchParams({ concoursId: id, face });
     if (entry.chevalId) q.set('chevalId', entry.chevalId);
-    // Transport (F5) / Box (F6) = parcours dédiés ; coach = écran service générique (F7).
-    const path = kind === 'transport' ? '/(v2)/transport' : kind === 'box' ? '/(v2)/box' : `/(v2)/service/${kind}`;
+    // Transport (F5) / Box (F6) / Coach (F7) = parcours dédiés.
+    const path = kind === 'transport' ? '/(v2)/transport' : kind === 'box' ? '/(v2)/box' : '/(v2)/coach';
     router.push(`${path}?${q.toString()}` as any);
   };
 

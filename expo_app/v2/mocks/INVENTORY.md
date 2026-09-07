@@ -57,6 +57,29 @@ réservation réelle via le flux `box_reservations` + escrow existant + trigger 
 pic-de-concurrence (mig 104) ; masquage d'adresse tant que non mis en relation.
 Rien de tout ça en F6.
 
+## F7 — Coach V2
+| Élément | Réel (lecture seule) | Local (`v2:coach`) |
+|---|---|---|
+| résultats « Je cherche » | `useCoachAnnonces()` (places > 0, filtre concours + discipline) via `v2/adapters/coach.ts` | — |
+| demandes reçues (« Mes élèves ») | `useMyCourseDemands()` filtré `coach = moi` + `pending` (lecture seule, **0 write**) | accept/refus = état visuel local (`useState`), non persisté |
+| commission affichée | `getCommission('cours')` (lecture seule) | — |
+| résultats / demandes démo | — (mocks `v2/mocks/coach.ts` + liste interne `useV2CoachDemands`, **prototype non connecté uniquement**) |
+| demande de coaching publiée | — | `searches[]` |
+| annonce de coaching publiée | — | `offers[]` |
+| séance réservée simulée | — | `bookings[]` (aucun Stripe ; total = prix/séance × nb + commission) |
+| synchro « Mon concours » | — | `concoursLocal.needCoach` (searching / offering / done ; resync → unset) |
+| capacité Coach | `useCapabilities()` seed = vrai `users.role` | opt-in local (`CoachOptInV2` → `caps.request('coach')`), gate `CoachProposeV2` / `CoachElevesV2` |
+
+**Backend requis Phase 2** : `course_demands` (demandes réelles) + escrow existant ;
+gestion réelle accept/refus + planning des séances ; gating capacité Coach réel
+(`user_capabilities`). Rien de tout ça en F7.
+
+## F2 — `ServiceV2` = shim de redirection
+Depuis F5/F6/F7, `app/(v2)/service/[kind]` ne fait plus que rediriger vers
+`/(v2)/transport` · `/(v2)/box` · `/(v2)/coach` (contexte conservé). Les mocks
+`MOCK_COACHES_ON_CONCOURS` / `MOCK_COACH_DEMANDS` (f2.ts) ne sont plus utilisés
+(remplacés par `v2/adapters/coach.ts`) ; conservés pour compat d'import.
+
 ## F4 — fiche concours = tableau de bord (état LOCAL, lecture seule côté réel)
 | Élément | Réel (lecture seule) | Local (`v2:concours-local`) |
 |---|---|---|

@@ -40,7 +40,7 @@ export function FicheConcoursV2() {
   const openService = (kind: 'transport' | 'box' | 'coach', face: 'cherche' | 'propose') => {
     const q = new URLSearchParams({ concoursId: id, face });
     if (entry.chevalId) q.set('chevalId', entry.chevalId);
-    const path = kind === 'transport' ? '/(v2)/transport' : kind === 'box' ? '/(v2)/box' : `/(v2)/service/${kind}`;
+    const path = kind === 'transport' ? '/(v2)/transport' : kind === 'box' ? '/(v2)/box' : '/(v2)/coach';
     router.push(`${path}?${q.toString()}` as any);
   };
   // Ligne du tableau de bord : état + action contextualisée.
@@ -99,7 +99,7 @@ export function FicheConcoursV2() {
               <Text style={s.actTitle}>🎓 Vous pouvez y coacher</Text>
               <Text style={s.actSub}>2 séances prévues ici · Julie/Tornado, Thomas/Rio</Text>
               <View style={s.actBtns}>
-                <GhostButton label="Gérer mes séances" onPress={() => router.push('/(v2)/service/coach?face=eleves' as any)} />
+                <GhostButton label="Gérer mes séances" onPress={() => router.push(`/(v2)/coach?concoursId=${id}&face=eleves` as any)} />
                 <GhostButton label="Proposer un créneau" onPress={() => openService('coach', 'propose')} />
               </View>
               <Placeholder note="séances de coaching sur ce concours = F7" />

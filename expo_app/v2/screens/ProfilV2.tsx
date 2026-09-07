@@ -44,6 +44,7 @@ export function ProfilV2() {
             <Row icon="🏆" label="Mes concours (suivis / à venir)" onPress={() => router.push('/(v2)/concours?tab=suivis' as any)} />
             <Row icon="🚚" label="Mes transports" onPress={() => router.push('/(v2)/transport/mes-transports' as any)} />
             <Row icon="🏠" label="Mes box" onPress={() => router.push('/(v2)/box/mes-box' as any)} />
+            <Row icon="🎓" label="Mes coachings" onPress={() => router.push('/(v2)/coach/mes-coachings' as any)} />
             <Row icon="🎫" label="Mes réservations & paiements" onPress={() => router.replace('/(v2)/agenda' as any)} />
             <Row icon="⭐" label="Mes avis déposés" onPress={() => {}} />
           </RowGroup>
@@ -53,8 +54,8 @@ export function ProfilV2() {
       {caps.has('coach') && (
         <Section title="Coach">
           <RowGroup>
-            <Row icon="🎓" label="Mes annonces de coaching" onPress={() => router.push('/(v2)/service/coach?face=propose' as any)} />
-            <Row icon="👥" label="Mes élèves & demandes" onPress={() => router.push('/(v2)/service/coach?face=eleves' as any)} />
+            <Row icon="🎓" label="Mes annonces de coaching" onPress={() => router.push('/(v2)/coach?face=propose' as any)} />
+            <Row icon="👥" label="Mes élèves & demandes" onPress={() => router.push('/(v2)/coach?face=eleves' as any)} />
             <Row icon="💶" label="Mes revenus (commission 9 %)" onPress={() => {}} />
           </RowGroup>
         </Section>
