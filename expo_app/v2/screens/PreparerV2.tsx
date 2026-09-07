@@ -14,9 +14,9 @@ import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, PrimaryButton, GhostButton } from '../ui/kit';
 import { PrepBar, StatePill } from '../ui/prep';
 import { useConcours } from '../../hooks/useConcours';
-import { useMyChevaux } from '../../hooks/useChevaux';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal, NeedChoice, needStatus, NEED_LABEL } from '../state/concoursLocal';
+import { useV2AllHorses, useV2ContestHorses, horseSubtitle } from '../state/contestHorses';
 
 // Options d'état par service. 'offering' conditionnel (cf. plus bas).
 const BASE_STATES: NeedChoice[] = ['done', 'searching', 'offering', 'unset', 'none'];
@@ -24,9 +24,10 @@ const BASE_STATES: NeedChoice[] = ['done', 'searching', 'offering', 'unset', 'no
 export function PreparerV2() {
   const { id, focus } = useLocalSearchParams<{ id: string; focus?: string }>();
   const { concours } = useConcours(id);
-  const { chevaux } = useMyChevaux();
   const caps = useCapabilities();
-  const { entry, prep, update } = useConcoursLocal(id);
+  const { entry, prep, update, toggleHorse } = useConcoursLocal(id);
+  const pool = useV2AllHorses();
+  const ch = useV2ContestHorses(id);
   const [epreuve, setEpreuve] = useState('');
 
   const openService = (kind: 'transport' | 'box' | 'coach', face: 'cherche' | 'propose') => {
@@ -88,23 +89,38 @@ export function PreparerV2() {
 
       <Card><PrepBar score={prep.score} total={prep.total} /></Card>
 
-      {/* 🐴 CHEVAL */}
+      {/* 🐴 CHEVAL — choix multi, contexte de CE concours */}
       <Card>
         <View style={s.cardHead}>
           <Text style={s.cardTitle}>🐴  Cheval</Text>
-          <StatePill status={entry.chevalId ? 'ready' : 'todo'} />
+          <StatePill status={ch.hasSelection ? 'ready' : 'todo'} />
         </View>
-        {chevaux.length === 0 ? (
+        <Text style={s.hint}>Quels chevaux emmènes-tu à ce concours ? Plusieurs possibles — Transport, Box et Coach réutiliseront ce choix.</Text>
+        {pool.all.length === 0 ? (
           <View style={s.empty}>
             <Text style={s.emptyTxt}>Tu n'as pas encore de cheval.</Text>
             <GhostButton label="Ajouter un cheval" onPress={() => router.push('/(v2)/chevaux/nouveau' as any)} />
           </View>
         ) : (
-          <View style={s.opts}>
-            {chevaux.map((c) => (
-              <Chip key={c.id} label={c.nom} on={entry.chevalId === c.id} onPress={() => update({ chevalId: entry.chevalId === c.id ? null : c.id })} />
-            ))}
-          </View>
+          <>
+            <View style={{ gap: Spacing.sm }}>
+              {pool.all.map((h) => {
+                const on = ch.ids.includes(h.id);
+                const sub = horseSubtitle(h);
+                return (
+                  <TouchableOpacity key={h.id} style={[s.horseRow, on && s.horseRowOn]} activeOpacity={0.85} onPress={() => toggleHorse(h.id)}>
+                    <Text style={s.horseCheck}>{on ? '☑' : '☐'}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.horseName}>{h.nom}{h.src === 'local' ? '  · local' : ''}</Text>
+                      {!!sub && <Text style={s.horseSub}>{sub}</Text>}
+                    </View>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            {ch.hasSelection && <Text style={s.selSummary}>✅ {ch.summary}</Text>}
+            <GhostButton label="＋ Ajouter un cheval" onPress={() => router.push('/(v2)/chevaux/nouveau' as any)} />
+          </>
         )}
       </Card>
 
@@ -157,6 +173,12 @@ const s = StyleSheet.create({
   hint: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
   empty: { gap: Spacing.sm },
   emptyTxt: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  horseRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.surface },
+  horseRowOn: { borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
+  horseCheck: { fontSize: 18, color: Colors.primary },
+  horseName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  horseSub: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
+  selSummary: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.success },
   addRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center' },
   input: { flex: 1, borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
 });

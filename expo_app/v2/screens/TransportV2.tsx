@@ -16,8 +16,8 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
-import { useMyChevaux } from '../../hooks/useChevaux';
 import { useConcoursLocal } from '../state/concoursLocal';
+import { useV2ContestHorses } from '../state/contestHorses';
 import { useTransportLocal } from '../state/transportLocal';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
@@ -75,22 +75,22 @@ export function TransportHubV2() {
 
 // ═══════════════════════ JE CHERCHE ═══════════════════════
 export function TransportChercheV2() {
-  const { concoursId, chevalId } = useLocalSearchParams<{ concoursId?: string; chevalId?: string }>();
+  const { concoursId } = useLocalSearchParams<{ concoursId?: string; chevalId?: string }>();
   const { concours } = useConcours(concoursId);
-  const { chevaux } = useMyChevaux();
   const cl = useConcoursLocal(concoursId);
   const tl = useTransportLocal(concoursId);
+  // Contexte cheval défini dans « Préparer mon concours » — jamais redemandé ici.
+  const ch = useV2ContestHorses(concoursId);
 
   // Prérempli depuis le contexte concours + cheval.
   const [depart, setDepart] = useState('');
   const [destination, setDestination] = useState(concours?.lieu ?? '');
   const [dateAller, setDateAller] = useState(concours?.date_debut ?? '');
   const [dateRetour, setDateRetour] = useState(concours?.date_fin ?? '');
-  const [nbChevaux, setNbChevaux] = useState('1');
+  const [nbChevaux, setNbChevaux] = useState(ch.count > 0 ? String(ch.count) : '1');
   const [avecCavalier, setAvecCavalier] = useState(false);
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
-  const cheval = chevalId ? chevaux.find((c) => c.id === chevalId) : (cl.entry.chevalId ? chevaux.find((c) => c.id === cl.entry.chevalId) : undefined);
 
   const { results, demo } = useV2TransportResults({ concoursId, destination, dateAller });
   // Recherche déjà publiée : rattachée au concours OU publiée pendant cette session.
@@ -98,7 +98,7 @@ export function TransportChercheV2() {
 
   const publishSearch = () => {
     const rec = tl.publishSearch({
-      concoursId, concoursNom: concours?.nom, chevalId: cheval?.id,
+      concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       depart: depart.trim() || '—', destination: destination.trim() || '—',
       dateAller: dateAller || undefined, dateRetour: dateRetour || undefined,
       nbChevaux: parseInt(nbChevaux, 10) || 1, avecCavalier,
@@ -120,9 +120,10 @@ export function TransportChercheV2() {
           <Text style={s.ctxTitle}>Contexte du concours</Text>
           <Text style={s.ctxLine}>🏆 {concours.nom}</Text>
           <Text style={s.ctxLine}>📍 {concours.lieu || '—'}   ·   📅 {concours.dateLabel || '—'}</Text>
-          {cheval ? <Text style={s.ctxLine}>🐴 {cheval.nom}</Text> : null}
+          {ch.count > 0 ? <Text style={s.ctxLine}>🐴 {ch.names.join(' + ')}</Text> : null}
         </View>
       )}
+      {ch.hasSelection && <Text style={s.forHorses}>{ch.label}</Text>}
 
       <Card>
         <Field label="Lieu de départ"><TextInput style={s.input} value={depart} onChangeText={setDepart} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
@@ -147,7 +148,7 @@ export function TransportChercheV2() {
         results.length > 0 ? (
           <>
             <Text style={s.resultsTitle}>{results.length} transport{results.length > 1 ? 's' : ''} compatible{results.length > 1 ? 's' : ''}{demo ? ' (démonstration)' : ''}</Text>
-            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalId={cheval?.id} />)}
+            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalId={ch.primaryId} />)}
             {demo && <Placeholder note="résultats de démonstration — connecte-toi pour voir les vraies annonces" v1Path="/(tabs)/services?tab=transport" v1Label="annonces actuelles" />}
           </>
         ) : (
@@ -232,14 +233,13 @@ export function TransportDetailV2() {
 
 // ═══════════════════════ RÉSERVATION SIMULÉE ═══════════════════════
 export function TransportReserverV2() {
-  const { id, concoursId, chevalId } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string }>();
+  const { id, concoursId } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string }>();
   const { concours } = useConcours(concoursId);
-  const { chevaux } = useMyChevaux();
   const { results, commission } = useV2TransportResults({ concoursId });
   const cl = useConcoursLocal(concoursId);
   const tl = useTransportLocal(concoursId);
+  const ch = useV2ContestHorses(concoursId);
   const r = results.find((x) => x.id === id);
-  const cheval = chevalId ? chevaux.find((c) => c.id === chevalId) : (cl.entry.chevalId ? chevaux.find((c) => c.id === cl.entry.chevalId) : undefined);
   const [done, setDone] = useState(false);
 
   if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /></View></Screen>;
@@ -249,7 +249,7 @@ export function TransportReserverV2() {
 
   const confirm = () => {
     tl.book({
-      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: cheval?.id,
+      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       trajet: `${r.depart} → ${r.destination}`, date: r.date, heure: r.heure,
       prix: total, conducteur: r.conducteur, places: 1,
     });
@@ -272,7 +272,7 @@ export function TransportReserverV2() {
           <Row icon="🛣" label="Trajet" value={`${r.depart} → ${r.destination}`} />
           <Row icon="📅" label="Quand" value={fmtDate(r.date)} />
           {concours ? <Row icon="🏆" label="Concours" value={concours.nom} /> : null}
-          {cheval ? <Row icon="🐴" label="Cheval" value={cheval.nom} /> : null}
+          {ch.count > 0 ? <Row icon="🐴" label={ch.count > 1 ? 'Chevaux' : 'Cheval'} value={ch.names.join(', ')} /> : null}
           <Row icon="👤" label="Conducteur" value={r.conducteur} />
           <Row icon="💶" label="Total" value={`${total} €`} />
         </RowGroup>
@@ -291,7 +291,9 @@ export function TransportReserverV2() {
         <Row icon="🛣" label="Trajet" value={`${r.depart} → ${r.destination}`} />
         <Row icon="📅" label="Date" value={`${fmtDate(r.date)}${r.heure ? ` · ${r.heure}` : ''}`} />
         {concours ? <Row icon="🏆" label="Concours" value={concours.nom} /> : null}
-        {cheval ? <Row icon="🐴" label="Cheval" value={cheval.nom} /> : <Row icon="🐴" label="Cheval" value="non précisé" />}
+        {ch.count > 0
+          ? <Row icon="🐴" label={ch.count > 1 ? 'Chevaux' : 'Cheval'} value={ch.names.join(', ')} sub={ch.count > 1 ? `${ch.count} chevaux concernés` : undefined} />
+          : <Row icon="🐴" label="Cheval" value="non précisé" sub="défini dans « Préparer mon concours »" />}
         <Row icon="👤" label="Conducteur" value={`${r.conducteur}${r.note ? ` · ★ ${r.note}` : ''}`} />
         <Row icon="💺" label="Places" value="1" />
       </RowGroup>
@@ -411,6 +413,7 @@ const s = StyleSheet.create({
   ctxCard: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder, borderWidth: 1, borderRadius: 14, padding: Spacing.md, gap: 3, marginTop: Spacing.sm },
   ctxTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.6, textTransform: 'uppercase' },
   ctxLine: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
+  forHorses: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primaryDark, marginTop: 2 },
 
   field: { gap: 4, marginTop: Spacing.sm },
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },

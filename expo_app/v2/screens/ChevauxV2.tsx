@@ -1,27 +1,29 @@
 // ─────────────────────────────────────────────────────────────────────────────
 // ChevauxV2 — onglet 🐴. STRUCTURE IDENTIQUE pour tous, CONTENU adaptatif :
-//   - « Chevaux que je coache »  → si capacité coach (utile même sans cheval)
-//   - « Mes chevaux »            → toujours, avec empty state informatif
-// Onglet jamais renommé, jamais masqué. (cf. reco §17 des wireframes)
+//   - « Chevaux que je coache »  → si capacité coach (mock F7, lecture seule)
+//   - « Mes chevaux »            → réels (Supabase, LECTURE SEULE) + locaux V2
+// Onglet jamais renommé, jamais masqué.
+// F8 : la fiche cheval et l'ajout se font en V2 (`/(v2)/chevaux/*`) — les
+// chevaux réels restent en lecture seule, les chevaux V2 (`v2c-…`) sont locaux.
 // ─────────────────────────────────────────────────────────────────────────────
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
-import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
+import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, H1, Section, Card, Row, RowGroup, EmptyState, Placeholder } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
-import { useMyChevaux } from '../../hooks/useChevaux';
+import { useV2AllHorses, horseSubtitle } from '../state/contestHorses';
 import { MOCK_STUDENT_HORSES } from '../mocks/f2';
 
 export function ChevauxV2() {
   const caps = useCapabilities();
-  const { chevaux } = useMyChevaux();
+  const pool = useV2AllHorses();
 
   const emptyBody = caps.has('cavalier')
-    ? 'Nécessaire pour réserver un box, un transport ou un coaching pour ton cheval.'
+    ? 'Nécessaire pour préparer un concours : indiquer quels chevaux tu emmènes, réserver box / transport / coaching.'
     : caps.has('coach')
-      ? 'Ajoutez un cheval si vous montez aussi — nécessaire pour réserver box / transport / coaching.'
-      : 'Les chevaux servent à préparer un concours : réserver un box, un transport ou un coaching pour votre cheval.';
+      ? 'Ajoutez un cheval si vous montez aussi — utile pour préparer vos propres concours.'
+      : 'Les chevaux servent à préparer un concours : box, transport, coaching pour votre cheval.';
 
   return (
     <Screen>
@@ -29,21 +31,19 @@ export function ChevauxV2() {
         <TouchableOpacity onPress={() => router.push('/(v2)/chevaux/nouveau' as any)} hitSlop={8}><Text style={s.add}>＋</Text></TouchableOpacity>
       </View>
 
-      {/* Section COACH — chevaux des élèves */}
       {caps.has('coach') && (
         <Section title={`Chevaux que je coache · ${MOCK_STUDENT_HORSES.length}`}>
           <RowGroup>
             {MOCK_STUDENT_HORSES.map((h) => (
-              <Row key={h.id} icon="🐴" label={`${h.horse} — ${h.rider}`} value={h.discipline} onPress={() => {}} />
+              <Row key={h.id} icon="🐴" label={`${h.horse} — ${h.rider}`} value={h.discipline} />
             ))}
           </RowGroup>
-          <Placeholder note="chevaux des élèves rebranchés en F7" />
+          <Placeholder note="chevaux des élèves = démonstration (F7) — gestion réelle en Phase 2" />
         </Section>
       )}
 
-      {/* Section MES CHEVAUX */}
       <Section title="Mes chevaux">
-        {chevaux.length === 0 ? (
+        {pool.all.length === 0 ? (
           <EmptyState
             icon="🐴"
             title="Pas encore de cheval"
@@ -53,18 +53,27 @@ export function ChevauxV2() {
           />
         ) : (
           <View style={{ gap: 10 }}>
-            {chevaux.map((c) => (
-              <Card key={c.id} onPress={() => router.push(`/cheval/${c.id}` as any)}>
-                <Text style={s.name}>{c.nom}</Text>
-                <Text style={s.sub}>{[c.race, c.anneeNaissance ? `${new Date().getFullYear() - c.anneeNaissance} ans` : null, c.disciplines?.[0]].filter(Boolean).join(' · ')}</Text>
+            {pool.all.map((h) => (
+              <Card key={h.id} onPress={() => router.push(`/(v2)/chevaux/${h.id}` as any)}>
+                <View style={s.cardRow}>
+                  <View style={[s.dot, { backgroundColor: h.couleur || Colors.primary }]} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={s.name}>{h.nom}{h.src === 'local' ? '  · local V2' : ''}</Text>
+                    {!!horseSubtitle(h) && <Text style={s.sub}>{horseSubtitle(h)}</Text>}
+                  </View>
+                  <Text style={s.chev}>›</Text>
+                </View>
               </Card>
             ))}
           </View>
         )}
       </Section>
 
-      {chevaux.length > 0 && (
-        <Placeholder note="fiche cheval recentrée (Sport · Concours · Logistique) = F8" v1Path="/(tabs)/chevaux" v1Label="chevaux actuels" />
+      {pool.local.length > 0 && (
+        <Placeholder note="les chevaux « local V2 » sont stockés sur cet appareil (v2:chevaux) — aucune donnée Supabase" />
+      )}
+      {pool.real.length > 0 && (
+        <Placeholder note="fiche cheval réelle = LECTURE SEULE en V2 ; modification via l'app actuelle" v1Path="/(tabs)/chevaux" v1Label="chevaux (V1)" />
       )}
 
       {caps.has('organisateur') && !caps.has('cavalier') && !caps.has('coach') && (
@@ -77,7 +86,10 @@ export function ChevauxV2() {
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   add: { fontSize: 24, color: Colors.primary, fontWeight: FontWeight.bold, paddingHorizontal: Spacing.sm },
+  cardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  dot: { width: 30, height: 30, borderRadius: 15 },
   name: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  chev: { fontSize: 18, color: Colors.textTertiary },
   orgHint: { fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic', textAlign: 'center', marginTop: Spacing.md },
 });

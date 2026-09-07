@@ -17,7 +17,7 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
-import { useMyChevaux } from '../../hooks/useChevaux';
+import { useV2ContestHorses } from '../state/contestHorses';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
@@ -80,28 +80,28 @@ export function BoxHubV2() {
 
 // ═══════════════════════ JE CHERCHE ═══════════════════════
 export function BoxChercheV2() {
-  const { concoursId, chevalId } = useLocalSearchParams<{ concoursId?: string; chevalId?: string }>();
+  const { concoursId } = useLocalSearchParams<{ concoursId?: string; chevalId?: string }>();
   const { concours } = useConcours(concoursId);
-  const { chevaux } = useMyChevaux();
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
+  // Contexte cheval défini dans « Préparer mon concours » — jamais redemandé ici.
+  const ch = useV2ContestHorses(concoursId);
 
   // Prérempli depuis le contexte concours + cheval.
   const [lieu, setLieu] = useState(concours?.lieu ?? '');
   const [dateDebut, setDateDebut] = useState(concours?.date_debut ?? '');
   const [dateFin, setDateFin] = useState(concours?.date_fin ?? '');
-  const [nbBox, setNbBox] = useState('1');
+  const [nbBox, setNbBox] = useState(ch.count > 0 ? String(ch.count) : '1');
   const [litiere, setLitiere] = useState(true);
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
-  const cheval = chevalId ? chevaux.find((c) => c.id === chevalId) : (cl.entry.chevalId ? chevaux.find((c) => c.id === cl.entry.chevalId) : undefined);
 
   const { results, demo } = useV2BoxResults({ concoursId, lieu, dateDebut, dateFin });
   const alreadyPublished = !!(bl.context.search || (publishedId && bl.searches.some((x) => x.id === publishedId)));
 
   const publishSearch = () => {
     const rec = bl.publishSearch({
-      concoursId, concoursNom: concours?.nom, chevalId: cheval?.id,
+      concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       lieu: lieu.trim() || '—',
       dateDebut: dateDebut || undefined, dateFin: dateFin || undefined,
       nbBox: parseInt(nbBox, 10) || 1, litiereIncluse: litiere,
@@ -122,9 +122,11 @@ export function BoxChercheV2() {
           <Text style={s.ctxTitle}>Contexte du concours</Text>
           <Text style={s.ctxLine}>🏆 {concours.nom}</Text>
           <Text style={s.ctxLine}>📍 {concours.lieu || '—'}   ·   📅 {concours.dateLabel || '—'}</Text>
-          {cheval ? <Text style={s.ctxLine}>🐴 {cheval.nom}</Text> : null}
+          {ch.count > 0 ? <Text style={s.ctxLine}>🐴 {ch.names.join(' + ')}</Text> : null}
         </View>
       )}
+      {ch.count > 1 && <Text style={s.forHorses}>🐴 {ch.count} chevaux concernés — {ch.names.join(', ')}</Text>}
+      {ch.count === 1 && <Text style={s.forHorses}>{ch.label}</Text>}
 
       <Card>
         <Field label={`Secteur${concours ? ' (autour du concours)' : ''}`}><TextInput style={s.input} value={lieu} onChangeText={setLieu} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
@@ -148,7 +150,7 @@ export function BoxChercheV2() {
         results.length > 0 ? (
           <>
             <Text style={s.resultsTitle}>{results.length} box compatible{results.length > 1 ? 's' : ''}{demo ? ' (démonstration)' : ''}</Text>
-            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalId={cheval?.id} dateDebut={dateDebut} dateFin={dateFin} />)}
+            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalId={ch.primaryId} dateDebut={dateDebut} dateFin={dateFin} />)}
             {demo && <Placeholder note="résultats de démonstration — connecte-toi pour voir les vraies annonces" v1Path="/(tabs)/services?tab=box" v1Label="annonces actuelles" />}
           </>
         ) : (
@@ -238,14 +240,13 @@ export function BoxDetailV2() {
 
 // ═══════════════════════ RÉSERVATION SIMULÉE ═══════════════════════
 export function BoxReserverV2() {
-  const { id, concoursId, chevalId, d1, d2 } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string; d1?: string; d2?: string }>();
+  const { id, concoursId, d1, d2 } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string; d1?: string; d2?: string }>();
   const { concours } = useConcours(concoursId);
-  const { chevaux } = useMyChevaux();
   const { results, commission } = useV2BoxResults({ concoursId });
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
+  const ch = useV2ContestHorses(concoursId);
   const r = results.find((x) => x.id === id);
-  const cheval = chevalId ? chevaux.find((c) => c.id === chevalId) : (cl.entry.chevalId ? chevaux.find((c) => c.id === cl.entry.chevalId) : undefined);
   const [done, setDone] = useState(false);
 
   if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /></View></Screen>;
@@ -260,7 +261,7 @@ export function BoxReserverV2() {
 
   const confirm = () => {
     bl.book({
-      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: cheval?.id,
+      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       lieu: `${r.hote} · ${r.lieu}`, dateDebut: pDebut, dateFin: pFin,
       nbNuits: nuits, nbBox: 1, prixNuit: r.prixNuit, prix: total, hote: r.hote,
     });
@@ -283,7 +284,7 @@ export function BoxReserverV2() {
           <Row icon="📍" label="Lieu" value={r.lieu} />
           <Row icon="📅" label="Période" value={`${fmtPeriode(pDebut, pFin)} · ${nuits} nuit${nuits > 1 ? 's' : ''}`} />
           {concours ? <Row icon="🏆" label="Concours" value={concours.nom} /> : null}
-          {cheval ? <Row icon="🐴" label="Cheval" value={cheval.nom} /> : null}
+          {ch.count > 0 ? <Row icon="🐴" label={ch.count > 1 ? 'Chevaux' : 'Cheval'} value={ch.names.join(', ')} /> : null}
           <Row icon="💶" label="Total" value={`${total} €`} />
         </RowGroup>
         <PrimaryButton label={concoursId ? 'Retour à Mon concours' : 'Voir Mes box'} onPress={() => router.replace((concoursId ? `/(v2)/concours/${concoursId}` : '/(v2)/box/mes-box') as any)} />
@@ -302,7 +303,9 @@ export function BoxReserverV2() {
         <Row icon="📍" label="Lieu" value={r.lieu} />
         <Row icon="📅" label="Période" value={`${fmtPeriode(pDebut, pFin)} · ${nuits} nuit${nuits > 1 ? 's' : ''}`} />
         {concours ? <Row icon="🏆" label="Concours" value={concours.nom} /> : null}
-        {cheval ? <Row icon="🐴" label="Cheval" value={cheval.nom} /> : <Row icon="🐴" label="Cheval" value="non précisé" />}
+        {ch.count > 0
+          ? <Row icon="🐴" label={ch.count > 1 ? 'Chevaux' : 'Cheval'} value={ch.names.join(', ')} sub={ch.count > 1 ? `${ch.count} chevaux — réservation multi-box = lot ultérieur` : undefined} />
+          : <Row icon="🐴" label="Cheval" value="non précisé" sub="défini dans « Préparer mon concours »" />}
         <Row icon="🚪" label="Box" value="1" />
       </RowGroup>
 
@@ -426,6 +429,7 @@ const s = StyleSheet.create({
   ctxCard: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder, borderWidth: 1, borderRadius: 14, padding: Spacing.md, gap: 3, marginTop: Spacing.sm },
   ctxTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.6, textTransform: 'uppercase' },
   ctxLine: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
+  forHorses: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primaryDark, marginTop: 2 },
 
   field: { gap: 4, marginTop: Spacing.sm },
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },

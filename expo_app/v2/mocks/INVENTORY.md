@@ -74,6 +74,21 @@ Rien de tout ça en F6.
 gestion réelle accept/refus + planning des séances ; gating capacité Coach réel
 (`user_capabilities`). Rien de tout ça en F7.
 
+## F8 — Cheval V2
+| Élément | Réel (lecture seule) | Local (`v2:*`) |
+|---|---|---|
+| chevaux réels | `useMyChevaux()` / `useCheval(id)` — **jamais de mutation** | — |
+| chevaux V2 (CAS B « Ajouter un cheval ») | — | `v2:chevaux` (`v2/state/chevauxLocal.ts`, ids `v2c-…`, CRUD local). **Aucun INSERT Supabase.** |
+| sélection cheval(s) par concours | — | `concoursLocal.selectedHorseIds[]` (multi, propre à chaque concours). `chevalId` déprécié = `selectedHorseIds[0]`. |
+| contexte cheval des services | — | `useV2ContestHorses(concoursId)` (`v2/state/contestHorses.ts`) = fusion réel + local, libellés prêts. Transport / Box / Coach le **lisent** — aucun sélecteur. |
+| fiche cheval réelle | `useCheval` → LECTURE SEULE (bouton « ouvrir la fiche V1 » = navigation seule) | — |
+| fiche / édition cheval local | — | `ChevalV2` / `ChevalFormV2`, routes `app/(v2)/chevaux/{[id],[id]/modifier,nouveau}` |
+
+**Limite connue** : une réservation Box / une demande Coach reste **1 enregistrement** (`chevalId` = 1ᵉʳ sélectionné) — la réservation multi-box / multi-séance par cheval est un lot ultérieur (signalée à l'écran). Le champ « nombre de chevaux/box » est prérempli sur le nombre sélectionné mais éditable.
+
+**Backend requis Phase 2** : `concours_presence` + colonne chevaux du concours ;
+création cheval réelle (INSERT `chevaux` + RLS + Storage photo). Rien de tout ça en F8.
+
 ## F2 — `ServiceV2` = shim de redirection
 Depuis F5/F6/F7, `app/(v2)/service/[kind]` ne fait plus que rediriger vers
 `/(v2)/transport` · `/(v2)/box` · `/(v2)/coach` (contexte conservé). Les mocks

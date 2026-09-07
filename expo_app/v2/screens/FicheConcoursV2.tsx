@@ -21,7 +21,7 @@ import { Screen, Section, Card, Row, RowGroup, PrimaryButton, GhostButton, Place
 import { PrepBar, StatePill } from '../ui/prep';
 import { useCapabilities } from '../capabilities';
 import { useConcours, useMyConcours } from '../../hooks/useConcours';
-import { useMyChevaux } from '../../hooks/useChevaux';
+import { useV2ContestHorses } from '../state/contestHorses';
 import { useConcoursLocal, needStatus, NeedChoice } from '../state/concoursLocal';
 
 export function FicheConcoursV2() {
@@ -30,7 +30,7 @@ export function FicheConcoursV2() {
   const { concours, isLoading } = useConcours(id);
   const { entry, prep, setGoing, toggleFollow } = useConcoursLocal(id);
   const { concours: mine } = useMyConcours();
-  const { chevaux } = useMyChevaux();
+  const ch = useV2ContestHorses(id);
   const iOrganise = mine.some((c) => c.id === id);
 
   if (isLoading) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /></View></Screen>;
@@ -56,7 +56,7 @@ export function FicheConcoursV2() {
     );
   };
 
-  const chevalNom = entry.chevalId ? (chevaux.find((c) => c.id === entry.chevalId)?.nom ?? 'cheval') : null;
+  const chevalSub = ch.hasSelection ? ch.names.join(', ') : 'à renseigner';
 
   return (
     <Screen>
@@ -129,9 +129,9 @@ export function FicheConcoursV2() {
           <PrimaryButton label="Préparer mon concours" onPress={() => openPrep()} />
 
           <RowGroup>
-            <Row icon="🐴" label="Cheval" onPress={() => openPrep('cheval')}
-              right={<StatePill status={entry.chevalId ? 'ready' : 'todo'} />}
-              sub={chevalNom ?? undefined} />
+            <Row icon="🐴" label={ch.count > 1 ? `Chevaux (${ch.count})` : 'Cheval'} onPress={() => openPrep('cheval')}
+              right={<StatePill status={ch.hasSelection ? 'ready' : 'todo'} />}
+              sub={chevalSub} />
             <Row icon="📝" label="Épreuves" onPress={() => openPrep('epreuves')}
               right={<StatePill status={entry.epreuves.length ? 'ready' : 'todo'} />}
               sub={entry.epreuves.length ? entry.epreuves.join(', ') : 'à renseigner'} />

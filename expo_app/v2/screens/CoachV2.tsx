@@ -21,7 +21,7 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
-import { useMyChevaux } from '../../hooks/useChevaux';
+import { useV2ContestHorses } from '../state/contestHorses';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { useCoachLocal } from '../state/coachLocal';
@@ -104,11 +104,12 @@ export function CoachHubV2() {
 
 // ═══════════════════════ JE CHERCHE ═══════════════════════
 export function CoachChercheV2() {
-  const { concoursId, chevalId } = useLocalSearchParams<{ concoursId?: string; chevalId?: string }>();
+  const { concoursId } = useLocalSearchParams<{ concoursId?: string; chevalId?: string }>();
   const { concours } = useConcours(concoursId);
-  const { chevaux } = useMyChevaux();
   const cl = useConcoursLocal(concoursId);
   const kl = useCoachLocal(concoursId);
+  // Contexte cheval défini dans « Préparer mon concours » — jamais redemandé ici.
+  const ch = useV2ContestHorses(concoursId);
 
   const [discipline, setDiscipline] = useState('CSO');
   const [niveau, setNiveau] = useState('Amateur');
@@ -117,7 +118,6 @@ export function CoachChercheV2() {
   const [message, setMessage] = useState('');
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
-  const cheval = chevalId ? chevaux.find((c) => c.id === chevalId) : (cl.entry.chevalId ? chevaux.find((c) => c.id === cl.entry.chevalId) : undefined);
   const type: 'concours' | 'regulier' = concoursId ? 'concours' : 'regulier';
 
   const { results, demo } = useV2CoachResults({ concoursId, discipline });
@@ -125,7 +125,7 @@ export function CoachChercheV2() {
 
   const publishSearch = () => {
     const rec = kl.publishSearch({
-      concoursId, concoursNom: concours?.nom, chevalId: cheval?.id,
+      concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       type, discipline, niveau, nbSeances,
       dateSouhaitee: dateSouhaitee || undefined,
       message: message.trim() || undefined,
@@ -146,9 +146,10 @@ export function CoachChercheV2() {
           <Text style={s.ctxTitle}>Contexte du concours</Text>
           <Text style={s.ctxLine}>🏆 {concours.nom}</Text>
           <Text style={s.ctxLine}>📍 {concours.lieu || '—'}   ·   📅 {concours.dateLabel || '—'}</Text>
-          {cheval ? <Text style={s.ctxLine}>🐴 {cheval.nom}</Text> : null}
+          {ch.count > 0 ? <Text style={s.ctxLine}>🐴 {ch.names.join(' + ')}</Text> : null}
         </View>
       )}
+      {ch.hasSelection && <Text style={s.forHorses}>{ch.count > 1 ? `🐴 ${ch.names.join(', ')}` : ch.label}</Text>}
 
       <Card>
         <Field label="Discipline">
@@ -173,7 +174,7 @@ export function CoachChercheV2() {
         results.length > 0 ? (
           <>
             <Text style={s.resultsTitle}>{results.length} coach{results.length > 1 ? 's' : ''} disponible{results.length > 1 ? 's' : ''}{demo ? ' (démonstration)' : ''}</Text>
-            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalId={cheval?.id} discipline={discipline} niveau={niveau} nbSeances={nbSeances} />)}
+            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalId={ch.primaryId} discipline={discipline} niveau={niveau} nbSeances={nbSeances} />)}
             {demo && <Placeholder note="résultats de démonstration — connecte-toi pour voir les vrais coachs" v1Path="/(tabs)/services?tab=coach" v1Label="annonces actuelles" />}
           </>
         ) : (
@@ -259,14 +260,13 @@ export function CoachDetailV2() {
 
 // ═══════════════════════ DEMANDE SIMULÉE ═══════════════════════
 export function CoachDemanderV2() {
-  const { id, concoursId, chevalId, discipline, niveau, nb } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string; discipline?: string; niveau?: string; nb?: string }>();
+  const { id, concoursId, discipline, niveau, nb } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string; discipline?: string; niveau?: string; nb?: string }>();
   const { concours } = useConcours(concoursId);
-  const { chevaux } = useMyChevaux();
   const { results, commission } = useV2CoachResults({ concoursId });
   const cl = useConcoursLocal(concoursId);
   const kl = useCoachLocal(concoursId);
+  const ch = useV2ContestHorses(concoursId);
   const r = results.find((x) => x.id === id);
-  const cheval = chevalId ? chevaux.find((c) => c.id === chevalId) : (cl.entry.chevalId ? chevaux.find((c) => c.id === cl.entry.chevalId) : undefined);
   const [done, setDone] = useState(false);
 
   if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /></View></Screen>;
@@ -278,7 +278,7 @@ export function CoachDemanderV2() {
 
   const confirm = () => {
     kl.book({
-      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: cheval?.id,
+      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       coach: r.nom, discipline: discipline || r.disciplines, niveau: niveau || r.niveaux,
       nbSeances, prixSeance: r.prixSeance, prix: total,
       date: concours?.date_debut ?? undefined,
@@ -302,7 +302,7 @@ export function CoachDemanderV2() {
           <Row icon="🏇" label="Coaching" value={`${discipline || r.disciplines} · ${niveau || r.niveaux}`} />
           <Row icon="🎟" label="Séances" value={String(nbSeances)} />
           {concours ? <Row icon="🏆" label="Concours" value={concours.nom} /> : null}
-          {cheval ? <Row icon="🐴" label="Cheval" value={cheval.nom} /> : null}
+          {ch.count > 0 ? <Row icon="🐴" label={ch.count > 1 ? 'Chevaux' : 'Cheval'} value={ch.names.join(', ')} /> : null}
           <Row icon="💶" label="Total" value={`${total} €`} />
         </RowGroup>
         <PrimaryButton label={concoursId ? 'Retour à Mon concours' : 'Voir Mes coachings'} onPress={() => router.replace((concoursId ? `/(v2)/concours/${concoursId}` : '/(v2)/coach/mes-coachings') as any)} />
@@ -321,7 +321,9 @@ export function CoachDemanderV2() {
         <Row icon="🏇" label="Coaching" value={`${discipline || r.disciplines} · ${niveau || r.niveaux}`} />
         <Row icon="🎟" label="Séances" value={String(nbSeances)} />
         {concours ? <Row icon="🏆" label="Concours" value={concours.nom} /> : null}
-        {cheval ? <Row icon="🐴" label="Cheval" value={cheval.nom} /> : <Row icon="🐴" label="Cheval" value="non précisé" />}
+        {ch.count > 0
+          ? <Row icon="🐴" label={ch.count > 1 ? 'Chevaux' : 'Cheval'} value={ch.names.join(', ')} sub={ch.count > 1 ? `${ch.count} chevaux concernés` : undefined} />
+          : <Row icon="🐴" label="Cheval" value="non précisé" sub="défini dans « Préparer mon concours »" />}
       </RowGroup>
 
       <Card>
@@ -503,6 +505,7 @@ const s = StyleSheet.create({
   ctxCard: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder, borderWidth: 1, borderRadius: 14, padding: Spacing.md, gap: 3, marginTop: Spacing.sm },
   ctxTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.6, textTransform: 'uppercase' },
   ctxLine: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
+  forHorses: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primaryDark, marginTop: 2 },
 
   field: { gap: 4, marginTop: Spacing.sm },
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },

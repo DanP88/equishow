@@ -27,7 +27,13 @@ export type NeedChoice = 'unset' | 'done' | 'searching' | 'offering' | 'none';
 export interface ConcoursLocalEntry {
   following: boolean;
   going: boolean;
+  /** @deprecated F8 : conservé synchronisé sur `selectedHorseIds[0]` pour les
+   *  consommateurs mono-cheval (bookings, rappels). Source de vérité =
+   *  `selectedHorseIds`. */
   chevalId: string | null;
+  /** F8 — chevaux qui participent à CE concours (choix fait dans « Préparer
+   *  mon concours › Cheval »). Propre à chaque concours. */
+  selectedHorseIds: string[];
   epreuves: string[];
   needTransport: NeedChoice;
   needBox: NeedChoice;
@@ -35,9 +41,22 @@ export interface ConcoursLocalEntry {
 }
 
 const EMPTY: ConcoursLocalEntry = {
-  following: false, going: false, chevalId: null, epreuves: [],
+  following: false, going: false, chevalId: null, selectedHorseIds: [], epreuves: [],
   needTransport: 'unset', needBox: 'unset', needCoach: 'unset',
 };
+
+/** Normalise une entrée chargée depuis le storage (rétro-compat pré-F8). */
+function reviveEntry(e: Partial<ConcoursLocalEntry> | undefined): ConcoursLocalEntry {
+  const merged = { ...EMPTY, ...(e ?? {}) };
+  if (!Array.isArray(merged.selectedHorseIds)) merged.selectedHorseIds = [];
+  // pré-F8 : seul `chevalId` existait → on le promeut en sélection.
+  if (merged.selectedHorseIds.length === 0 && merged.chevalId) {
+    merged.selectedHorseIds = [merged.chevalId];
+  }
+  // garde l'invariant chevalId = premier sélectionné
+  merged.chevalId = merged.selectedHorseIds[0] ?? null;
+  return merged;
+}
 
 // ── libellés / statut visuel partagés (fiche + préparer) ─────────────────────
 export type PrepStatus = 'ready' | 'todo' | 'searching' | 'offering' | 'skip';
@@ -62,7 +81,7 @@ function decided(n: NeedChoice) { return n !== 'unset'; }
 /** Détail de préparation : 5 éléments, chacun ready/decided ou non. */
 export function prepDetail(e: ConcoursLocalEntry) {
   const items = [
-    { key: 'cheval', decided: !!e.chevalId },
+    { key: 'cheval', decided: (e.selectedHorseIds?.length ?? 0) > 0 || !!e.chevalId },
     { key: 'epreuves', decided: e.epreuves.length > 0 },
     { key: 'transport', decided: decided(e.needTransport) },
     { key: 'box', decided: decided(e.needBox) },
@@ -86,9 +105,20 @@ const getSnapshot = () => state;
 function persist() { void saveJSON(KEY, state.map); }
 function setEntry(id: string, patch: Partial<ConcoursLocalEntry>) {
   const cur = state.map[id] ?? EMPTY;
-  state = { ...state, map: { ...state.map, [id]: { ...cur, ...patch } } };
+  const next: ConcoursLocalEntry = { ...cur, ...patch };
+  // F8 : `chevalId` reste synchronisé sur le 1ᵉʳ cheval sélectionné.
+  if ('selectedHorseIds' in patch) {
+    next.selectedHorseIds = Array.isArray(patch.selectedHorseIds) ? patch.selectedHorseIds : [];
+    next.chevalId = next.selectedHorseIds[0] ?? null;
+  }
+  state = { ...state, map: { ...state.map, [id]: next } };
   emit();
   persist();
+}
+
+/** F8 — définit les chevaux qui participent à ce concours (multi). */
+export function setConcoursHorses(id: string, ids: string[]) {
+  setEntry(id, { selectedHorseIds: [...new Set(ids)] });
 }
 
 /** Setter brut inter-stores (ex: transportLocal resynchronise « Mon concours »). */
@@ -97,7 +127,7 @@ export function setConcoursEntry(id: string, patch: Partial<ConcoursLocalEntry>)
 }
 /** Lecture brute d'une entrée (hors composant). */
 export function getConcoursEntry(id: string): ConcoursLocalEntry {
-  return state.map[id] ?? EMPTY;
+  return reviveEntry(state.map[id]);
 }
 
 let initialized = false;
@@ -105,8 +135,10 @@ function initOnce() {
   if (initialized) return;
   initialized = true;
   void (async () => {
-    const map = await loadJSON<Record<string, ConcoursLocalEntry>>(KEY, {});
-    state = { map: map ?? {}, hydrated: true };
+    const raw = await loadJSON<Record<string, Partial<ConcoursLocalEntry>>>(KEY, {});
+    const map: Record<string, ConcoursLocalEntry> = {};
+    for (const [id, e] of Object.entries(raw ?? {})) map[id] = reviveEntry(e);
+    state = { map, hydrated: true };
     emit();
   })();
 }
@@ -115,6 +147,17 @@ initOnce();
 export function useConcoursLocal(concoursId?: string) {
   const s = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
   const entry = (concoursId && s.map[concoursId]) || EMPTY;
+
+  const setHorses = useCallback((ids: string[]) => {
+    if (!concoursId) return;
+    setEntry(concoursId, { selectedHorseIds: [...new Set(ids)] });
+  }, [concoursId]);
+
+  const toggleHorse = useCallback((horseId: string) => {
+    if (!concoursId) return;
+    const cur = state.map[concoursId]?.selectedHorseIds ?? [];
+    setEntry(concoursId, { selectedHorseIds: cur.includes(horseId) ? cur.filter((x) => x !== horseId) : [...cur, horseId] });
+  }, [concoursId]);
 
   const toggleFollow = useCallback(() => {
     if (!concoursId) return;
@@ -141,5 +184,7 @@ export function useConcoursLocal(concoursId?: string) {
     toggleFollow,
     setGoing,
     update,
+    setHorses,
+    toggleHorse,
   };
 }
