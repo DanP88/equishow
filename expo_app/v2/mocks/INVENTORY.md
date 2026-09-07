@@ -122,11 +122,13 @@ gating avis réel `reservation.status = 'completed'` + INSERT `avis`. Rien en F9
 | statut santé | `v2/lib/santeStatus.ts` (`vaccinStatus` / `soinStatus`) — calcul RÉEL d'après la date du dernier rappel (**corrige le « Valide » codé en dur de la V1**, non touchée). Section « Santé » dans `ChevalV2` (fiche réelle). |
 | densité | tokens kit déjà calibrés (F2 `30cb91c`) — pas de changement. |
 
-## F2 — `ServiceV2` = shim de redirection
-Depuis F5/F6/F7, `app/(v2)/service/[kind]` ne fait plus que rediriger vers
-`/(v2)/transport` · `/(v2)/box` · `/(v2)/coach` (contexte conservé). Les mocks
-`MOCK_COACHES_ON_CONCOURS` / `MOCK_COACH_DEMANDS` (f2.ts) ne sont plus utilisés
-(remplacés par `v2/adapters/coach.ts`) ; conservés pour compat d'import.
+## F12 — nettoyage mocks
+- **Supprimés** de `f2.ts` : `MOCK_COMMUNITY` (→ `useV2Community`), `MOCK_CONVERSATIONS` (→ adapter messaging), `MOCK_COACH_DEMANDS` (→ `useV2CoachDemands`), `MOCK_COACHES_ON_CONCOURS` (→ `useV2CoachResults`).
+- **Conservés** (repli démo légitime, non connecté) : `MOCK_ACTIONS` (→ `v2/adapters/todo`), `MOCK_AGENDA` (→ `v2/adapters/agenda`), `MOCK_STUDENT_HORSES` (« chevaux que je coache » — pas de source réelle avant Phase 2).
+- **Accueil** : bloc « À traiter » = `v2/adapters/todo` (`useV2Todo` : demandes coaching reçues + brouillons org + concours à préparer, réels ; `MOCK_ACTIONS` en repli non connecté). Aperçu Communauté = `useV2Community('community')`.
+- **`ServiceV2`** = shim de redirection (`app/(v2)/service/[kind]` → `/(v2)/transport|box|coach`).
+
+Rapport de fin : `v2/VALIDATION_REPORT.md`.
 
 ## F4 — fiche concours = tableau de bord (état LOCAL, lecture seule côté réel)
 | Élément | Réel (lecture seule) | Local (`v2:concours-local`) |

@@ -18,7 +18,8 @@ import { Screen, Section, Card, Row, RowGroup, Tile, PrimaryButton } from '../ui
 import { useCapabilities } from '../capabilities';
 import { useConcoursList } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
-import { MOCK_ACTIONS, MOCK_COMMUNITY } from '../mocks/f2';
+import { useV2Todo } from '../adapters/todo';
+import { useV2Community } from '../adapters/community';
 
 function isUpcoming(c: { date_fin: string | null; date_debut: string | null }) {
   const d = c.date_fin ?? c.date_debut;
@@ -44,7 +45,8 @@ export function AccueilV2() {
   }, [upcoming, local.followingIds, local.goingIds]);
   const heroEntry = useConcoursLocal(hero?.id);
 
-  const actions = MOCK_ACTIONS.filter((a) => caps.has(a.cap));
+  const { items: actions } = useV2Todo();
+  const communityPreview = useV2Community('community').posts.slice(0, 2);
 
   return (
     <Screen>
@@ -110,9 +112,9 @@ export function AccueilV2() {
       {/* 5 — APERÇU COMMUNAUTÉ (secondaire, 2 lignes) */}
       <Section title="Communauté" action="Tout voir" onAction={() => router.push('/(v2)/communaute' as any)}>
         <Card>
-          {MOCK_COMMUNITY.slice(0, 2).map((p, i) => (
+          {communityPreview.map((p, i) => (
             <Text key={p.id} style={[h.post, i > 0 && { marginTop: 6 }]} numberOfLines={1}>
-              <Text style={h.postAuthor}>{p.author} — </Text>{p.text}
+              <Text style={h.postAuthor}>{p.auteur} — </Text>{p.contenu}
             </Text>
           ))}
         </Card>
