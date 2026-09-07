@@ -9,7 +9,7 @@ import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
-import { Screen, H1, Segment, Row, RowGroup, Chip, EmptyState, Placeholder } from '../ui/kit';
+import { Screen, H1, Segment, Row, RowGroup, Chip, EmptyState, Placeholder, GhostButton } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
 import { useConcoursList, useMyConcours } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
@@ -111,13 +111,14 @@ function OrganisesTab({ mine }: { mine: { id: string; nom: string; statut: strin
             <Text style={s.orgName}>🏟 {c.nom}</Text>
             <Text style={s.orgMeta}>{c.dateLabel} · {c.statut}</Text>
             <View style={s.orgActions}>
-              <TouchableOpacity onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}><Text style={s.orgAction}>📊 Radar / Fiche</Text></TouchableOpacity>
-              <TouchableOpacity onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}><Text style={s.orgAction}>✏️ Éditer</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push(`/(v2)/organisateur/${c.id}` as any)}><Text style={s.orgAction}>📊 Radar</Text></TouchableOpacity>
+              <TouchableOpacity onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}><Text style={s.orgAction}>👁 Fiche</Text></TouchableOpacity>
             </View>
           </View>
         ))
       )}
-      <Placeholder note="création / édition / publication rebranchées au lot org" v1Path="/(tabs)/org-concours" v1Label="gestion concours actuelle" />
+      <GhostButton label="🏟 Ouvrir l'espace organisateur" onPress={() => router.push('/(v2)/organisateur' as any)} />
+      <Placeholder note="espace organisateur V2 (Radar par concours) = F10 ; création / édition / publication détaillées = V1" v1Path="/(tabs)/org-concours" v1Label="gestion concours actuelle" />
     </View>
   );
 }

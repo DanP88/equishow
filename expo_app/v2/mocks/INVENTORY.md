@@ -101,6 +101,19 @@ création cheval réelle (INSERT `chevaux` + RLS + Storage photo). Rien de tout 
 **Backend requis Phase 2** : vue `v_user_activity_counts` (ou agrégat serveur) ;
 gating avis réel `reservation.status = 'completed'` + INSERT `avis`. Rien en F9.
 
+## F10 — Espace organisateur + Communauté par capacité
+| Élément | Réel (lecture seule) | Démo |
+|---|---|---|
+| mes concours organisés | `useMyConcours()` via `v2/adapters/org.ts` (`useV2OrgSpace`) | 2 concours démo si non connecté |
+| Radar d'un concours | `useOrgRadar(concoursId)` (RPC `fn_org_concours_radar`, agrégats RGPD, masquage < 5, `isDemo` intégré) via `useV2OrgRadar` | `DEMO_RADAR` de `useOrgRadar` |
+| création / édition / publication concours | — | placeholders / liens V1 (`/(tabs)/org-concours`) — pas encore wrappés V2 |
+| fils Communauté | `useCommunautePosts(scope)` (RLS DB : `community` tous · `coach` coachs+admins · `organisateur` orgs+admins) via `v2/adapters/community.ts` (`useV2Community`) — **lecture seule** | 1-3 posts démo par fil si non connecté / fil vide |
+| publier / liker / commenter | — | **impossible en V2** (write Supabase, Phase 2) — bouton « Publier » retiré |
+
+**Fils affichés = selon les CAPACITÉS détenues** (jamais selon un « mode ») : 🐴 Cavaliers toujours · 🎓 Coachs si `caps.has('coach')` · 🏟 Organisateurs si `caps.has('organisateur')`.
+
+**Backend requis Phase 2** : validation organisateur réelle (`organisateur_requests` + email admin) ; création/édition concours V2 (`concours` INSERT/UPDATE + RLS) ; publication de posts (`posts_*` INSERT + RLS) + likes + commentaires.
+
 ## F2 — `ServiceV2` = shim de redirection
 Depuis F5/F6/F7, `app/(v2)/service/[kind]` ne fait plus que rediriger vers
 `/(v2)/transport` · `/(v2)/box` · `/(v2)/coach` (contexte conservé). Les mocks

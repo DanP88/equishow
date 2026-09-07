@@ -88,10 +88,10 @@ export function FicheConcoursV2() {
             <Card>
               <Text style={s.actTitle}>🏟 Vous organisez ce concours</Text>
               <View style={s.actBtns}>
-                <GhostButton label="📊 Radar" onPress={() => router.push('/(tabs)/org-radar' as any)} />
-                <GhostButton label="✏️ Éditer / publier" onPress={() => router.push('/(tabs)/org-concours' as any)} />
+                <GhostButton label="📊 Radar de ce concours" onPress={() => router.push(`/(v2)/organisateur/${id}` as any)} />
+                <GhostButton label="🏟 Espace organisateur" onPress={() => router.push('/(v2)/organisateur' as any)} />
+                <GhostButton label="✏️ Éditer / publier (V1)" onPress={() => router.push('/(tabs)/org-concours' as any)} />
               </View>
-              <Placeholder note="outils organisateur détaillés = lot ultérieur" v1Path="/(tabs)/org-radar" v1Label="Radar actuel" />
             </Card>
           )}
           {caps.has('coach') && (

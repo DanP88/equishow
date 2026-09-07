@@ -103,7 +103,7 @@ export function AccueilV2() {
       <View style={h.shortcuts}>
         <Sc icon="🐴" label={caps.has('cavalier') ? 'Chevaux' : 'Chevaux'} onPress={() => router.replace('/(v2)/chevaux' as any)} />
         {caps.has('coach') && <Sc icon="🎓" label="Mes élèves" onPress={() => router.push('/(v2)/coach?face=eleves' as any)} />}
-        {caps.has('organisateur') && <Sc icon="🏟" label="Mes concours" onPress={() => router.push('/(v2)/concours?tab=organises' as any)} />}
+        {caps.has('organisateur') && <Sc icon="🏟" label="Espace organisateur" onPress={() => router.push('/(v2)/organisateur' as any)} />}
         <Sc icon="🎫" label="Réservations" onPress={() => router.replace('/(v2)/agenda' as any)} />
       </View>
 

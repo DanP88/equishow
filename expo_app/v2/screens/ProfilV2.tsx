@@ -74,8 +74,8 @@ export function ProfilV2() {
       {(caps.has('organisateur') || caps.isPending('organisateur')) && (
         <Section title={`Organisateur${a.concoursOrganises ? ` · ${a.concoursOrganises} concours` : ''}`}>
           <RowGroup>
-            <Row icon="🏟" label="Mes concours organisés" value={a.concoursOrganises ? String(a.concoursOrganises) : undefined} onPress={() => router.push('/(v2)/concours?tab=organises' as any)} />
-            <Row icon="📊" label="Radar (agrégats RGPD)" onPress={() => router.push('/(tabs)/org-radar' as any)} />
+            <Row icon="🏟" label="Espace organisateur" value={a.concoursOrganises ? String(a.concoursOrganises) : undefined} onPress={() => router.push('/(v2)/organisateur' as any)} />
+            <Row icon="📊" label="Radar (agrégats RGPD)" onPress={() => router.push('/(v2)/organisateur' as any)} />
             <Row icon="🏠" label="Mes box proposés" onPress={() => router.push('/(v2)/box/mes-box' as any)} />
             <Row icon="⏳" label="Statut" value={caps.isPending('organisateur') ? 'en attente' : 'validé'} />
           </RowGroup>
