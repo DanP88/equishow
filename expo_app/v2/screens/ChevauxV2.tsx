@@ -31,17 +31,6 @@ export function ChevauxV2() {
         <TouchableOpacity onPress={() => router.push('/(v2)/chevaux/nouveau' as any)} hitSlop={8}><Text style={s.add}>＋</Text></TouchableOpacity>
       </View>
 
-      {caps.has('coach') && (
-        <Section title={`Chevaux que je coache · ${MOCK_STUDENT_HORSES.length}`}>
-          <RowGroup>
-            {MOCK_STUDENT_HORSES.map((h) => (
-              <Row key={h.id} icon="🐴" label={`${h.horse} — ${h.rider}`} value={h.discipline} />
-            ))}
-          </RowGroup>
-          <Placeholder note="chevaux des élèves = démonstration (F7) — gestion réelle en Phase 2" />
-        </Section>
-      )}
-
       <Section title="Mes chevaux">
         {pool.all.length === 0 ? (
           <EmptyState
@@ -74,6 +63,17 @@ export function ChevauxV2() {
       )}
       {pool.real.length > 0 && (
         <Placeholder note="fiche cheval réelle = LECTURE SEULE en V2 ; modification via l'app actuelle" v1Path="/(tabs)/chevaux" v1Label="chevaux (V1)" />
+      )}
+
+      {caps.has('coach') && (
+        <Section title={`Chevaux que je coache · ${MOCK_STUDENT_HORSES.length}`}>
+          <RowGroup>
+            {MOCK_STUDENT_HORSES.map((h) => (
+              <Row key={h.id} icon="🐴" label={`${h.horse} — ${h.rider}`} value={h.discipline} />
+            ))}
+          </RowGroup>
+          <Placeholder note="chevaux des élèves = démonstration (F7) — gestion réelle en Phase 2" />
+        </Section>
       )}
 
       {caps.has('organisateur') && !caps.has('cavalier') && !caps.has('coach') && (
