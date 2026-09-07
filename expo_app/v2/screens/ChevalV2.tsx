@@ -17,8 +17,9 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, Row, RowGroup, Section, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
 import { useCheval } from '../../hooks/useChevaux';
-import { useChevauxLocal, isLocalHorseId, LocalChevalInput } from '../state/chevauxLocal';
+import { useChevauxLocal, isLocalHorseId, LocalChevalInput, LocalSante } from '../state/chevauxLocal';
 import { V2SelectField } from '../components/V2SelectField';
+import { V2DateField, todayStart } from '../components/V2DateField';
 import { vaccinStatus, soinStatus, SanteStatus } from '../lib/santeStatus';
 
 const SEXES = ['Hongre', 'Jument', 'Étalon'];
@@ -75,6 +76,8 @@ export function ChevalV2() {
           {c.discipline ? <Row icon="🏇" label="Discipline" value={c.discipline} /> : null}
         </RowGroup>
 
+        <SanteSection local={c.sante} />
+
         <PrimaryButton label="Modifier" onPress={() => router.push(`/(v2)/chevaux/${id}/modifier` as any)} />
         <GhostButton label="Supprimer ce cheval" onPress={() => { local.remove(id!); router.replace('/(v2)/chevaux' as any); }} />
         <Placeholder note="stocké localement (v2:chevaux) — aucune donnée Supabase" />
@@ -109,7 +112,7 @@ export function ChevalV2() {
 
       {c.objectifs ? <Card><Text style={s.sub}>{c.objectifs}</Text></Card> : null}
 
-      <SanteSection sante={c.sante} />
+      <SanteSection real={c.sante} />
 
       <Placeholder note="fiche en LECTURE SEULE dans la V2 — la modification d'un cheval réel passe par l'app actuelle" v1Path={`/cheval/${id}`} v1Label="ouvrir la fiche V1" />
     </Screen>
@@ -129,10 +132,14 @@ export function ChevalFormV2() {
   const [annee, setAnnee] = useState(editing?.anneeNaissance ? String(editing.anneeNaissance) : '');
   const [taille, setTaille] = useState(editing?.taille ?? '');
   const [discipline, setDiscipline] = useState(editing?.discipline ?? '');
+  const [sante, setSante] = useState<LocalSante>(editing?.sante ?? {});
+  const setSanteKey = (k: keyof LocalSante) => (v: string) => setSante((s) => ({ ...s, [k]: v || undefined }));
 
   const canSave = nom.trim().length > 0;
+  const today = todayStart();
 
   const save = () => {
+    const santeClean = Object.fromEntries(Object.entries(sante).filter(([, v]) => !!v));
     const payload: LocalChevalInput = {
       nom: nom.trim(),
       sexe: sexe || undefined,
@@ -141,6 +148,7 @@ export function ChevalFormV2() {
       anneeNaissance: /^\d{4}$/.test(annee) ? parseInt(annee, 10) : undefined,
       taille: taille.trim() || undefined,
       discipline: discipline || undefined,
+      sante: Object.keys(santeClean).length ? (santeClean as LocalSante) : undefined,
     };
     if (editing) { local.update(editing.id, payload); router.replace(`/(v2)/chevaux/${editing.id}` as any); }
     else { const rec = local.add(payload); router.replace(`/(v2)/chevaux/${rec.id}` as any); }
@@ -169,6 +177,23 @@ export function ChevalFormV2() {
         <PrimaryButton label={editing ? 'Enregistrer' : 'Ajouter ce cheval'} onPress={save} disabled={!canSave} />
       </Card>
 
+      <Text style={s.groupTitle}>Santé (facultatif)</Text>
+      <Text style={s.sub}>Date du dernier rappel — le statut (à jour / rappel à prévoir / dépassé) est calculé automatiquement.</Text>
+      <Card>
+        <View style={s.rowFields}>
+          <V2DateField label="Vaccin grippe" value={sante.grippe ?? ''} onChange={setSanteKey('grippe')} optional maxDate={today} style={s.flex1} />
+          <V2DateField label="Vaccin rhino" value={sante.rhino ?? ''} onChange={setSanteKey('rhino')} optional maxDate={today} style={s.flex1} />
+        </View>
+        <View style={s.rowFields}>
+          <V2DateField label="Vermifuge" value={sante.vermifuge ?? ''} onChange={setSanteKey('vermifuge')} optional maxDate={today} style={s.flex1} />
+          <V2DateField label="Maréchal-ferrant" value={sante.marechal ?? ''} onChange={setSanteKey('marechal')} optional maxDate={today} style={s.flex1} />
+        </View>
+        <View style={s.rowFields}>
+          <V2DateField label="Dentiste" value={sante.dentiste ?? ''} onChange={setSanteKey('dentiste')} optional maxDate={today} style={s.flex1} />
+          <V2DateField label="Ostéopathe" value={sante.osteo ?? ''} onChange={setSanteKey('osteo')} optional maxDate={today} style={s.flex1} />
+        </View>
+      </Card>
+
       <Placeholder note="v2:chevaux (AsyncStorage) — id préfixé « v2c- », zéro collision avec les chevaux réels, zéro écriture PROD" v1Path="/(tabs)/chevaux" v1Label="création réelle (app V1)" />
     </Screen>
   );
@@ -179,10 +204,14 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 }
 
 // ── Santé — statut RÉEL (corrige le « Valide » en dur de la V1) ──────────────
-function fmtSanteDate(d?: Date) {
-  return d && !Number.isNaN(d.getTime()) ? d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
+// Accepte la forme réelle (`SuiviSante`, dates Date) OU la forme locale V2
+// (`LocalSante`, strings 'YYYY-MM-DD').
+function fmtSanteDate(d?: Date | string) {
+  if (!d) return '—';
+  const dt = d instanceof Date ? d : new Date(d.length >= 10 ? `${d}T00:00:00` : d);
+  return Number.isNaN(dt.getTime()) ? '—' : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' });
 }
-function SanteLine({ label, date, st }: { label: string; date?: Date; st: SanteStatus }) {
+function SanteLine({ label, date, st }: { label: string; date?: Date | string; st: SanteStatus }) {
   const dot = st.level === 'ok' ? Colors.success : st.level === 'soon' ? Colors.warning : st.level === 'late' ? Colors.urgent : Colors.textTertiary;
   return (
     <View style={s.santeRow}>
@@ -195,15 +224,17 @@ function SanteLine({ label, date, st }: { label: string; date?: Date; st: SanteS
     </View>
   );
 }
-function SanteSection({ sante }: { sante?: any }) {
-  if (!sante) return null;
-  const items: { label: string; date?: Date; st: SanteStatus }[] = [];
-  if (sante.dateVaccinGrippe) items.push({ label: 'Vaccin grippe', date: sante.dateVaccinGrippe, st: vaccinStatus(sante.dateVaccinGrippe) });
-  if (sante.dateVaccinRhino) items.push({ label: 'Vaccin rhino', date: sante.dateVaccinRhino, st: vaccinStatus(sante.dateVaccinRhino) });
-  if (sante.dateVermifuge) items.push({ label: 'Vermifuge', date: sante.dateVermifuge, st: soinStatus(sante.dateVermifuge, 4) });
-  if (sante.dateMarechal) items.push({ label: 'Maréchal-ferrant', date: sante.dateMarechal, st: soinStatus(sante.dateMarechal, 2) });
-  if (sante.dateDentiste) items.push({ label: 'Dentiste', date: sante.dateDentiste, st: soinStatus(sante.dateDentiste, 12) });
-  if (sante.dateOsteo) items.push({ label: 'Ostéopathe', date: sante.dateOsteo, st: soinStatus(sante.dateOsteo, 12) });
+function SanteSection({ real, local }: { real?: any; local?: any }) {
+  const pick = (rk: string, lk: string) => real?.[rk] ?? local?.[lk];
+  const specs: [string, Date | string | undefined, (d: any) => SanteStatus][] = [
+    ['Vaccin grippe', pick('dateVaccinGrippe', 'grippe'), (d) => vaccinStatus(d)],
+    ['Vaccin rhino', pick('dateVaccinRhino', 'rhino'), (d) => vaccinStatus(d)],
+    ['Vermifuge', pick('dateVermifuge', 'vermifuge'), (d) => soinStatus(d, 4)],
+    ['Maréchal-ferrant', pick('dateMarechal', 'marechal'), (d) => soinStatus(d, 2)],
+    ['Dentiste', pick('dateDentiste', 'dentiste'), (d) => soinStatus(d, 12)],
+    ['Ostéopathe', pick('dateOsteo', 'osteo'), (d) => soinStatus(d, 12)],
+  ];
+  const items = specs.filter(([, v]) => !!v).map(([label, v, fn]) => ({ label, date: v, st: fn(v) }));
   if (items.length === 0) return null;
   return (
     <Section title="Santé">
@@ -236,4 +267,5 @@ const s = StyleSheet.create({
   santeDate: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
   santeStatus: { fontSize: FontSize.sm, fontWeight: FontWeight.bold },
   santeNote: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic', marginTop: 4 },
+  groupTitle: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.6, marginTop: Spacing.lg },
 });

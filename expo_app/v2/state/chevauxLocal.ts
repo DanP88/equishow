@@ -17,6 +17,16 @@ import { loadJSON, saveJSON } from '../lib/persist';
 
 const KEY = 'chevaux';
 
+/** Suivi santé local (F11) — dates du dernier rappel, format 'YYYY-MM-DD'. */
+export interface LocalSante {
+  grippe?: string;
+  rhino?: string;
+  vermifuge?: string;
+  marechal?: string;
+  dentiste?: string;
+  osteo?: string;
+}
+
 export interface LocalCheval {
   id: string;            // `v2c-…`
   nom: string;
@@ -26,6 +36,7 @@ export interface LocalCheval {
   anneeNaissance?: number;
   taille?: string;       // cm
   discipline?: string;
+  sante?: LocalSante;
   couleur: string;       // pastille (déterministe)
   createdAt: string;
 }
