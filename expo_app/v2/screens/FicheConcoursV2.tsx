@@ -44,16 +44,20 @@ export function FicheConcoursV2() {
     const path = kind === 'transport' ? '/(v2)/transport' : kind === 'box' ? '/(v2)/box' : '/(v2)/coach';
     router.push(`${path}?${q.toString()}` as any);
   };
-  // Ligne du tableau de bord : état + action contextualisée.
+  // Ligne du tableau de bord : état + chevaux du module + action contextualisée.
   const serviceRow = (kind: 'transport' | 'box' | 'coach', icon: string, label: string, need: NeedChoice) => {
     const st = needStatus(need);
+    const mHorses = (entry.horsesByNeed?.[kind] ?? [])
+      .map((hid) => ch.horses.find((h) => h.id === hid)?.nom)
+      .filter(Boolean) as string[];
     const goTo = () => {
       if (need === 'searching') openService(kind, 'cherche');
       else if (need === 'offering') openService(kind, 'propose');
       else openPrep(kind);
     };
     return (
-      <Row key={kind} icon={icon} label={label} onPress={goTo} right={<StatePill status={st} />} />
+      <Row key={kind} icon={icon} label={label} onPress={goTo} right={<StatePill status={st} />}
+        sub={mHorses.length ? `Pour ${mHorses.join(', ')}` : undefined} />
     );
   };
 

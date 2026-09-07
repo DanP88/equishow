@@ -13,7 +13,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
 import { useMyChevaux } from '../../hooks/useChevaux';
-import { useConcoursLocal } from './concoursLocal';
+import { useConcoursLocal, type NeedModule } from './concoursLocal';
 import { useChevauxLocal } from './chevauxLocal';
 
 export interface UnifiedHorse {
@@ -81,12 +81,19 @@ export interface ContestHorses {
   summary: string;
 }
 
-export function useV2ContestHorses(concoursId?: string): ContestHorses {
+/**
+ * @param module (F14) — si fourni, renvoie les chevaux RATTACHÉS À CE MODULE
+ *   (transport/box/coach) ; repli sur la sélection concours complète si aucun
+ *   cheval n'a été précisé pour ce module.
+ */
+export function useV2ContestHorses(concoursId?: string, module?: NeedModule): ContestHorses {
   const cl = useConcoursLocal(concoursId);
   const pool = useV2AllHorses();
 
   return useMemo(() => {
-    const ids = cl.entry.selectedHorseIds ?? [];
+    const selected = cl.entry.selectedHorseIds ?? [];
+    const moduleIds = module ? (cl.entry.horsesByNeed?.[module] ?? []) : [];
+    const ids = module && moduleIds.length > 0 ? moduleIds : selected;
     const horses = ids.map((id) => pool.byId(id)).filter(Boolean) as UnifiedHorse[];
     const names = horses.map((h) => h.nom);
     const count = horses.length;
@@ -104,5 +111,5 @@ export function useV2ContestHorses(concoursId?: string): ContestHorses {
       primaryId: horses[0]?.id,
       label, summary,
     };
-  }, [cl.entry.selectedHorseIds, cl.ready, pool]);
+  }, [cl.entry.selectedHorseIds, cl.entry.horsesByNeed, module, cl.ready, pool]);
 }

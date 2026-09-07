@@ -85,7 +85,7 @@ export function BoxChercheV2() {
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
   // Contexte cheval défini dans « Préparer mon concours » — jamais redemandé ici.
-  const ch = useV2ContestHorses(concoursId);
+  const ch = useV2ContestHorses(concoursId, 'box');
 
   // Prérempli depuis le contexte concours + cheval.
   const [lieu, setLieu] = useState(concours?.lieu ?? '');
@@ -245,7 +245,7 @@ export function BoxReserverV2() {
   const { results, commission } = useV2BoxResults({ concoursId });
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
-  const ch = useV2ContestHorses(concoursId);
+  const ch = useV2ContestHorses(concoursId, 'box');
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
 

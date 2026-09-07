@@ -13,6 +13,11 @@ import { useSyncExternalStore } from 'react';
 import { loadJSON, saveJSON } from '../lib/persist';
 
 const KEY = 'concours-local';
+// F14 : bump → l'ancien état local (dont les données de smoke F8/F13 qui
+// forçaient « La Baule » en suivi) est ignoré au chargement.
+const SCHEMA_VERSION = 2;
+
+export type NeedModule = 'transport' | 'box' | 'coach';
 
 /**
  * État d'un besoin (transport / box / coach) pour un concours :
@@ -38,25 +43,34 @@ export interface ConcoursLocalEntry {
   needTransport: NeedChoice;
   needBox: NeedChoice;
   needCoach: NeedChoice;
+  /** F14 — chevaux concernés PAR MODULE (sous-ensemble de `selectedHorseIds`).
+   *  Ex : transport pour Tornado uniquement, box pour Tornado + Tomas. */
+  horsesByNeed: Record<NeedModule, string[]>;
 }
 
 const EMPTY: ConcoursLocalEntry = {
   following: false, going: false, chevalId: null, selectedHorseIds: [], epreuves: [],
   needTransport: 'unset', needBox: 'unset', needCoach: 'unset',
+  horsesByNeed: { transport: [], box: [], coach: [] },
 };
 
-/** Normalise une entrée chargée depuis le storage (rétro-compat pré-F8). */
+/** Normalise une entrée chargée depuis le storage (rétro-compat). */
 function reviveEntry(e: Partial<ConcoursLocalEntry> | undefined): ConcoursLocalEntry {
   const merged = { ...EMPTY, ...(e ?? {}) };
   if (!Array.isArray(merged.selectedHorseIds)) merged.selectedHorseIds = [];
-  // pré-F8 : seul `chevalId` existait → on le promeut en sélection.
   if (merged.selectedHorseIds.length === 0 && merged.chevalId) {
     merged.selectedHorseIds = [merged.chevalId];
   }
-  // garde l'invariant chevalId = premier sélectionné
   merged.chevalId = merged.selectedHorseIds[0] ?? null;
+  const hbn = (merged.horsesByNeed ?? {}) as Partial<Record<NeedModule, string[]>>;
+  const clamp = (arr?: string[]) => (Array.isArray(arr) ? arr.filter((x) => merged.selectedHorseIds.includes(x)) : []);
+  merged.horsesByNeed = { transport: clamp(hbn.transport), box: clamp(hbn.box), coach: clamp(hbn.coach) };
   return merged;
 }
+
+const MODULE_FIELD: Record<NeedModule, 'needTransport' | 'needBox' | 'needCoach'> = {
+  transport: 'needTransport', box: 'needBox', coach: 'needCoach',
+};
 
 // ── libellés / statut visuel partagés (fiche + préparer) ─────────────────────
 export type PrepStatus = 'ready' | 'todo' | 'searching' | 'offering' | 'skip';
@@ -75,17 +89,29 @@ export const STATUS_META: Record<PrepStatus, { label: string; dot: string; tone:
   skip:      { label: '➖ Pas nécessaire',  dot: '#9CA3AF', tone: 'skip' },
 };
 
-/** true si l'élément compte comme « décidé » dans le compteur de préparation. */
-function decided(n: NeedChoice) { return n !== 'unset'; }
+/**
+ * Un module (transport/box/coach) compte comme « décidé » (F14) si :
+ *  - un choix a été fait (need ≠ 'unset'), ET
+ *  - soit le choix est « pas nécessaire », soit aucun cheval n'est sélectionné
+ *    pour le concours, soit ≥ 1 cheval est rattaché à ce module.
+ * → une valeur par défaut ne peut jamais faire monter le compteur.
+ */
+function moduleDecided(e: ConcoursLocalEntry, m: NeedModule): boolean {
+  const need = e[MODULE_FIELD[m]];
+  if (need === 'unset') return false;
+  if (need === 'none') return true;
+  if ((e.selectedHorseIds?.length ?? 0) === 0) return true;
+  return (e.horsesByNeed?.[m]?.length ?? 0) > 0;
+}
 
 /** Détail de préparation : 5 éléments, chacun ready/decided ou non. */
 export function prepDetail(e: ConcoursLocalEntry) {
   const items = [
     { key: 'cheval', decided: (e.selectedHorseIds?.length ?? 0) > 0 || !!e.chevalId },
     { key: 'epreuves', decided: e.epreuves.length > 0 },
-    { key: 'transport', decided: decided(e.needTransport) },
-    { key: 'box', decided: decided(e.needBox) },
-    { key: 'coach', decided: decided(e.needCoach) },
+    { key: 'transport', decided: moduleDecided(e, 'transport') },
+    { key: 'box', decided: moduleDecided(e, 'box') },
+    { key: 'coach', decided: moduleDecided(e, 'coach') },
   ];
   return { items, score: items.filter((i) => i.decided).length, total: items.length };
 }
@@ -102,14 +128,21 @@ const emit = () => { for (const l of listeners) l(); };
 const subscribe = (cb: () => void) => { listeners.add(cb); return () => listeners.delete(cb); };
 const getSnapshot = () => state;
 
-function persist() { void saveJSON(KEY, state.map); }
+function persist() { void saveJSON(KEY, { __v: SCHEMA_VERSION, map: state.map }); }
 function setEntry(id: string, patch: Partial<ConcoursLocalEntry>) {
   const cur = state.map[id] ?? EMPTY;
   const next: ConcoursLocalEntry = { ...cur, ...patch };
-  // F8 : `chevalId` reste synchronisé sur le 1ᵉʳ cheval sélectionné.
+  // F8 : `chevalId` synchronisé sur le 1ᵉʳ cheval sélectionné.
+  // F14 : les chevaux d'un module ne peuvent pas dépasser la sélection concours.
   if ('selectedHorseIds' in patch) {
-    next.selectedHorseIds = Array.isArray(patch.selectedHorseIds) ? patch.selectedHorseIds : [];
+    next.selectedHorseIds = [...new Set(Array.isArray(patch.selectedHorseIds) ? patch.selectedHorseIds : [])];
     next.chevalId = next.selectedHorseIds[0] ?? null;
+    const keep = (arr: string[]) => arr.filter((x) => next.selectedHorseIds.includes(x));
+    next.horsesByNeed = {
+      transport: keep(next.horsesByNeed.transport),
+      box: keep(next.horsesByNeed.box),
+      coach: keep(next.horsesByNeed.coach),
+    };
   }
   state = { ...state, map: { ...state.map, [id]: next } };
   emit();
@@ -119,6 +152,13 @@ function setEntry(id: string, patch: Partial<ConcoursLocalEntry>) {
 /** F8 — définit les chevaux qui participent à ce concours (multi). */
 export function setConcoursHorses(id: string, ids: string[]) {
   setEntry(id, { selectedHorseIds: [...new Set(ids)] });
+}
+
+/** F14 — chevaux rattachés à un module (transport/box/coach) pour ce concours. */
+export function setModuleHorses(id: string, m: NeedModule, ids: string[]) {
+  const cur = state.map[id] ?? EMPTY;
+  const clean = [...new Set(ids)].filter((x) => cur.selectedHorseIds.includes(x));
+  setEntry(id, { horsesByNeed: { ...cur.horsesByNeed, [m]: clean } });
 }
 
 /** Setter brut inter-stores (ex: transportLocal resynchronise « Mon concours »). */
@@ -135,11 +175,17 @@ function initOnce() {
   if (initialized) return;
   initialized = true;
   void (async () => {
-    const raw = await loadJSON<Record<string, Partial<ConcoursLocalEntry>>>(KEY, {});
+    const raw = await loadJSON<any>(KEY, null);
     const map: Record<string, ConcoursLocalEntry> = {};
-    for (const [id, e] of Object.entries(raw ?? {})) map[id] = reviveEntry(e);
+    // F14 : n'accepte QUE le format versionné courant. Tout état antérieur
+    // (dont les données de smoke qui forçaient un concours en « suivi ») est
+    // ignoré — l'Accueil repart d'un état vide propre.
+    if (raw && typeof raw === 'object' && raw.__v === SCHEMA_VERSION && raw.map && typeof raw.map === 'object') {
+      for (const [id, e] of Object.entries(raw.map as Record<string, Partial<ConcoursLocalEntry>>)) map[id] = reviveEntry(e);
+    }
     state = { map, hydrated: true };
     emit();
+    persist();
   })();
 }
 initOnce();
@@ -174,6 +220,17 @@ export function useConcoursLocal(concoursId?: string) {
     setEntry(concoursId, patch);
   }, [concoursId]);
 
+  const toggleModuleHorse = useCallback((m: NeedModule, horseId: string) => {
+    if (!concoursId) return;
+    const cur = state.map[concoursId]?.horsesByNeed?.[m] ?? [];
+    setModuleHorses(concoursId, m, cur.includes(horseId) ? cur.filter((x) => x !== horseId) : [...cur, horseId]);
+  }, [concoursId]);
+
+  const setModule = useCallback((m: NeedModule, ids: string[]) => {
+    if (!concoursId) return;
+    setModuleHorses(concoursId, m, ids);
+  }, [concoursId]);
+
   return {
     ready: s.hydrated,
     entry,
@@ -186,5 +243,7 @@ export function useConcoursLocal(concoursId?: string) {
     update,
     setHorses,
     toggleHorse,
+    setModuleHorses: setModule,
+    toggleModuleHorse,
   };
 }

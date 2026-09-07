@@ -82,14 +82,6 @@ export function AccueilV2() {
             {[next.type_concours && next.type_concours !== 'nan' ? next.type_concours : null, next.dateLabel, next.lieu].filter(Boolean).join(' · ')}
           </Text>
 
-          {(caps.has('coach') || caps.has('organisateur')) && (
-            <View style={h.relRow}>
-              {caps.has('cavalier') && <RelLine icon="account-outline" text="Vous pouvez y participer" />}
-              {caps.has('coach') && <RelLine icon="school-outline" text="Vous pouvez y coacher" />}
-              {caps.has('organisateur') && <RelLine icon="stadium-variant" text="…ou l'organiser" />}
-            </View>
-          )}
-
           {nextEntry.entry.going ? (
             <>
               <Text style={h.prep}>Préparation {nextEntry.prepScore}/5</Text>
@@ -159,15 +151,6 @@ export function AccueilV2() {
   );
 }
 
-function RelLine({ icon, text }: { icon: string; text: string }) {
-  return (
-    <View style={h.relLine}>
-      <Icon name={icon} size={14} color={Colors.primaryDark} />
-      <Text style={h.rel}>{text}</Text>
-    </View>
-  );
-}
-
 function Sc({ icon, label, onPress }: { icon: string; label: string; onPress: () => void }) {
   return (
     <TouchableOpacity style={h.sc} onPress={onPress} activeOpacity={0.7}>
@@ -187,9 +170,6 @@ const h = StyleSheet.create({
   emptyTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, marginTop: 3 },
   meta: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
 
-  relRow: { gap: 4, marginTop: 8, paddingTop: 8, borderTopWidth: 1, borderTopColor: Colors.primaryBorder },
-  relLine: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  rel: { fontSize: FontSize.sm, color: Colors.primaryDark, fontWeight: FontWeight.semibold },
   prep: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.bold, marginTop: 6 },
 
   shortcuts: { flexDirection: 'row', justifyContent: 'space-around', backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.md + 2, marginTop: Spacing.xl },

@@ -109,7 +109,7 @@ export function CoachChercheV2() {
   const cl = useConcoursLocal(concoursId);
   const kl = useCoachLocal(concoursId);
   // Contexte cheval défini dans « Préparer mon concours » — jamais redemandé ici.
-  const ch = useV2ContestHorses(concoursId);
+  const ch = useV2ContestHorses(concoursId, 'coach');
 
   const [discipline, setDiscipline] = useState('CSO');
   const [niveau, setNiveau] = useState('Amateur');
@@ -265,7 +265,7 @@ export function CoachDemanderV2() {
   const { results, commission } = useV2CoachResults({ concoursId });
   const cl = useConcoursLocal(concoursId);
   const kl = useCoachLocal(concoursId);
-  const ch = useV2ContestHorses(concoursId);
+  const ch = useV2ContestHorses(concoursId, 'coach');
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
 

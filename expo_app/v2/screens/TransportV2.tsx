@@ -80,7 +80,7 @@ export function TransportChercheV2() {
   const cl = useConcoursLocal(concoursId);
   const tl = useTransportLocal(concoursId);
   // Contexte cheval défini dans « Préparer mon concours » — jamais redemandé ici.
-  const ch = useV2ContestHorses(concoursId);
+  const ch = useV2ContestHorses(concoursId, 'transport');
 
   // Prérempli depuis le contexte concours + cheval.
   const [depart, setDepart] = useState('');
@@ -238,7 +238,7 @@ export function TransportReserverV2() {
   const { results, commission } = useV2TransportResults({ concoursId });
   const cl = useConcoursLocal(concoursId);
   const tl = useTransportLocal(concoursId);
-  const ch = useV2ContestHorses(concoursId);
+  const ch = useV2ContestHorses(concoursId, 'transport');
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
 
