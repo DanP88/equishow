@@ -34,14 +34,15 @@ export function ServiceV2() {
   const chevalNom = chevalId ? (chevaux.find((c) => c.id === chevalId)?.nom ?? null) : null;
   const m = META[k];
 
-  // TRANSPORT (F5) : parcours dédié → redirection vers /(v2)/transport.
+  // TRANSPORT (F5) / BOX (F6) : parcours dédiés → redirection.
   // ((k as string) : ne pas laisser TS restreindre `k` pour la suite du fichier)
-  if ((k as string) === 'transport') {
+  if ((k as string) === 'transport' || (k as string) === 'box') {
     const q = new URLSearchParams();
     if (concoursId) q.set('concoursId', concoursId);
     if (face) q.set('face', face);
     if (chevalId) q.set('chevalId', chevalId);
-    return <Redirect href={`/(v2)/transport${q.toString() ? `?${q.toString()}` : ''}` as any} />;
+    const dest = (k as string) === 'box' ? '/(v2)/box' : '/(v2)/transport';
+    return <Redirect href={`${dest}${q.toString() ? `?${q.toString()}` : ''}` as any} />;
   }
 
   const faces = [

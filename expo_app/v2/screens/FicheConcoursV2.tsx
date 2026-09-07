@@ -40,7 +40,7 @@ export function FicheConcoursV2() {
   const openService = (kind: 'transport' | 'box' | 'coach', face: 'cherche' | 'propose') => {
     const q = new URLSearchParams({ concoursId: id, face });
     if (entry.chevalId) q.set('chevalId', entry.chevalId);
-    const path = kind === 'transport' ? '/(v2)/transport' : `/(v2)/service/${kind}`;
+    const path = kind === 'transport' ? '/(v2)/transport' : kind === 'box' ? '/(v2)/box' : `/(v2)/service/${kind}`;
     router.push(`${path}?${q.toString()}` as any);
   };
   // Ligne du tableau de bord : état + action contextualisée.

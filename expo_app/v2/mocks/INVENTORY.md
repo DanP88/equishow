@@ -41,6 +41,22 @@ Chaque entrée = ce qui est simulé côté front + ce qui la remplacera.
 réservation réelle via le flux `transport_reservations` + escrow existant ; masquage
 d'adresse tant que non mis en relation. Rien de tout ça en F5.
 
+## F6 — Box V2
+| Élément | Réel (lecture seule) | Local (`v2:box`) |
+|---|---|---|
+| résultats « Je cherche » | `useBoxAnnonces()` (boxes dispo > 0, filtre concours, chevauchement de période) via `v2/adapters/box.ts` | — |
+| commission affichée | `getCommission('box')` (lecture seule) | — |
+| résultats démo | — (mocks `v2/mocks/box.ts`, **prototype non connecté uniquement**, tag « démo ») |
+| recherche publiée (« aucun résultat ») | — | `searches[]` |
+| annonce publiée (« Je propose ») | — | `offers[]` |
+| réservation simulée | — | `bookings[]` (aucun Stripe, aucun paiement ; total = prix/nuit × nuits + commission) |
+| synchro « Mon concours » | — | `concoursLocal.needBox` (searching / offering / done, resync → unset) |
+
+**Backend requis Phase 2** : table `box_demandes` (recherches) + RLS + anti-spam ;
+réservation réelle via le flux `box_reservations` + escrow existant + trigger de
+pic-de-concurrence (mig 104) ; masquage d'adresse tant que non mis en relation.
+Rien de tout ça en F6.
+
 ## F4 — fiche concours = tableau de bord (état LOCAL, lecture seule côté réel)
 | Élément | Réel (lecture seule) | Local (`v2:concours-local`) |
 |---|---|---|

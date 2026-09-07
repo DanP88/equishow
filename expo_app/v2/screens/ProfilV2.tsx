@@ -43,6 +43,7 @@ export function ProfilV2() {
             <Row icon="🐴" label="Mes chevaux" onPress={() => router.replace('/(v2)/chevaux' as any)} />
             <Row icon="🏆" label="Mes concours (suivis / à venir)" onPress={() => router.push('/(v2)/concours?tab=suivis' as any)} />
             <Row icon="🚚" label="Mes transports" onPress={() => router.push('/(v2)/transport/mes-transports' as any)} />
+            <Row icon="🏠" label="Mes box" onPress={() => router.push('/(v2)/box/mes-box' as any)} />
             <Row icon="🎫" label="Mes réservations & paiements" onPress={() => router.replace('/(v2)/agenda' as any)} />
             <Row icon="⭐" label="Mes avis déposés" onPress={() => {}} />
           </RowGroup>
@@ -65,7 +66,7 @@ export function ProfilV2() {
           <RowGroup>
             <Row icon="🏟" label="Mes concours organisés" onPress={() => router.push('/(v2)/concours?tab=organises' as any)} />
             <Row icon="📊" label="Radar (agrégats RGPD)" onPress={() => router.push('/(tabs)/org-radar' as any)} />
-            <Row icon="🏠" label="Mes box proposés" onPress={() => router.push('/(v2)/service/box?face=propose' as any)} />
+            <Row icon="🏠" label="Mes box proposés" onPress={() => router.push('/(v2)/box/mes-box' as any)} />
             <Row icon="⏳" label="Statut" value={caps.isPending('organisateur') ? 'en attente' : 'validé'} />
           </RowGroup>
         </Section>
