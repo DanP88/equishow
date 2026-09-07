@@ -18,6 +18,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Section, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
+import { Icon } from '../ui/Icon';
 import { PrepBar, StatePill } from '../ui/prep';
 import { useCapabilities } from '../capabilities';
 import { useConcours, useMyConcours } from '../../hooks/useConcours';
@@ -81,34 +82,7 @@ export function FicheConcoursV2() {
         )}
       </Card>
 
-      {/* ── VOS ACTIVITÉS SUR CE CONCOURS (simultanées, jamais masquées) ── */}
-      {(iOrganise || caps.has('coach')) && (
-        <Section title="Vos activités sur ce concours">
-          {iOrganise && (
-            <Card>
-              <Text style={s.actTitle}>🏟 Vous organisez ce concours</Text>
-              <View style={s.actBtns}>
-                <GhostButton label="📊 Radar de ce concours" onPress={() => router.push(`/(v2)/organisateur/${id}` as any)} />
-                <GhostButton label="🏟 Espace organisateur" onPress={() => router.push('/(v2)/organisateur' as any)} />
-                <GhostButton label="✏️ Éditer / publier (V1)" onPress={() => router.push('/(tabs)/org-concours' as any)} />
-              </View>
-            </Card>
-          )}
-          {caps.has('coach') && (
-            <Card>
-              <Text style={s.actTitle}>🎓 Vous pouvez y coacher</Text>
-              <Text style={s.actSub}>2 séances prévues ici · Julie/Tornado, Thomas/Rio</Text>
-              <View style={s.actBtns}>
-                <GhostButton label="Gérer mes séances" onPress={() => router.push(`/(v2)/coach?concoursId=${id}&face=eleves` as any)} />
-                <GhostButton label="Proposer un créneau" onPress={() => openService('coach', 'propose')} />
-              </View>
-              <Placeholder note="séances de coaching sur ce concours = F7" />
-            </Card>
-          )}
-        </Section>
-      )}
-
-      {/* ── MON CONCOURS (pièce centrale) ───────────────────────── */}
+      {/* ── MON CONCOURS (pièce centrale — contenu CAVALIER, toujours en premier) ── */}
       {!entry.going ? (
         <Card hero>
           <Text style={s.mcKicker}>MON CONCOURS</Text>
@@ -144,6 +118,33 @@ export function FicheConcoursV2() {
             <Text style={s.link}>📅 Voir ce concours dans mon agenda</Text>
           </TouchableOpacity>
         </View>
+      )}
+
+      {/* ── VOS ACTIVITÉS SUR CE CONCOURS (Coach → Organisateur ; jamais masquées) ── */}
+      {(caps.has('coach') || iOrganise) && (
+        <Section title="Vos activités sur ce concours">
+          {caps.has('coach') && (
+            <Card>
+              <View style={s.actHead}><Icon name="school-outline" size={16} color={Colors.textPrimary} /><Text style={s.actTitle}>Vous pouvez y coacher</Text></View>
+              <Text style={s.actSub}>2 séances prévues ici · Julie/Tornado, Thomas/Rio</Text>
+              <View style={s.actBtns}>
+                <GhostButton label="Gérer mes séances" onPress={() => router.push(`/(v2)/coach?concoursId=${id}&face=eleves` as any)} />
+                <GhostButton label="Proposer un créneau" onPress={() => openService('coach', 'propose')} />
+              </View>
+              <Placeholder note="séances de coaching sur ce concours = démonstration (rebranché Phase 2)" />
+            </Card>
+          )}
+          {iOrganise && (
+            <Card>
+              <View style={s.actHead}><Icon name="stadium-variant" size={16} color={Colors.textPrimary} /><Text style={s.actTitle}>Vous organisez ce concours</Text></View>
+              <View style={s.actBtns}>
+                <GhostButton label="Radar de ce concours" onPress={() => router.push(`/(v2)/organisateur/${id}` as any)} />
+                <GhostButton label="Espace organisateur" onPress={() => router.push('/(v2)/organisateur' as any)} />
+                <GhostButton label="Éditer / publier (V1)" onPress={() => router.push('/(tabs)/org-concours' as any)} />
+              </View>
+            </Card>
+          )}
+        </Section>
       )}
 
       {/* ── INFOS CONCOURS ─────────────────────────────────────── */}
@@ -182,6 +183,7 @@ const s = StyleSheet.create({
   ffe: { marginTop: 8, alignSelf: 'flex-start' },
   ffeTxt: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
 
+  actHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   actSub: { fontSize: FontSize.sm, color: Colors.textSecondary },
   actBtns: { gap: Spacing.sm },

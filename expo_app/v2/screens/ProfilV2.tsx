@@ -4,7 +4,7 @@
 // boutons) + compteurs d'activité RÉELS (F9). Puis un bloc par capacité détenue.
 // Aucun profil-coach / profil-org séparé. Aucun « changer de compte ».
 // ─────────────────────────────────────────────────────────────────────────────
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
@@ -13,11 +13,25 @@ import { useCapabilities, CAPABILITY_LABEL } from '../capabilities';
 import { useV2Session } from '../auth';
 import { useV2ActivityCounts } from '../state/activityCounts';
 import { Icon } from '../ui/Icon';
+import { useAuth } from '../../hooks/useAuth';
 
 export function ProfilV2() {
   const caps = useCapabilities();
-  const { identity, kind } = useV2Session();
+  const { identity, kind, signOut: signOutSim } = useV2Session();
+  const { logout } = useAuth();
   const a = useV2ActivityCounts();
+
+  // Déconnexion — réutilise le mécanisme EXISTANT (V1 useAuth.logout / session V2
+  // simulée). Aucune modification de Supabase Auth.
+  const handleLogout = async () => {
+    if (kind === 'real') {
+      await logout();
+      router.replace('/(auth)/login');
+    } else {
+      signOutSim();
+      router.replace('/(v2)/accueil');
+    }
+  };
 
   const name = `${identity?.prenom ?? ''} ${identity?.nom ?? ''}`.trim() || 'Utilisateur EquiShow';
   const activities = caps.held.map((c) => CAPABILITY_LABEL[c] + (caps.isPending(c) ? ' (en attente)' : '')).join(' · ') || '—';
@@ -102,10 +116,14 @@ export function ProfilV2() {
 
       <Section title="Compte">
         <RowGroup>
-          <Row icon="🧩" label="Mes activités" value={String(caps.held.length)} onPress={() => router.push('/v2-dev' as any)} />
-          <Row icon="⚙️" label="Paramètres" onPress={() => {}} />
-          <Row icon="❓" label="Aide & contact" onPress={() => {}} />
+          <Row icon="puzzle-outline" label="Mes activités" value={String(caps.held.length)} onPress={() => router.push('/v2-dev' as any)} />
+          <Row icon="cog-outline" label="Paramètres" onPress={() => {}} />
+          <Row icon="help-circle-outline" label="Aide & contact" onPress={() => {}} />
         </RowGroup>
+        <TouchableOpacity style={s.logout} onPress={handleLogout} activeOpacity={0.8}>
+          <Icon name="logout" size={16} color={Colors.urgent} />
+          <Text style={s.logoutTxt}>Se déconnecter</Text>
+        </TouchableOpacity>
       </Section>
 
       <Placeholder note={a.demo
@@ -128,4 +146,6 @@ const s = StyleSheet.create({
   counterEmpty: { fontSize: FontSize.sm, color: Colors.textTertiary },
   counterAperçu: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
   pending: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.bold },
+  logout: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, marginTop: Spacing.sm, paddingVertical: Spacing.md, borderRadius: 12, borderWidth: 1, borderColor: Colors.urgentBorder, backgroundColor: Colors.urgentBg },
+  logoutTxt: { color: Colors.urgent, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
 });

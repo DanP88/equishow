@@ -30,10 +30,10 @@ export function BottomBarV2() {
         return (
           <TouchableOpacity key={t.key} style={s.tab} activeOpacity={0.8} onPress={() => router.replace(t.route as any)}>
             <View>
-              <Icon name={t.icon} size={23} color={active ? Colors.primary : Colors.textTertiary} />
+              <Icon name={t.icon} size={22} color={active ? Colors.primary : Colors.textTertiary} />
               {badge > 0 && <View style={s.badge}><Text style={s.badgeTxt}>{badge > 9 ? '9+' : badge}</Text></View>}
             </View>
-            <Text style={[s.label, active && s.labelOn]}>{t.label}</Text>
+            <Text style={[s.label, active && s.labelOn]} numberOfLines={1} adjustsFontSizeToFit minimumFontScale={0.82}>{t.label}</Text>
           </TouchableOpacity>
         );
       })}
@@ -42,10 +42,10 @@ export function BottomBarV2() {
 }
 
 const s = StyleSheet.create({
-  bar: { flexDirection: 'row', backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8, paddingHorizontal: 4 },
-  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 4 },
+  bar: { flexDirection: 'row', backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: 8, paddingHorizontal: 2 },
+  tab: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 3, paddingVertical: 4, paddingHorizontal: 2 },
   icon: { fontSize: 20 },
-  label: { fontSize: 11, fontWeight: FontWeight.semibold, color: Colors.textTertiary },
+  label: { fontSize: 10.5, fontWeight: FontWeight.semibold, color: Colors.textTertiary, textAlign: 'center' },
   labelOn: { color: Colors.primary, fontWeight: FontWeight.bold },
   badge: { position: 'absolute', top: -5, right: -10, backgroundColor: '#FF4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4, borderWidth: 2, borderColor: Colors.surface },
   badgeTxt: { color: '#fff', fontSize: 10, fontWeight: '700' },

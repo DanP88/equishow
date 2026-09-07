@@ -13,8 +13,7 @@
 // Messagerie (privée).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Segment, Card, Placeholder, EmptyState } from '../ui/kit';
@@ -35,9 +34,6 @@ export function CommunauteV2() {
 
   return (
     <Screen>
-      <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(v2)/accueil' as any))} hitSlop={8}>
-        <Text style={s.back}>← Retour</Text>
-      </TouchableOpacity>
       <View style={s.head}>
         <Text style={s.h1}>Communauté</Text>
       </View>
@@ -91,7 +87,6 @@ function Fil({ scope }: { scope: PostScope }) {
 }
 
 const s = StyleSheet.create({
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
   head: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   h1: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
 
