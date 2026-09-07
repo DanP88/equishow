@@ -21,6 +21,7 @@ import { useMyChevaux } from '../../hooks/useChevaux';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
+import { V2DateRange, todayStart } from '../components/V2DateField';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -127,10 +128,12 @@ export function BoxChercheV2() {
 
       <Card>
         <Field label={`Secteur${concours ? ' (autour du concours)' : ''}`}><TextInput style={s.input} value={lieu} onChangeText={setLieu} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
-        <View style={s.rowFields}>
-          <Field label="Arrivée"><TextInput style={s.input} value={dateDebut} onChangeText={setDateDebut} placeholder="AAAA-MM-JJ" placeholderTextColor={Colors.textTertiary} /></Field>
-          <Field label="Départ"><TextInput style={s.input} value={dateFin} onChangeText={setDateFin} placeholder="AAAA-MM-JJ" placeholderTextColor={Colors.textTertiary} /></Field>
-        </View>
+        <V2DateRange
+          startLabel="Arrivée" endLabel="Départ"
+          start={dateDebut} end={dateFin}
+          onChangeStart={setDateDebut} onChangeEnd={setDateFin}
+          minDate={todayStart()}
+        />
         <View style={s.rowFields}>
           <Field label="Nombre de box"><TextInput style={s.input} value={nbBox} onChangeText={setNbBox} keyboardType="number-pad" /></Field>
           <TouchableOpacity style={s.check} onPress={() => setLitiere((v) => !v)}>
@@ -383,10 +386,12 @@ export function BoxProposeV2() {
       <Card>
         <Field label={`Lieu${concours ? ' (secteur du concours)' : ''}`}><TextInput style={s.input} value={lieu} onChangeText={setLieu} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
         <Field label="Adresse de l'écurie"><TextInput style={s.input} value={adresse} onChangeText={setAdresse} placeholder="Visible une fois la mise en relation faite" placeholderTextColor={Colors.textTertiary} /></Field>
-        <View style={s.rowFields}>
-          <Field label="Disponible du"><TextInput style={s.input} value={dateDebut} onChangeText={setDateDebut} placeholder="AAAA-MM-JJ" placeholderTextColor={Colors.textTertiary} /></Field>
-          <Field label="au"><TextInput style={s.input} value={dateFin} onChangeText={setDateFin} placeholder="AAAA-MM-JJ" placeholderTextColor={Colors.textTertiary} /></Field>
-        </View>
+        <V2DateRange
+          startLabel="Disponible du" endLabel="au"
+          start={dateDebut} end={dateFin}
+          onChangeStart={setDateDebut} onChangeEnd={setDateFin}
+          minDate={todayStart()}
+        />
         <View style={s.rowFields}>
           <Field label="Nombre de box"><TextInput style={s.input} value={nbBox} onChangeText={setNbBox} keyboardType="number-pad" /></Field>
           <Field label="Prix / box / nuit (€)"><TextInput style={s.input} value={prixNuit} onChangeText={setPrixNuit} keyboardType="number-pad" placeholder="25" placeholderTextColor={Colors.textTertiary} /></Field>

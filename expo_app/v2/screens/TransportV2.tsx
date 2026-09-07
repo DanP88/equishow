@@ -20,6 +20,7 @@ import { useMyChevaux } from '../../hooks/useChevaux';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { useTransportLocal } from '../state/transportLocal';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
+import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
 
 // ── helpers ────────────────────────────────────────────────────────────────
 function fmtDate(d?: string) {
@@ -126,10 +127,12 @@ export function TransportChercheV2() {
       <Card>
         <Field label="Lieu de départ"><TextInput style={s.input} value={depart} onChangeText={setDepart} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
         <Field label={`Destination${concours ? ' (du concours)' : ''}`}><TextInput style={s.input} value={destination} onChangeText={setDestination} placeholder="Ville d'arrivée" placeholderTextColor={Colors.textTertiary} /></Field>
-        <View style={s.rowFields}>
-          <Field label="Date aller"><TextInput style={s.input} value={dateAller} onChangeText={setDateAller} placeholder="AAAA-MM-JJ" placeholderTextColor={Colors.textTertiary} /></Field>
-          <Field label="Date retour"><TextInput style={s.input} value={dateRetour} onChangeText={setDateRetour} placeholder="optionnel" placeholderTextColor={Colors.textTertiary} /></Field>
-        </View>
+        <V2DateRange
+          startLabel="Date aller" endLabel="Date retour"
+          start={dateAller} end={dateRetour}
+          onChangeStart={setDateAller} onChangeEnd={setDateRetour}
+          endOptional minDate={todayStart()}
+        />
         <View style={s.rowFields}>
           <Field label="Nombre de chevaux"><TextInput style={s.input} value={nbChevaux} onChangeText={setNbChevaux} keyboardType="number-pad" /></Field>
           <TouchableOpacity style={s.check} onPress={() => setAvecCavalier((v) => !v)}>
@@ -372,7 +375,7 @@ export function TransportProposeV2() {
         <Field label="Lieu de départ"><TextInput style={s.input} value={depart} onChangeText={setDepart} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
         <Field label={`Destination${concours ? ' (du concours)' : ''}`}><TextInput style={s.input} value={destination} onChangeText={setDestination} placeholder="Ville d'arrivée" placeholderTextColor={Colors.textTertiary} /></Field>
         <View style={s.rowFields}>
-          <Field label="Date"><TextInput style={s.input} value={date} onChangeText={setDate} placeholder="AAAA-MM-JJ" placeholderTextColor={Colors.textTertiary} /></Field>
+          <V2DateField label="Date" value={date} onChange={setDate} minDate={todayStart()} style={s.flex1} />
           <Field label="Heure de départ"><TextInput style={s.input} value={heure} onChangeText={setHeure} placeholder="07:00" placeholderTextColor={Colors.textTertiary} /></Field>
         </View>
         <View style={s.rowFields}>
@@ -414,6 +417,7 @@ const s = StyleSheet.create({
   input: { borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   multiline: { minHeight: 64, textAlignVertical: 'top' },
   rowFields: { flexDirection: 'row', gap: Spacing.md },
+  flex1: { flex: 1 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.sm, flex: 1 },
   checkBox: { fontSize: 18, color: Colors.primary },
   checkTxt: { fontSize: FontSize.sm, color: Colors.textPrimary, flex: 1 },
