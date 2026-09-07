@@ -6,15 +6,17 @@
 // F14.1 : « Lié à un concours » = menu déroulant (concours à venir réels) +
 // « Autre » → saisie libre. Valeur initiale : AUCUN concours.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card } from '../ui/kit';
 import { V2SelectField } from '../components/V2SelectField';
+import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useConcoursList } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
+import { useV2AllHorses } from '../state/contestHorses';
 import { useCapabilities } from '../capabilities';
 
 const isUpcoming = (c: { date_fin: string | null; date_debut: string | null }) => {
@@ -43,6 +45,24 @@ export function ChercheProposeHub({ mode }: { mode: 'cherche' | 'propose' }) {
       .map((c) => ({ value: c.id, label: c.nom }));
   }, [concours, local.followingIds, local.goingIds]);
   const knownIds = useMemo(() => new Set(options.map((o) => o.value)), [options]);
+  const linkedConcoursId = concoursSel && knownIds.has(concoursSel) ? concoursSel : undefined;
+
+  // ── Chevaux concernés par CETTE recherche (« Je cherche » uniquement) ──────
+  const pool = useV2AllHorses();
+  const prep = useConcoursLocal(linkedConcoursId);
+  const [horseIds, setHorseIds] = useState<string[]>([]);
+  const horsesTouched = useRef(false);
+
+  useEffect(() => { horsesTouched.current = false; }, [concoursSel]);
+  useEffect(() => {
+    if (!isCherche || horsesTouched.current || !pool.ready) return;
+    const valid = (l: string[]) => l.filter((id) => pool.byId(id));
+    let next: string[] = [];
+    if (linkedConcoursId && prep.ready) next = valid(prep.entry.selectedHorseIds ?? []);
+    // sans concours : présélection SEULEMENT si un unique cheval au compte
+    if (!next.length && !linkedConcoursId && pool.all.length === 1) next = [pool.all[0].id];
+    setHorseIds(next);
+  }, [isCherche, concoursSel, linkedConcoursId, prep.ready, pool.ready]);
 
   const go = (kind: 'transport' | 'box' | 'coach') => {
     if (!isCherche && kind === 'coach' && !caps.has('coach')) {
@@ -54,6 +74,7 @@ export function ChercheProposeHub({ mode }: { mode: 'cherche' | 'propose' }) {
       if (knownIds.has(concoursSel)) q.set('concoursId', concoursSel);
       else q.set('concoursNom', concoursSel);
     }
+    if (isCherche && horseIds.length) q.set('chevalIds', horseIds.join(','));
     const path = kind === 'transport' ? '/(v2)/transport' : kind === 'box' ? '/(v2)/box' : '/(v2)/coach';
     router.push(`${path}?${q.toString()}` as any);
   };
@@ -90,6 +111,20 @@ export function ChercheProposeHub({ mode }: { mode: 'cherche' | 'propose' }) {
         otherLabel="Autre concours (saisir le nom)"
       />
       {selLabel && <Text style={s.hint}>Destination et dates seront préremplies depuis « {selLabel} » quand elles sont connues.</Text>}
+
+      {isCherche && (
+        <>
+          <Text style={[s.section, { marginTop: Spacing.lg }]}>Pour quel(s) cheval(aux) ?</Text>
+          <V2HorsePicker
+            value={horseIds}
+            onChange={(v) => { horsesTouched.current = true; setHorseIds(v); }}
+            title={null}
+            hint={linkedConcoursId
+              ? 'Chevaux de « Préparer mon concours » — ajuste pour cette recherche.'
+              : 'Sélectionne le ou les chevaux concernés par cette recherche.'}
+          />
+        </>
+      )}
 
       <Text style={[s.section, { marginTop: Spacing.lg }]}>{isCherche ? 'Que cherches-tu ?' : 'Que proposes-tu ?'}</Text>
       {services.map((sv) => (

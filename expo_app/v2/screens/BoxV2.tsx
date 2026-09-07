@@ -17,12 +17,13 @@ import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
-import { useV2ContestHorses } from '../state/contestHorses';
+import { useSearchHorses } from '../state/searchHorses';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
 import { V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
+import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -45,14 +46,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ═══════════════════════ HUB (2 portes équivalentes) ═══════════════════════
 export function BoxHubV2() {
-  const { concoursId, chevalId, face } = useLocalSearchParams<{ concoursId?: string; chevalId?: string; face?: string }>();
+  const { concoursId, chevalId, chevalIds, face } = useLocalSearchParams<{ concoursId?: string; chevalId?: string; chevalIds?: string; face?: string }>();
   if (face === 'cherche') return <BoxChercheV2 />;
   if (face === 'propose') return <BoxProposeV2 />;
 
   const { concours } = useConcours(concoursId);
   const q = new URLSearchParams();
   if (concoursId) q.set('concoursId', concoursId);
-  if (chevalId) q.set('chevalId', chevalId);
+  if (chevalIds) q.set('chevalIds', chevalIds);
+  else if (chevalId) q.set('chevalId', chevalId);
   const base = q.toString() ? `?${q.toString()}` : '';
 
   return (
@@ -82,18 +84,18 @@ export function BoxHubV2() {
 
 // ═══════════════════════ JE CHERCHE ═══════════════════════
 export function BoxChercheV2() {
-  const { concoursId, concoursNom } = useLocalSearchParams<{ concoursId?: string; chevalId?: string; concoursNom?: string }>();
+  const { concoursId, concoursNom, chevalIds } = useLocalSearchParams<{ concoursId?: string; chevalIds?: string; concoursNom?: string }>();
   const { concours } = useConcours(concoursId);
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
-  // Contexte cheval défini dans « Préparer mon concours » — jamais redemandé ici.
-  const ch = useV2ContestHorses(concoursId, 'box');
+  // Chevaux concernés par CETTE recherche (seed = hub / Préparer, modifiable ici).
+  const ch = useSearchHorses(concoursId, 'box', chevalIds);
 
   // Prérempli depuis le contexte concours + cheval.
   const dest = useAutoDestination(concoursId, concours);
   const [dateDebut, setDateDebut] = useState(concours?.date_debut ?? '');
   const [dateFin, setDateFin] = useState(concours?.date_fin ?? '');
-  const [nbBox, setNbBox] = useState(ch.count > 0 ? String(ch.count) : '1');
+  const nbBox = ch.count || 1;
   const [litiere, setLitiere] = useState(true);
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
@@ -102,17 +104,20 @@ export function BoxChercheV2() {
   const alreadyPublished = !!(bl.context.search || (publishedId && bl.searches.some((x) => x.id === publishedId)));
 
   const publishSearch = () => {
+    ch.persist();
     const rec = bl.publishSearch({
       concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       lieu: dest.value.trim() || '—',
       dateDebut: dateDebut || undefined, dateFin: dateFin || undefined,
-      nbBox: parseInt(nbBox, 10) || 1, litiereIncluse: litiere,
+      nbBox, litiereIncluse: litiere,
     });
     setPublishedId(rec.id);
     if (concoursId && (cl.entry.needBox === 'unset' || cl.entry.needBox === 'searching')) {
       cl.update({ needBox: 'searching' });
     }
   };
+
+  const runSearch = () => { ch.persist(); setSearched(true); };
 
   return (
     <Screen>
@@ -125,13 +130,17 @@ export function BoxChercheV2() {
           <Text style={s.ctxTitle}>Contexte du concours</Text>
           <Text style={s.ctxLine}>🏆 {concours.nom}</Text>
           <Text style={s.ctxLine}>📍 {concours.lieu || '—'}   ·   📅 {concours.dateLabel || '—'}</Text>
-          {ch.count > 0 ? <Text style={s.ctxLine}>🐴 {ch.names.join(' + ')}</Text> : null}
         </View>
       )}
-      {ch.count > 1 && <Text style={s.forHorses}>🐴 {ch.count} chevaux concernés — {ch.names.join(', ')}</Text>}
-      {ch.count === 1 && <Text style={s.forHorses}>{ch.label}</Text>}
 
       <Card>
+        <V2HorsePicker
+          value={ch.ids}
+          onChange={ch.setIds}
+          title="Chevaux concernés"
+          hint={concoursId ? 'Repris de « Préparer mon concours » — modifiable pour cette recherche.' : undefined}
+        />
+        {ch.hasSelection && <Text style={s.forHorses}>{ch.count > 1 ? `${ch.count} box` : '1 box'} · {ch.label}</Text>}
         <V2DestinationField label="Secteur recherché" auto={dest} placeholder="Ville / commune" concoursNom={!concours ? concoursNom : undefined} />
         <V2DateRange
           startLabel="Arrivée" endLabel="Départ"
@@ -139,21 +148,18 @@ export function BoxChercheV2() {
           onChangeStart={setDateDebut} onChangeEnd={setDateFin}
           minDate={todayStart()}
         />
-        <View style={s.rowFields}>
-          <Field label="Nombre de box"><TextInput style={s.input} value={nbBox} onChangeText={setNbBox} keyboardType="number-pad" /></Field>
-          <TouchableOpacity style={s.check} onPress={() => setLitiere((v) => !v)}>
-            <Text style={s.checkBox}>{litiere ? '☑' : '☐'}</Text>
-            <Text style={s.checkTxt}>Litière incluse souhaitée</Text>
-          </TouchableOpacity>
-        </View>
-        <PrimaryButton label="Rechercher" onPress={() => setSearched(true)} />
+        <TouchableOpacity style={s.check} onPress={() => setLitiere((v) => !v)}>
+          <Text style={s.checkBox}>{litiere ? '☑' : '☐'}</Text>
+          <Text style={s.checkTxt}>Litière incluse souhaitée</Text>
+        </TouchableOpacity>
+        <PrimaryButton label="Rechercher" onPress={runSearch} />
       </Card>
 
       {searched && (
         results.length > 0 ? (
           <>
             <Text style={s.resultsTitle}>{results.length} box compatible{results.length > 1 ? 's' : ''}{demo ? ' (démonstration)' : ''}</Text>
-            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalId={ch.primaryId} dateDebut={dateDebut} dateFin={dateFin} />)}
+            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalIds={ch.param} dateDebut={dateDebut} dateFin={dateFin} />)}
             {demo && <Placeholder note="résultats de démonstration — connecte-toi pour voir les vraies annonces" v1Path="/(tabs)/services?tab=box" v1Label="annonces actuelles" />}
           </>
         ) : (
@@ -175,10 +181,10 @@ export function BoxChercheV2() {
   );
 }
 
-function ResultCard({ r, concoursId, chevalId, dateDebut, dateFin }: { r: V2BoxResult; concoursId?: string; chevalId?: string; dateDebut?: string; dateFin?: string }) {
+function ResultCard({ r, concoursId, chevalIds, dateDebut, dateFin }: { r: V2BoxResult; concoursId?: string; chevalIds?: string; dateDebut?: string; dateFin?: string }) {
   const q = new URLSearchParams({ id: r.id, src: r.src });
   if (concoursId) q.set('concoursId', concoursId);
-  if (chevalId) q.set('chevalId', chevalId);
+  if (chevalIds) q.set('chevalIds', chevalIds);
   if (dateDebut) q.set('d1', dateDebut);
   if (dateFin) q.set('d2', dateFin);
   return (
@@ -204,7 +210,7 @@ function ResultCard({ r, concoursId, chevalId, dateDebut, dateFin }: { r: V2BoxR
 
 // ═══════════════════════ DÉTAIL ═══════════════════════
 export function BoxDetailV2() {
-  const { id, concoursId, chevalId, d1, d2 } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string; d1?: string; d2?: string }>();
+  const { id, concoursId, chevalIds, d1, d2 } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalIds?: string; d1?: string; d2?: string }>();
   const { results } = useV2BoxResults({ concoursId });
   const r = useMemo(() => results.find((x) => x.id === id), [results, id]);
 
@@ -212,7 +218,7 @@ export function BoxDetailV2() {
 
   const q = new URLSearchParams({ id: r.id, src: r.src });
   if (concoursId) q.set('concoursId', concoursId);
-  if (chevalId) q.set('chevalId', chevalId);
+  if (chevalIds) q.set('chevalIds', chevalIds);
   if (d1) q.set('d1', d1);
   if (d2) q.set('d2', d2);
 
@@ -243,12 +249,12 @@ export function BoxDetailV2() {
 
 // ═══════════════════════ RÉSERVATION SIMULÉE ═══════════════════════
 export function BoxReserverV2() {
-  const { id, concoursId, d1, d2 } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string; d1?: string; d2?: string }>();
+  const { id, concoursId, chevalIds, d1, d2 } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalIds?: string; d1?: string; d2?: string }>();
   const { concours } = useConcours(concoursId);
   const { results, commission } = useV2BoxResults({ concoursId });
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
-  const ch = useV2ContestHorses(concoursId, 'box');
+  const ch = useSearchHorses(concoursId, 'box', chevalIds);
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
 
@@ -263,10 +269,11 @@ export function BoxReserverV2() {
   const total = sousTotal + totalCommission;
 
   const confirm = () => {
+    ch.persist();
     bl.book({
       src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       lieu: `${r.hote} · ${r.lieu}`, dateDebut: pDebut, dateFin: pFin,
-      nbNuits: nuits, nbBox: 1, prixNuit: r.prixNuit, prix: total, hote: r.hote,
+      nbNuits: nuits, nbBox: Math.max(1, ch.count), prixNuit: r.prixNuit, prix: total, hote: r.hote,
     });
     if (concoursId) cl.update({ needBox: 'done' });
     const sr = bl.context.search;

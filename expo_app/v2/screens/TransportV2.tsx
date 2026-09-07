@@ -17,11 +17,12 @@ import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
-import { useV2ContestHorses } from '../state/contestHorses';
+import { useSearchHorses } from '../state/searchHorses';
 import { useTransportLocal } from '../state/transportLocal';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
+import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 import {
   RECOMMENDED_PRICE_PER_KM, geocodeFr, buildEstimate, type TransportEstimate,
@@ -43,14 +44,15 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 
 // ═══════════════════════ HUB (2 portes équivalentes) ═══════════════════════
 export function TransportHubV2() {
-  const { concoursId, chevalId, face } = useLocalSearchParams<{ concoursId?: string; chevalId?: string; face?: string }>();
+  const { concoursId, chevalId, chevalIds, face } = useLocalSearchParams<{ concoursId?: string; chevalId?: string; chevalIds?: string; face?: string }>();
   if (face === 'cherche') return <TransportChercheV2 />;
   if (face === 'propose') return <TransportProposeV2 />;
 
   const { concours } = useConcours(concoursId);
   const q = new URLSearchParams();
   if (concoursId) q.set('concoursId', concoursId);
-  if (chevalId) q.set('chevalId', chevalId);
+  if (chevalIds) q.set('chevalIds', chevalIds);
+  else if (chevalId) q.set('chevalId', chevalId);
   const base = q.toString() ? `?${q.toString()}` : '';
 
   return (
@@ -80,19 +82,18 @@ export function TransportHubV2() {
 
 // ═══════════════════════ JE CHERCHE ═══════════════════════
 export function TransportChercheV2() {
-  const { concoursId, concoursNom } = useLocalSearchParams<{ concoursId?: string; chevalId?: string; concoursNom?: string }>();
+  const { concoursId, concoursNom, chevalIds } = useLocalSearchParams<{ concoursId?: string; chevalIds?: string; concoursNom?: string }>();
   const { concours } = useConcours(concoursId);
   const cl = useConcoursLocal(concoursId);
   const tl = useTransportLocal(concoursId);
-  // Contexte cheval défini dans « Préparer mon concours » — jamais redemandé ici.
-  const ch = useV2ContestHorses(concoursId, 'transport');
+  // Chevaux concernés par CETTE recherche (seed = hub / Préparer, modifiable ici).
+  const ch = useSearchHorses(concoursId, 'transport', chevalIds);
 
   // Prérempli depuis le contexte concours + cheval.
   const [depart, setDepart] = useState('');
   const dest = useAutoDestination(concoursId, concours);
   const [dateAller, setDateAller] = useState(concours?.date_debut ?? '');
   const [dateRetour, setDateRetour] = useState(concours?.date_fin ?? '');
-  const [nbChevaux, setNbChevaux] = useState(ch.count > 0 ? String(ch.count) : '1');
   const [avecCavalier, setAvecCavalier] = useState(false);
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
@@ -102,11 +103,12 @@ export function TransportChercheV2() {
   const alreadyPublished = !!(tl.context.search || (publishedId && tl.searches.some((x) => x.id === publishedId)));
 
   const publishSearch = () => {
+    ch.persist();
     const rec = tl.publishSearch({
       concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       depart: depart.trim() || '—', destination: dest.value.trim() || '—',
       dateAller: dateAller || undefined, dateRetour: dateRetour || undefined,
-      nbChevaux: parseInt(nbChevaux, 10) || 1, avecCavalier,
+      nbChevaux: ch.count || 1, avecCavalier,
     });
     setPublishedId(rec.id);
     // Synchro Mon concours (sans écraser un choix manuel « pas nécessaire »).
@@ -114,6 +116,8 @@ export function TransportChercheV2() {
       cl.update({ needTransport: 'searching' });
     }
   };
+
+  const runSearch = () => { ch.persist(); setSearched(true); };
 
   return (
     <Screen>
@@ -126,12 +130,17 @@ export function TransportChercheV2() {
           <Text style={s.ctxTitle}>Contexte du concours</Text>
           <Text style={s.ctxLine}>🏆 {concours.nom}</Text>
           <Text style={s.ctxLine}>📍 {concours.lieu || '—'}   ·   📅 {concours.dateLabel || '—'}</Text>
-          {ch.count > 0 ? <Text style={s.ctxLine}>🐴 {ch.names.join(' + ')}</Text> : null}
         </View>
       )}
-      {ch.hasSelection && <Text style={s.forHorses}>{ch.label}</Text>}
 
       <Card>
+        <V2HorsePicker
+          value={ch.ids}
+          onChange={ch.setIds}
+          title="Chevaux concernés"
+          hint={concoursId ? 'Repris de « Préparer mon concours » — modifiable pour cette recherche.' : undefined}
+        />
+        {ch.hasSelection && <Text style={s.forHorses}>{ch.count > 1 ? `${ch.count} chevaux` : '1 cheval'} · {ch.label}</Text>}
         <Field label="Lieu de départ"><TextInput style={s.input} value={depart} onChangeText={setDepart} placeholder="Ville / commune" placeholderTextColor={Colors.textTertiary} /></Field>
         <V2DestinationField label="Destination" auto={dest} placeholder="Ville d'arrivée" concoursNom={!concours ? concoursNom : undefined} />
         <V2DateRange
@@ -140,21 +149,18 @@ export function TransportChercheV2() {
           onChangeStart={setDateAller} onChangeEnd={setDateRetour}
           endOptional minDate={todayStart()}
         />
-        <View style={s.rowFields}>
-          <Field label="Nombre de chevaux"><TextInput style={s.input} value={nbChevaux} onChangeText={setNbChevaux} keyboardType="number-pad" /></Field>
-          <TouchableOpacity style={s.check} onPress={() => setAvecCavalier((v) => !v)}>
-            <Text style={s.checkBox}>{avecCavalier ? '☑' : '☐'}</Text>
-            <Text style={s.checkTxt}>Je souhaite voyager avec mon cheval</Text>
-          </TouchableOpacity>
-        </View>
-        <PrimaryButton label="Rechercher" onPress={() => setSearched(true)} />
+        <TouchableOpacity style={s.check} onPress={() => setAvecCavalier((v) => !v)}>
+          <Text style={s.checkBox}>{avecCavalier ? '☑' : '☐'}</Text>
+          <Text style={s.checkTxt}>Je souhaite voyager avec mon cheval</Text>
+        </TouchableOpacity>
+        <PrimaryButton label="Rechercher" onPress={runSearch} />
       </Card>
 
       {searched && (
         results.length > 0 ? (
           <>
             <Text style={s.resultsTitle}>{results.length} transport{results.length > 1 ? 's' : ''} compatible{results.length > 1 ? 's' : ''}{demo ? ' (démonstration)' : ''}</Text>
-            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalId={ch.primaryId} />)}
+            {results.map((r) => <ResultCard key={r.id} r={r} concoursId={concoursId} chevalIds={ch.param} />)}
             {demo && <Placeholder note="résultats de démonstration — connecte-toi pour voir les vraies annonces" v1Path="/(tabs)/services?tab=transport" v1Label="annonces actuelles" />}
           </>
         ) : (
@@ -176,10 +182,10 @@ export function TransportChercheV2() {
   );
 }
 
-function ResultCard({ r, concoursId, chevalId }: { r: V2TransportResult; concoursId?: string; chevalId?: string }) {
+function ResultCard({ r, concoursId, chevalIds }: { r: V2TransportResult; concoursId?: string; chevalIds?: string }) {
   const q = new URLSearchParams({ id: r.id, src: r.src });
   if (concoursId) q.set('concoursId', concoursId);
-  if (chevalId) q.set('chevalId', chevalId);
+  if (chevalIds) q.set('chevalIds', chevalIds);
   return (
     <TouchableOpacity style={s.result} activeOpacity={0.9} onPress={() => router.push(`/(v2)/transport/detail?${q.toString()}` as any)}>
       <View style={s.resultHead}>
@@ -203,7 +209,7 @@ function ResultCard({ r, concoursId, chevalId }: { r: V2TransportResult; concour
 
 // ═══════════════════════ DÉTAIL ═══════════════════════
 export function TransportDetailV2() {
-  const { id, concoursId, chevalId } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string }>();
+  const { id, concoursId, chevalIds } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalIds?: string }>();
   const { results } = useV2TransportResults({ concoursId });
   const r = useMemo(() => results.find((x) => x.id === id), [results, id]);
 
@@ -211,7 +217,7 @@ export function TransportDetailV2() {
 
   const q = new URLSearchParams({ id: r.id, src: r.src });
   if (concoursId) q.set('concoursId', concoursId);
-  if (chevalId) q.set('chevalId', chevalId);
+  if (chevalIds) q.set('chevalIds', chevalIds);
 
   return (
     <Screen>
@@ -241,12 +247,12 @@ export function TransportDetailV2() {
 
 // ═══════════════════════ RÉSERVATION SIMULÉE ═══════════════════════
 export function TransportReserverV2() {
-  const { id, concoursId } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalId?: string }>();
+  const { id, concoursId, chevalIds } = useLocalSearchParams<{ id: string; src?: string; concoursId?: string; chevalIds?: string }>();
   const { concours } = useConcours(concoursId);
   const { results, commission } = useV2TransportResults({ concoursId });
   const cl = useConcoursLocal(concoursId);
   const tl = useTransportLocal(concoursId);
-  const ch = useV2ContestHorses(concoursId, 'transport');
+  const ch = useSearchHorses(concoursId, 'transport', chevalIds);
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
 
@@ -288,6 +294,7 @@ export function TransportReserverV2() {
   const total = Math.round((sousTotal + totalCommission) * 100) / 100;
 
   const confirm = () => {
+    ch.persist();
     tl.book({
       src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       trajet: `${r.depart} → ${r.destination}`, date: r.date, heure: r.heure,
