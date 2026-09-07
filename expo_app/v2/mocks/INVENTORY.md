@@ -83,6 +83,7 @@ gestion réelle accept/refus + planning des séances ; gating capacité Coach r�
 | contexte cheval des services | — | `useV2ContestHorses(concoursId)` (`v2/state/contestHorses.ts`) = fusion réel + local, libellés prêts. Transport / Box / Coach le **lisent** — aucun sélecteur. |
 | fiche cheval réelle | `useCheval` → LECTURE SEULE (bouton « ouvrir la fiche V1 » = navigation seule) | — |
 | fiche / édition cheval local | — | `ChevalV2` / `ChevalFormV2`, routes `app/(v2)/chevaux/{[id],[id]/modifier,nouveau}` |
+| champs race / robe / année / taille (F8.1) | listes fermées | `v2/components/V2SelectField.tsx` (RN Modal + ScrollView, cross-platform) ; race + robe = liste + « Autre » libre ; année (courante → -40) et taille (80→200 cm) sans saisie. Réutilisable V2. |
 
 **Limite connue** : une réservation Box / une demande Coach reste **1 enregistrement** (`chevalId` = 1ᵉʳ sélectionné) — la réservation multi-box / multi-séance par cheval est un lot ultérieur (signalée à l'écran). Le champ « nombre de chevaux/box » est prérempli sur le nombre sélectionné mais éditable.
 

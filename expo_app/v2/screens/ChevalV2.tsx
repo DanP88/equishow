@@ -18,9 +18,26 @@ import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, Row, RowGroup, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
 import { useCheval } from '../../hooks/useChevaux';
 import { useChevauxLocal, isLocalHorseId, LocalChevalInput } from '../state/chevauxLocal';
+import { V2SelectField } from '../components/V2SelectField';
 
 const SEXES = ['Hongre', 'Jument', 'Étalon'];
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Hunter', 'Endurance', 'Autre'];
+
+// Listes fermées (F8.1) — évitent les fautes / valeurs incohérentes.
+const RACES = [
+  'Selle Français', 'KWPN', 'Holsteiner', 'Hanovrien', 'Oldenbourg', 'BWP',
+  'Zangersheide', 'Anglo-Arabe', 'Pur-sang', 'Trotteur Français', 'Arabe',
+  'Connemara', 'Poney Français de Selle', 'Welsh', 'Shetland', 'Haflinger',
+  'Fjord', 'Paint Horse', 'Quarter Horse', 'Appaloosa', 'Lusitanien', 'PRE',
+  'Frison', 'Trait', 'ONC', 'Autre',
+];
+const ROBES = [
+  'Bai', 'Bai brun', 'Alezan', 'Noir', 'Gris', 'Blanc', 'Isabelle', 'Palomino',
+  'Pie', 'Rouan', 'Souris', 'Aubère', 'Louvet', 'Crème', 'Champagne', 'Autre',
+];
+const NOW_YEAR = new Date().getFullYear();
+const YEARS = Array.from({ length: 41 }, (_, i) => String(NOW_YEAR - i)); // décroissant, ~40 ans
+const TAILLES = Array.from({ length: 121 }, (_, i) => ({ value: String(80 + i), label: `${80 + i} cm` })); // 80 → 200 cm
 
 function ageOf(y?: number) {
   if (!y) return undefined;
@@ -137,13 +154,11 @@ export function ChevalFormV2() {
         <Field label="Sexe">
           <View style={s.chips}>{SEXES.map((x) => <Chip key={x} label={x} on={sexe === x} onPress={() => setSexe(sexe === x ? '' : x)} />)}</View>
         </Field>
+        <V2SelectField label="Race" value={race} onChange={setRace} options={RACES} placeholder="Sélectionner une race" allowOther />
+        <V2SelectField label="Robe" value={robe} onChange={setRobe} options={ROBES} placeholder="Sélectionner une robe" allowOther />
         <View style={s.rowFields}>
-          <Field label="Race"><TextInput style={s.input} value={race} onChangeText={setRace} placeholder="Selle Français…" placeholderTextColor={Colors.textTertiary} /></Field>
-          <Field label="Robe"><TextInput style={s.input} value={robe} onChangeText={setRobe} placeholder="Bai, alezan…" placeholderTextColor={Colors.textTertiary} /></Field>
-        </View>
-        <View style={s.rowFields}>
-          <Field label="Année de naissance"><TextInput style={s.input} value={annee} onChangeText={setAnnee} keyboardType="number-pad" maxLength={4} placeholder="2016" placeholderTextColor={Colors.textTertiary} /></Field>
-          <Field label="Taille (cm)"><TextInput style={s.input} value={taille} onChangeText={setTaille} keyboardType="number-pad" maxLength={3} placeholder="168" placeholderTextColor={Colors.textTertiary} /></Field>
+          <V2SelectField label="Année de naissance" value={annee} onChange={setAnnee} options={YEARS} placeholder="Année" style={s.flex1} />
+          <V2SelectField label="Taille" value={taille} onChange={setTaille} options={TAILLES} placeholder="Taille (cm)" style={s.flex1} />
         </View>
         <Field label="Discipline principale">
           <View style={s.chips}>{DISCIPLINES.map((x) => <Chip key={x} label={x} on={discipline === x} onPress={() => setDiscipline(discipline === x ? '' : x)} />)}</View>
@@ -172,5 +187,6 @@ const s = StyleSheet.create({
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: { borderWidth: 1, borderColor: '#ECEBE7', borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   rowFields: { flexDirection: 'row', gap: Spacing.md },
+  flex1: { flex: 1 },
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
 });
