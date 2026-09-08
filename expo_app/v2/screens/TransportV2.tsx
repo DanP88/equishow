@@ -13,6 +13,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
@@ -214,7 +215,7 @@ export function TransportDetailV2() {
   const { results } = useV2TransportResults({ concoursId });
   const r = useMemo(() => results.find((x) => x.id === id), [results, id]);
 
-  if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /><Text style={s.sub}>Chargement…</Text></View></Screen>;
+  if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /><Text style={s.sub}>Chargement…</Text></View></Screen>;
 
   const q = new URLSearchParams({ id: r.id, src: r.src });
   if (concoursId) q.set('concoursId', concoursId);
@@ -267,7 +268,7 @@ export function TransportReserverV2() {
   const [estimateErr, setEstimateErr] = useState<string | null>(null);
   const kmMode = !!(r && r.pricePerKm && r.pricePerKm > 0);
 
-  if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /></View></Screen>;
+  if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
 
   const runEstimate = async () => {
     if (!r.pricePerKm || !pickup.trim()) { setEstimateErr('Saisis ton adresse de prise en charge.'); return; }
@@ -515,22 +516,22 @@ export function TransportProposeV2() {
 
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center', gap: 8 },
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginBottom: 4 },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginBottom: 4 },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, letterSpacing: -0.3 },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  link: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginTop: Spacing.md },
+  link: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginTop: Spacing.md },
 
   door: { borderRadius: 16, borderWidth: 1, padding: Spacing.lg, gap: 4, marginTop: Spacing.md },
   doorSearch: { backgroundColor: Colors.infoBg, borderColor: Colors.infoBorder },
-  doorOffer: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder },
+  doorOffer: { backgroundColor: BL.accentSoft, borderColor: BL.accentLine },
   doorIcon: { fontSize: 22 },
   doorTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   doorSub: { fontSize: FontSize.sm, color: Colors.textSecondary },
 
-  ctxCard: { backgroundColor: Colors.primaryLight, borderColor: Colors.primaryBorder, borderWidth: 1, borderRadius: 14, padding: Spacing.md, gap: 3, marginTop: Spacing.sm },
-  ctxTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.6, textTransform: 'uppercase' },
+  ctxCard: { backgroundColor: BL.accentSoft, borderColor: BL.accentLine, borderWidth: 1, borderRadius: 14, padding: Spacing.md, gap: 3, marginTop: Spacing.sm },
+  ctxTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: BL.accent, letterSpacing: 0.6, textTransform: 'uppercase' },
   ctxLine: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
-  forHorses: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primaryDark, marginTop: 2 },
+  forHorses: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: BL.accent, marginTop: 2 },
 
   field: { gap: 4, marginTop: Spacing.sm },
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
@@ -539,7 +540,7 @@ const s = StyleSheet.create({
   rowFields: { flexDirection: 'row', gap: Spacing.md },
   flex1: { flex: 1 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.sm, flex: 1 },
-  checkBox: { fontSize: 18, color: Colors.primary },
+  checkBox: { fontSize: 18, color: BL.accent },
   checkTxt: { fontSize: FontSize.sm, color: Colors.textPrimary, flex: 1 },
 
   resultsTitle: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary, marginTop: Spacing.md },
@@ -550,7 +551,7 @@ const s = StyleSheet.create({
   resultName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   resultTrajet: { fontSize: FontSize.sm, color: Colors.textSecondary },
   resultMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  resultCta: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginTop: 2 },
+  resultCta: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginTop: 2 },
   simTag: { fontSize: FontSize.xs, color: Colors.warning, fontStyle: 'italic', marginTop: 4, lineHeight: 16 },
   estimBox: { marginTop: Spacing.sm, gap: 2, backgroundColor: Colors.infoBg, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.infoBorder, padding: Spacing.sm },
   demoTag: { backgroundColor: Colors.warningBg, borderColor: Colors.warningBorder, borderWidth: 1, borderRadius: 6, paddingHorizontal: 6, paddingVertical: 2 },
@@ -564,7 +565,7 @@ const s = StyleSheet.create({
   desc: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
   totalRow: { flexDirection: 'row', justifyContent: 'space-between', borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: 4 },
   totalLabel: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
-  totalValue: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primaryDark },
+  totalValue: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: BL.accent },
 
   successWrap: { alignItems: 'center', gap: 6, paddingVertical: Spacing.lg },
   successIcon: { fontSize: 40 },

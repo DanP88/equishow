@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, PrimaryButton, GhostButton } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
@@ -103,7 +104,7 @@ export function CoachOptInV2() {
 }
 
 const s = StyleSheet.create({
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
   h1: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },
   body: { fontSize: FontSize.base, color: Colors.textSecondary, lineHeight: 21 },

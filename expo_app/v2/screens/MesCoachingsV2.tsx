@@ -6,6 +6,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
 import { getConcoursEntry, setConcoursEntry } from '../state/concoursLocal';
@@ -94,12 +95,12 @@ export function MesCoachingsV2() {
 }
 
 const s = StyleSheet.create({
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   itemTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   itemMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
   itemStatus: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold, marginTop: 2 },
   itemBtns: { flexDirection: 'row', gap: Spacing.lg, marginTop: 4 },
-  action: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  action: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
   remove: { fontSize: FontSize.sm, color: Colors.urgent, fontWeight: FontWeight.bold, marginTop: 4 },
 });

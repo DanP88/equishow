@@ -16,6 +16,7 @@
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Section, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
 import { Icon } from '../ui/Icon';
@@ -34,7 +35,7 @@ export function FicheConcoursV2() {
   const ch = useV2ContestHorses(id);
   const iOrganise = mine.some((c) => c.id === id);
 
-  if (isLoading) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /></View></Screen>;
+  if (isLoading) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
   if (!concours) return <Screen><Text style={s.h1}>Concours introuvable</Text><GhostButton label="← Retour" onPress={() => router.back()} /></Screen>;
 
   const openPrep = (anchor?: string) => router.push(`/(v2)/concours/${id}/preparer${anchor ? `?focus=${anchor}` : ''}` as any);
@@ -178,25 +179,25 @@ export function FicheConcoursV2() {
 
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginBottom: 4 },
-  band: { alignSelf: 'flex-start', backgroundColor: Colors.primary, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3 },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginBottom: 4 },
+  band: { alignSelf: 'flex-start', backgroundColor: BL.accent, borderRadius: 6, paddingHorizontal: 10, paddingVertical: 3 },
   bandTxt: { color: Colors.textInverse, fontSize: FontSize.xs, fontWeight: FontWeight.bold },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, letterSpacing: -0.3, marginTop: 4 },
   meta: { fontSize: FontSize.base, color: Colors.textSecondary },
   metaDim: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
   ffe: { marginTop: 8, alignSelf: 'flex-start' },
-  ffeTxt: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  ffeTxt: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
 
   actHead: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   actTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   actSub: { fontSize: FontSize.sm, color: Colors.textSecondary },
   actBtns: { gap: Spacing.sm },
 
-  mcKicker: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.primaryDark, letterSpacing: 0.8 },
+  mcKicker: { fontSize: 11, fontWeight: FontWeight.extrabold, color: BL.accent, letterSpacing: 0.8 },
   mcLead: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
 
   goneRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   gone: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.success },
   goneUndo: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
-  link: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, alignSelf: 'flex-start' },
+  link: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, alignSelf: 'flex-start' },
 });

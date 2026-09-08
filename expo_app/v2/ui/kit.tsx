@@ -12,6 +12,7 @@ import {
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
+import { BL, FONT } from './blush';
 import { Icon, resolveIconName } from './Icon';
 
 /** Icône (famille MCI) si résoluble, sinon le glyphe brut en texte (repli sûr). */
@@ -24,17 +25,17 @@ function GlyphIcon({ glyph, size, color }: { glyph?: string; size: number; color
 
 export const V2 = { Colors, Spacing, Radius, FontSize, FontWeight, Shadow };
 
-// Palette locale : neutres calmes + orange uniquement pour l'action primaire.
+// Palette locale — thème « Blush + fun » (test). Cf. v2/ui/blush.ts.
 const C = {
-  bg: Colors.background,
-  card: Colors.surface,
-  line: Colors.border,    // hairline très douce (token)
-  ink: Colors.textPrimary,
-  sub: Colors.textSecondary,
-  faint: Colors.textTertiary,
-  cta: Colors.primary,
-  ctaSoft: Colors.primaryLight,
-  ctaLine: Colors.primaryBorder,
+  bg: BL.bg,
+  card: BL.card,
+  line: BL.line,
+  ink: BL.ink,
+  sub: BL.sub,
+  faint: BL.faint,
+  cta: BL.accent,
+  ctaSoft: BL.accentSoft,
+  ctaLine: BL.accentLine,
 };
 
 export function Screen({ children, scroll = true }: { children: React.ReactNode; scroll?: boolean }) {
@@ -175,7 +176,7 @@ const k = StyleSheet.create({
   screen: { flex: 1, backgroundColor: C.bg },
   screenInner: { flex: 1 },
   scrollPad: { padding: Spacing.lg, paddingBottom: 44, gap: Spacing.md },
-  h1: { fontSize: 26, fontWeight: FontWeight.extrabold, color: C.ink, letterSpacing: -0.4 },
+  h1: { fontFamily: FONT.head, fontSize: 25, fontWeight: '700', color: C.ink, letterSpacing: -0.3 },
 
   section: { gap: Spacing.sm, marginTop: Spacing.xl },
   sectionHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -197,7 +198,7 @@ const k = StyleSheet.create({
   chip: { paddingVertical: 7, paddingHorizontal: Spacing.md, borderRadius: 999, borderWidth: 1, borderColor: C.line, backgroundColor: C.card },
   chipOn: { backgroundColor: C.ctaSoft, borderColor: C.ctaLine },
   chipTxt: { fontSize: FontSize.sm, color: C.sub, fontWeight: FontWeight.semibold },
-  chipTxtOn: { color: Colors.primaryDark },
+  chipTxtOn: { color: BL.accent },
 
   segment: { flexDirection: 'row', backgroundColor: C.bg, borderRadius: 12, padding: 3, borderWidth: 1, borderColor: C.line },
   segBtn: { flex: 1, paddingVertical: 9, borderRadius: 9, alignItems: 'center' },
@@ -220,9 +221,9 @@ const k = StyleSheet.create({
   phDot: { color: C.faint },
   phLink: { color: C.cta, fontStyle: 'normal', fontWeight: FontWeight.semibold },
 
-  btn: { backgroundColor: C.cta, borderRadius: 14, paddingVertical: Spacing.md + 2, alignItems: 'center', paddingHorizontal: Spacing.lg },
-  btnOff: { backgroundColor: '#E7E5E1' },
-  btnTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
-  btnGhost: { borderRadius: 14, borderWidth: 1, borderColor: C.line, paddingVertical: Spacing.md + 2, alignItems: 'center', backgroundColor: C.card },
+  btn: { backgroundColor: C.cta, borderRadius: 999, paddingVertical: Spacing.md + 2, alignItems: 'center', paddingHorizontal: Spacing.lg },
+  btnOff: { backgroundColor: '#E7DDE0' },
+  btnTxt: { color: BL.accentInk, fontFamily: FONT.body, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
+  btnGhost: { borderRadius: 999, borderWidth: 1, borderColor: C.line, paddingVertical: Spacing.md + 2, alignItems: 'center', backgroundColor: C.card },
   btnGhostTxt: { color: C.sub, fontWeight: FontWeight.bold, fontSize: FontSize.base },
 });

@@ -5,8 +5,8 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { Colors } from '../../constants/colors';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
+import { BL, FONT } from '../ui/blush';
 import { Icon } from '../ui/Icon';
 import { V2_TOPBAR } from './navConfig';
 import { useV2Session } from '../auth';
@@ -40,19 +40,19 @@ export function TopBarV2() {
 function IconBtn({ name, count, onPress }: { name: string; count: number; onPress: () => void }) {
   return (
     <TouchableOpacity style={s.iconBtn} onPress={onPress} activeOpacity={0.7}>
-      <Icon name={name} size={21} color={Colors.textPrimary} />
+      <Icon name={name} size={21} color={BL.ink} />
       {count > 0 && <View style={s.badge}><Text style={s.badgeTxt}>{count > 9 ? '9+' : count}</Text></View>}
     </TouchableOpacity>
   );
 }
 
 const s = StyleSheet.create({
-  bar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  logo: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.primary, letterSpacing: -0.3 },
+  bar: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, paddingHorizontal: Spacing.lg, paddingBottom: Spacing.sm, backgroundColor: BL.card, borderBottomWidth: 1, borderBottomColor: BL.line },
+  logo: { fontFamily: FONT.head, fontSize: 19, fontWeight: '700', color: BL.accent, letterSpacing: -0.2 },
   iconBtn: { padding: 4 },
   icon: { fontSize: 20 },
-  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: Colors.primaryLight },
-  avatarTxt: { color: Colors.textInverse, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
-  badge: { position: 'absolute', top: -2, right: -4, backgroundColor: '#FF4444', borderRadius: 9, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
+  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: BL.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: BL.accentSoft },
+  avatarTxt: { color: BL.accentInk, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  badge: { position: 'absolute', top: -2, right: -4, backgroundColor: BL.berry, borderRadius: 9, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '700' },
 });

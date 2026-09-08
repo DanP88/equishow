@@ -1,6 +1,7 @@
 // v2/ui/prep — éléments visuels du « tableau de bord » Mon concours (F4).
 import { View, Text, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from './blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { PrepStatus, STATUS_META } from '../state/concoursLocal';
 
@@ -36,9 +37,9 @@ const p = StyleSheet.create({
   wrap: { gap: 6 },
   headRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline' },
   title: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  count: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primaryDark },
+  count: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: BL.accent },
   track: { height: 8, borderRadius: 4, backgroundColor: '#EDEBE6', overflow: 'hidden' },
-  fill: { height: 8, borderRadius: 4, backgroundColor: Colors.primary },
+  fill: { height: 8, borderRadius: 4, backgroundColor: BL.accent },
   sub: { fontSize: FontSize.xs, color: Colors.textSecondary },
   pill: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 3 },
   pillTxt: { fontSize: FontSize.xs, fontWeight: FontWeight.bold },

@@ -8,6 +8,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Placeholder } from '../ui/kit';
 import { useV2Conversations } from '../adapters/messaging';
@@ -47,7 +48,7 @@ export function MessagerieV2() {
 }
 
 const s = StyleSheet.create({
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: 4 },
   empty: { fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic', marginTop: Spacing.md },
   conv: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md },
@@ -56,7 +57,7 @@ const s = StyleSheet.create({
   row1: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: Spacing.sm },
   name: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary, flex: 1 },
   when: { fontSize: FontSize.xs, color: Colors.textTertiary },
-  ctx: { fontSize: FontSize.xs, color: Colors.primaryDark, fontWeight: FontWeight.semibold, marginTop: 1 },
+  ctx: { fontSize: FontSize.xs, color: BL.accent, fontWeight: FontWeight.semibold, marginTop: 1 },
   last: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 1 },
-  dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: Colors.primary },
+  dot: { width: 9, height: 9, borderRadius: 5, backgroundColor: BL.accent },
 });

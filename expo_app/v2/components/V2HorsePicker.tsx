@@ -11,6 +11,7 @@
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { GhostButton } from '../ui/kit';
 import { useV2AllHorses, horseSubtitle } from '../state/contestHorses';
@@ -94,8 +95,8 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing.md,
     backgroundColor: Colors.surface,
   },
-  rowOn: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight },
-  check: { fontSize: 18, color: Colors.primary },
+  rowOn: { borderColor: BL.accent, backgroundColor: BL.accentSoft },
+  check: { fontSize: 18, color: BL.accent },
   name: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   subTxt: { fontSize: FontSize.xs, color: Colors.textTertiary },
   empty: {

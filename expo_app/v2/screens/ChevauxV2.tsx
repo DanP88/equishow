@@ -9,6 +9,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, H1, Section, Card, Row, RowGroup, EmptyState, Placeholder } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
@@ -45,7 +46,7 @@ export function ChevauxV2() {
             {pool.all.map((h) => (
               <Card key={h.id} onPress={() => router.push(`/(v2)/chevaux/${h.id}` as any)}>
                 <View style={s.cardRow}>
-                  <View style={[s.dot, { backgroundColor: h.couleur || Colors.primary }]} />
+                  <View style={[s.dot, { backgroundColor: h.couleur || BL.accent }]} />
                   <View style={{ flex: 1 }}>
                     <Text style={s.name}>{h.nom}{h.src === 'local' ? '  · local V2' : ''}</Text>
                     {!!horseSubtitle(h) && <Text style={s.sub}>{horseSubtitle(h)}</Text>}
@@ -85,7 +86,7 @@ export function ChevauxV2() {
 
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  add: { fontSize: 24, color: Colors.primary, fontWeight: FontWeight.bold, paddingHorizontal: Spacing.sm },
+  add: { fontSize: 24, color: BL.accent, fontWeight: FontWeight.bold, paddingHorizontal: Spacing.sm },
   cardRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dot: { width: 30, height: 30, borderRadius: 15 },
   name: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },

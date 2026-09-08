@@ -59,7 +59,7 @@ export const CAPABILITY_TAGLINE: Record<Capability, string> = {
 
 /** Couleur d'accent par capacité (aligne V1 : cavalier orange, coach violet, org bleu). */
 export const CAPABILITY_COLOR: Record<Capability, string> = {
-  cavalier: '#F97316',
+  cavalier: '#B5546A',
   coach: '#7C3AED',
   organisateur: '#0369A1',
 };

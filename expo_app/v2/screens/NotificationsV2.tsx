@@ -7,6 +7,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Placeholder, Row, RowGroup } from '../ui/kit';
 import { useV2Notifications } from '../adapters/notifications';
@@ -40,7 +41,7 @@ export function NotificationsV2() {
 }
 
 const s = StyleSheet.create({
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: 4 },
   empty: { fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic', marginTop: Spacing.md },
   group: { gap: Spacing.xs, marginTop: Spacing.lg },

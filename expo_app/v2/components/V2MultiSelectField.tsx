@@ -12,6 +12,7 @@
 import { useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 
 export function V2MultiSelectField({
@@ -82,14 +83,14 @@ const s = StyleSheet.create({
   field: { gap: 4, marginTop: Spacing.sm },
   label: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   trigger: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, backgroundColor: Colors.surface },
-  triggerFilled: { borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
+  triggerFilled: { borderColor: BL.accentLine, backgroundColor: BL.accentSoft },
   value: { flex: 1, fontSize: FontSize.base, color: Colors.textPrimary, fontWeight: FontWeight.medium },
   placeholder: { color: Colors.textTertiary, fontWeight: FontWeight.regular },
   arrow: { fontSize: 12, color: Colors.textTertiary },
 
   chips: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm, marginTop: 4 },
-  chip: { paddingVertical: 6, paddingHorizontal: Spacing.md, borderRadius: 999, borderWidth: 1, borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
-  chipTxt: { fontSize: FontSize.sm, color: Colors.primaryDark, fontWeight: FontWeight.semibold },
+  chip: { paddingVertical: 6, paddingHorizontal: Spacing.md, borderRadius: 999, borderWidth: 1, borderColor: BL.accentLine, backgroundColor: BL.accentSoft },
+  chipTxt: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.semibold },
 
   backdrop: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center', padding: Spacing.lg },
   sheet: { backgroundColor: Colors.surface, borderRadius: 16, width: '100%', maxWidth: 380, maxHeight: '80%', padding: Spacing.lg },
@@ -98,10 +99,10 @@ const s = StyleSheet.create({
   list: { maxHeight: 360, marginTop: Spacing.sm },
   noOpt: { fontSize: FontSize.sm, color: Colors.textTertiary, textAlign: 'center', paddingVertical: Spacing.md },
   item: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  itemOn: { backgroundColor: Colors.primaryLight, borderRadius: 8 },
-  check: { fontSize: 18, color: Colors.primary },
+  itemOn: { backgroundColor: BL.accentSoft, borderRadius: 8 },
+  check: { fontSize: 18, color: BL.accent },
   itemTxt: { fontSize: FontSize.base, color: Colors.textPrimary, flex: 1 },
-  itemTxtOn: { color: Colors.primaryDark, fontWeight: FontWeight.bold },
-  done: { backgroundColor: Colors.primary, borderRadius: 12, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.md },
+  itemTxtOn: { color: BL.accent, fontWeight: FontWeight.bold },
+  done: { backgroundColor: BL.accent, borderRadius: 12, paddingVertical: Spacing.md, alignItems: 'center', marginTop: Spacing.md },
   doneTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.sm },
 });

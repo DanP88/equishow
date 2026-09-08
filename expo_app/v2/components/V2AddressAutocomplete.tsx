@@ -14,6 +14,7 @@ import {
   View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, ScrollView, Platform,
 } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize } from '../../constants/theme';
 
 const createPortal: ((node: React.ReactNode, container: Element) => React.ReactNode) | null =
@@ -175,7 +176,7 @@ export function V2AddressAutocomplete({
           placeholderTextColor={Colors.textTertiary}
           autoCorrect={false}
         />
-        {loading && <View style={st.loader}><ActivityIndicator size="small" color={Colors.primary} /></View>}
+        {loading && <View style={st.loader}><ActivityIndicator size="small" color={BL.accent} /></View>}
       </View>
       {nativeDropdown}
       {webDropdown}

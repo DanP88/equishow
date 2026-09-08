@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { FontSize, FontWeight, Spacing } from '../../constants/theme';
 import type { AutoDestination } from '../state/autoDestination';
 import { V2AddressAutocomplete } from './V2AddressAutocomplete';
@@ -64,7 +65,7 @@ const s = StyleSheet.create({
     textTransform: 'uppercase',
     letterSpacing: 0.5,
   },
-  fromConcours: { fontSize: FontSize.xs, color: Colors.primaryDark, fontWeight: FontWeight.semibold },
-  reset: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.bold },
+  fromConcours: { fontSize: FontSize.xs, color: BL.accent, fontWeight: FontWeight.semibold },
+  reset: { fontSize: FontSize.xs, color: BL.accent, fontWeight: FontWeight.bold },
   manual: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
 });

@@ -6,6 +6,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, RowGroup, Row, EmptyState, Placeholder } from '../ui/kit';
 import { useV2Avis } from '../adapters/avis';
@@ -64,14 +65,14 @@ export function AvisV2() {
 }
 
 const s = StyleSheet.create({
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginBottom: 4 },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginBottom: 4 },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, letterSpacing: -0.3 },
   big: { fontSize: 30, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   starTxt: { fontSize: FontSize.base, color: Colors.warning },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },
   bucketHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   bucketTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  bucketNote: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primaryDark },
+  bucketNote: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: BL.accent },
   avis: { borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm, marginTop: Spacing.sm, gap: 2 },
   avisHead: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   avisTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },

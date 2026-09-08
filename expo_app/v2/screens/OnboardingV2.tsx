@@ -19,6 +19,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, TextInput,
 } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { DISCIPLINES } from '../../lib/discipline';
 import { REGIONS_FR } from '../../lib/regions';
@@ -309,11 +310,11 @@ function RecapRow({ label, value }: { label: string; value: string }) {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   header: { padding: Spacing.lg, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: Spacing.sm },
-  headerKicker: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  headerKicker: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: BL.accent, textTransform: 'uppercase', letterSpacing: 0.5 },
   headerTitle: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   progress: { flexDirection: 'row', gap: 6, marginTop: 4 },
   progressDot: { width: 22, height: 4, borderRadius: 2, backgroundColor: Colors.border },
-  progressDotOn: { backgroundColor: Colors.primary },
+  progressDotOn: { backgroundColor: BL.accent },
   body: { padding: Spacing.lg, gap: Spacing.md, paddingBottom: 40 },
   lead: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 20 },
@@ -323,21 +324,21 @@ const s = StyleSheet.create({
   checkMark: { color: '#fff', fontSize: 13, fontWeight: '800' },
   cardTitle: { fontSize: FontSize.lg, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   cardDesc: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
-  note: { backgroundColor: Colors.primaryLight, borderWidth: 1, borderColor: Colors.primaryBorder, borderRadius: Radius.md, padding: Spacing.md },
+  note: { backgroundColor: BL.accentSoft, borderWidth: 1, borderColor: BL.accentLine, borderRadius: Radius.md, padding: Spacing.md },
   noteTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
   field: { gap: Spacing.xs },
   fieldLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   chip: { paddingVertical: Spacing.sm, paddingHorizontal: Spacing.md, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, backgroundColor: Colors.surface },
-  chipOn: { backgroundColor: Colors.primary, borderColor: Colors.primary },
+  chipOn: { backgroundColor: BL.accent, borderColor: BL.accent },
   chipTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
   chipTxtOn: { color: Colors.textInverse },
   recapRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   recapLabel: { fontSize: FontSize.sm, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   recapValue: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold, flexShrink: 1, textAlign: 'right' },
   footer: { flexDirection: 'row', gap: Spacing.md, padding: Spacing.lg, paddingBottom: 28, backgroundColor: Colors.surface, borderTopWidth: 1, borderTopColor: Colors.border },
-  btn: { flex: 1, backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 2, alignItems: 'center' },
+  btn: { flex: 1, backgroundColor: BL.accent, borderRadius: Radius.lg, paddingVertical: Spacing.md + 2, alignItems: 'center' },
   btnDisabled: { backgroundColor: Colors.borderMedium },
   btnTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
   btnGhost: { paddingVertical: Spacing.md + 2, paddingHorizontal: Spacing.lg, borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, alignItems: 'center' },

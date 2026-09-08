@@ -7,6 +7,7 @@
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, Section, Placeholder } from '../ui/kit';
 import { useCapabilities, CAPABILITY_LABEL } from '../capabilities';
@@ -135,11 +136,11 @@ export function ProfilV2() {
 
 const s = StyleSheet.create({
   headRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'center' },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: Colors.primary, alignItems: 'center', justifyContent: 'center' },
+  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: BL.accent, alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.lg },
   name: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   verif: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  activities: { fontSize: FontSize.sm, color: Colors.primaryDark, fontWeight: FontWeight.semibold, marginTop: 2 },
+  activities: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.semibold, marginTop: 2 },
   counters: { flexDirection: 'row', alignItems: 'center', gap: Spacing.md, flexWrap: 'wrap', marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
   counterItem: { flexDirection: 'row', alignItems: 'center', gap: 4 },
   counterN: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.bold },

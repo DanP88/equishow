@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card } from '../ui/kit';
 import { V2SelectField } from '../components/V2SelectField';
@@ -138,7 +139,7 @@ export function ChercheProposeHub({ mode }: { mode: 'cherche' | 'propose' }) {
 }
 
 const s = StyleSheet.create({
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
   h1: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   title: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },

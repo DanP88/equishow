@@ -10,6 +10,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import {
   ALL_CAPABILITIES, CAPABILITY_COLOR, CAPABILITY_LABEL, CAPABILITY_PRESETS, useCapabilities,
@@ -158,19 +159,19 @@ const s = StyleSheet.create({
   section: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5, marginTop: Spacing.sm },
   presetGrid: { gap: Spacing.sm },
   preset: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingVertical: Spacing.md, paddingHorizontal: Spacing.md, backgroundColor: Colors.surface },
-  presetOn: { borderColor: Colors.primary, backgroundColor: Colors.primaryLight, borderWidth: 2 },
+  presetOn: { borderColor: BL.accent, backgroundColor: BL.accentSoft, borderWidth: 2 },
   presetTxt: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textSecondary },
-  presetTxtOn: { color: Colors.primary, fontWeight: FontWeight.bold },
+  presetTxtOn: { color: BL.accent, fontWeight: FontWeight.bold },
   testEmail: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
   toggleRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderRadius: Radius.md, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.sm + 2, paddingHorizontal: Spacing.md },
   dot: { width: 10, height: 10, borderRadius: 5 },
   toggleLabel: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary, flex: 1 },
   toggleStatus: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold, marginRight: Spacing.sm },
-  miniBtn: { borderWidth: 1, borderColor: Colors.primary, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
-  miniBtnTxt: { fontSize: FontSize.xs, color: Colors.primary, fontWeight: FontWeight.bold },
+  miniBtn: { borderWidth: 1, borderColor: BL.accent, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
+  miniBtnTxt: { fontSize: FontSize.xs, color: BL.accent, fontWeight: FontWeight.bold },
   actionBtn: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, padding: Spacing.md, backgroundColor: Colors.surface },
   actionBtnDanger: { borderColor: Colors.urgentBorder, backgroundColor: Colors.urgentBg },
-  actionTxt: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.primary },
+  actionTxt: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: BL.accent },
   actionTxtOff: { color: Colors.textTertiary },
   footNote: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic', lineHeight: 17, marginTop: Spacing.sm },
 });

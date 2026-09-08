@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { Modal, View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 
 export function OrganisateurPendingModal({
@@ -58,6 +59,6 @@ const s = StyleSheet.create({
   bold: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
   simTag: { marginTop: Spacing.md, backgroundColor: Colors.warningBg, borderColor: Colors.warningBorder, borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 4 },
   simTagTxt: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.semibold, textAlign: 'center' },
-  btn: { marginTop: Spacing.lg, backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 2, paddingHorizontal: Spacing.xxl, alignItems: 'center', alignSelf: 'stretch' },
+  btn: { marginTop: Spacing.lg, backgroundColor: BL.accent, borderRadius: Radius.lg, paddingVertical: Spacing.md + 2, paddingHorizontal: Spacing.xxl, alignItems: 'center', alignSelf: 'stretch' },
   btnTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
 });

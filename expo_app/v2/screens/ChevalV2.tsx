@@ -14,6 +14,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, Row, RowGroup, Section, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
 import { useCheval } from '../../hooks/useChevaux';
@@ -87,14 +88,14 @@ export function ChevalV2() {
 
   // Cheval réel — LECTURE SEULE.
   const c = realCheval;
-  if (isLoading) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={Colors.primary} /></View></Screen>;
+  if (isLoading) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
   if (!c) return <Screen><Text style={s.h1}>Cheval introuvable</Text><GhostButton label="← Mes chevaux" onPress={() => router.replace('/(v2)/chevaux' as any)} /></Screen>;
 
   return (
     <Screen>
       <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(v2)/chevaux' as any))} hitSlop={8}><Text style={s.back}>← Chevaux</Text></TouchableOpacity>
       <View style={s.headRow}>
-        <View style={[s.dot, { backgroundColor: c.photoColor || Colors.primary }]} />
+        <View style={[s.dot, { backgroundColor: c.photoColor || BL.accent }]} />
         <Text style={s.h1}>{c.nom}</Text>
       </View>
 
@@ -249,7 +250,7 @@ function SanteSection({ real, local }: { real?: any; local?: any }) {
 
 const s = StyleSheet.create({
   center: { flex: 1, alignItems: 'center', justifyContent: 'center' },
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginBottom: 4 },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginBottom: 4 },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, letterSpacing: -0.3 },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },

@@ -84,7 +84,7 @@ export const NEED_LABEL: Record<NeedChoice, string> = {
 };
 export const STATUS_META: Record<PrepStatus, { label: string; dot: string; tone: 'ready' | 'todo' | 'searching' | 'offering' | 'skip' }> = {
   ready:     { label: '✅ Prêt',            dot: '#16A34A', tone: 'ready' },
-  todo:      { label: '🟠 À organiser',     dot: '#F97316', tone: 'todo' },
+  todo:      { label: '🟠 À organiser',     dot: '#EE9E84', tone: 'todo' },
   searching: { label: '🔎 Recherche',       dot: '#3B82F6', tone: 'searching' },
   offering:  { label: '📣 Je propose',      dot: '#7C3AED', tone: 'offering' },
   skip:      { label: '➖ Pas nécessaire',  dot: '#9CA3AF', tone: 'skip' },

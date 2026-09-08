@@ -16,6 +16,7 @@ import {
   View, Text, ScrollView, TouchableOpacity, StyleSheet, SafeAreaView, TextInput,
 } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { useV2Session } from '../auth';
 import { OnboardingV2 } from './OnboardingV2';
@@ -193,7 +194,7 @@ function RecapRow({ label, value }: { label: string; value: string }) {
 const s = StyleSheet.create({
   root: { flex: 1, backgroundColor: Colors.background },
   header: { padding: Spacing.lg, backgroundColor: Colors.surface, borderBottomWidth: 1, borderBottomColor: Colors.border, gap: Spacing.sm },
-  kicker: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.primary, textTransform: 'uppercase', letterSpacing: 0.5 },
+  kicker: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: BL.accent, textTransform: 'uppercase', letterSpacing: 0.5 },
   title: { fontSize: FontSize.xxl, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   simTag: { alignSelf: 'flex-start', backgroundColor: Colors.warningBg, borderColor: Colors.warningBorder, borderWidth: 1, borderRadius: Radius.sm, paddingHorizontal: Spacing.sm, paddingVertical: 3 },
   simTagTxt: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.semibold },
@@ -204,17 +205,17 @@ const s = StyleSheet.create({
   field: { gap: Spacing.xs },
   fieldLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
-  forgot: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.semibold, alignSelf: 'flex-start' },
+  forgot: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.semibold, alignSelf: 'flex-start' },
   err: { fontSize: FontSize.sm, color: Colors.urgent, fontWeight: FontWeight.semibold },
-  note: { backgroundColor: Colors.primaryLight, borderWidth: 1, borderColor: Colors.primaryBorder, borderRadius: Radius.md, padding: Spacing.md },
+  note: { backgroundColor: BL.accentSoft, borderWidth: 1, borderColor: BL.accentLine, borderRadius: Radius.md, padding: Spacing.md },
   noteTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
   b: { fontWeight: FontWeight.bold, color: Colors.textPrimary },
-  btn: { backgroundColor: Colors.primary, borderRadius: Radius.lg, paddingVertical: Spacing.md + 2, alignItems: 'center', marginTop: Spacing.xs },
+  btn: { backgroundColor: BL.accent, borderRadius: Radius.lg, paddingVertical: Spacing.md + 2, alignItems: 'center', marginTop: Spacing.xs },
   btnTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.base },
   btnGhost: { borderRadius: Radius.lg, borderWidth: 1, borderColor: Colors.border, paddingVertical: Spacing.md + 2, alignItems: 'center' },
   btnGhostTxt: { color: Colors.textSecondary, fontWeight: FontWeight.bold, fontSize: FontSize.base },
   link: { paddingVertical: Spacing.sm, alignItems: 'center' },
-  linkTxt: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  linkTxt: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
   recapRow: { flexDirection: 'row', justifyContent: 'space-between', gap: Spacing.md, paddingVertical: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
   recapLabel: { fontSize: FontSize.sm, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   recapValue: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold, flexShrink: 1, textAlign: 'right' },

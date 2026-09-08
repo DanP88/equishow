@@ -15,6 +15,7 @@
 import { useState } from 'react';
 import { View, Text, Modal, TextInput, TouchableOpacity, ScrollView, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 
 export type V2SelectOption = string | { value: string; label: string };
@@ -125,7 +126,7 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3,
     backgroundColor: Colors.surface,
   },
-  triggerFilled: { borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
+  triggerFilled: { borderColor: BL.accentLine, backgroundColor: BL.accentSoft },
   value: { flex: 1, fontSize: FontSize.base, color: Colors.textPrimary, fontWeight: FontWeight.medium },
   placeholder: { color: Colors.textTertiary, fontWeight: FontWeight.regular },
   arrow: { fontSize: 12, color: Colors.textTertiary },
@@ -135,17 +136,17 @@ const s = StyleSheet.create({
   sheetTitle: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginBottom: Spacing.sm, textAlign: 'center', textTransform: 'capitalize' },
   list: { maxHeight: 380 },
   item: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingVertical: Spacing.md, paddingHorizontal: Spacing.sm, borderBottomWidth: 1, borderBottomColor: Colors.border },
-  itemActive: { backgroundColor: Colors.primaryLight, borderRadius: 8 },
+  itemActive: { backgroundColor: BL.accentSoft, borderRadius: 8 },
   itemText: { fontSize: FontSize.base, color: Colors.textPrimary },
-  itemTextActive: { color: Colors.primaryDark, fontWeight: FontWeight.bold },
+  itemTextActive: { color: BL.accent, fontWeight: FontWeight.bold },
   clearText: { color: Colors.textTertiary, fontStyle: 'italic' },
-  check: { fontSize: FontSize.base, color: Colors.primary, fontWeight: FontWeight.bold },
+  check: { fontSize: FontSize.base, color: BL.accent, fontWeight: FontWeight.bold },
 
   otherBox: { gap: Spacing.md, paddingTop: Spacing.sm },
   otherInput: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   otherBtns: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
   otherCancel: { fontSize: FontSize.sm, color: Colors.textSecondary, fontWeight: FontWeight.semibold },
-  otherOk: { backgroundColor: Colors.primary, borderRadius: 10, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
+  otherOk: { backgroundColor: BL.accent, borderRadius: 10, paddingHorizontal: Spacing.lg, paddingVertical: Spacing.sm + 2 },
   otherOkOff: { backgroundColor: '#E7E5E1' },
   otherOkTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.sm },
 });

@@ -18,6 +18,7 @@
 import { useState } from 'react';
 import { View, Text, TouchableOpacity, StyleSheet, ViewStyle, StyleProp } from 'react-native';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { DatePickerModal } from '../../components/DatePickerModal';
 
@@ -139,7 +140,7 @@ const s = StyleSheet.create({
     paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3,
     backgroundColor: Colors.surface,
   },
-  triggerFilled: { borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
+  triggerFilled: { borderColor: BL.accentLine, backgroundColor: BL.accentSoft },
   icon: { fontSize: 15 },
   value: { flex: 1, fontSize: FontSize.base, color: Colors.textPrimary, fontWeight: FontWeight.medium },
   placeholder: { color: Colors.textTertiary, fontWeight: FontWeight.regular },

@@ -13,10 +13,12 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { View, StyleSheet } from 'react-native';
 import { Stack, usePathname } from 'expo-router';
-import { Colors } from '../../constants/colors';
 import { TopBarV2 } from '../../v2/nav/TopBarV2';
 import { BottomBarV2 } from '../../v2/nav/BottomBarV2';
 import { V2_TABS } from '../../v2/nav/navConfig';
+import { BL, injectBlushFonts } from '../../v2/ui/blush';
+
+injectBlushFonts(); // web : charge Fraunces + Hanken Grotesk (no-op natif)
 
 export default function V2Layout() {
   const pathname = usePathname();
@@ -26,7 +28,7 @@ export default function V2Layout() {
     <View style={s.root}>
       <TopBarV2 />
       <View style={{ flex: 1 }}>
-        <Stack screenOptions={{ headerShown: false, animation: 'none', contentStyle: { backgroundColor: Colors.background } }} />
+        <Stack screenOptions={{ headerShown: false, animation: 'none', contentStyle: { backgroundColor: BL.bg } }} />
       </View>
       {onRootTab && <BottomBarV2 />}
     </View>
@@ -34,5 +36,5 @@ export default function V2Layout() {
 }
 
 const s = StyleSheet.create({
-  root: { flex: 1, backgroundColor: Colors.background },
+  root: { flex: 1, backgroundColor: BL.bg },
 });

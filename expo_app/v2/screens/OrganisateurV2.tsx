@@ -13,6 +13,7 @@ import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, Row, RowGroup, Section, PrimaryButton, GhostButton, EmptyState, Placeholder } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
@@ -113,7 +114,7 @@ export function OrgRadarV2() {
       <Text style={s.sub}>{title}{demo ? '  ·  données de démonstration' : ''}</Text>
 
       {!ready && !radar ? (
-        <View style={s.center}><ActivityIndicator color={Colors.primary} /></View>
+        <View style={s.center}><ActivityIndicator color={BL.accent} /></View>
       ) : !radar ? (
         <EmptyState icon="📊" title="Radar indisponible" body="Ce concours n'a pas encore de données de visibilité, ou le Radar n'est pas activé." />
       ) : (
@@ -175,17 +176,17 @@ export function OrgRadarV2() {
 
 const s = StyleSheet.create({
   center: { alignItems: 'center', justifyContent: 'center', paddingVertical: Spacing.xl },
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginBottom: 4 },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginBottom: 4 },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, letterSpacing: -0.3 },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },
 
-  pendingTitle: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.primaryDark },
+  pendingTitle: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: BL.accent },
   pendingBody: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
 
   filterRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap', marginTop: Spacing.sm },
   orgName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   orgMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
-  orgCta: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold, marginTop: 2 },
+  orgCta: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginTop: 2 },
 
   statGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: Spacing.sm },
   stat: { backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 12, padding: Spacing.md, minWidth: 100, flexGrow: 1, gap: 2 },

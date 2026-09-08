@@ -16,6 +16,7 @@ import { useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, PrimaryButton, GhostButton } from '../ui/kit';
 import { PrepBar, StatePill } from '../ui/prep';
@@ -218,7 +219,7 @@ function ServiceCard({
 }
 
 const s = StyleSheet.create({
-  back: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  back: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: 4 },
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },
   cardHead: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
@@ -230,8 +231,8 @@ const s = StyleSheet.create({
   emptyTxt: { fontSize: FontSize.sm, color: Colors.textSecondary },
 
   checkRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 2, backgroundColor: Colors.surface },
-  checkRowOn: { borderColor: Colors.primaryBorder, backgroundColor: Colors.primaryLight },
-  check: { fontSize: 18, color: Colors.primary },
+  checkRowOn: { borderColor: BL.accentLine, backgroundColor: BL.accentSoft },
+  check: { fontSize: 18, color: BL.accent },
   checkName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
   checkSub: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
   selSummary: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.success },

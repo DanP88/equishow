@@ -8,6 +8,7 @@ import { useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
+import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../../constants/theme';
 import { Screen, H1, Segment, Row, RowGroup, Chip, EmptyState, Placeholder, GhostButton } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
@@ -125,12 +126,12 @@ function OrganisesTab({ mine }: { mine: { id: string; nom: string; statut: strin
 
 const s = StyleSheet.create({
   head: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' },
-  fab: { backgroundColor: Colors.primary, borderRadius: 999, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, ...Shadow.fab },
+  fab: { backgroundColor: BL.accent, borderRadius: 999, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, ...Shadow.fab },
   fabTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.sm },
   filterRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
   orgCard: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: 4 },
   orgName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   orgMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },
   orgActions: { flexDirection: 'row', gap: Spacing.lg, marginTop: 8 },
-  orgAction: { fontSize: FontSize.sm, color: Colors.primary, fontWeight: FontWeight.bold },
+  orgAction: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
 });
