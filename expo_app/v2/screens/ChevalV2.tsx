@@ -254,7 +254,6 @@ function CoachPermanentSection({ chevalId, fallback }: { chevalId: string; fallb
 function CoachingConcoursSection({ chevalId }: { chevalId: string }) {
   const { list } = useChevalCoachAssoc(chevalId);
   const { concours } = useConcoursList();
-  if (list.length === 0) return null;
 
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const rows = list.map(({ concoursId, assoc }) => {
@@ -265,24 +264,24 @@ function CoachingConcoursSection({ chevalId }: { chevalId: string }) {
   });
   const avenir = rows.filter((r) => r.upcoming);
   const passes = rows.length - avenir.length;
-  if (avenir.length === 0 && passes === 0) return null;
 
   return (
     <Section title="Coaching sur les prochains concours">
       <RowGroup>
-        {avenir.map((r) => (
-          <Row
-            key={r.concoursId}
-            icon="🎓"
-            label={`${r.nom}${r.dateLabel ? ` — ${r.dateLabel}` : ''}`}
-            value={r.assoc.coachNom}
-            onPress={() => router.push(`/(v2)/concours/${r.concoursId}` as any)}
-          />
-        ))}
-        {avenir.length === 0 && <Row icon="🎓" label="Aucun coaching prévu à venir" />}
+        {avenir.length > 0
+          ? avenir.map((r) => (
+              <Row
+                key={r.concoursId}
+                icon="🎓"
+                label={`${r.nom}${r.dateLabel ? ` — ${r.dateLabel}` : ''}`}
+                value={r.assoc.coachNom}
+                onPress={() => router.push(`/(v2)/concours/${r.concoursId}` as any)}
+              />
+            ))
+          : <Row icon="🎓" label="Aucun coach associé à un concours à venir" />}
       </RowGroup>
       {passes > 0 && <Text style={s.coachNote}>{passes} coaching{passes > 1 ? 's' : ''} passé{passes > 1 ? 's' : ''} (concours terminés).</Text>}
-      <Text style={s.coachNote}>Ces associations ne modifient jamais le coach permanent.</Text>
+      <Text style={s.coachNote}>Ces associations ne modifient jamais le coach permanent. Une association se crée après une réservation de coach dans un concours.</Text>
     </Section>
   );
 }

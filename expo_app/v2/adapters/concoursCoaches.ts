@@ -114,16 +114,20 @@ export function useConcoursCoaches(concoursId?: string) {
     let coaches = [...byKey.values()];
 
     // ── 4. démo (aucune session) : coachs de démonstration du concours ───────
+    // Les mocks ont tous concoursNom = 'Jumping de La Baule' → on ne les montre
+    // que si la fiche affichée est bien ce concours (sinon 0 coach démo).
     const demo = !isSignedIn && coaches.length === 0;
     if (demo) {
       coaches = MOCK_COACHES.map((m) => ({
         key: `n:${norm(m.nom)}`,
+        userId: m.nom,          // démo : /user-profile/<nom> (profil généré par la route)
         nom: m.nom,
         initiales: m.initiales,
         couleur: m.couleur,
         note: m.note,
         disciplines: m.disciplines,
         niveaux: m.niveaux,
+        annonceId: m.id,        // démo : /(v2)/coach/detail?id=<m.id> (résout via MOCK_COACHES)
         sources: ['demo'] as PresentCoach['sources'],
       }));
     }
