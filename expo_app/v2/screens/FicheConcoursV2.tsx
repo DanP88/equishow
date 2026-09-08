@@ -13,6 +13,7 @@
 // Ne construit PAS les moteurs Transport/Box/Coach (F5+). Assure le contexte,
 // la navigation, l'état et le préremplissage.
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -25,6 +26,8 @@ import { useCapabilities } from '../capabilities';
 import { useConcours, useMyConcours } from '../../hooks/useConcours';
 import { useV2ContestHorses } from '../state/contestHorses';
 import { useConcoursLocal, needStatus, NeedChoice } from '../state/concoursLocal';
+import { useConcoursCoaches } from '../adapters/concoursCoaches';
+import { CoachsPresentsModal } from '../components/CoachsPresentsModal';
 
 export function FicheConcoursV2() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -34,6 +37,8 @@ export function FicheConcoursV2() {
   const { concours: mine } = useMyConcours();
   const ch = useV2ContestHorses(id);
   const iOrganise = mine.some((c) => c.id === id);
+  const { count: coachCount } = useConcoursCoaches(id);
+  const [coachModal, setCoachModal] = useState(false);
 
   if (isLoading) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
   if (!concours) return <Screen><Text style={s.h1}>Concours introuvable</Text><GhostButton label="← Retour" onPress={() => router.back()} /></Screen>;
@@ -155,6 +160,7 @@ export function FicheConcoursV2() {
       {/* ── INFOS CONCOURS ─────────────────────────────────────── */}
       <Section title="Infos concours">
         <RowGroup>
+          <Row icon="🎓" label={`Coachs présents · ${coachCount}`} onPress={() => setCoachModal(true)} />
           <Row icon="🌤" label="Météo (J–3 → J+1)" />
           <Row icon="📋" label={`Épreuves du concours · ${concours.liste_epreuves.length}`} />
           <Row icon="🕓" label="Horaires" value="non publiés" />
@@ -173,6 +179,13 @@ export function FicheConcoursV2() {
       {!entry.going && (
         <GhostButton label={entry.following ? '⭐ Concours suivi ✓' : '⭐ Suivre ce concours'} onPress={toggleFollow} />
       )}
+
+      <CoachsPresentsModal
+        visible={coachModal}
+        onClose={() => setCoachModal(false)}
+        concoursId={id}
+        concoursNom={concours.nom}
+      />
     </Screen>
   );
 }

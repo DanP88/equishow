@@ -18,9 +18,13 @@ import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, Row, RowGroup, Section, PrimaryButton, GhostButton, Placeholder } from '../ui/kit';
 import { useCheval } from '../../hooks/useChevaux';
+import { useConcoursList } from '../../hooks/useConcours';
 import { useChevauxLocal, isLocalHorseId, LocalChevalInput, LocalSante } from '../state/chevauxLocal';
+import { useCoachPermanent, CoachPermanent } from '../state/chevalCoachLocal';
+import { useChevalCoachAssoc } from '../state/concoursChevalCoach';
 import { V2SelectField } from '../components/V2SelectField';
 import { V2DateField, todayStart } from '../components/V2DateField';
+import { CoachPickerModal } from '../components/CoachPickerModal';
 import { vaccinStatus, soinStatus, SanteStatus } from '../lib/santeStatus';
 
 const SEXES = ['Hongre', 'Jument', 'Étalon'];
@@ -78,6 +82,8 @@ export function ChevalV2() {
         </RowGroup>
 
         <SanteSection local={c.sante} />
+        <CoachPermanentSection chevalId={id!} />
+        <CoachingConcoursSection chevalId={id!} />
 
         <PrimaryButton label="Modifier" onPress={() => router.push(`/(v2)/chevaux/${id}/modifier` as any)} />
         <GhostButton label="Supprimer ce cheval" onPress={() => { local.remove(id!); router.replace('/(v2)/chevaux' as any); }} />
@@ -114,8 +120,13 @@ export function ChevalV2() {
       {c.objectifs ? <Card><Text style={s.sub}>{c.objectifs}</Text></Card> : null}
 
       <SanteSection real={c.sante} />
+      <CoachPermanentSection
+        chevalId={id!}
+        fallback={c.gestion?.responsable ? { nom: c.gestion.responsable.nom, userId: c.gestion.responsable.userId } : null}
+      />
+      <CoachingConcoursSection chevalId={id!} />
 
-      <Placeholder note="fiche en LECTURE SEULE dans la V2 — la modification d'un cheval réel passe par l'app actuelle" v1Path={`/cheval/${id}`} v1Label="ouvrir la fiche V1" />
+      <Placeholder note="fiche en LECTURE SEULE dans la V2 — modification d'un cheval réel via l'app actuelle (sauf coach : géré localement en V2)" v1Path={`/cheval/${id}`} v1Label="ouvrir la fiche V1" />
     </Screen>
   );
 }
@@ -205,6 +216,77 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <View style={s.field}><Text style={s.fieldLabel}>{label}</Text>{children}</View>;
 }
 
+// ── Coach permanent (reprend chevaux.gestion.responsable — surcouche locale V2) ─
+function CoachPermanentSection({ chevalId, fallback }: { chevalId: string; fallback?: CoachPermanent | null }) {
+  const { coach, edited, set, clear } = useCoachPermanent(chevalId, fallback);
+  const [picker, setPicker] = useState(false);
+  return (
+    <Section title="Coach permanent">
+      {coach ? (
+        <View style={s.coachCard}>
+          <View style={[s.coachAvatar, { backgroundColor: coach.couleur || BL.accent }]}>
+            <Text style={s.coachAvatarTxt}>{coach.initiales || coach.nom.slice(0, 2).toUpperCase()}</Text>
+          </View>
+          <View style={{ flex: 1 }}>
+            <Text style={s.coachName}>{coach.nom}</Text>
+            <Text style={s.coachMeta}>{coach.userId ? 'Inscrit sur EquiShow · coach au quotidien' : 'Coach au quotidien'}</Text>
+          </View>
+          <View style={s.coachBtns}>
+            <TouchableOpacity style={s.coachBtn} onPress={() => setPicker(true)}><Text style={s.coachBtnTxt}>Modifier</Text></TouchableOpacity>
+            <TouchableOpacity style={[s.coachBtn, s.coachBtnDanger]} onPress={clear}><Text style={[s.coachBtnTxt, { color: Colors.urgent }]}>Retirer</Text></TouchableOpacity>
+          </View>
+        </View>
+      ) : (
+        <TouchableOpacity style={s.coachEmpty} onPress={() => setPicker(true)} activeOpacity={0.8}>
+          <Text style={s.coachEmptyTxt}>+ Ajouter un coach permanent</Text>
+        </TouchableOpacity>
+      )}
+      <Text style={s.coachNote}>
+        Indépendant des coachs affectés à ce cheval pour un concours.
+        {edited ? '  ·  modifié dans la V2 (test — non enregistré en base).' : ''}
+      </Text>
+      <CoachPickerModal visible={picker} onClose={() => setPicker(false)} onPick={(c) => set(c)} />
+    </Section>
+  );
+}
+
+// ── Coaching sur les prochains concours (associations Concours + Cheval + Coach) ─
+function CoachingConcoursSection({ chevalId }: { chevalId: string }) {
+  const { list } = useChevalCoachAssoc(chevalId);
+  const { concours } = useConcoursList();
+  if (list.length === 0) return null;
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const rows = list.map(({ concoursId, assoc }) => {
+    const c = concours.find((x) => x.id === concoursId);
+    const end = c?.date_fin ?? c?.date_debut ?? null;
+    const upcoming = !end || new Date(`${String(end).slice(0, 10)}T00:00:00`).getTime() >= today.getTime();
+    return { concoursId, assoc, nom: c?.nom ?? 'Concours', dateLabel: c?.dateLabel ?? '', upcoming };
+  });
+  const avenir = rows.filter((r) => r.upcoming);
+  const passes = rows.length - avenir.length;
+  if (avenir.length === 0 && passes === 0) return null;
+
+  return (
+    <Section title="Coaching sur les prochains concours">
+      <RowGroup>
+        {avenir.map((r) => (
+          <Row
+            key={r.concoursId}
+            icon="🎓"
+            label={`${r.nom}${r.dateLabel ? ` — ${r.dateLabel}` : ''}`}
+            value={r.assoc.coachNom}
+            onPress={() => router.push(`/(v2)/concours/${r.concoursId}` as any)}
+          />
+        ))}
+        {avenir.length === 0 && <Row icon="🎓" label="Aucun coaching prévu à venir" />}
+      </RowGroup>
+      {passes > 0 && <Text style={s.coachNote}>{passes} coaching{passes > 1 ? 's' : ''} passé{passes > 1 ? 's' : ''} (concours terminés).</Text>}
+      <Text style={s.coachNote}>Ces associations ne modifient jamais le coach permanent.</Text>
+    </Section>
+  );
+}
+
 // ── Santé — statut RÉEL (corrige le « Valide » en dur de la V1) ──────────────
 // Accepte la forme réelle (`SuiviSante`, dates Date) OU la forme locale V2
 // (`LocalSante`, strings 'YYYY-MM-DD').
@@ -256,6 +338,19 @@ const s = StyleSheet.create({
   headRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dot: { width: 34, height: 34, borderRadius: 17 },
   localTag: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.semibold },
+
+  coachCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 14, padding: Spacing.sm + 2 },
+  coachAvatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
+  coachAvatarTxt: { color: '#fff', fontWeight: FontWeight.bold, fontSize: FontSize.sm },
+  coachName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  coachMeta: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 1 },
+  coachBtns: { gap: 4, alignItems: 'flex-end' },
+  coachBtn: { borderWidth: 1, borderColor: BL.accentLine, borderRadius: 999, paddingHorizontal: 10, paddingVertical: 5 },
+  coachBtnDanger: { borderColor: Colors.urgentBorder },
+  coachBtnTxt: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: BL.accent },
+  coachEmpty: { borderWidth: 1, borderColor: BL.accentLine, borderStyle: 'dashed', borderRadius: 12, paddingVertical: Spacing.sm + 2, alignItems: 'center', backgroundColor: BL.accentSoft },
+  coachEmptyTxt: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
+  coachNote: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 6, lineHeight: 16 },
   field: { gap: 4, marginTop: Spacing.sm },
   fieldLabel: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
   input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },

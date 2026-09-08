@@ -56,6 +56,10 @@ export interface CoachBooking {
   concoursNom?: string;
   chevalId?: string;
   coach: string;
+  /** vrai users.id du coach si connu (annonce réelle) — pour « Coachs présents ». */
+  coachUserId?: string;
+  /** id de l'annonce de coaching (= refId pour src='real') — pour « voir l'annonce ». */
+  annonceId?: string;
   discipline: string;
   niveau: string;
   nbSeances: number;

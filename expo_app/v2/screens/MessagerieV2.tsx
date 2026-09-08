@@ -12,18 +12,33 @@ import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Placeholder } from '../ui/kit';
 import { useV2Conversations } from '../adapters/messaging';
+import { useCoachContacts } from '../state/coachContactLocal';
 
 export function MessagerieV2() {
   const { conversations, demo } = useV2Conversations();
+  const { contacts } = useCoachContacts();
 
   return (
     <Screen>
       <TouchableOpacity onPress={() => router.back()} hitSlop={6}><Text style={s.back}>← Retour</Text></TouchableOpacity>
       <Text style={s.h1}>Messages</Text>
 
-      {conversations.length === 0 && <Text style={s.empty}>Aucune conversation.</Text>}
+      {conversations.length === 0 && contacts.length === 0 && <Text style={s.empty}>Aucune conversation.</Text>}
 
       <View style={{ gap: 8, marginTop: Spacing.sm }}>
+        {contacts.map((c) => (
+          <View key={c.id} style={[s.conv, s.convSim]}>
+            <View style={[s.avatar, { backgroundColor: c.coachCouleur }]}><Text style={s.avatarTxt}>{c.coachInitiales.slice(0, 2).toUpperCase()}</Text></View>
+            <View style={{ flex: 1 }}>
+              <View style={s.row1}>
+                <Text style={s.name} numberOfLines={1}>{c.coachNom}</Text>
+                <Text style={s.simTag}>à envoyer</Text>
+              </View>
+              <Text style={s.ctx} numberOfLines={1}>🎓 Coaching{c.concoursNom ? ` · ${c.concoursNom}` : ''}</Text>
+              <Text style={s.last} numberOfLines={1}>Contact enregistré — messagerie réelle branchée en Phase 2.</Text>
+            </View>
+          </View>
+        ))}
         {conversations.map((c) => (
           <TouchableOpacity key={c.id} style={s.conv} activeOpacity={0.7}>
             <View style={[s.avatar, { backgroundColor: c.color }]}><Text style={s.avatarTxt}>{c.initials.slice(0, 2).toUpperCase()}</Text></View>
@@ -52,6 +67,8 @@ const s = StyleSheet.create({
   h1: { fontSize: 22, fontWeight: FontWeight.extrabold, color: Colors.textPrimary, marginTop: 4 },
   empty: { fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic', marginTop: Spacing.md },
   conv: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'center', backgroundColor: Colors.surface, borderRadius: 14, borderWidth: 1, borderColor: Colors.border, padding: Spacing.md },
+  convSim: { borderStyle: 'dashed', borderColor: BL.accentLine, backgroundColor: BL.accentSoft },
+  simTag: { fontSize: FontSize.xs, color: BL.accent, fontWeight: FontWeight.bold },
   avatar: { width: 38, height: 38, borderRadius: 19, alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { color: '#fff', fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   row1: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', gap: Spacing.sm },

@@ -14,7 +14,7 @@
 // Aucune écriture PROD. Aucun Stripe. Aucune vraie demande / séance.
 // Miroir de v2/screens/TransportV2 / BoxV2 (F5/F6).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
 import { router, useLocalSearchParams, Redirect } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -23,6 +23,8 @@ import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Chip, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
 import { useSearchHorses } from '../state/searchHorses';
+import { useV2ContestHorses } from '../state/contestHorses';
+import { useConcoursChevalCoach } from '../state/concoursChevalCoach';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal } from '../state/concoursLocal';
@@ -288,8 +290,21 @@ export function CoachDemanderV2() {
   const cl = useConcoursLocal(concoursId);
   const kl = useCoachLocal(concoursId);
   const ch = useSearchHorses(concoursId, 'coach', chevalIds);
+  const contestCh = useV2ContestHorses(concoursId);
+  const assocStore = useConcoursChevalCoach(concoursId);
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
+  const [assocDone, setAssocDone] = useState(false);
+  const [assocSel, setAssocSel] = useState<string[]>([]);
+
+  // G3 — chevaux à proposer pour l'association (tous ceux du concours ;
+  // pré-cochés = ceux visés par la recherche coach).
+  const assocHorses = contestCh.horses.length ? contestCh.horses : ch.horses;
+  useEffect(() => {
+    if (done && assocSel.length === 0) {
+      setAssocSel(ch.ids.length ? ch.ids : assocHorses.map((h) => h.id));
+    }
+  }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
 
@@ -302,7 +317,8 @@ export function CoachDemanderV2() {
     ch.persist();
     kl.book({
       src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
-      coach: r.nom, discipline: discipline || r.disciplines, niveau: niveau || r.niveaux,
+      coach: r.nom, coachUserId: r.coachUserId, annonceId: r.src === 'real' ? r.id : undefined,
+      discipline: discipline || r.disciplines, niveau: niveau || r.niveaux,
       nbSeances, prixSeance: r.prixSeance, prix: total,
       date: concours?.date_debut ?? undefined,
     });
@@ -312,7 +328,22 @@ export function CoachDemanderV2() {
     setDone(true);
   };
 
+  const toggleAssoc = (hid: string) =>
+    setAssocSel((v) => (v.includes(hid) ? v.filter((x) => x !== hid) : [...v, hid]));
+  const doAssoc = () => {
+    assocStore.setMany(assocSel, {
+      coachUserId: r!.coachUserId,
+      coachNom: r!.nom,
+      coachInitiales: r!.initiales,
+      coachCouleur: r!.couleur,
+      annonceId: r!.src === 'real' ? r!.id : undefined,
+      source: 'reservation',
+    });
+    setAssocDone(true);
+  };
+
   if (done) {
+    const showAssoc = !!concoursId && assocHorses.length > 0 && !assocDone;
     return (
       <Screen>
         <View style={s.successWrap}>
@@ -320,6 +351,31 @@ export function CoachDemanderV2() {
           <Text style={s.successTitle}>Demande envoyée</Text>
           <Text style={s.sub}>Demande simulée — aucun paiement réel, le coach n'a pas été contacté.</Text>
         </View>
+
+        {showAssoc && (
+          <Card>
+            <Text style={s.assocTitle}>Associer ce coach à vos chevaux pour ce concours</Text>
+            <Text style={s.sub}>{r.nom} sera présent{concours ? ` au ${concours.nom}` : ' sur ce concours'}.</Text>
+            <View style={{ gap: 6, marginTop: 8 }}>
+              {assocHorses.map((h) => {
+                const on = assocSel.includes(h.id);
+                return (
+                  <TouchableOpacity key={h.id} style={[s.assocRow, on && s.assocRowOn]} activeOpacity={0.85} onPress={() => toggleAssoc(h.id)}>
+                    <Text style={s.assocCheck}>{on ? '☑' : '☐'}</Text>
+                    <Text style={s.assocName}>{h.nom}{h.src === 'local' ? '  · local' : ''}</Text>
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
+            <PrimaryButton label="Associer aux chevaux sélectionnés" onPress={doAssoc} disabled={assocSel.length === 0} />
+            <GhostButton label="Plus tard" onPress={() => setAssocDone(true)} />
+            <Placeholder note="association stockée localement (v2:concours-cheval-coach) — n'affecte jamais le coach permanent" />
+          </Card>
+        )}
+        {assocDone && assocSel.length > 0 && (
+          <Text style={s.assocOk}>✅ {r.nom} associé à {assocSel.length} {assocSel.length > 1 ? 'chevaux' : 'cheval'} pour ce concours.</Text>
+        )}
+
         <RowGroup>
           <Row icon="🎓" label="Coach" value={r.nom} />
           <Row icon="🏇" label="Coaching" value={`${discipline || r.disciplines} · ${niveau || r.niveaux}`} />
@@ -574,6 +630,13 @@ const s = StyleSheet.create({
   successWrap: { alignItems: 'center', gap: 6, paddingVertical: Spacing.lg },
   successIcon: { fontSize: 40 },
   successTitle: { fontSize: FontSize.xl, fontWeight: FontWeight.extrabold, color: Colors.success },
+
+  assocTitle: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
+  assocRow: { flexDirection: 'row', alignItems: 'center', gap: 8, borderWidth: 1, borderColor: BL.line, borderRadius: 12, paddingVertical: 10, paddingHorizontal: 12, backgroundColor: BL.card },
+  assocRowOn: { borderColor: BL.accent, backgroundColor: BL.accentSoft },
+  assocCheck: { fontSize: 18, color: BL.accent },
+  assocName: { fontSize: FontSize.base, fontWeight: FontWeight.semibold, color: Colors.textPrimary },
+  assocOk: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.success, textAlign: 'center', marginTop: 4 },
 
   itemTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   itemMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },

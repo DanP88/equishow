@@ -14,7 +14,8 @@ import { MOCK_COACHES } from '../mocks/coach';
 
 export interface V2CoachResult {
   src: 'real' | 'demo';
-  id: string;
+  id: string;               // = id de l'annonce (src='real')
+  coachUserId?: string;     // vrai users.id du coach (src='real')
   nom: string;
   initiales: string;
   couleur: string;
@@ -51,6 +52,7 @@ export function useV2CoachResults(ctx: CoachSearchCtx) {
       .map((a) => ({
         src: 'real' as const,
         id: a.id,
+        coachUserId: a.auteurId || undefined,
         nom: a.auteurNom || a.auteurPseudo || 'Coach',
         initiales: a.auteurInitiales || (a.auteurNom || '?').slice(0, 2).toUpperCase(),
         couleur: a.auteurCouleur || '#7C3AED',
