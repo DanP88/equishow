@@ -86,6 +86,16 @@ function reviveEntry(e: Partial<ConcoursLocalEntry> | undefined): ConcoursLocalE
     return out;
   };
   merged.demandsByNeed = { transport: clampMap(dbn.transport), box: clampMap(dbn.box), coach: clampMap(dbn.coach) };
+  // F16 — le statut module `'pending'` ne vaut plus que si AUCUN cheval n'est
+  // sélectionné pour le concours. Sinon (état écrit par une version antérieure,
+  // ou demande faite avant sélection) → rétro-compat vers `'searching'`, le
+  // suivi réel étant désormais par cheval (`demandsByNeed`).
+  if (merged.selectedHorseIds.length > 0) {
+    for (const m of ['transport', 'box', 'coach'] as NeedModule[]) {
+      const f = MODULE_FIELD[m];
+      if (merged[f] === 'pending') merged[f] = 'searching';
+    }
+  }
   return merged;
 }
 
@@ -211,7 +221,11 @@ export function setConcoursEntry(id: string, patch: Partial<ConcoursLocalEntry>)
 export function markDemandPending(id: string, m: NeedModule, horseIds: string[]) {
   const cur = reviveEntry(state.map[id]);
   const field = MODULE_FIELD[m];
-  const clean = [...new Set(horseIds)].filter((x) => cur.selectedHorseIds.includes(x));
+  let clean = [...new Set(horseIds)].filter((x) => cur.selectedHorseIds.includes(x));
+  // Demande sans cheval précisé mais des chevaux existent au concours → on la
+  // rattache à TOUS les chevaux sélectionnés (jamais de statut module figé
+  // quand un suivi par cheval est possible).
+  if (clean.length === 0 && cur.selectedHorseIds.length > 0) clean = [...cur.selectedHorseIds];
   if (clean.length === 0) {
     if (cur[field] !== 'done') {
       const patch: Partial<ConcoursLocalEntry> = {};
@@ -239,7 +253,8 @@ export function markDemandPending(id: string, m: NeedModule, horseIds: string[])
 export function markDemandConfirmed(id: string, m: NeedModule, horseIds: string[]) {
   const cur = reviveEntry(state.map[id]);
   const field = MODULE_FIELD[m];
-  const clean = [...new Set(horseIds)].filter((x) => cur.selectedHorseIds.includes(x));
+  let clean = [...new Set(horseIds)].filter((x) => cur.selectedHorseIds.includes(x));
+  if (clean.length === 0 && cur.selectedHorseIds.length > 0) clean = [...cur.selectedHorseIds];
   if (clean.length === 0) {
     const patch: Partial<ConcoursLocalEntry> = {};
     patch[field] = 'done';
