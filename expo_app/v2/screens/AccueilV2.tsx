@@ -19,6 +19,7 @@ import { BL, FONT, countdown, daysUntil } from '../ui/blush';
 import { Sticker } from '../ui/Sticker';
 import { Icon } from '../ui/Icon';
 import { useV2Session } from '../auth';
+import { useCapabilities } from '../capabilities';
 import { useConcoursList } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { useV2Todo } from '../adapters/todo';
@@ -34,6 +35,7 @@ function isUpcoming(c: { date_fin: string | null; date_debut: string | null }) {
 
 export function AccueilV2() {
   const { identity } = useV2Session();
+  const caps = useCapabilities();
   const { concours } = useConcoursList();
   const local = useConcoursLocal();
 
@@ -125,7 +127,7 @@ export function AccueilV2() {
           <View style={s.secRow}><Text style={s.secT}>On s'organise&nbsp;?</Text></View>
           <View style={s.tiles}>
             <TileCard icon="🔎" title="Je cherche" sub="transport · box · coach" onPress={() => router.push('/(v2)/cherche' as any)} />
-            <TileCard icon="📣" title="Je propose" sub="une place · un box" onPress={() => router.push('/(v2)/propose' as any)} />
+            <TileCard icon="📣" title="Je propose" sub={caps.has('coach') ? 'une place · un box · du coaching' : 'une place · un box'} onPress={() => router.push('/(v2)/propose' as any)} />
           </View>
         </View>
 
