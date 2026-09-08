@@ -85,7 +85,8 @@ export function ChevalV2() {
         <CoachPermanentSection chevalId={id!} />
         <CoachingConcoursSection chevalId={id!} />
 
-        <PrimaryButton label="Modifier" onPress={() => router.push(`/(v2)/chevaux/${id}/modifier` as any)} />
+        <PrimaryButton label="Valider" onPress={() => router.replace('/(v2)/chevaux' as any)} />
+        <GhostButton label="Modifier la fiche" onPress={() => router.push(`/(v2)/chevaux/${id}/modifier` as any)} />
         <GhostButton label="Supprimer ce cheval" onPress={() => { local.remove(id!); router.replace('/(v2)/chevaux' as any); }} />
         <Placeholder note="stocké localement (v2:chevaux) — aucune donnée Supabase" />
       </Screen>
@@ -126,6 +127,7 @@ export function ChevalV2() {
       />
       <CoachingConcoursSection chevalId={id!} />
 
+      <PrimaryButton label="Valider" onPress={() => router.replace('/(v2)/chevaux' as any)} />
       <Placeholder note="fiche en LECTURE SEULE dans la V2 — modification d'un cheval réel via l'app actuelle (sauf coach : géré localement en V2)" v1Path={`/cheval/${id}`} v1Label="ouvrir la fiche V1" />
     </Screen>
   );
