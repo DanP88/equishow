@@ -26,6 +26,7 @@ import { useSearchHorses } from '../state/searchHorses';
 import { useV2ContestHorses } from '../state/contestHorses';
 import { useConcoursChevalCoach } from '../state/concoursChevalCoach';
 import { V2HorsePicker } from '../components/V2HorsePicker';
+import { DemandeStatusCard } from '../components/DemandeStatusCard';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { useCoachLocal } from '../state/coachLocal';
@@ -328,9 +329,7 @@ export function CoachDemanderV2() {
     setBookingId(rec.id);
     // La demande NE rend PAS le module « prêt » : « Coach prévu » n'est activé
     // qu'après acceptation du coach + paiement (séquestre). En V2 = étape simulée.
-    if (concoursId && (cl.entry.needCoach === 'unset' || cl.entry.needCoach === 'searching')) {
-      cl.update({ needCoach: 'searching' });
-    }
+    if (concoursId && cl.entry.needCoach !== 'done') cl.update({ needCoach: 'pending' });
     const sr = kl.context.search;
     if (sr) kl.updateSearch(sr.id, { status: 'closed' });
     setDone(true);
@@ -366,22 +365,7 @@ export function CoachDemanderV2() {
           <Text style={s.sub}>Demande simulée — aucun paiement réel, le coach n'a pas été contacté.</Text>
         </View>
 
-        <Card>
-          <Text style={s.assocTitle}>État de la demande</Text>
-          {confirmed ? (
-            <Text style={s.sub}>✅ Le coach a accepté et le paiement (séquestre) est effectué. « Coach prévu » est activé pour ce concours.</Text>
-          ) : (
-            <>
-              <Text style={s.sub}>
-                ⏳ En attente : le coach doit <Text style={{ fontWeight: '700' }}>accepter</Text> la demande, puis le
-                {' '}<Text style={{ fontWeight: '700' }}>paiement sous séquestre</Text> est effectué.
-                Tant que ces deux étapes ne sont pas faites, le coach n'est <Text style={{ fontWeight: '700' }}>pas</Text> « prévu ».
-              </Text>
-              <GhostButton label="▸ Simuler : le coach accepte + paiement effectué" onPress={simulateConfirm} />
-              <Placeholder note="en Phase 2 : dérivé du vrai statut course_demands (accepted) + payment (paid/completed)" />
-            </>
-          )}
-        </Card>
+        <DemandeStatusCard vendorLabel="coach" confirmed={confirmed} onSimulate={simulateConfirm} />
 
         {showAssoc && (
           <Card>

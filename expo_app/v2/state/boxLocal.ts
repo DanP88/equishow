@@ -63,6 +63,8 @@ export interface BoxBooking {
   prixNuit: number;
   prix: number;             // total payé (simulation, commission incluse)
   hote: string;
+  /** 'pending' = demande envoyée, vendeur pas encore validé ; 'confirmed' = validée. */
+  status?: 'pending' | 'confirmed';
   createdAt: string;
 }
 
@@ -130,6 +132,9 @@ export function book(b: Omit<BoxBooking, 'id' | 'createdAt'>): BoxBooking {
   set({ bookings: [rec, ...state.bookings] });
   return rec;
 }
+export function updateBooking(id: string, patch: Partial<BoxBooking>) {
+  set({ bookings: state.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) });
+}
 export function cancelBooking(id: string) {
   set({ bookings: state.bookings.filter((b) => b.id !== id) });
 }
@@ -158,6 +163,6 @@ export function useBoxLocal(concoursId?: string) {
     forConcours,
     publishSearch, updateSearch, removeSearch,
     publishOffer, updateOffer, removeOffer,
-    book, cancelBooking,
+    book, updateBooking, cancelBooking,
   };
 }

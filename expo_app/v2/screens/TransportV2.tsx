@@ -24,6 +24,7 @@ import { useV2TransportResults, V2TransportResult } from '../adapters/transport'
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
+import { DemandeStatusCard } from '../components/DemandeStatusCard';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 import {
@@ -257,6 +258,8 @@ export function TransportReserverV2() {
   const ch = useSearchHorses(concoursId, 'transport', chevalIds);
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
 
   // ── Logique tarif au km (reprise V1) ──────────────────────────────────────
   // V1 : le cavalier saisit son adresse de prise en charge → l'Edge calcule
@@ -297,26 +300,37 @@ export function TransportReserverV2() {
 
   const confirm = () => {
     ch.persist();
-    tl.book({
+    const rec = tl.book({
       src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       trajet: `${r.depart} → ${r.destination}`, date: r.date, heure: r.heure,
       prix: total, conducteur: r.conducteur, places: 1,
+      status: 'pending',
     });
-    if (concoursId) cl.update({ needTransport: 'done' });
+    setBookingId(rec.id);
+    // Demande envoyée : le module reste « ⏳ En attente » tant que le
+    // transporteur n'a pas validé (+ paiement). Pas « Organisé ».
+    if (concoursId && cl.entry.needTransport !== 'done') cl.update({ needTransport: 'pending' });
     // Ferme la recherche publiée pour ce concours, le cas échéant.
     const sr = tl.context.search;
     if (sr) tl.updateSearch(sr.id, { status: 'closed' });
     setDone(true);
   };
 
+  const simulateConfirm = () => {
+    if (bookingId) tl.updateBooking(bookingId, { status: 'confirmed' });
+    if (concoursId) cl.update({ needTransport: 'done' });
+    setConfirmed(true);
+  };
+
   if (done) {
     return (
       <Screen>
         <View style={s.successWrap}>
-          <Text style={s.successIcon}>✅</Text>
-          <Text style={s.successTitle}>Transport réservé</Text>
+          <Text style={s.successIcon}>{confirmed ? '✅' : '⏳'}</Text>
+          <Text style={s.successTitle}>{confirmed ? 'Transport confirmé' : 'Demande envoyée'}</Text>
           <Text style={s.sub}>Réservation simulée — aucun paiement réel n'a été effectué.</Text>
         </View>
+        <DemandeStatusCard vendorLabel="transporteur" confirmed={confirmed} onSimulate={simulateConfirm} />
         <RowGroup>
           <Row icon="🛣" label="Trajet" value={`${r.depart} → ${r.destination}`} />
           <Row icon="📅" label="Quand" value={fmtDate(r.date)} />

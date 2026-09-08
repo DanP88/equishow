@@ -62,6 +62,8 @@ export interface TransportBooking {
   prix: number;
   conducteur: string;
   places: number;
+  /** 'pending' = demande envoyée, vendeur pas encore validé ; 'confirmed' = validée. */
+  status?: 'pending' | 'confirmed';
   createdAt: string;
 }
 
@@ -129,6 +131,9 @@ export function book(b: Omit<TransportBooking, 'id' | 'createdAt'>): TransportBo
   set({ bookings: [rec, ...state.bookings] });
   return rec;
 }
+export function updateBooking(id: string, patch: Partial<TransportBooking>) {
+  set({ bookings: state.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) });
+}
 export function cancelBooking(id: string) {
   set({ bookings: state.bookings.filter((b) => b.id !== id) });
 }
@@ -157,6 +162,6 @@ export function useTransportLocal(concoursId?: string) {
     forConcours,
     publishSearch, updateSearch, removeSearch,
     publishOffer, updateOffer, removeOffer,
-    book, cancelBooking,
+    book, updateBooking, cancelBooking,
   };
 }

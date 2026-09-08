@@ -25,6 +25,7 @@ import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
 import { V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
+import { DemandeStatusCard } from '../components/DemandeStatusCard';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 
@@ -259,6 +260,8 @@ export function BoxReserverV2() {
   const ch = useSearchHorses(concoursId, 'box', chevalIds);
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
 
   if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
 
@@ -272,25 +275,34 @@ export function BoxReserverV2() {
 
   const confirm = () => {
     ch.persist();
-    bl.book({
+    const rec = bl.book({
       src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       lieu: `${r.hote} · ${r.lieu}`, dateDebut: pDebut, dateFin: pFin,
       nbNuits: nuits, nbBox: Math.max(1, ch.count), prixNuit: r.prixNuit, prix: total, hote: r.hote,
+      status: 'pending',
     });
-    if (concoursId) cl.update({ needBox: 'done' });
+    setBookingId(rec.id);
+    if (concoursId && cl.entry.needBox !== 'done') cl.update({ needBox: 'pending' });
     const sr = bl.context.search;
     if (sr) bl.updateSearch(sr.id, { status: 'closed' });
     setDone(true);
+  };
+
+  const simulateConfirm = () => {
+    if (bookingId) bl.updateBooking(bookingId, { status: 'confirmed' });
+    if (concoursId) cl.update({ needBox: 'done' });
+    setConfirmed(true);
   };
 
   if (done) {
     return (
       <Screen>
         <View style={s.successWrap}>
-          <Text style={s.successIcon}>✅</Text>
-          <Text style={s.successTitle}>Box réservé</Text>
+          <Text style={s.successIcon}>{confirmed ? '✅' : '⏳'}</Text>
+          <Text style={s.successTitle}>{confirmed ? 'Box confirmé' : 'Demande envoyée'}</Text>
           <Text style={s.sub}>Réservation simulée — aucun paiement réel n'a été effectué.</Text>
         </View>
+        <DemandeStatusCard vendorLabel="loueur" confirmed={confirmed} onSimulate={simulateConfirm} />
         <RowGroup>
           <Row icon="🏡" label="Hôte" value={r.hote} />
           <Row icon="📍" label="Lieu" value={r.lieu} />

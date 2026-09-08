@@ -169,12 +169,32 @@ function ServiceCard({
   const moduleIds: string[] = entry.horsesByNeed?.[kind] ?? [];
   const needsHorsePick = POSITIVE.has(val) && ch.count > 0;
 
+  const MES = { transport: '/(v2)/transport/mes-transports', box: '/(v2)/box/mes-box', coach: '/(v2)/coach/mes-coachings' } as const;
+  const VENDOR = { transport: 'transporteur', box: 'loueur', coach: 'coach' } as const;
+
   // Un seul cheval au concours → pré-sélectionné pour le module (F14).
   useEffect(() => {
     if (needsHorsePick && ch.count === 1 && moduleIds.length === 0) {
       setModuleHorses(kind, [ch.ids[0]]);
     }
   }, [needsHorsePick, ch.count, ch.ids, moduleIds.length, kind, setModuleHorses]);
+
+  // ── En attente de validation vendeur (demande envoyée, pas encore validée) ──
+  if (val === 'pending') {
+    return (
+      <Card>
+        <View style={s.cardHead}>
+          <Text style={s.cardTitle}>{icon}  {title}</Text>
+          <StatePill status="pending" />
+        </View>
+        <Text style={s.hint}>
+          Demande envoyée — en attente de validation du {VENDOR[kind]} (puis paiement sous séquestre).
+          Ça passera en « {doneLabel} » une fois validé.
+        </Text>
+        <GhostButton label="Voir ma demande" onPress={() => router.push(MES[kind] as any)} />
+      </Card>
+    );
+  }
 
   return (
     <Card>

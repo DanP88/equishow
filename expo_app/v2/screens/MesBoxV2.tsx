@@ -60,14 +60,28 @@ export function MesBoxV2() {
 
       {bl.bookings.length > 0 && (
         <Section title={`Réservations · ${bl.bookings.length}`}>
-          {bl.bookings.map((b) => (
-            <Card key={b.id}>
-              <Text style={s.itemTitle}>✅ {b.lieu}</Text>
-              <Text style={s.itemMeta}>📅 {fmtPeriode(b.dateDebut, b.dateFin)} · {b.nbNuits} nuit(s) · {b.prix} €</Text>
-              {b.concoursNom ? <Text style={s.itemMeta}>🏆 {b.concoursNom}</Text> : null}
-              <TouchableOpacity onPress={() => bl.cancelBooking(b.id)}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
-            </Card>
-          ))}
+          {bl.bookings.map((b) => {
+            const pending = b.status === 'pending';
+            return (
+              <Card key={b.id}>
+                <Text style={s.itemTitle}>{pending ? '⏳' : '✅'} {b.lieu}</Text>
+                <Text style={s.itemMeta}>📅 {fmtPeriode(b.dateDebut, b.dateFin)} · {b.nbNuits} nuit(s) · {b.prix} €</Text>
+                {b.concoursNom ? <Text style={s.itemMeta}>🏆 {b.concoursNom}</Text> : null}
+                <Text style={s.itemMeta}>{pending ? 'En attente : validation du loueur + paiement' : 'Confirmé — organisé'}</Text>
+                <View style={s.itemBtns}>
+                  {pending && (
+                    <TouchableOpacity onPress={() => {
+                      bl.updateBooking(b.id, { status: 'confirmed' });
+                      if (b.concoursId) setConcoursEntry(b.concoursId, { needBox: 'done' });
+                    }}>
+                      <Text style={s.action}>▸ Simuler : validé + payé</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={() => bl.cancelBooking(b.id)}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
+                </View>
+              </Card>
+            );
+          })}
         </Section>
       )}
 

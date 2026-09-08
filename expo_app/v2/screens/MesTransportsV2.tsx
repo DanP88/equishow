@@ -55,14 +55,33 @@ export function MesTransportsV2() {
 
       {tl.bookings.length > 0 && (
         <Section title={`Réservations · ${tl.bookings.length}`}>
-          {tl.bookings.map((b) => (
-            <Card key={b.id}>
-              <Text style={s.itemTitle}>✅ {b.trajet}</Text>
-              <Text style={s.itemMeta}>📅 {fmtDate(b.date)}{b.heure ? ` · ${b.heure}` : ''} · 👤 {b.conducteur} · {b.prix} €</Text>
-              {b.concoursNom ? <Text style={s.itemMeta}>🏆 {b.concoursNom}</Text> : null}
-              <TouchableOpacity onPress={() => tl.cancelBooking(b.id)}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
-            </Card>
-          ))}
+          {tl.bookings.map((b) => {
+            const pending = b.status === 'pending';
+            return (
+              <Card key={b.id}>
+                <Text style={s.itemTitle}>{pending ? '⏳' : '✅'} {b.trajet}</Text>
+                <Text style={s.itemMeta}>📅 {fmtDate(b.date)}{b.heure ? ` · ${b.heure}` : ''} · 👤 {b.conducteur} · {b.prix} €</Text>
+                {b.concoursNom ? <Text style={s.itemMeta}>🏆 {b.concoursNom}</Text> : null}
+                <Text style={s.itemMeta}>{pending ? 'En attente : validation du transporteur + paiement' : 'Confirmé — organisé'}</Text>
+                <View style={s.itemBtns}>
+                  {pending && (
+                    <TouchableOpacity onPress={() => {
+                      tl.updateBooking(b.id, { status: 'confirmed' });
+                      if (b.concoursId) setConcoursEntry(b.concoursId, { needTransport: 'done' });
+                    }}>
+                      <Text style={s.action}>▸ Simuler : validé + payé</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={() => {
+                    tl.cancelBooking(b.id);
+                    if (pending && b.concoursId && !tl.bookings.some((x) => x.id !== b.id && x.concoursId === b.concoursId)) {
+                      setConcoursEntry(b.concoursId, { needTransport: 'unset' });
+                    }
+                  }}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
+                </View>
+              </Card>
+            );
+          })}
         </Section>
       )}
 

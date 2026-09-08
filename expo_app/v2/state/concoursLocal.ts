@@ -28,7 +28,7 @@ export type NeedModule = 'transport' | 'box' | 'coach';
  *  - 'offering'  : « je propose » (transport/box pour tous · coaching si capacité coach)
  *  - 'none'      : « pas nécessaire »
  */
-export type NeedChoice = 'unset' | 'done' | 'searching' | 'offering' | 'none';
+export type NeedChoice = 'unset' | 'done' | 'searching' | 'offering' | 'none' | 'pending';
 
 export interface ConcoursLocalEntry {
   following: boolean;
@@ -74,20 +74,27 @@ const MODULE_FIELD: Record<NeedModule, 'needTransport' | 'needBox' | 'needCoach'
 };
 
 // ── libellés / statut visuel partagés (fiche + préparer) ─────────────────────
-export type PrepStatus = 'ready' | 'todo' | 'searching' | 'offering' | 'skip';
+export type PrepStatus = 'ready' | 'todo' | 'searching' | 'offering' | 'skip' | 'pending';
 
 export function needStatus(n: NeedChoice): PrepStatus {
-  return n === 'done' ? 'ready' : n === 'searching' ? 'searching' : n === 'offering' ? 'offering' : n === 'none' ? 'skip' : 'todo';
+  return n === 'done' ? 'ready'
+    : n === 'pending' ? 'pending'
+    : n === 'searching' ? 'searching'
+    : n === 'offering' ? 'offering'
+    : n === 'none' ? 'skip'
+    : 'todo';
 }
 export const NEED_LABEL: Record<NeedChoice, string> = {
   unset: 'À organiser', done: 'Organisé', searching: 'Je cherche', offering: 'Je propose', none: 'Pas nécessaire',
+  pending: 'En attente',
 };
-export const STATUS_META: Record<PrepStatus, { label: string; dot: string; tone: 'ready' | 'todo' | 'searching' | 'offering' | 'skip' }> = {
+export const STATUS_META: Record<PrepStatus, { label: string; dot: string; tone: 'ready' | 'todo' | 'searching' | 'offering' | 'skip' | 'pending' }> = {
   ready:     { label: '✅ Prêt',            dot: '#16A34A', tone: 'ready' },
   todo:      { label: '🟠 À organiser',     dot: '#EE9E84', tone: 'todo' },
   searching: { label: '🔎 Recherche',       dot: '#3B82F6', tone: 'searching' },
   offering:  { label: '📣 Je propose',      dot: '#7C3AED', tone: 'offering' },
   skip:      { label: '➖ Pas nécessaire',  dot: '#9CA3AF', tone: 'skip' },
+  pending:   { label: '⏳ En attente',      dot: '#D97706', tone: 'pending' },
 };
 
 /**
