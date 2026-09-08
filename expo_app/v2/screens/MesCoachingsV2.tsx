@@ -9,7 +9,7 @@ import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
-import { getConcoursEntry, setConcoursEntry } from '../state/concoursLocal';
+import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useCoachLocal } from '../state/coachLocal';
 
 export function MesCoachingsV2() {
@@ -58,12 +58,15 @@ export function MesCoachingsV2() {
                   {pending && (
                     <TouchableOpacity onPress={() => {
                       kl.updateBooking(b.id, { status: 'confirmed' });
-                      if (b.concoursId) setConcoursEntry(b.concoursId, { needCoach: 'done' });
+                      if (b.concoursId) markDemandConfirmed(b.concoursId, 'coach', b.chevalIds ?? (b.chevalId ? [b.chevalId] : []));
                     }}>
                       <Text style={s.action}>▸ Simuler : accepté + payé</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity onPress={() => kl.cancelBooking(b.id)}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => {
+                    kl.cancelBooking(b.id);
+                    if (pending && b.concoursId) clearDemand(b.concoursId, 'coach', b.chevalIds ?? (b.chevalId ? [b.chevalId] : []));
+                  }}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
                 </View>
               </Card>
             );

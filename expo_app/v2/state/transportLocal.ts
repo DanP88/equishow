@@ -56,6 +56,8 @@ export interface TransportBooking {
   concoursId?: string;
   concoursNom?: string;
   chevalId?: string;
+  /** F16 — tous les chevaux couverts par cette demande (suivi « en attente » par cheval). */
+  chevalIds?: string[];
   trajet: string;           // « Nantes → La Baule »
   date?: string;
   heure?: string;

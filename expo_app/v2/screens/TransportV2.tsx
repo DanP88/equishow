@@ -17,7 +17,7 @@ import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
-import { useConcoursLocal } from '../state/concoursLocal';
+import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
 import { useSearchHorses } from '../state/searchHorses';
 import { useTransportLocal } from '../state/transportLocal';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
@@ -301,15 +301,16 @@ export function TransportReserverV2() {
   const confirm = () => {
     ch.persist();
     const rec = tl.book({
-      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
+      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId, chevalIds: ch.ids,
       trajet: `${r.depart} → ${r.destination}`, date: r.date, heure: r.heure,
       prix: total, conducteur: r.conducteur, places: 1,
       status: 'pending',
     });
     setBookingId(rec.id);
-    // Demande envoyée : le module reste « ⏳ En attente » tant que le
-    // transporteur n'a pas validé (+ paiement). Pas « Organisé ».
-    if (concoursId && cl.entry.needTransport !== 'done') cl.update({ needTransport: 'pending' });
+    // F16 — demande envoyée : les chevaux concernés passent en « ⏳ En attente »
+    // (par cheval). Le module N'est PAS « Organisé » ; on peut toujours en
+    // réserver un autre pour un autre cheval du concours.
+    if (concoursId) markDemandPending(concoursId, 'transport', ch.ids);
     // Ferme la recherche publiée pour ce concours, le cas échéant.
     const sr = tl.context.search;
     if (sr) tl.updateSearch(sr.id, { status: 'closed' });
@@ -318,7 +319,7 @@ export function TransportReserverV2() {
 
   const simulateConfirm = () => {
     if (bookingId) tl.updateBooking(bookingId, { status: 'confirmed' });
-    if (concoursId) cl.update({ needTransport: 'done' });
+    if (concoursId) markDemandConfirmed(concoursId, 'transport', ch.ids);
     setConfirmed(true);
   };
 

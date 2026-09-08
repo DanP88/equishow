@@ -28,7 +28,7 @@ import { useConcoursChevalCoach } from '../state/concoursChevalCoach';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { DemandeStatusCard } from '../components/DemandeStatusCard';
 import { useCapabilities } from '../capabilities';
-import { useConcoursLocal } from '../state/concoursLocal';
+import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
 import { useCoachLocal } from '../state/coachLocal';
 import { useV2CoachResults, useV2CoachDemands, V2CoachResult } from '../adapters/coach';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
@@ -319,7 +319,7 @@ export function CoachDemanderV2() {
   const confirm = () => {
     ch.persist();
     const rec = kl.book({
-      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
+      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId, chevalIds: ch.ids,
       coach: r.nom, coachUserId: r.coachUserId, annonceId: r.src === 'real' ? r.id : undefined,
       discipline: discipline || r.disciplines, niveau: niveau || r.niveaux,
       nbSeances, prixSeance: r.prixSeance, prix: total,
@@ -329,7 +329,9 @@ export function CoachDemanderV2() {
     setBookingId(rec.id);
     // La demande NE rend PAS le module « prêt » : « Coach prévu » n'est activé
     // qu'après acceptation du coach + paiement (séquestre). En V2 = étape simulée.
-    if (concoursId && cl.entry.needCoach !== 'done') cl.update({ needCoach: 'pending' });
+    // F16 — suivi PAR CHEVAL : on peut réserver un autre coach pour un autre
+    // cheval du même concours.
+    if (concoursId) markDemandPending(concoursId, 'coach', ch.ids);
     const sr = kl.context.search;
     if (sr) kl.updateSearch(sr.id, { status: 'closed' });
     setDone(true);
@@ -337,7 +339,7 @@ export function CoachDemanderV2() {
 
   const simulateConfirm = () => {
     if (bookingId) kl.updateBooking(bookingId, { status: 'confirmed' });
-    if (concoursId) cl.update({ needCoach: 'done' });
+    if (concoursId) markDemandConfirmed(concoursId, 'coach', ch.ids);
     setConfirmed(true);
   };
 

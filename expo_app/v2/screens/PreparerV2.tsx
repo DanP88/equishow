@@ -172,6 +172,15 @@ function ServiceCard({
   const MES = { transport: '/(v2)/transport/mes-transports', box: '/(v2)/box/mes-box', coach: '/(v2)/coach/mes-coachings' } as const;
   const VENDOR = { transport: 'transporteur', box: 'loueur', coach: 'coach' } as const;
 
+  // F16 — demandes en attente / confirmées PAR CHEVAL pour ce module.
+  const dem: Record<string, 'pending' | 'confirmed'> = entry.demandsByNeed?.[kind] ?? {};
+  const pendingHorses = ch.horses.filter((h) => dem[h.id] === 'pending');
+  const confirmedHorses = ch.horses.filter((h) => dem[h.id] === 'confirmed');
+  const hasDemands = pendingHorses.length + confirmedHorses.length > 0;
+  // Chevaux encore réservables (sans demande en cours) — les autres sont déjà
+  // suivis dans le bloc « ⏳ / ✅ » ci-dessus.
+  const pickableHorses = ch.horses.filter((h) => !dem[h.id]);
+
   // Un seul cheval au concours → pré-sélectionné pour le module (F14).
   useEffect(() => {
     if (needsHorsePick && ch.count === 1 && moduleIds.length === 0) {
@@ -179,8 +188,8 @@ function ServiceCard({
     }
   }, [needsHorsePick, ch.count, ch.ids, moduleIds.length, kind, setModuleHorses]);
 
-  // ── En attente de validation vendeur (demande envoyée, pas encore validée) ──
-  if (val === 'pending') {
+  // ── Demande envoyée sans cheval ciblé (aucun cheval au concours) ────────────
+  if (val === 'pending' && ch.count === 0) {
     return (
       <Card>
         <View style={s.cardHead}>
@@ -200,8 +209,24 @@ function ServiceCard({
     <Card>
       <View style={s.cardHead}>
         <Text style={s.cardTitle}>{icon}  {title}</Text>
-        <StatePill status={needStatus(val)} />
+        <StatePill status={pendingHorses.length > 0 ? 'pending' : needStatus(val)} />
       </View>
+
+      {hasDemands && (
+        <View style={s.demBlock}>
+          {pendingHorses.map((h) => (
+            <Text key={h.id} style={s.demPending}>
+              ⏳ {h.nom} — en attente de validation du {VENDOR[kind]} + paiement séquestre
+            </Text>
+          ))}
+          {confirmedHorses.map((h) => (
+            <Text key={h.id} style={s.demDone}>✅ {h.nom} — {doneLabel.toLowerCase()}</Text>
+          ))}
+          {pendingHorses.length > 0 && (
+            <GhostButton label="Voir ma demande" onPress={() => router.push(MES[kind] as any)} />
+          )}
+        </View>
+      )}
 
       <View style={s.opts}>
         {states.map((st) => (
@@ -213,10 +238,12 @@ function ServiceCard({
         <Text style={s.hint}>Sélectionne d'abord le ou les chevaux concernés par ce concours (bloc « Cheval »).</Text>
       )}
 
-      {needsHorsePick && (
+      {needsHorsePick && pickableHorses.length > 0 && (
         <View style={s.horsePick}>
-          <Text style={s.horsePickTitle}>Pour quel(s) cheval(aux) ?</Text>
-          {ch.horses.map((h) => {
+          <Text style={s.horsePickTitle}>
+            {hasDemands ? 'Pour quel(s) autre(s) cheval(aux) ?' : 'Pour quel(s) cheval(aux) ?'}
+          </Text>
+          {pickableHorses.map((h) => {
             const on = moduleIds.includes(h.id);
             return (
               <TouchableOpacity key={h.id} style={[s.checkRow, on && s.checkRowOn]} activeOpacity={0.85} onPress={() => toggleModuleHorse(kind, h.id)}>
@@ -259,4 +286,8 @@ const s = StyleSheet.create({
 
   horsePick: { gap: 6, marginTop: Spacing.sm, borderTopWidth: 1, borderTopColor: Colors.border, paddingTop: Spacing.sm },
   horsePickTitle: { fontSize: 11, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },
+
+  demBlock: { gap: 4, backgroundColor: '#FBF4E8', borderRadius: Radius.md, padding: Spacing.sm + 2 },
+  demPending: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#B45309' },
+  demDone: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: '#15803D' },
 });

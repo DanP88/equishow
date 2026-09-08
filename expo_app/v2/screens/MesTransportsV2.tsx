@@ -9,7 +9,7 @@ import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
-import { getConcoursEntry, setConcoursEntry } from '../state/concoursLocal';
+import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useTransportLocal } from '../state/transportLocal';
 
 function fmtDate(d?: string) {
@@ -67,16 +67,14 @@ export function MesTransportsV2() {
                   {pending && (
                     <TouchableOpacity onPress={() => {
                       tl.updateBooking(b.id, { status: 'confirmed' });
-                      if (b.concoursId) setConcoursEntry(b.concoursId, { needTransport: 'done' });
+                      if (b.concoursId) markDemandConfirmed(b.concoursId, 'transport', b.chevalIds ?? (b.chevalId ? [b.chevalId] : []));
                     }}>
                       <Text style={s.action}>▸ Simuler : validé + payé</Text>
                     </TouchableOpacity>
                   )}
                   <TouchableOpacity onPress={() => {
                     tl.cancelBooking(b.id);
-                    if (pending && b.concoursId && !tl.bookings.some((x) => x.id !== b.id && x.concoursId === b.concoursId)) {
-                      setConcoursEntry(b.concoursId, { needTransport: 'unset' });
-                    }
+                    if (pending && b.concoursId) clearDemand(b.concoursId, 'transport', b.chevalIds ?? (b.chevalId ? [b.chevalId] : []));
                   }}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
                 </View>
               </Card>

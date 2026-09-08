@@ -19,7 +19,7 @@ import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
 import { useSearchHorses } from '../state/searchHorses';
-import { useConcoursLocal } from '../state/concoursLocal';
+import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
 import { V2DateRange, todayStart } from '../components/V2DateField';
@@ -276,13 +276,14 @@ export function BoxReserverV2() {
   const confirm = () => {
     ch.persist();
     const rec = bl.book({
-      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
+      src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId, chevalIds: ch.ids,
       lieu: `${r.hote} · ${r.lieu}`, dateDebut: pDebut, dateFin: pFin,
       nbNuits: nuits, nbBox: Math.max(1, ch.count), prixNuit: r.prixNuit, prix: total, hote: r.hote,
       status: 'pending',
     });
     setBookingId(rec.id);
-    if (concoursId && cl.entry.needBox !== 'done') cl.update({ needBox: 'pending' });
+    // F16 — demande par cheval ; le module reste actionnable pour les autres.
+    if (concoursId) markDemandPending(concoursId, 'box', ch.ids);
     const sr = bl.context.search;
     if (sr) bl.updateSearch(sr.id, { status: 'closed' });
     setDone(true);
@@ -290,7 +291,7 @@ export function BoxReserverV2() {
 
   const simulateConfirm = () => {
     if (bookingId) bl.updateBooking(bookingId, { status: 'confirmed' });
-    if (concoursId) cl.update({ needBox: 'done' });
+    if (concoursId) markDemandConfirmed(concoursId, 'box', ch.ids);
     setConfirmed(true);
   };
 

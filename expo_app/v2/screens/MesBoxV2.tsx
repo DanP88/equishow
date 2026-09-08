@@ -10,7 +10,7 @@ import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
-import { getConcoursEntry, setConcoursEntry } from '../state/concoursLocal';
+import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 
 function fmtDate(d?: string) {
@@ -72,12 +72,15 @@ export function MesBoxV2() {
                   {pending && (
                     <TouchableOpacity onPress={() => {
                       bl.updateBooking(b.id, { status: 'confirmed' });
-                      if (b.concoursId) setConcoursEntry(b.concoursId, { needBox: 'done' });
+                      if (b.concoursId) markDemandConfirmed(b.concoursId, 'box', b.chevalIds ?? (b.chevalId ? [b.chevalId] : []));
                     }}>
                       <Text style={s.action}>▸ Simuler : validé + payé</Text>
                     </TouchableOpacity>
                   )}
-                  <TouchableOpacity onPress={() => bl.cancelBooking(b.id)}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
+                  <TouchableOpacity onPress={() => {
+                    bl.cancelBooking(b.id);
+                    if (pending && b.concoursId) clearDemand(b.concoursId, 'box', b.chevalIds ?? (b.chevalId ? [b.chevalId] : []));
+                  }}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
                 </View>
               </Card>
             );

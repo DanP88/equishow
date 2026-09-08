@@ -55,6 +55,8 @@ export interface BoxBooking {
   concoursId?: string;
   concoursNom?: string;
   chevalId?: string;
+  /** F16 — tous les chevaux couverts par cette demande. */
+  chevalIds?: string[];
   lieu: string;             // « Écurie du Golfe · La Baule »
   dateDebut?: string;
   dateFin?: string;

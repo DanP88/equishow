@@ -55,6 +55,8 @@ export interface CoachBooking {
   concoursId?: string;
   concoursNom?: string;
   chevalId?: string;
+  /** F16 — tous les chevaux couverts par cette demande. */
+  chevalIds?: string[];
   coach: string;
   /** vrai users.id du coach si connu (annonce réelle) — pour « Coachs présents ». */
   coachUserId?: string;

@@ -47,12 +47,21 @@ export interface ConcoursLocalEntry {
   /** F14 — chevaux concernés PAR MODULE (sous-ensemble de `selectedHorseIds`).
    *  Ex : transport pour Tornado uniquement, box pour Tornado + Tomas. */
   horsesByNeed: Record<NeedModule, string[]>;
+  /** F16 — demandes en cours PAR MODULE, indexées par `horseId` :
+   *   'pending'   = demande envoyée, le prestataire (transporteur/loueur/coach)
+   *                 n'a pas encore validé (ni le paiement séquestre effectué) ;
+   *   'confirmed' = validée + payée.
+   *  Permet de garder les contrôles habituels du module pour réserver un AUTRE
+   *  prestataire pour un AUTRE cheval du même concours (Dan en attente, Romy
+   *  encore à organiser). */
+  demandsByNeed: Record<NeedModule, Record<string, 'pending' | 'confirmed'>>;
 }
 
 const EMPTY: ConcoursLocalEntry = {
   following: false, going: false, chevalId: null, selectedHorseIds: [], epreuves: [],
   needTransport: 'unset', needBox: 'unset', needCoach: 'unset',
   horsesByNeed: { transport: [], box: [], coach: [] },
+  demandsByNeed: { transport: {}, box: {}, coach: {} },
 };
 
 /** Normalise une entrée chargée depuis le storage (rétro-compat). */
@@ -66,6 +75,17 @@ function reviveEntry(e: Partial<ConcoursLocalEntry> | undefined): ConcoursLocalE
   const hbn = (merged.horsesByNeed ?? {}) as Partial<Record<NeedModule, string[]>>;
   const clamp = (arr?: string[]) => (Array.isArray(arr) ? arr.filter((x) => merged.selectedHorseIds.includes(x)) : []);
   merged.horsesByNeed = { transport: clamp(hbn.transport), box: clamp(hbn.box), coach: clamp(hbn.coach) };
+  const dbn = (merged.demandsByNeed ?? {}) as Partial<Record<NeedModule, Record<string, unknown>>>;
+  const clampMap = (m?: Record<string, unknown>): Record<string, 'pending' | 'confirmed'> => {
+    const out: Record<string, 'pending' | 'confirmed'> = {};
+    if (m && typeof m === 'object') {
+      for (const [k, v] of Object.entries(m)) {
+        if (merged.selectedHorseIds.includes(k) && (v === 'pending' || v === 'confirmed')) out[k] = v;
+      }
+    }
+    return out;
+  };
+  merged.demandsByNeed = { transport: clampMap(dbn.transport), box: clampMap(dbn.box), coach: clampMap(dbn.coach) };
   return merged;
 }
 
@@ -151,6 +171,10 @@ function setEntry(id: string, patch: Partial<ConcoursLocalEntry>) {
       box: keep(next.horsesByNeed.box),
       coach: keep(next.horsesByNeed.coach),
     };
+    const keepMap = (m: Record<string, 'pending' | 'confirmed'>) =>
+      Object.fromEntries(Object.entries(m ?? {}).filter(([k]) => next.selectedHorseIds.includes(k)));
+    const dbn = next.demandsByNeed ?? EMPTY.demandsByNeed;
+    next.demandsByNeed = { transport: keepMap(dbn.transport), box: keepMap(dbn.box), coach: keepMap(dbn.coach) };
   }
   state = { ...state, map: { ...state.map, [id]: next } };
   emit();
@@ -171,6 +195,85 @@ export function setModuleHorses(id: string, m: NeedModule, ids: string[]) {
 
 /** Setter brut inter-stores (ex: transportLocal resynchronise « Mon concours »). */
 export function setConcoursEntry(id: string, patch: Partial<ConcoursLocalEntry>) {
+  setEntry(id, patch);
+}
+
+// ── F16 — demandes « en attente prestataire » par module / par cheval ────────
+
+/**
+ * Demande envoyée pour `horseIds` sur le module `m` : ces chevaux passent en
+ * « ⏳ En attente ». Le module N'est PAS marqué « Organisé » — les contrôles
+ * habituels restent disponibles pour réserver un autre prestataire pour les
+ * autres chevaux du concours.
+ *  - `horseIds` vide (aucun cheval au concours) → repli sur le statut module
+ *    `'pending'` (rétro-compat).
+ */
+export function markDemandPending(id: string, m: NeedModule, horseIds: string[]) {
+  const cur = reviveEntry(state.map[id]);
+  const field = MODULE_FIELD[m];
+  const clean = [...new Set(horseIds)].filter((x) => cur.selectedHorseIds.includes(x));
+  if (clean.length === 0) {
+    if (cur[field] !== 'done') {
+      const patch: Partial<ConcoursLocalEntry> = {};
+      patch[field] = 'pending';
+      setEntry(id, patch);
+    }
+    return;
+  }
+  const map = { ...cur.demandsByNeed[m] };
+  for (const h of clean) if (map[h] !== 'confirmed') map[h] = 'pending';
+  const patch: Partial<ConcoursLocalEntry> = {
+    demandsByNeed: { ...cur.demandsByNeed, [m]: map },
+    horsesByNeed: { ...cur.horsesByNeed, [m]: [...new Set([...cur.horsesByNeed[m], ...clean])] },
+  };
+  // Une demande implique « je cherche » ; ne jamais rétrograder un choix explicite.
+  if (cur[field] === 'unset' || cur[field] === 'pending') patch[field] = 'searching';
+  setEntry(id, patch);
+}
+
+/**
+ * Le prestataire a validé (+ paiement séquestre) pour `horseIds`. Le module
+ * passe « Organisé » / « Coach prévu » uniquement quand TOUS les chevaux
+ * concernés sont confirmés et qu'aucune demande n'est plus en attente.
+ */
+export function markDemandConfirmed(id: string, m: NeedModule, horseIds: string[]) {
+  const cur = reviveEntry(state.map[id]);
+  const field = MODULE_FIELD[m];
+  const clean = [...new Set(horseIds)].filter((x) => cur.selectedHorseIds.includes(x));
+  if (clean.length === 0) {
+    const patch: Partial<ConcoursLocalEntry> = {};
+    patch[field] = 'done';
+    setEntry(id, patch);
+    return;
+  }
+  const map = { ...cur.demandsByNeed[m] };
+  for (const h of clean) map[h] = 'confirmed';
+  const patch: Partial<ConcoursLocalEntry> = {
+    demandsByNeed: { ...cur.demandsByNeed, [m]: map },
+    horsesByNeed: { ...cur.horsesByNeed, [m]: [...new Set([...cur.horsesByNeed[m], ...clean])] },
+  };
+  // « Organisé » / « Coach prévu » AUTOMATIQUE uniquement quand TOUS les chevaux
+  // du concours sont confirmés (et aucune demande en attente). Sinon on laisse
+  // les contrôles habituels : l'utilisateur peut réserver pour un autre cheval,
+  // ou marquer « Organisé » manuellement s'il n'en veut pas pour les autres.
+  const anyPending = Object.values(map).some((v) => v === 'pending');
+  const allSelectedConfirmed = cur.selectedHorseIds.length > 0
+    && cur.selectedHorseIds.every((h) => map[h] === 'confirmed');
+  if (!anyPending && allSelectedConfirmed && cur[field] !== 'none' && cur[field] !== 'offering') patch[field] = 'done';
+  setEntry(id, patch);
+}
+
+/** Annule une demande : retire ces chevaux du suivi du module. */
+export function clearDemand(id: string, m: NeedModule, horseIds: string[]) {
+  const cur = reviveEntry(state.map[id]);
+  const map = { ...cur.demandsByNeed[m] };
+  for (const h of horseIds) delete map[h];
+  const patch: Partial<ConcoursLocalEntry> = { demandsByNeed: { ...cur.demandsByNeed, [m]: map } };
+  // Plus aucune demande ni cheval rattaché → le module redevient « à organiser ».
+  if (Object.keys(map).length === 0 && cur.horsesByNeed[m].every((h) => horseIds.includes(h))) {
+    const field = MODULE_FIELD[m];
+    if (cur[field] === 'searching' || cur[field] === 'pending') patch[field] = 'unset';
+  }
   setEntry(id, patch);
 }
 /** Lecture brute d'une entrée (hors composant). */
