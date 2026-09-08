@@ -3,10 +3,15 @@
 //
 // Agrège en LECTURE SEULE ce qui appelle une action, à partir de ce que la V2
 // connaît déjà : demandes de coaching reçues, concours en brouillon, concours
-// « J'y serai » à préparer. Repli démo (MOCK_ACTIONS) si non connecté.
+// « J'y serai » à préparer. Repli démo (MOCK_ACTIONS) UNIQUEMENT quand aucune
+// session (réelle ou simulée) n'est active.
+//
+// Anti-flash : tant que la session OU l'état local « Mon concours » n'est pas
+// hydraté, on ne renvoie RIEN (ni réel, ni démo) — sinon on afficherait des
+// entrées démo 2 s puis on les retirerait à l'hydratation.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
-import { useAuth } from '../../hooks/useAuth';
+import { useV2Session } from '../auth';
 import { useConcoursList } from '../../hooks/useConcours';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal, getConcoursEntry, prepScore } from '../state/concoursLocal';
@@ -16,8 +21,8 @@ import { MOCK_ACTIONS } from '../mocks/f2';
 
 export interface V2TodoItem { id: string; icon: string; label: string; target: string }
 
-export function useV2Todo(): { items: V2TodoItem[]; demo: boolean } {
-  const { isSignedIn } = useAuth();
+export function useV2Todo(): { items: V2TodoItem[]; demo: boolean; ready: boolean } {
+  const session = useV2Session();
   const caps = useCapabilities();
   const cl = useConcoursLocal();
   const { concours } = useConcoursList();
@@ -25,6 +30,10 @@ export function useV2Todo(): { items: V2TodoItem[]; demo: boolean } {
   const org = useV2OrgSpace();
 
   return useMemo(() => {
+    // Rien tant que les sources locales ne sont pas prêtes → évite le
+    // clignotement « plusieurs entrées démo puis une seule ».
+    if (!session.ready || !cl.ready) return { items: [], demo: false, ready: false };
+
     const items: V2TodoItem[] = [];
 
     // Coach : demandes de coaching reçues (réelles).
@@ -46,14 +55,16 @@ export function useV2Todo(): { items: V2TodoItem[]; demo: boolean } {
       }
     }
 
-    if (items.length > 0) return { items, demo: false };
+    if (items.length > 0) return { items, demo: false, ready: true };
 
-    if (!isSignedIn) {
+    // Démo : seulement en navigation SANS session (ni réelle ni simulée).
+    if (!session.isSignedIn) {
       return {
         items: MOCK_ACTIONS.filter((a) => caps.has(a.cap)).map((a) => ({ id: a.id, icon: a.icon, label: a.label, target: a.target })),
         demo: true,
+        ready: true,
       };
     }
-    return { items: [], demo: false };
-  }, [isSignedIn, caps, cl.goingIds, concours, kDemands, org]);
+    return { items: [], demo: false, ready: true };
+  }, [session.ready, session.isSignedIn, caps, cl.ready, cl.goingIds, concours, kDemands, org]);
 }
