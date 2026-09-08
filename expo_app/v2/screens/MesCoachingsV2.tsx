@@ -46,14 +46,28 @@ export function MesCoachingsV2() {
 
       {kl.bookings.length > 0 && (
         <Section title={`Mes séances · ${kl.bookings.length}`}>
-          {kl.bookings.map((b) => (
-            <Card key={b.id}>
-              <Text style={s.itemTitle}>✅ {b.coach}</Text>
-              <Text style={s.itemMeta}>{b.discipline} · {b.niveau} · {b.nbSeances} séance(s) · {b.prix} €</Text>
-              {b.concoursNom ? <Text style={s.itemMeta}>🏆 {b.concoursNom}</Text> : null}
-              <TouchableOpacity onPress={() => kl.cancelBooking(b.id)}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
-            </Card>
-          ))}
+          {kl.bookings.map((b) => {
+            const pending = b.status === 'pending';
+            return (
+              <Card key={b.id}>
+                <Text style={s.itemTitle}>{pending ? '⏳' : '✅'} {b.coach}</Text>
+                <Text style={s.itemMeta}>{b.discipline} · {b.niveau} · {b.nbSeances} séance(s) · {b.prix} €</Text>
+                {b.concoursNom ? <Text style={s.itemMeta}>🏆 {b.concoursNom}</Text> : null}
+                <Text style={s.itemMeta}>{pending ? 'En attente : acceptation du coach + paiement' : 'Confirmé — coach prévu'}</Text>
+                <View style={s.itemBtns}>
+                  {pending && (
+                    <TouchableOpacity onPress={() => {
+                      kl.updateBooking(b.id, { status: 'confirmed' });
+                      if (b.concoursId) setConcoursEntry(b.concoursId, { needCoach: 'done' });
+                    }}>
+                      <Text style={s.action}>▸ Simuler : accepté + payé</Text>
+                    </TouchableOpacity>
+                  )}
+                  <TouchableOpacity onPress={() => kl.cancelBooking(b.id)}><Text style={s.remove}>Annuler (simulé)</Text></TouchableOpacity>
+                </View>
+              </Card>
+            );
+          })}
         </Section>
       )}
 

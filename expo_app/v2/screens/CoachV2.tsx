@@ -294,6 +294,8 @@ export function CoachDemanderV2() {
   const assocStore = useConcoursChevalCoach(concoursId);
   const r = results.find((x) => x.id === id);
   const [done, setDone] = useState(false);
+  const [bookingId, setBookingId] = useState<string | null>(null);
+  const [confirmed, setConfirmed] = useState(false);
   const [assocDone, setAssocDone] = useState(false);
   const [assocSel, setAssocSel] = useState<string[]>([]);
 
@@ -301,10 +303,10 @@ export function CoachDemanderV2() {
   // pré-cochés = ceux visés par la recherche coach).
   const assocHorses = contestCh.horses.length ? contestCh.horses : ch.horses;
   useEffect(() => {
-    if (done && assocSel.length === 0) {
+    if (confirmed && assocSel.length === 0) {
       setAssocSel(ch.ids.length ? ch.ids : assocHorses.map((h) => h.id));
     }
-  }, [done]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [confirmed]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (!r) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
 
@@ -315,17 +317,29 @@ export function CoachDemanderV2() {
 
   const confirm = () => {
     ch.persist();
-    kl.book({
+    const rec = kl.book({
       src: r.src, refId: r.id, concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       coach: r.nom, coachUserId: r.coachUserId, annonceId: r.src === 'real' ? r.id : undefined,
       discipline: discipline || r.disciplines, niveau: niveau || r.niveaux,
       nbSeances, prixSeance: r.prixSeance, prix: total,
       date: concours?.date_debut ?? undefined,
+      status: 'pending',
     });
-    if (concoursId) cl.update({ needCoach: 'done' });
+    setBookingId(rec.id);
+    // La demande NE rend PAS le module « prêt » : « Coach prévu » n'est activé
+    // qu'après acceptation du coach + paiement (séquestre). En V2 = étape simulée.
+    if (concoursId && (cl.entry.needCoach === 'unset' || cl.entry.needCoach === 'searching')) {
+      cl.update({ needCoach: 'searching' });
+    }
     const sr = kl.context.search;
     if (sr) kl.updateSearch(sr.id, { status: 'closed' });
     setDone(true);
+  };
+
+  const simulateConfirm = () => {
+    if (bookingId) kl.updateBooking(bookingId, { status: 'confirmed' });
+    if (concoursId) cl.update({ needCoach: 'done' });
+    setConfirmed(true);
   };
 
   const toggleAssoc = (hid: string) =>
@@ -343,14 +357,31 @@ export function CoachDemanderV2() {
   };
 
   if (done) {
-    const showAssoc = !!concoursId && assocHorses.length > 0 && !assocDone;
+    const showAssoc = confirmed && !!concoursId && assocHorses.length > 0 && !assocDone;
     return (
       <Screen>
         <View style={s.successWrap}>
-          <Text style={s.successIcon}>✅</Text>
-          <Text style={s.successTitle}>Demande envoyée</Text>
+          <Text style={s.successIcon}>{confirmed ? '✅' : '⏳'}</Text>
+          <Text style={s.successTitle}>{confirmed ? 'Coaching confirmé' : 'Demande envoyée'}</Text>
           <Text style={s.sub}>Demande simulée — aucun paiement réel, le coach n'a pas été contacté.</Text>
         </View>
+
+        <Card>
+          <Text style={s.assocTitle}>État de la demande</Text>
+          {confirmed ? (
+            <Text style={s.sub}>✅ Le coach a accepté et le paiement (séquestre) est effectué. « Coach prévu » est activé pour ce concours.</Text>
+          ) : (
+            <>
+              <Text style={s.sub}>
+                ⏳ En attente : le coach doit <Text style={{ fontWeight: '700' }}>accepter</Text> la demande, puis le
+                {' '}<Text style={{ fontWeight: '700' }}>paiement sous séquestre</Text> est effectué.
+                Tant que ces deux étapes ne sont pas faites, le coach n'est <Text style={{ fontWeight: '700' }}>pas</Text> « prévu ».
+              </Text>
+              <GhostButton label="▸ Simuler : le coach accepte + paiement effectué" onPress={simulateConfirm} />
+              <Placeholder note="en Phase 2 : dérivé du vrai statut course_demands (accepted) + payment (paid/completed)" />
+            </>
+          )}
+        </Card>
 
         {showAssoc && (
           <Card>

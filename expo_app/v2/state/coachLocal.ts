@@ -60,6 +60,12 @@ export interface CoachBooking {
   coachUserId?: string;
   /** id de l'annonce de coaching (= refId pour src='real') — pour « voir l'annonce ». */
   annonceId?: string;
+  /**
+   * 'pending'   = demande envoyée, le coach n'a pas encore accepté / pas payé.
+   * 'confirmed' = coach a accepté + paiement (séquestre) effectué → « coach prévu ».
+   * (Phase 2 : dérivé du statut réel course_demands + payment.)
+   */
+  status?: 'pending' | 'confirmed';
   discipline: string;
   niveau: string;
   nbSeances: number;
@@ -131,6 +137,9 @@ export function book(b: Omit<CoachBooking, 'id' | 'createdAt'>): CoachBooking {
   set({ bookings: [rec, ...state.bookings] });
   return rec;
 }
+export function updateBooking(id: string, patch: Partial<CoachBooking>) {
+  set({ bookings: state.bookings.map((b) => (b.id === id ? { ...b, ...patch } : b)) });
+}
 export function cancelBooking(id: string) {
   set({ bookings: state.bookings.filter((b) => b.id !== id) });
 }
@@ -159,6 +168,6 @@ export function useCoachLocal(concoursId?: string) {
     forConcours,
     publishSearch, updateSearch, removeSearch,
     publishOffer, updateOffer, removeOffer,
-    book, cancelBooking,
+    book, updateBooking, cancelBooking,
   };
 }

@@ -79,8 +79,11 @@ export function useConcoursCoaches(concoursId?: string) {
       }
 
       // ── 2. réservations de coaching SIMULÉES V2 sur ce concours ────────────
+      //   Seules les réservations CONFIRMÉES (coach a accepté + payé) comptent —
+      //   une simple demande « pending » n'est PAS une présence.
       for (const b of bookings ?? []) {
         if (b.concoursId !== concoursId) continue;
+        if (b.status && b.status !== 'confirmed') continue;
         const uid = (b as any).coachUserId as string | undefined;
         const key = keyFor(uid, b.coach);
         merge({
