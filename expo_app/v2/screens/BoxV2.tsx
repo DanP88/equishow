@@ -26,6 +26,7 @@ import { V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
 import { DemandeStatusCard } from '../components/DemandeStatusCard';
+import { DemandesBanner } from '../components/DemandesConcours';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 
@@ -136,6 +137,8 @@ export function BoxChercheV2() {
         </View>
       )}
 
+      <DemandesBanner kind="box" concoursId={concoursId} tone="info" />
+
       <Card>
         <V2HorsePicker
           value={ch.ids}
@@ -171,7 +174,7 @@ export function BoxChercheV2() {
             {alreadyPublished ? (
               <View style={s.published}>
                 <Text style={s.publishedTxt}>✅ Recherche publiée</Text>
-                <Text style={s.sub}>Les écuries proches de cette destination pourront te proposer un box.</Text>
+                <Text style={s.sub}>Ta demande apparaît dans « Demandes en cours » de ce concours — visible par ceux qui proposent un box (simulation, la mise en relation réelle = backend).</Text>
                 <GhostButton label="Voir / modifier ma recherche" onPress={() => router.push('/(v2)/box/mes-box' as any)} />
               </View>
             ) : (
@@ -410,6 +413,9 @@ export function BoxProposeV2() {
           <Text style={s.ctxLine}>🏆 {concours.nom} · 📍 {concours.lieu} · 📅 {concours.dateLabel}</Text>
         </View>
       )}
+
+      <DemandesBanner kind="box" concoursId={concoursId} concoursNom={concours?.nom} tone="cta" />
+
 
       <Card>
         <V2DestinationField label="Secteur" auto={dest} placeholder="Ville / commune" />

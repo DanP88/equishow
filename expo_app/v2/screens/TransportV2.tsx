@@ -25,6 +25,7 @@ import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField'
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
 import { DemandeStatusCard } from '../components/DemandeStatusCard';
+import { DemandesBanner } from '../components/DemandesConcours';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 import {
@@ -136,6 +137,8 @@ export function TransportChercheV2() {
         </View>
       )}
 
+      <DemandesBanner kind="transport" concoursId={concoursId} tone="info" />
+
       <Card>
         <V2HorsePicker
           value={ch.ids}
@@ -172,7 +175,7 @@ export function TransportChercheV2() {
             {alreadyPublished ? (
               <View style={s.published}>
                 <Text style={s.publishedTxt}>✅ Recherche publiée</Text>
-                <Text style={s.sub}>Les conducteurs vers cette destination pourront te proposer une place.</Text>
+                <Text style={s.sub}>Ta demande apparaît dans « Demandes en cours » de ce concours — visible par ceux qui proposent un transport (simulation, la mise en relation réelle = backend).</Text>
                 <GhostButton label="Voir / modifier ma recherche" onPress={() => router.push('/(v2)/transport/mes-transports' as any)} />
               </View>
             ) : (
@@ -495,6 +498,9 @@ export function TransportProposeV2() {
           <Text style={s.ctxLine}>🏆 {concours.nom} · 📍 {concours.lieu} · 📅 {concours.dateLabel}</Text>
         </View>
       )}
+
+      <DemandesBanner kind="transport" concoursId={concoursId} concoursNom={concours?.nom} tone="cta" />
+
 
       <Card>
         <Field label="Lieu de départ"><V2AddressAutocomplete value={depart} onChangeText={setDepart} kind="city" placeholder="Ville / commune" /></Field>

@@ -28,6 +28,8 @@ import { useV2ContestHorses } from '../state/contestHorses';
 import { useConcoursLocal, needStatus, NeedChoice } from '../state/concoursLocal';
 import { useConcoursCoaches } from '../adapters/concoursCoaches';
 import { CoachsPresentsModal } from '../components/CoachsPresentsModal';
+import { useConcoursDemands } from '../adapters/concoursDemands';
+import { DemandesEnCoursModal } from '../components/DemandesConcours';
 
 export function FicheConcoursV2() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -39,6 +41,8 @@ export function FicheConcoursV2() {
   const iOrganise = mine.some((c) => c.id === id);
   const { count: coachCount } = useConcoursCoaches(id);
   const [coachModal, setCoachModal] = useState(false);
+  const { total: demTotal } = useConcoursDemands(id);
+  const [demModal, setDemModal] = useState(false);
 
   if (isLoading) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
   if (!concours) return <Screen><Text style={s.h1}>Concours introuvable</Text><GhostButton label="← Retour" onPress={() => router.back()} /></Screen>;
@@ -161,6 +165,7 @@ export function FicheConcoursV2() {
       <Section title="Infos concours">
         <RowGroup>
           <Row icon="🎓" label={`Coachs présents · ${coachCount}`} onPress={() => setCoachModal(true)} />
+          <Row icon="🔔" label={`Demandes en cours · ${demTotal}`} onPress={() => setDemModal(true)} />
           <Row icon="🌤" label="Météo (J–3 → J+1)" />
           <Row icon="📋" label={`Épreuves du concours · ${concours.liste_epreuves.length}`} />
           <Row icon="🕓" label="Horaires" value="non publiés" />
@@ -186,6 +191,7 @@ export function FicheConcoursV2() {
         concoursId={id}
         concoursNom={concours.nom}
       />
+      <DemandesEnCoursModal visible={demModal} onClose={() => setDemModal(false)} concoursId={id} />
     </Screen>
   );
 }

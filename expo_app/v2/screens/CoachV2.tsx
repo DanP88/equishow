@@ -27,6 +27,7 @@ import { useV2ContestHorses } from '../state/contestHorses';
 import { useConcoursChevalCoach } from '../state/concoursChevalCoach';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { DemandeStatusCard } from '../components/DemandeStatusCard';
+import { DemandesBanner } from '../components/DemandesConcours';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
 import { useCoachLocal } from '../state/coachLocal';
@@ -163,6 +164,8 @@ export function CoachChercheV2() {
         </View>
       )}
 
+      <DemandesBanner kind="coach" concoursId={concoursId} tone="info" />
+
       <Card>
         <V2HorsePicker
           value={ch.ids}
@@ -208,7 +211,7 @@ export function CoachChercheV2() {
             {alreadyPublished ? (
               <View style={s.published}>
                 <Text style={s.publishedTxt}>✅ Demande publiée</Text>
-                <Text style={s.sub}>Les coachs concernés pourront te proposer un créneau.</Text>
+                <Text style={s.sub}>Ta demande apparaît dans « Demandes en cours » de ce concours — visible par les coachs (simulation, la mise en relation réelle = backend).</Text>
                 <GhostButton label="Voir / modifier ma demande" onPress={() => router.push('/(v2)/coach/mes-coachings' as any)} />
               </View>
             ) : (
@@ -506,6 +509,9 @@ export function CoachProposeV2() {
           <Text style={s.ctxLine}>🏆 {concours.nom} · 📍 {concours.lieu} · 📅 {concours.dateLabel}</Text>
         </View>
       )}
+
+      <DemandesBanner kind="coach" concoursId={concoursId} concoursNom={concours?.nom} tone="cta" />
+
 
       <Card>
         {!concoursId && (
