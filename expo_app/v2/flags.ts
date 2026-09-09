@@ -1,23 +1,31 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// EquiShow V2 — FLAGS (PHASE 1 · FRONT-ONLY)
+// EquiShow V2 — FLAGS
 //
 // Point de bascule UNIQUE entre V1 et V2.
 //
 //   V2_ENABLED = false  →  l'app se comporte EXACTEMENT comme la V1.
 //                          Aucun écran V2 monté, aucun adaptateur actif.
-//   V2_ENABLED = true   →  la V2 prend la main sur les surfaces dont le
-//                          sous-flag correspondant est à true.
+//   V2_ENABLED = true   →  la V2 prend la main (seul `V2_FLAGS.navigation` gate
+//                          encore quelque chose — les autres sous-flags sont
+//                          vestigiaux, les écrans sont câblés en dur).
 //
-// RÈGLES PHASE 1 (rappel — voir v2/README.md) :
-//   - Aucune écriture PROD depuis la V2. Toute mutation est simulée côté front
-//     (v2/mocks, v2/adapters). Les lectures PROD réelles sont autorisées.
-//   - Aucune modification backend / Supabase / RLS / RPC / trigger / view /
+// RÈGLES EN VIGUEUR (voir v2/README.md) :
+//   - La V2 reste en LECTURE SEULE sur Supabase : aucune écriture de données
+//     métier (concours, chevaux, réservations, avis, posts…). Toute mutation
+//     est simulée côté front (état `v2:` local). `V2_ALLOW_PROD_WRITES` reste
+//     `false` → garde-fou actif : toute tentative d'écriture lève une erreur.
+//   - Aucune modification backend / migration / RLS / RPC / trigger / view /
 //     edge function / Stripe / escrow.
-//   - Aucun build EAS/TestFlight de la V2.
+//   - EXCEPTION (2026-09-09, autorisée par Dan) : build EAS/TestFlight de la V2
+//     en #13, avec CONNEXION Supabase RÉELLE (le login passe par gotrue, comme
+//     la V1). Ça n'écrit toujours aucune donnée métier — seule la mécanique de
+//     session d'auth s'exécute. 3 comptes de test dédiés (beta.cavalier/coach/
+//     orga@equishow.app). V1 (#12, tags v1.0.0-testflight-12 /
+//     v1-backup-2026-09-09) intacte et réinstallable.
 //
 // Supprimer entièrement la V2 = supprimer le worktree /Users/dan/equishow-v2-front
-// et la branche feature/equishow-v2-front. La V1 (chore/eas-ios-testflight,
-// tag v1.0.0-testflight-12) reste intacte, aucune opération backend requise.
+// et la branche feature/equishow-v2-front. La V1 (chore/eas-ios-testflight)
+// reste intacte, aucune opération backend requise.
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
