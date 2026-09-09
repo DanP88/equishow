@@ -16,7 +16,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.equishow.app",
       "infoPlist": {
-        "NSPhotoLibraryUsageDescription": "Equishow accède à votre galerie pour ajouter une photo à la fiche de vos chevaux.",
+        "NSPhotoLibraryUsageDescription": "Equishow accède à votre galerie pour ajouter des photos : votre profil, vos chevaux et vos publications dans la communauté.",
         "ITSAppUsesNonExemptEncryption": false
       }
     },
