@@ -38,14 +38,17 @@ export function ProfilV2() {
 
   // Déconnexion — réutilise le mécanisme EXISTANT (V1 useAuth.logout / session V2
   // simulée). Aucune modification de Supabase Auth.
+  // Dans TOUS les cas on renvoie vers le vrai écran de connexion : c'est le seul
+  // endroit d'où on peut se ré-authentifier (un profil de test simulé n'a aucune
+  // route vers /(auth)/login sinon → le bouton semblait « ne rien faire »).
   const handleLogout = async () => {
     if (kind === 'real') {
       await logout();
-      router.replace('/(auth)/login');
     } else {
       signOutSim();
-      router.replace('/(v2)/accueil');
+      caps.resetToReal(); // efface l'override de capacités du profil de test
     }
+    router.replace('/(auth)/login');
   };
 
   const name = `${identity?.prenom ?? ''} ${identity?.nom ?? ''}`.trim() || 'Utilisateur EquiShow';
