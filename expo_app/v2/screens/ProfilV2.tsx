@@ -4,6 +4,7 @@
 // boutons) + compteurs d'activité RÉELS (F9). Puis un bloc par capacité détenue.
 // Aucun profil-coach / profil-org séparé. Aucun « changer de compte ».
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
@@ -15,12 +16,25 @@ import { useV2Session } from '../auth';
 import { useV2ActivityCounts } from '../state/activityCounts';
 import { Icon } from '../ui/Icon';
 import { useAuth } from '../../hooks/useAuth';
+import { UserAvatar } from '../components/UserAvatar';
+import { changeMyAvatar } from '../lib/avatar';
 
 export function ProfilV2() {
   const caps = useCapabilities();
-  const { identity, kind, signOut: signOutSim } = useV2Session();
+  const { identity, kind, realUserId, refreshProfile, signOut: signOutSim } = useV2Session();
   const { logout } = useAuth();
   const a = useV2ActivityCounts();
+  const [avatarBusy, setAvatarBusy] = useState(false);
+  const [avatarErr, setAvatarErr] = useState<string | null>(null);
+
+  const onChangeAvatar = async () => {
+    if (kind !== 'real' || !realUserId || avatarBusy) return;
+    setAvatarBusy(true); setAvatarErr(null);
+    const r = await changeMyAvatar(realUserId);
+    if (r.error) setAvatarErr(r.error);
+    else if (!r.canceled) await refreshProfile();
+    setAvatarBusy(false);
+  };
 
   // Déconnexion — réutilise le mécanisme EXISTANT (V1 useAuth.logout / session V2
   // simulée). Aucune modification de Supabase Auth.
@@ -51,13 +65,32 @@ export function ProfilV2() {
     <Screen>
       <Card>
         <View style={s.headRow}>
-          <View style={s.avatar}><Text style={s.avatarTxt}>{((identity?.prenom?.[0] ?? '') + (identity?.nom?.[0] ?? '')).toUpperCase() || 'EQ'}</Text></View>
+          <TouchableOpacity
+            onPress={onChangeAvatar}
+            disabled={kind !== 'real' || avatarBusy}
+            activeOpacity={kind === 'real' ? 0.7 : 1}
+            accessibilityRole="button"
+            accessibilityLabel="Changer ma photo de profil"
+          >
+            <UserAvatar
+              url={identity?.avatarUrl}
+              initials={((identity?.prenom?.[0] ?? '') + (identity?.nom?.[0] ?? '')).toUpperCase() || 'EQ'}
+              size={52}
+              busy={avatarBusy}
+            />
+            {kind === 'real' && !avatarBusy && (
+              <View style={s.avatarEdit}><Icon name="camera-outline" size={11} color="#fff" /></View>
+            )}
+          </TouchableOpacity>
           <View style={{ flex: 1 }}>
             <Text style={s.name}>{name}</Text>
             <Text style={s.verif}>
               {kind === 'real' ? '✔︎ Compte réel' : '● Compte simulé'}  ·  ★ {a.avisNote || '—'} ({a.avisRecus} avis)
             </Text>
             <Text style={s.activities}>Activités : {activities}</Text>
+            {kind === 'real'
+              ? <Text style={s.avatarHint}>{avatarErr ? `⚠ ${avatarErr}` : 'Touche la photo pour la changer'}</Text>
+              : <Text style={s.avatarHint}>Photo de profil : disponible sur un compte connecté</Text>}
           </View>
         </View>
         <View style={s.counters}>
@@ -136,8 +169,8 @@ export function ProfilV2() {
 
 const s = StyleSheet.create({
   headRow: { flexDirection: 'row', gap: Spacing.md, alignItems: 'center' },
-  avatar: { width: 52, height: 52, borderRadius: 26, backgroundColor: BL.accent, alignItems: 'center', justifyContent: 'center' },
-  avatarTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.lg },
+  avatarEdit: { position: 'absolute', right: -2, bottom: -2, width: 20, height: 20, borderRadius: 10, backgroundColor: BL.accent, borderWidth: 2, borderColor: BL.card, alignItems: 'center', justifyContent: 'center' },
+  avatarHint: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 3 },
   name: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   verif: { fontSize: FontSize.sm, color: Colors.textSecondary },
   activities: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.semibold, marginTop: 2 },

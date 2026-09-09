@@ -88,6 +88,33 @@ export async function uploadChevalPhoto(params: {
 }
 
 /**
+ * Upload une photo de profil utilisateur.
+ * Path : `<userId>/avatar.<ext>` dans le bucket `chevaux-photos` (mêmes policies
+ * Storage : `split_part(name,'/',1) = auth.uid()`). Aucun nouveau bucket.
+ * `upsert: true` → remplace la photo existante.
+ * (ajout V2 — lot photos + communauté ; V1 n'appelle pas cette fonction.)
+ */
+export async function uploadUserAvatar(params: {
+  userId: string;
+  pick: PickResult;
+}): Promise<{ url: string | null; error: string | null }> {
+  const { userId, pick } = params;
+  try {
+    const path = `${userId}/avatar.${pick.ext}`;
+    const fileResp = await fetch(pick.uri);
+    const blob = await fileResp.blob();
+    const { error: upErr } = await supabase.storage
+      .from(BUCKET)
+      .upload(path, blob, { contentType: pick.mimeType, upsert: true, cacheControl: '3600' });
+    if (upErr) return { url: null, error: upErr.message };
+    const { data: pub } = supabase.storage.from(BUCKET).getPublicUrl(path);
+    return { url: `${pub.publicUrl}?t=${Date.now()}`, error: null };
+  } catch (err) {
+    return { url: null, error: err instanceof Error ? err.message : 'Upload échoué.' };
+  }
+}
+
+/**
  * Supprime la photo cheval du bucket. Tolérant si le fichier n'existe pas.
  */
 export async function deleteChevalPhoto(params: {

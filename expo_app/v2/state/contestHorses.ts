@@ -27,6 +27,8 @@ export interface UnifiedHorse {
   taille?: string;
   disciplines: string[];
   couleur?: string;
+  /** URL publique de la photo (chevaux réels uniquement — `chevaux.photo_url`). */
+  photoUrl?: string;
 }
 
 function ageLabel(y?: number): string | undefined {
@@ -48,6 +50,7 @@ export function useV2AllHorses() {
       id: c.id, nom: c.nom, src: 'real' as const,
       race: c.race, robe: c.robe, sexe: c.sexe, anneeNaissance: c.anneeNaissance,
       taille: c.taille, disciplines: c.disciplines ?? [], couleur: c.photoColor,
+      photoUrl: (c as any).photoUrl,
     }));
     const localU: UnifiedHorse[] = (local ?? []).map((c) => ({
       id: c.id, nom: c.nom, src: 'local' as const,

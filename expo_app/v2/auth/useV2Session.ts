@@ -30,9 +30,13 @@ export interface UseV2Session {
   kind: V2SessionKind;
   isSignedIn: boolean;
   /** Identité affichable, quelle que soit la source. */
-  identity: { prenom: string; nom: string; email: string; telephone?: string } | null;
+  identity: { prenom: string; nom: string; email: string; telephone?: string; avatarUrl?: string } | null;
   /** Compte simulé brut (null si session réelle ou aucune). */
   simAccount: V2SimAccount | null;
+  /** id du compte RÉEL (auth.uid) — présent uniquement si kind === 'real'. */
+  realUserId: string | null;
+  /** Rafraîchit le profil réel (après upload avatar…). No-op si session simulée. */
+  refreshProfile: () => Promise<unknown>;
 
   // actions — session SIMULÉE uniquement (Phase 1)
   signUp: (f: { prenom: string; nom: string; email: string; telephone?: string }) => V2SimAccount;
@@ -42,18 +46,21 @@ export interface UseV2Session {
 
 export function useV2Session(): UseV2Session {
   const sim = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
-  const { isSignedIn: realSignedIn, profile } = useAuth();
+  const { isSignedIn: realSignedIn, profile, refetchProfile } = useAuth();
 
   let kind: V2SessionKind = 'none';
   let identity: UseV2Session['identity'] = null;
+  let realUserId: string | null = null;
 
   if (realSignedIn && profile) {
     kind = 'real';
+    realUserId = (profile as any).id ?? null;
     identity = {
       prenom: (profile as any).prenom ?? '',
       nom: (profile as any).nom ?? '',
       email: profile.email ?? '',
       telephone: (profile as any).telephone ?? undefined,
+      avatarUrl: (profile as any).avatar_url ?? undefined,
     };
   } else if (sim.account) {
     kind = 'simulated';
@@ -71,6 +78,8 @@ export function useV2Session(): UseV2Session {
     isSignedIn: kind !== 'none',
     identity,
     simAccount: kind === 'simulated' ? sim.account : null,
+    realUserId,
+    refreshProfile: kind === 'real' ? refetchProfile : async () => undefined,
     signUp: signUpSim,
     logIn: logInSim,
     signOut: signOutSim,

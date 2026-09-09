@@ -11,7 +11,7 @@
 // Aucune date à saisir (« année de naissance » = nombre) → pas de V2DateField.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, Image } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
@@ -26,6 +26,7 @@ import { V2SelectField } from '../components/V2SelectField';
 import { V2DateField, todayStart } from '../components/V2DateField';
 import { CoachPickerModal } from '../components/CoachPickerModal';
 import { vaccinStatus, soinStatus, SanteStatus } from '../lib/santeStatus';
+import { pickImageFromLibrary, uploadChevalPhoto } from '../../lib/photoUpload';
 
 const SEXES = ['Hongre', 'Jument', 'Étalon'];
 const DISCIPLINES = ['CSO', 'Dressage', 'CCE', 'Hunter', 'Endurance', 'Autre'];
@@ -58,7 +59,30 @@ export function ChevalV2() {
   const local = useChevauxLocal();
   const isLocal = isLocalHorseId(id);
   // Hooks toujours appelés dans le même ordre — id réel seulement si non-local.
-  const { cheval: realCheval, isLoading } = useCheval(isLocal ? undefined : id);
+  const { cheval: realCheval, isLoading, update: updateCheval, reload: reloadCheval } = useCheval(isLocal ? undefined : id);
+  const [photoBusy, setPhotoBusy] = useState(false);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
+  const [photoOverride, setPhotoOverride] = useState<string | null>(null);
+
+  // Photo d'un cheval RÉEL — écriture Supabase (chevaux.photo_url + bucket
+  // chevaux-photos). Path `<proprietaire_id>/<cheval_id>.<ext>` = auth.uid().
+  const onChangeChevalPhoto = async (proprietaireId: string, chevalId: string) => {
+    if (photoBusy) return;
+    setPhotoBusy(true); setPhotoErr(null);
+    try {
+      const picked = await pickImageFromLibrary();
+      if ('canceled' in picked) return;
+      if ('error' in picked) { setPhotoErr(picked.error); return; }
+      const up = await uploadChevalPhoto({ auteurId: proprietaireId, chevalId, pick: picked.result });
+      if (up.error || !up.url) { setPhotoErr(up.error ?? 'Upload échoué.'); return; }
+      const { error } = await updateCheval({ photoUrl: up.url } as any);
+      if (error) { setPhotoErr(error); return; }
+      setPhotoOverride(up.url);
+      reloadCheval?.();
+    } finally {
+      setPhotoBusy(false);
+    }
+  };
 
   if (isLocal) {
     const c = local.get(id!);
@@ -102,8 +126,28 @@ export function ChevalV2() {
     <Screen>
       <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(v2)/chevaux' as any))} hitSlop={8}><Text style={s.back}>← Chevaux</Text></TouchableOpacity>
       <View style={s.headRow}>
-        <View style={[s.dot, { backgroundColor: c.photoColor || BL.accent }]} />
-        <Text style={s.h1}>{c.nom}</Text>
+        <TouchableOpacity
+          onPress={() => onChangeChevalPhoto(c.proprietaireId, c.id)}
+          disabled={photoBusy}
+          activeOpacity={0.7}
+          accessibilityRole="button"
+          accessibilityLabel="Changer la photo du cheval"
+        >
+          {(photoOverride || (c as any).photoUrl) ? (
+            <Image source={{ uri: photoOverride || (c as any).photoUrl }} style={s.photo} />
+          ) : (
+            <View style={[s.photo, { backgroundColor: c.photoColor || BL.accent, alignItems: 'center', justifyContent: 'center' }]}>
+              <Text style={s.photoInit}>{(c.nom || '?').slice(0, 1).toUpperCase()}</Text>
+            </View>
+          )}
+          <View style={s.photoEdit}>
+            {photoBusy ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.photoEditTxt}>📷</Text>}
+          </View>
+        </TouchableOpacity>
+        <View style={{ flex: 1 }}>
+          <Text style={s.h1}>{c.nom}</Text>
+          <Text style={s.photoHint}>{photoErr ? `⚠ ${photoErr}` : 'Touche la photo pour la changer'}</Text>
+        </View>
       </View>
 
       <RowGroup>
@@ -338,6 +382,11 @@ const s = StyleSheet.create({
   sub: { fontSize: FontSize.sm, color: Colors.textSecondary },
   headRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
   dot: { width: 34, height: 34, borderRadius: 17 },
+  photo: { width: 56, height: 56, borderRadius: 12, backgroundColor: BL.neutralSoft },
+  photoInit: { color: '#fff', fontWeight: '800', fontSize: 22 },
+  photoEdit: { position: 'absolute', right: -4, bottom: -4, width: 22, height: 22, borderRadius: 11, backgroundColor: BL.accent, borderWidth: 2, borderColor: BL.card, alignItems: 'center', justifyContent: 'center' },
+  photoEditTxt: { fontSize: 10 },
+  photoHint: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 2 },
   localTag: { fontSize: FontSize.xs, color: Colors.warning, fontWeight: FontWeight.semibold },
 
   coachCard: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, backgroundColor: Colors.surface, borderWidth: 1, borderColor: Colors.border, borderRadius: 14, padding: Spacing.sm + 2 },

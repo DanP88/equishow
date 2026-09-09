@@ -8,6 +8,7 @@
 import { useMemo } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCommunautePosts, PostScope } from '../../hooks/useCommunautePosts';
+import { communityPhotoUrl } from '../../lib/communityPhotos';
 
 export interface V2Post {
   id: string;
@@ -19,6 +20,8 @@ export interface V2Post {
   likes: number;
   commentaires: number;
   photos: number;
+  photoUrls: string[]; // URLs publiques dérivées des chemins Storage (mig 108)
+  mine: boolean;       // post de l'utilisateur courant (→ suppression possible)
 }
 
 const FIL_META: Record<PostScope, { label: string; icon: string }> = {
@@ -37,39 +40,46 @@ function timeAgo(d: Date): string {
   return `Il y a ${Math.floor(h / 24)} j`;
 }
 
+const d = (o: Omit<V2Post, 'photoUrls' | 'mine'>): V2Post => ({ ...o, photoUrls: [], mine: false });
 const DEMO: Record<PostScope, V2Post[]> = {
   community: [
-    { id: 'dc1', auteur: 'Sophie D.', initiales: 'SD', couleur: '#7C3AED', contenu: 'Quelqu’un a fait le paddock ce matin à Fontainebleau ? Le sol est comment ?', quand: 'Il y a 2 h', likes: 4, commentaires: 3, photos: 0 },
-    { id: 'dc2', auteur: 'Marc L.', initiales: 'ML', couleur: '#0369A1', contenu: 'Cherche co-voiturage retour dimanche depuis La Baule vers Nantes.', quand: 'Il y a 5 h', likes: 2, commentaires: 1, photos: 0 },
-    { id: 'dc3', auteur: 'Émilie R.', initiales: 'ER', couleur: '#16A34A', contenu: 'Pensez au carnet de vaccination pour l’entrée sur site 🐴', quand: 'Hier', likes: 11, commentaires: 2, photos: 1 },
+    d({ id: 'dc1', auteur: 'Sophie D.', initiales: 'SD', couleur: '#7C3AED', contenu: 'Quelqu’un a fait le paddock ce matin à Fontainebleau ? Le sol est comment ?', quand: 'Il y a 2 h', likes: 4, commentaires: 3, photos: 0 }),
+    d({ id: 'dc2', auteur: 'Marc L.', initiales: 'ML', couleur: '#0369A1', contenu: 'Cherche co-voiturage retour dimanche depuis La Baule vers Nantes.', quand: 'Il y a 5 h', likes: 2, commentaires: 1, photos: 0 }),
+    d({ id: 'dc3', auteur: 'Émilie R.', initiales: 'ER', couleur: '#16A34A', contenu: 'Pensez au carnet de vaccination pour l’entrée sur site 🐴', quand: 'Hier', likes: 11, commentaires: 2, photos: 0 }),
   ],
   coach: [
-    { id: 'dk1', auteur: 'Caroline M.', initiales: 'CM', couleur: '#DB2777', contenu: 'Retour d’expérience sur la prépa mentale avant un Grand Prix Amateur ?', quand: 'Il y a 3 h', likes: 6, commentaires: 4, photos: 0 },
+    d({ id: 'dk1', auteur: 'Caroline M.', initiales: 'CM', couleur: '#DB2777', contenu: 'Retour d’expérience sur la prépa mentale avant un Grand Prix Amateur ?', quand: 'Il y a 3 h', likes: 6, commentaires: 4, photos: 0 }),
   ],
   organisateur: [
-    { id: 'do1', auteur: 'Haras des Pins', initiales: 'HP', couleur: '#D97706', contenu: 'Comment gérez-vous les inscriptions de dernière minute le jour J ?', quand: 'Il y a 1 j', likes: 3, commentaires: 5, photos: 0 },
+    d({ id: 'do1', auteur: 'Haras des Pins', initiales: 'HP', couleur: '#D97706', contenu: 'Comment gérez-vous les inscriptions de dernière minute le jour J ?', quand: 'Il y a 1 j', likes: 3, commentaires: 5, photos: 0 }),
   ],
 };
 
 export interface V2Community { ready: boolean; demo: boolean; posts: V2Post[] }
 
 export function useV2Community(scope: PostScope): V2Community {
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, profile } = useAuth();
   const { posts, isLoading } = useCommunautePosts(scope);
+  const me = (profile as any)?.id as string | undefined;
 
   return useMemo(() => {
-    const real: V2Post[] = (posts ?? []).map((p: any) => ({
-      id: p.id,
-      auteur: p.auteur || 'Membre EquiShow',
-      initiales: p.initiales || (p.auteur || '?').slice(0, 2).toUpperCase(),
-      couleur: p.couleur || '#7C3AED',
-      contenu: p.contenu ?? '',
-      quand: p.date instanceof Date ? timeAgo(p.date) : '',
-      likes: p.likes ?? 0,
-      commentaires: Array.isArray(p.commentaires) ? p.commentaires.length : 0,
-      photos: Array.isArray(p.imageUrls) ? p.imageUrls.length : 0,
-    }));
+    const real: V2Post[] = (posts ?? []).map((p: any) => {
+      const paths: string[] = Array.isArray(p.imageUrls) ? p.imageUrls : [];
+      return {
+        id: p.id,
+        auteur: p.auteur || 'Membre EquiShow',
+        initiales: p.initiales || (p.auteur || '?').slice(0, 2).toUpperCase(),
+        couleur: p.couleur || '#7C3AED',
+        contenu: p.contenu ?? '',
+        quand: p.date instanceof Date ? timeAgo(p.date) : '',
+        likes: p.likes ?? 0,
+        commentaires: Array.isArray(p.commentaires) ? p.commentaires.length : 0,
+        photos: paths.length,
+        photoUrls: paths.map(communityPhotoUrl).filter(Boolean),
+        mine: !!me && p.auteurId === me,
+      };
+    });
     if (isSignedIn && real.length) return { ready: !isLoading, demo: false, posts: real };
     return { ready: true, demo: true, posts: DEMO[scope] ?? [] };
-  }, [isSignedIn, isLoading, posts, scope]);
+  }, [isSignedIn, isLoading, posts, scope, me]);
 }

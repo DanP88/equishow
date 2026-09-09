@@ -15,6 +15,7 @@ import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { GhostButton } from '../ui/kit';
 import { useV2AllHorses, horseSubtitle } from '../state/contestHorses';
+import { HorseAvatar } from './HorseAvatar';
 
 export function V2HorsePicker({
   value,
@@ -61,6 +62,7 @@ export function V2HorsePicker({
                 onPress={() => toggle(h.id)}
               >
                 <Text style={s.check}>{on ? '☑' : '☐'}</Text>
+                <HorseAvatar photoUrl={h.photoUrl} couleur={h.couleur} nom={h.nom} size={26} />
                 <View style={{ flex: 1 }}>
                   <Text style={s.name}>{h.nom}{h.src === 'local' ? '  · local' : ''}</Text>
                   {!compact && !!sub && <Text style={s.subTxt}>{sub}</Text>}

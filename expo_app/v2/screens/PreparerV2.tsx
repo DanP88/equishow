@@ -24,6 +24,7 @@ import { useConcours } from '../../hooks/useConcours';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal, NeedChoice, NeedModule, needStatus, NEED_LABEL } from '../state/concoursLocal';
 import { useV2AllHorses, useV2ContestHorses, horseSubtitle } from '../state/contestHorses';
+import { HorseAvatar } from '../components/HorseAvatar';
 import { epreuveOptions } from '../lib/epreuves';
 import { V2MultiSelectField } from '../components/V2MultiSelectField';
 
@@ -90,6 +91,7 @@ export function PreparerV2() {
                 return (
                   <TouchableOpacity key={h.id} style={[s.checkRow, on && s.checkRowOn]} activeOpacity={0.85} onPress={() => toggleHorse(h.id)}>
                     <Text style={s.check}>{on ? '☑' : '☐'}</Text>
+                    <HorseAvatar photoUrl={h.photoUrl} couleur={h.couleur} nom={h.nom} size={26} />
                     <View style={{ flex: 1 }}>
                       <Text style={s.checkName}>{h.nom}{h.src === 'local' ? '  · local' : ''}</Text>
                       {!!sub && <Text style={s.checkSub}>{sub}</Text>}

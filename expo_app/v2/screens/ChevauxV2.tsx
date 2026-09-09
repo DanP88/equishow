@@ -12,6 +12,7 @@ import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, H1, Section, Card, Row, RowGroup, EmptyState, Placeholder } from '../ui/kit';
+import { HorseAvatar } from '../components/HorseAvatar';
 import { useCapabilities } from '../capabilities';
 import { useV2AllHorses, horseSubtitle } from '../state/contestHorses';
 import { MOCK_STUDENT_HORSES } from '../mocks/f2';
@@ -46,7 +47,7 @@ export function ChevauxV2() {
             {pool.all.map((h) => (
               <Card key={h.id} onPress={() => router.push(`/(v2)/chevaux/${h.id}` as any)}>
                 <View style={s.cardRow}>
-                  <View style={[s.dot, { backgroundColor: h.couleur || BL.accent }]} />
+                  <HorseAvatar photoUrl={h.photoUrl} couleur={h.couleur} nom={h.nom} size={30} />
                   <View style={{ flex: 1 }}>
                     <Text style={s.name}>{h.nom}{h.src === 'local' ? '  · local V2' : ''}</Text>
                     {!!horseSubtitle(h) && <Text style={s.sub}>{horseSubtitle(h)}</Text>}

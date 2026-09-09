@@ -8,6 +8,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { BL, FONT } from '../ui/blush';
 import { Icon } from '../ui/Icon';
+import { UserAvatar } from '../components/UserAvatar';
 import { V2_TOPBAR } from './navConfig';
 import { useV2Session } from '../auth';
 import { useV2Notifications } from '../adapters/notifications';
@@ -30,8 +31,8 @@ export function TopBarV2() {
       <View style={{ flex: 1 }} />
       <IconBtn name="bell-outline" count={notifCount} onPress={() => router.push(V2_TOPBAR.notifications as any)} />
       <IconBtn name="message-outline" count={msgCount} onPress={() => router.push(V2_TOPBAR.messagerie as any)} />
-      <TouchableOpacity style={s.avatar} onPress={() => router.replace(V2_TOPBAR.profil as any)} activeOpacity={0.8}>
-        <Text style={s.avatarTxt}>{initials}</Text>
+      <TouchableOpacity onPress={() => router.replace(V2_TOPBAR.profil as any)} activeOpacity={0.8}>
+        <UserAvatar url={identity?.avatarUrl} initials={initials} size={34} ring />
       </TouchableOpacity>
     </View>
   );
@@ -51,8 +52,6 @@ const s = StyleSheet.create({
   logo: { fontFamily: FONT.head, fontSize: 19, fontWeight: '700', color: BL.accent, letterSpacing: -0.2 },
   iconBtn: { padding: 4 },
   icon: { fontSize: 20 },
-  avatar: { width: 34, height: 34, borderRadius: 17, backgroundColor: BL.accent, alignItems: 'center', justifyContent: 'center', borderWidth: 2, borderColor: BL.accentSoft },
-  avatarTxt: { color: BL.accentInk, fontWeight: FontWeight.bold, fontSize: FontSize.sm },
   badge: { position: 'absolute', top: -2, right: -4, backgroundColor: BL.berry, borderRadius: 9, minWidth: 16, height: 16, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
   badgeTxt: { color: '#fff', fontSize: 9, fontWeight: '700' },
 });
