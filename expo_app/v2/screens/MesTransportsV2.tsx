@@ -87,7 +87,7 @@ export function MesTransportsV2() {
         <Section title={`Mes propositions · ${tl.offers.length}`}>
           {tl.offers.map((o) => (
             <Card key={o.id}>
-              <Text style={s.itemTitle}>📣 {o.depart} → {o.destination}</Text>
+              <Text style={s.itemTitle}>📣 {o.departVille || o.depart} → {o.destination}</Text>
               <Text style={s.itemMeta}>📅 {fmtDate(o.date)}{o.heure ? ` · ${o.heure}` : ''} · {o.places} place(s) · {o.prix} €/place</Text>
               {o.concoursNom ? <Text style={s.itemMeta}>🏆 {o.concoursNom}</Text> : null}
               <View style={s.itemBtns}>

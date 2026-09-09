@@ -36,7 +36,8 @@ export interface TransportOffer {
   id: string;
   concoursId?: string;
   concoursNom?: string;
-  depart: string;
+  depart: string;           // adresse de départ complète (saisie)
+  departVille?: string;     // ville seule — affichée dans l'annonce
   destination: string;
   date?: string;
   heure?: string;

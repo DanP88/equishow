@@ -29,7 +29,7 @@ import { DemandesBanner } from '../components/DemandesConcours';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 import {
-  RECOMMENDED_PRICE_PER_KM, geocodeFr, buildEstimate, type TransportEstimate,
+  RECOMMENDED_PRICE_PER_KM, geocodeFr, buildEstimate, cityFromFrenchAddress, type TransportEstimate,
 } from '../lib/transportPricing';
 
 // ── helpers ────────────────────────────────────────────────────────────────
@@ -414,7 +414,8 @@ export function TransportProposeV2() {
   const cl = useConcoursLocal(concoursId);
   const tl = useTransportLocal(concoursId);
 
-  const [depart, setDepart] = useState('');
+  const [depart, setDepart] = useState('');       // adresse complète saisie
+  const [departVille, setDepartVille] = useState(''); // ville (suggestion choisie)
   const dest = useAutoDestination(concoursId, concours);
   const [date, setDate] = useState(concours?.date_debut ?? '');
   const [heure, setHeure] = useState('');
@@ -423,6 +424,10 @@ export function TransportProposeV2() {
   const [peutCavalier, setPeutCavalier] = useState(false);
   const [description, setDescription] = useState('');
   const [done, setDone] = useState(false);
+
+  // Ville affichée dans l'annonce : suggestion choisie, sinon extraite de
+  // l'adresse saisie, sinon la saisie brute.
+  const villeDepart = departVille.trim() || cityFromFrenchAddress(depart) || depart.trim() || '—';
 
   // Estimation indicative « départ → concours » (hors détour prise en charge).
   const [estimate, setEstimate] = useState<TransportEstimate | null>(null);
@@ -437,7 +442,7 @@ export function TransportProposeV2() {
       const [a, b] = await Promise.all([geocodeFr(depart), geocodeFr(dest.value)]);
       if (!a || !b) { setEstimateErr('Adresse introuvable — vérifie ta saisie.'); setEstimating(false); return; }
       setEstimate(buildEstimate({
-        depart: { ...a, label: depart.trim() },
+        depart: { ...a, label: villeDepart },
         concours: { ...b, label: dest.value.trim() },
         pricePerKm, nbPlaces: 1, allerRetour: false,
       }));
@@ -452,7 +457,7 @@ export function TransportProposeV2() {
   const publish = () => {
     tl.publishOffer({
       concoursId, concoursNom: concours?.nom,
-      depart: depart.trim() || '—', destination: dest.value.trim() || '—',
+      depart: depart.trim() || '—', departVille: villeDepart, destination: dest.value.trim() || '—',
       date: date || undefined, heure: heure || undefined,
       places: parseInt(places, 10) || 1,
       prix: estimate?.price ?? 0,
@@ -473,7 +478,11 @@ export function TransportProposeV2() {
           <Text style={s.sub}>Annonce enregistrée localement (prototype).</Text>
         </View>
         <RowGroup>
-          <Row icon="🛣" label="Trajet" value={`${existing?.depart ?? depart} → ${existing?.destination ?? dest.value}`} />
+          <Row
+            icon="🛣" label="Trajet"
+            value={`${existing?.departVille || existing?.depart || villeDepart} → ${existing?.destination ?? dest.value}`}
+            sub={`Départ : ${existing?.depart ?? (depart.trim() || '—')}`}
+          />
           <Row icon="📅" label="Date" value={fmtDate(existing?.date ?? date)} />
           <Row icon="💺" label="Places" value={String(existing?.places ?? places)} />
           <Row icon="🛣" label="Tarif au km" value={`${(existing?.pricePerKm ?? pricePerKm).toFixed(2)} €/km`} />
@@ -503,7 +512,18 @@ export function TransportProposeV2() {
 
 
       <Card>
-        <Field label="Lieu de départ"><V2AddressAutocomplete value={depart} onChangeText={setDepart} kind="city" placeholder="Ville / commune" /></Field>
+        <Field label="Adresse de départ">
+          <V2AddressAutocomplete
+            value={depart}
+            onChangeText={(t) => { setDepart(t); setDepartVille(''); }}
+            onPick={(label, _coords, city) => { setDepart(label); setDepartVille(city); }}
+            kind="address"
+            placeholder="N° et voie, ville — ex. 12 rue des Écuries, Nantes"
+          />
+          {(depart.trim().length >= 3) && (
+            <Text style={s.sub}>Affiché dans l'annonce : <Text style={{ fontWeight: FontWeight.bold, color: Colors.textPrimary }}>{villeDepart}</Text></Text>
+          )}
+        </Field>
         <V2DestinationField label="Destination" auto={dest} placeholder="Ville d'arrivée" />
         <View style={s.rowFields}>
           <V2DateField label="Date" value={date} onChange={setDate} minDate={todayStart()} style={s.flex1} />

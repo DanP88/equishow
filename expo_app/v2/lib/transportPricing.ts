@@ -153,6 +153,21 @@ async function geocodeOpenMeteo(q: string): Promise<LatLng | null> {
   }
 }
 
+/**
+ * Extrait la VILLE d'une adresse française complète (format Base Adresse
+ * Nationale : « <n° et voie> <code postal 5 chiffres> <ville> »).
+ * Repli : dernier segment après une virgule, sinon la chaîne telle quelle.
+ * Front-only, aucune requête.
+ */
+export function cityFromFrenchAddress(address: string): string {
+  const a = (address || '').trim();
+  if (!a) return '';
+  const m = a.match(/\b\d{5}\s+(.+)$/);
+  if (m) return m[1].trim();
+  if (a.includes(',')) return a.split(',').pop()!.trim();
+  return a;
+}
+
 export async function geocodeFr(query: string): Promise<LatLng | null> {
   const q = query.trim();
   if (!q) return null;
