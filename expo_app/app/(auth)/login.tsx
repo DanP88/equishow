@@ -4,16 +4,19 @@ import {
   StyleSheet, KeyboardAvoidingView, Platform, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { router } from 'expo-router';
-import { Colors } from '../../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { useAuth } from '../../hooks/useAuth';
 import { TEST_ACCOUNTS } from '../../data/mockUsers';
 import { userStore } from '../../data/store';
 import { loginLimiter } from '../../lib/rateLimiter';
 import { V2_ENABLED, V2_FLAGS } from '../../v2/flags';
+import { BL, FONT, injectBlushFonts } from '../../v2/ui/blush';
 
 // V2 (prototype) activée → après connexion on entre dans la nouvelle navigation.
 const V2_NAV = V2_ENABLED && V2_FLAGS.navigation;
+
+// Même identité visuelle que l'appli V2 (thème Blush). No-op sur natif.
+injectBlushFonts();
 
 const SCREEN_BY_ROLE: Record<string, string> = {
   cavalier: '/(tabs)/chevaux',
@@ -130,7 +133,7 @@ export default function LoginScreen() {
               value={email}
               onChangeText={setEmail}
               placeholder="email@exemple.fr"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={BL.faint}
               keyboardType="email-address"
               autoCapitalize="none"
               autoCorrect={false}
@@ -145,7 +148,7 @@ export default function LoginScreen() {
               value={password}
               onChangeText={setPassword}
               placeholder="••••••••"
-              placeholderTextColor={Colors.textTertiary}
+              placeholderTextColor={BL.faint}
               secureTextEntry
               editable={!isSigningIn}
             />
@@ -158,7 +161,7 @@ export default function LoginScreen() {
             disabled={isSigningIn}
           >
             {isSigningIn
-              ? <ActivityIndicator color={Colors.textInverse} />
+              ? <ActivityIndicator color={BL.accentInk} />
               : <Text style={styles.btnText}>Se connecter</Text>
             }
           </TouchableOpacity>
@@ -172,10 +175,11 @@ export default function LoginScreen() {
   );
 }
 
+// ── Identité visuelle = thème Blush de l'appli V2 (v2/ui/blush) ──────────────
 const styles = StyleSheet.create({
   root: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: BL.bg,
   },
   container: {
     flexGrow: 1,
@@ -190,11 +194,13 @@ const styles = StyleSheet.create({
     width: 96,
     height: 96,
     borderRadius: 48,
-    backgroundColor: Colors.surface,
+    backgroundColor: BL.accentSoft,
     alignItems: 'center',
     justifyContent: 'center',
     marginBottom: Spacing.md,
     overflow: 'hidden',
+    borderWidth: 1,
+    borderColor: BL.accentLine,
   },
   logoImg: {
     // Remplit tout le cercle (resizeMode cover clippé par overflow hidden)
@@ -202,36 +208,41 @@ const styles = StyleSheet.create({
     height: 96,
   },
   logoText: {
+    fontFamily: FONT.head,
     fontSize: 32,
     fontWeight: FontWeight.extrabold,
-    color: Colors.textInverse,
+    color: BL.accentInk,
   },
   appName: {
+    fontFamily: FONT.head,
     fontSize: FontSize.xl,
-    fontWeight: FontWeight.extrabold,
-    color: Colors.textPrimary,
+    fontWeight: '700',
+    color: BL.ink,
     letterSpacing: 2,
   },
   tagline: {
+    fontFamily: FONT.body,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: BL.sub,
     marginTop: 4,
   },
   v2Btn: {
-    backgroundColor: Colors.primary,
-    borderRadius: Radius.lg,
+    backgroundColor: BL.accent,
+    borderRadius: BL.radiusTile,
     padding: Spacing.md,
     alignItems: 'center',
     marginBottom: Spacing.lg,
     gap: 2,
   },
   v2BtnText: {
-    color: Colors.textInverse,
+    fontFamily: FONT.body,
+    color: BL.accentInk,
     fontSize: FontSize.base,
-    fontWeight: FontWeight.extrabold,
+    fontWeight: '800',
   },
   v2BtnSub: {
-    color: Colors.textInverse,
+    fontFamily: FONT.body,
+    color: BL.accentInk,
     fontSize: FontSize.xs,
     opacity: 0.9,
   },
@@ -239,20 +250,21 @@ const styles = StyleSheet.create({
     marginBottom: Spacing.xl,
   },
   testTitle: {
+    fontFamily: FONT.body,
     fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textSecondary,
+    fontWeight: '600',
+    color: BL.sub,
     marginBottom: Spacing.md,
   },
   testGrid: {
     gap: Spacing.sm,
   },
   testCard: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.lg,
+    backgroundColor: BL.card,
+    borderRadius: BL.radiusTile,
     padding: Spacing.md,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: BL.line,
     alignItems: 'center',
     gap: Spacing.xs,
   },
@@ -260,60 +272,66 @@ const styles = StyleSheet.create({
     fontSize: 24,
   },
   testLabel: {
+    fontFamily: FONT.body,
     fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textPrimary,
+    fontWeight: '600',
+    color: BL.ink,
   },
   testEmail: {
+    fontFamily: FONT.body,
     fontSize: FontSize.xs,
-    color: Colors.textTertiary,
+    color: BL.faint,
   },
   form: {
-    backgroundColor: Colors.surface,
-    borderRadius: Radius.xxl,
+    backgroundColor: BL.card,
+    borderRadius: BL.radius,
     padding: Spacing.xl,
     borderWidth: 1,
-    borderColor: Colors.border,
+    borderColor: BL.line,
   },
   title: {
+    fontFamily: FONT.head,
     fontSize: FontSize.xxl,
-    fontWeight: FontWeight.bold,
-    color: Colors.textPrimary,
+    fontWeight: '700',
+    color: BL.ink,
     marginBottom: Spacing.xl,
   },
   errorBox: {
-    backgroundColor: '#FEF2F2',
+    backgroundColor: BL.accentSoft,
     borderRadius: Radius.md,
     padding: Spacing.md,
     marginBottom: Spacing.lg,
     borderWidth: 1,
-    borderColor: '#FECACA',
+    borderColor: BL.accentLine,
   },
   errorText: {
+    fontFamily: FONT.body,
     fontSize: FontSize.sm,
-    color: '#DC2626',
+    color: BL.berry,
   },
   field: {
     marginBottom: Spacing.lg,
   },
   label: {
+    fontFamily: FONT.body,
     fontSize: FontSize.sm,
-    fontWeight: FontWeight.semibold,
-    color: Colors.textSecondary,
+    fontWeight: '600',
+    color: BL.sub,
     marginBottom: Spacing.xs,
   },
   input: {
+    fontFamily: FONT.body,
     borderWidth: 1,
-    borderColor: Colors.borderMedium,
+    borderColor: BL.accentLine,
     borderRadius: Radius.md,
     paddingHorizontal: Spacing.md,
     paddingVertical: Spacing.sm + 2,
     fontSize: FontSize.base,
-    color: Colors.textPrimary,
-    backgroundColor: Colors.surface,
+    color: BL.ink,
+    backgroundColor: BL.card,
   },
   btn: {
-    backgroundColor: Colors.primary,
+    backgroundColor: BL.accent,
     borderRadius: Radius.md,
     paddingVertical: Spacing.md,
     alignItems: 'center',
@@ -323,20 +341,22 @@ const styles = StyleSheet.create({
     opacity: 0.6,
   },
   btnText: {
-    color: Colors.textInverse,
+    fontFamily: FONT.body,
+    color: BL.accentInk,
     fontSize: FontSize.base,
-    fontWeight: FontWeight.bold,
+    fontWeight: '800',
   },
   link: {
     alignItems: 'center',
     marginTop: Spacing.lg,
   },
   linkText: {
+    fontFamily: FONT.body,
     fontSize: FontSize.sm,
-    color: Colors.textSecondary,
+    color: BL.sub,
   },
   linkBold: {
-    color: Colors.primary,
-    fontWeight: FontWeight.semibold,
+    color: BL.accent,
+    fontWeight: '700',
   },
 });
