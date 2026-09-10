@@ -9,7 +9,7 @@
 //   1. Ton prochain concours (0 / 1 / plusieurs pertinents) + étiquette « à J-X »
 //   2. À traiter (si count > 0)
 //   3. On s'organise ? — Je cherche / Je propose
-//   4. Le fil des cavalières (aperçu)
+//   4. Le fil des cavaliers (aperçu)
 //   5. Concours à venir (découverte)
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
@@ -36,7 +36,7 @@ function isUpcoming(c: { date_fin: string | null; date_debut: string | null }) {
 export function AccueilV2() {
   const { identity } = useV2Session();
   const caps = useCapabilities();
-  const { concours } = useConcoursList();
+  const { concours, isLoading: concoursLoading } = useConcoursList();
   const local = useConcoursLocal();
 
   const upcoming = useMemo(() => concours.filter(isUpcoming), [concours]);
@@ -48,13 +48,19 @@ export function AccueilV2() {
   const nextEntry = useConcoursLocal(next?.id);
   const others = pertinents.length - 1;
 
-  const { items: actions } = useV2Todo();
-  const community = useV2Community('community').posts.slice(0, 2);
-  const communityCount = useV2Community('community').posts.length;
+  const { items: actions, ready: todoReady } = useV2Todo();
+  const feed = useV2Community('community');
+  const community = feed.posts.slice(0, 2);
+  const communityCount = feed.posts.length;
 
   const prenom = identity?.prenom?.trim();
   const cd = next ? countdown(daysUntil(next.date_debut ?? next.date_fin)) : null;
   const discovery = upcoming.filter((c) => c.id !== next?.id).slice(0, 3);
+
+  // Squelettes : on réserve la place des sections attendues pendant le
+  // chargement, plutôt que de les faire apparaître/disparaître (jank).
+  const concoursSettled = !concoursLoading || concours.length > 0;
+  const feedSettled = feed.ready || community.length > 0 || feed.demo;
 
   return (
     <SafeAreaView style={s.root}>
@@ -131,32 +137,47 @@ export function AccueilV2() {
           </View>
         </View>
 
-        {/* 4 — LE FIL DES CAVALIÈRES */}
-        {community.length > 0 && (
+        {/* 4 — LE FIL DES CAVALIERS */}
+        {(community.length > 0 || !feedSettled) && (
           <View style={s.block}>
             <View style={s.secRow}>
-              <Text style={s.secT}>Le fil des cavalières</Text>
+              <Text style={s.secT}>Le fil des cavaliers</Text>
               <TouchableOpacity onPress={() => router.replace('/(v2)/communaute' as any)} hitSlop={6}><Text style={s.act}>Tout voir</Text></TouchableOpacity>
             </View>
             <View style={s.softCard}>
-              {communityCount > 0 && <Sticker label={`✨ ${Math.min(communityCount, 9)} récents`} tone="lilac" tilt={-3} style={s.softSticker} />}
-              {community.map((p, i) => (
-                <Text key={p.id} style={[s.post, i > 0 && { marginTop: 6 }]} numberOfLines={1}>
-                  <Text style={s.postAuthor}>{p.auteur} — </Text>{p.contenu}
-                </Text>
-              ))}
+              {!feedSettled ? (
+                <>
+                  <View style={[s.skel, { width: '82%' }]} />
+                  <View style={[s.skel, { width: '64%', marginTop: 6 }]} />
+                </>
+              ) : (
+                <>
+                  {communityCount > 0 && <Sticker label={`✨ ${Math.min(communityCount, 9)} récents`} tone="lilac" tilt={-3} style={s.softSticker} />}
+                  {community.map((p, i) => (
+                    <Text key={p.id} style={[s.post, i > 0 && { marginTop: 6 }]} numberOfLines={1}>
+                      <Text style={s.postAuthor}>{p.auteur} — </Text>{p.contenu}
+                    </Text>
+                  ))}
+                </>
+              )}
             </View>
           </View>
         )}
 
         {/* 5 — CONCOURS À VENIR (découverte) */}
-        {discovery.length > 0 && (
+        {(discovery.length > 0 || !concoursSettled) && (
           <View style={s.block}>
             <View style={s.secRow}>
               <Text style={s.secT}>Concours à venir</Text>
               <TouchableOpacity onPress={() => router.replace('/(v2)/concours' as any)} hitSlop={6}><Text style={s.act}>Tout voir</Text></TouchableOpacity>
             </View>
             <View style={s.listCard}>
+              {!concoursSettled && discovery.length === 0 && (
+                <>
+                  <View style={[s.li]}><View style={[s.skel, { width: '55%' }]} /></View>
+                  <View style={[s.li, s.liDiv]}><View style={[s.skel, { width: '45%' }]} /></View>
+                </>
+              )}
               {discovery.map((c, i) => (
                 <TouchableOpacity key={c.id} style={[s.li, i > 0 && s.liDiv]} activeOpacity={0.7} onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}>
                   <Icon name="trophy-outline" size={16} color={BL.faint} />
@@ -242,4 +263,6 @@ const s = StyleSheet.create({
   softSticker: { position: 'absolute', top: -9, right: 12, zIndex: 3 },
   post: { fontFamily: FONT.body, fontSize: 11, color: BL.sub },
   postAuthor: { fontWeight: '800', color: BL.ink },
+
+  skel: { height: 11, borderRadius: 6, backgroundColor: BL.neutralSoft },
 });

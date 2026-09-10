@@ -5,7 +5,7 @@
 // AUCUNE écriture : publier / liker / commenter = flux Supabase → Phase 2.
 // Repli démo si non connecté OU fil vide.
 // ─────────────────────────────────────────────────────────────────────────────
-import { useMemo } from 'react';
+import { useMemo, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCommunautePosts, PostScope } from '../../hooks/useCommunautePosts';
 import { communityPhotoUrl } from '../../lib/communityPhotos';
@@ -58,28 +58,40 @@ const DEMO: Record<PostScope, V2Post[]> = {
 export interface V2Community { ready: boolean; demo: boolean; posts: V2Post[] }
 
 export function useV2Community(scope: PostScope): V2Community {
-  const { isSignedIn, profile } = useAuth();
+  const { isSignedIn, isLoading: authLoading, profile } = useAuth();
   const { posts, isLoading } = useCommunautePosts(scope);
   const me = (profile as any)?.id as string | undefined;
 
+  const real = useMemo<V2Post[]>(() => (posts ?? []).map((p: any) => {
+    const paths: string[] = Array.isArray(p.imageUrls) ? p.imageUrls : [];
+    return {
+      id: p.id,
+      auteur: p.auteur || 'Membre EquiShow',
+      initiales: p.initiales || (p.auteur || '?').slice(0, 2).toUpperCase(),
+      couleur: p.couleur || '#7C3AED',
+      contenu: p.contenu ?? '',
+      quand: p.date instanceof Date ? timeAgo(p.date) : '',
+      likes: p.likes ?? 0,
+      commentaires: Array.isArray(p.commentaires) ? p.commentaires.length : 0,
+      photos: paths.length,
+      photoUrls: paths.map(communityPhotoUrl).filter(Boolean),
+      mine: !!me && p.auteurId === me,
+    };
+  }), [posts, me]);
+
+  // Dernière liste réelle connue — évite de faire clignoter la section vers
+  // la démo (ou vers vide) pendant un rechargement ou une transition de session.
+  const lastReal = useRef<V2Post[]>([]);
+  if (real.length) lastReal.current = real;
+
   return useMemo(() => {
-    const real: V2Post[] = (posts ?? []).map((p: any) => {
-      const paths: string[] = Array.isArray(p.imageUrls) ? p.imageUrls : [];
-      return {
-        id: p.id,
-        auteur: p.auteur || 'Membre EquiShow',
-        initiales: p.initiales || (p.auteur || '?').slice(0, 2).toUpperCase(),
-        couleur: p.couleur || '#7C3AED',
-        contenu: p.contenu ?? '',
-        quand: p.date instanceof Date ? timeAgo(p.date) : '',
-        likes: p.likes ?? 0,
-        commentaires: Array.isArray(p.commentaires) ? p.commentaires.length : 0,
-        photos: paths.length,
-        photoUrls: paths.map(communityPhotoUrl).filter(Boolean),
-        mine: !!me && p.auteurId === me,
-      };
-    });
-    if (isSignedIn && real.length) return { ready: !isLoading, demo: false, posts: real };
+    // Connecté (ou auth encore en cours) : JAMAIS de démo. On montre le réel,
+    // sinon la dernière liste connue, sinon vide (la section affiche un skelette).
+    if (isSignedIn || authLoading) {
+      const list = real.length ? real : lastReal.current;
+      return { ready: isSignedIn && !authLoading && !isLoading, demo: false, posts: list };
+    }
+    // Vraiment déconnecté : démonstration de découverte.
     return { ready: true, demo: true, posts: DEMO[scope] ?? [] };
-  }, [isSignedIn, isLoading, posts, scope, me]);
+  }, [isSignedIn, authLoading, isLoading, real, scope]);
 }

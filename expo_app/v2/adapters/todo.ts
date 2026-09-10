@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
 import { useV2Session } from '../auth';
+import { useAuth } from '../../hooks/useAuth';
 import { useConcoursList } from '../../hooks/useConcours';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal, getConcoursEntry, prepScore } from '../state/concoursLocal';
@@ -23,6 +24,7 @@ export interface V2TodoItem { id: string; icon: string; label: string; target: s
 
 export function useV2Todo(): { items: V2TodoItem[]; demo: boolean; ready: boolean } {
   const session = useV2Session();
+  const { isLoading: authLoading } = useAuth();
   const caps = useCapabilities();
   const cl = useConcoursLocal();
   const { concours } = useConcoursList();
@@ -30,9 +32,12 @@ export function useV2Todo(): { items: V2TodoItem[]; demo: boolean; ready: boolea
   const org = useV2OrgSpace();
 
   return useMemo(() => {
-    // Rien tant que les sources locales ne sont pas prêtes → évite le
-    // clignotement « plusieurs entrées démo puis une seule ».
-    if (!session.ready || !cl.ready) return { items: [], demo: false, ready: false };
+    // Rien tant que la session (réelle OU simulée), les capacités et l'état
+    // local « Mon concours » ne sont pas hydratés → évite d'afficher des
+    // entrées d'une session précédente (ou démo) puis de les retirer.
+    if (authLoading || !session.ready || !caps.ready || !cl.ready) {
+      return { items: [], demo: false, ready: false };
+    }
 
     const items: V2TodoItem[] = [];
 
@@ -66,5 +71,5 @@ export function useV2Todo(): { items: V2TodoItem[]; demo: boolean; ready: boolea
       };
     }
     return { items: [], demo: false, ready: true };
-  }, [session.ready, session.isSignedIn, caps, cl.ready, cl.goingIds, concours, kDemands, org]);
+  }, [authLoading, session.ready, session.isSignedIn, caps, cl.ready, cl.goingIds, concours, kDemands, org]);
 }
