@@ -154,8 +154,8 @@ export function ProfilV2() {
       <Section title="Compte">
         <RowGroup>
           <Row icon="puzzle-outline" label="Mes activités" value={String(caps.held.length)} onPress={() => router.push('/v2-dev' as any)} />
-          <Row icon="cog-outline" label="Paramètres" onPress={() => {}} />
-          <Row icon="help-circle-outline" label="Aide & contact" onPress={() => {}} />
+          <Row icon="cog-outline" label="Paramètres" onPress={() => router.push('/(v2)/parametres' as any)} />
+          <Row icon="help-circle-outline" label="Aide & contact" onPress={() => router.push('/support' as any)} />
         </RowGroup>
         <TouchableOpacity style={s.logout} onPress={handleLogout} activeOpacity={0.8}>
           <Icon name="logout" size={16} color={Colors.urgent} />

@@ -19,9 +19,9 @@ import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Segment, Card, Placeholder, EmptyState } from '../ui/kit';
 import { useCapabilities } from '../capabilities';
-import { PostScope, useCommunautePosts } from '../../hooks/useCommunautePosts';
+import { PostScope } from '../../hooks/useCommunautePosts';
 import { useAuth } from '../../hooks/useAuth';
-import { useV2Community, filMeta } from '../adapters/community';
+import { useV2Community, filMeta, type V2Community } from '../adapters/community';
 import { pickPostPhotos, uploadPostPhotos, MAX_POST_PHOTOS, type PickedPhoto } from '../../lib/communityPhotos';
 
 export function CommunauteV2() {
@@ -34,6 +34,12 @@ export function CommunauteV2() {
   ];
   const [fil, setFil] = useState<PostScope>('community');
   const active: PostScope = fils.some((f) => f.key === fil) ? fil : 'community';
+  // UNE SEULE instance de useV2Community(active) pour tout l'écran (Composer +
+  // Fil) : sinon chaque appel séparé du hook a son propre état local, et une
+  // mise à jour optimiste (like/commentaire/publication) dans l'un ne se
+  // reflète jamais dans l'autre avant le round-trip realtime → ressenti « pas
+  // instantané ».
+  const community = useV2Community(active);
 
   return (
     <Screen>
@@ -43,8 +49,8 @@ export function CommunauteV2() {
         <Segment options={fils.map((f) => ({ key: f.key, label: f.label }))} value={active} onChange={(k) => setFil(k as PostScope)} />
       )}
 
-      <Composer scope={active} />
-      <Fil scope={active} />
+      <Composer community={community} />
+      <Fil community={community} />
 
       <View style={s.sepNote}>
         <Text style={s.sepTitle}>Où poster quoi ?</Text>
@@ -57,9 +63,9 @@ export function CommunauteV2() {
 }
 
 // ── Composer (publication réelle) ───────────────────────────────────────────
-function Composer({ scope }: { scope: PostScope }) {
+function Composer({ community }: { community: V2Community }) {
   const { profile } = useAuth();
-  const { createPost, reload } = useCommunautePosts(scope);
+  const { createPost } = community;
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
   const [photos, setPhotos] = useState<PickedPhoto[]>([]);
@@ -99,7 +105,6 @@ function Composer({ scope }: { scope: PostScope }) {
       const { error } = await createPost(contenu, paths);
       if (error) { setErr(error); return; }
       reset();
-      reload();
     } finally {
       setBusy(false);
     }
@@ -153,13 +158,58 @@ function Composer({ scope }: { scope: PostScope }) {
 }
 
 // ── Fil ─────────────────────────────────────────────────────────────────────
-function Fil({ scope }: { scope: PostScope }) {
-  const { posts, demo } = useV2Community(scope);
-  const { deletePost, reload } = useCommunautePosts(scope);
+const MAX_COMMENT_PHOTOS = 5;
+
+function Fil({ community }: { community: V2Community }) {
+  const { profile } = useAuth();
+  const { posts, demo, toggleLike, addComment, deletePost } = community;
+  const [openComments, setOpenComments] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [commentPhotos, setCommentPhotos] = useState<Record<string, PickedPhoto[]>>({});
+  const [sending, setSending] = useState<string | null>(null);
+  const [photoErr, setPhotoErr] = useState<string | null>(null);
+
+  const canInteract = !demo && !!profile?.id;
 
   const onDelete = async (id: string) => {
-    const { error } = await deletePost(id);
-    if (!error) reload();
+    await deletePost(id);
+  };
+
+  const onLike = async (id: string) => {
+    if (!canInteract) return;
+    await toggleLike(id);
+  };
+
+  const onAddCommentPhotos = async (postId: string) => {
+    const current = commentPhotos[postId] ?? [];
+    setPhotoErr(null);
+    const r = await pickPostPhotos(MAX_COMMENT_PHOTOS - current.length);
+    if ('error' in r) { setPhotoErr(r.error); return; }
+    if ('canceled' in r) return;
+    setCommentPhotos((m) => ({ ...m, [postId]: [...current, ...r.photos].slice(0, MAX_COMMENT_PHOTOS) }));
+  };
+
+  const onSendComment = async (postId: string) => {
+    const texte = (drafts[postId] ?? '').trim();
+    const photos = commentPhotos[postId] ?? [];
+    if ((!texte && photos.length === 0) || !canInteract || sending) return;
+    setSending(postId);
+    setPhotoErr(null);
+    try {
+      let paths: string[] = [];
+      if (photos.length) {
+        const up = await uploadPostPhotos({ userId: profile!.id, photos });
+        if (up.error) { setPhotoErr(up.error); return; }
+        paths = up.paths;
+      }
+      const { error } = await addComment(postId, texte, paths);
+      if (!error) {
+        setDrafts((d) => ({ ...d, [postId]: '' }));
+        setCommentPhotos((m) => ({ ...m, [postId]: [] }));
+      }
+    } finally {
+      setSending(null);
+    }
   };
 
   return (
@@ -167,31 +217,109 @@ function Fil({ scope }: { scope: PostScope }) {
       {posts.length === 0 ? (
         <EmptyState icon="💬" title="Aucune publication pour le moment"
           body="Ce fil est calme. Sois le premier à publier." />
-      ) : posts.map((p) => (
-        <Card key={p.id}>
-          <View style={s.postHead}>
-            <View style={[s.avatar, { backgroundColor: p.couleur }]}><Text style={s.avatarTxt}>{p.initiales}</Text></View>
-            <View style={{ flex: 1 }}>
-              <Text style={s.author}>{p.auteur}</Text>
-              <Text style={s.when}>{p.quand}</Text>
+      ) : posts.map((p) => {
+        const commentsOpen = openComments === p.id;
+        return (
+          <Card key={p.id}>
+            <View style={s.postHead}>
+              <View style={[s.avatar, { backgroundColor: p.couleur }]}><Text style={s.avatarTxt}>{p.initiales}</Text></View>
+              <View style={{ flex: 1 }}>
+                <Text style={s.author}>{p.auteur}</Text>
+                <Text style={s.when}>{p.quand}</Text>
+              </View>
+              {p.mine && (
+                <TouchableOpacity onPress={() => onDelete(p.id)} hitSlop={8}><Text style={s.del}>Supprimer</Text></TouchableOpacity>
+              )}
             </View>
-            {p.mine && (
-              <TouchableOpacity onPress={() => onDelete(p.id)} hitSlop={8}><Text style={s.del}>Supprimer</Text></TouchableOpacity>
+            {!!p.contenu && <Text style={s.text}>{p.contenu}</Text>}
+            {p.photoUrls.length > 0 && (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.postPhotos}>
+                {p.photoUrls.map((u, i) => <Image key={i} source={{ uri: u }} style={s.postPhoto} />)}
+              </ScrollView>
             )}
-          </View>
-          {!!p.contenu && <Text style={s.text}>{p.contenu}</Text>}
-          {p.photoUrls.length > 0 && (
-            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.postPhotos}>
-              {p.photoUrls.map((u, i) => <Image key={i} source={{ uri: u }} style={s.postPhoto} />)}
-            </ScrollView>
-          )}
-          <Text style={s.actions}>♥ {p.likes}   💬 {p.commentaires}{p.photos ? `   📷 ${p.photos}` : ''}</Text>
-        </Card>
-      ))}
+
+            <View style={s.actionsRow}>
+              <TouchableOpacity style={s.actionBtn} onPress={() => onLike(p.id)} disabled={!canInteract} hitSlop={6}>
+                <Text style={[s.actionTxt, p.likedByMe && s.actionTxtOn]}>{p.likedByMe ? '♥' : '♡'} {p.likes}</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={s.actionBtn} onPress={() => setOpenComments(commentsOpen ? null : p.id)} hitSlop={6}>
+                <Text style={s.actionTxt}>💬 {p.commentaires.length}</Text>
+              </TouchableOpacity>
+              {p.photos > 0 && <Text style={s.actionTxt}>📷 {p.photos}</Text>}
+            </View>
+
+            {commentsOpen && (
+              <View style={s.commentsBox}>
+                {p.commentaires.length === 0 ? (
+                  <Text style={s.noComment}>Aucun commentaire — sois le premier.</Text>
+                ) : p.commentaires.map((c) => (
+                  <View key={c.id} style={s.commentRow}>
+                    <View style={[s.avatarSm, { backgroundColor: c.couleur }]}><Text style={s.avatarSmTxt}>{c.initiales}</Text></View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={s.commentAuthor}>{c.auteur} <Text style={s.commentWhen}>· {c.quand}</Text></Text>
+                      {!!c.texte && <Text style={s.commentTxt}>{c.texte}</Text>}
+                      {c.photoUrls.length > 0 && (
+                        <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.commentPhotos}>
+                          {c.photoUrls.map((u, i) => <Image key={i} source={{ uri: u }} style={s.commentPhoto} />)}
+                        </ScrollView>
+                      )}
+                    </View>
+                  </View>
+                ))}
+                {canInteract && (
+                  <View style={{ gap: 6 }}>
+                    {(commentPhotos[p.id]?.length ?? 0) > 0 && (
+                      <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={s.thumbs}>
+                        {commentPhotos[p.id].map((ph, i) => (
+                          <View key={i} style={s.thumbWrap}>
+                            <Image source={{ uri: ph.uri }} style={s.commentThumb} />
+                            <TouchableOpacity
+                              style={s.thumbX}
+                              onPress={() => setCommentPhotos((m) => ({ ...m, [p.id]: m[p.id].filter((_, j) => j !== i) }))}
+                            >
+                              <Text style={s.thumbXTxt}>✕</Text>
+                            </TouchableOpacity>
+                          </View>
+                        ))}
+                      </ScrollView>
+                    )}
+                    <View style={s.commentInputRow}>
+                      <TouchableOpacity
+                        onPress={() => onAddCommentPhotos(p.id)}
+                        disabled={(commentPhotos[p.id]?.length ?? 0) >= MAX_COMMENT_PHOTOS || sending === p.id}
+                        style={s.commentPhotoBtn}
+                      >
+                        <Text style={s.commentPhotoBtnTxt}>📷 {commentPhotos[p.id]?.length ?? 0}/{MAX_COMMENT_PHOTOS}</Text>
+                      </TouchableOpacity>
+                      <TextInput
+                        style={s.commentInput}
+                        value={drafts[p.id] ?? ''}
+                        onChangeText={(t) => setDrafts((d) => ({ ...d, [p.id]: t }))}
+                        placeholder="Écrire un commentaire…"
+                        placeholderTextColor={Colors.textTertiary}
+                        returnKeyType="send"
+                        onSubmitEditing={() => onSendComment(p.id)}
+                      />
+                      <TouchableOpacity
+                        onPress={() => onSendComment(p.id)}
+                        disabled={sending === p.id || (!(drafts[p.id] ?? '').trim() && (commentPhotos[p.id]?.length ?? 0) === 0)}
+                        style={s.commentSend}
+                      >
+                        {sending === p.id ? <ActivityIndicator size="small" color="#fff" /> : <Text style={s.commentSendTxt}>Envoyer</Text>}
+                      </TouchableOpacity>
+                    </View>
+                    {!!photoErr && <Text style={s.err}>⚠ {photoErr}</Text>}
+                  </View>
+                )}
+              </View>
+            )}
+          </Card>
+        );
+      })}
 
       <Placeholder note={demo
-        ? 'aperçu de démonstration — connecte-toi pour voir et publier les publications réelles'
-        : 'publications réelles (Supabase, partagées avec l’app actuelle) — les likes / commentaires arrivent ensuite'}
+        ? 'aperçu de démonstration — connecte-toi pour liker, commenter et publier'
+        : 'publications, likes et commentaires réels (Supabase, partagés avec l’app actuelle)'}
         v1Path="/(tabs)/communaute" v1Label="Communauté (V1)" />
     </View>
   );
@@ -229,6 +357,29 @@ const s = StyleSheet.create({
   postPhotos: { gap: 8, paddingVertical: 8 },
   postPhoto: { width: 160, height: 160, borderRadius: 12, backgroundColor: BL.neutralSoft },
   actions: { fontSize: FontSize.xs, color: Colors.textTertiary, marginTop: 4 },
+
+  actionsRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.lg, marginTop: 6 },
+  actionBtn: { flexDirection: 'row', alignItems: 'center' },
+  actionTxt: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
+  actionTxtOn: { color: BL.berry },
+
+  commentsBox: { marginTop: Spacing.sm, paddingTop: Spacing.sm, borderTopWidth: 1, borderTopColor: BL.line, gap: Spacing.sm },
+  noComment: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
+  commentRow: { flexDirection: 'row', gap: Spacing.sm, alignItems: 'flex-start' },
+  avatarSm: { width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+  avatarSmTxt: { color: '#fff', fontWeight: FontWeight.bold, fontSize: 9 },
+  commentAuthor: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textPrimary },
+  commentWhen: { fontWeight: FontWeight.regular, color: Colors.textTertiary },
+  commentTxt: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 1 },
+  commentPhotos: { gap: 6, paddingVertical: 6 },
+  commentPhoto: { width: 72, height: 72, borderRadius: 8, backgroundColor: BL.neutralSoft },
+  commentThumb: { width: 48, height: 48, borderRadius: 8, backgroundColor: BL.neutralSoft },
+  commentInputRow: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, marginTop: 2 },
+  commentPhotoBtn: { paddingVertical: 8, paddingHorizontal: 8, borderRadius: 999, borderWidth: 1, borderColor: BL.accentLine },
+  commentPhotoBtnTxt: { fontSize: 10, color: BL.accent, fontWeight: FontWeight.bold },
+  commentInput: { flex: 1, fontSize: FontSize.sm, color: Colors.textPrimary, borderWidth: 1, borderColor: BL.line, borderRadius: 999, paddingHorizontal: Spacing.md, paddingVertical: 8, backgroundColor: BL.bg },
+  commentSend: { paddingVertical: 8, paddingHorizontal: 14, borderRadius: 999, backgroundColor: BL.accent, minWidth: 66, alignItems: 'center' },
+  commentSendTxt: { color: '#fff', fontSize: FontSize.xs, fontWeight: FontWeight.bold },
 
   sepNote: { backgroundColor: Colors.surfaceVariant, borderRadius: Radius.md, padding: Spacing.md, gap: 4, marginTop: Spacing.lg },
   sepTitle: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },

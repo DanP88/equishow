@@ -42,6 +42,7 @@ interface CommentRow {
   auteur_couleur: string | null;
   texte: string;
   liked_by: string[];
+  image_urls: string[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -73,6 +74,7 @@ function rowToComment(r: CommentRow): CommunauteComment {
     date: timeAgo(new Date(r.created_at)),
     likes: (r.liked_by ?? []).length,
     likedBy: r.liked_by ?? [],
+    imageUrls: r.image_urls ?? [],
   };
 }
 
@@ -206,7 +208,7 @@ export function useCommunautePosts(scope: PostScope) {
     return { error: null };
   }, [posts, profile?.id, scope, load]);
 
-  const addComment = useCallback(async (postId: string, texte: string): Promise<{ error: string | null }> => {
+  const addComment = useCallback(async (postId: string, texte: string, imagePaths: string[] = []): Promise<{ error: string | null }> => {
     if (!profile?.id) return { error: 'Non authentifié' };
     const auteur_nom = `${(profile as any).prenom ?? ''} ${(profile as any).nom ?? ''}`.trim();
     const auteur_initiales = `${((profile as any).prenom?.[0] ?? '').toUpperCase()}${((profile as any).nom?.[0] ?? '').toUpperCase()}`;
@@ -221,6 +223,7 @@ export function useCommunautePosts(scope: PostScope) {
         auteur_couleur,
         texte,
         liked_by: [],
+        image_urls: imagePaths,
       })
       .select('*')
       .single();

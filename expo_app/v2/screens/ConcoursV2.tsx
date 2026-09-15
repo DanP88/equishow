@@ -5,7 +5,7 @@
 // Suivis = état local simulé. Organisés = lecture réelle (useMyConcours).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
@@ -21,6 +21,10 @@ function isUpcoming(c: { date_fin: string | null; date_debut: string | null }) {
   const today = new Date(); today.setHours(0, 0, 0, 0);
   return new Date(`${d}T00:00:00`).getTime() >= today.getTime();
 }
+
+// Recherche libre accent/casse-insensible (nom, lieu, département) — même
+// normalisation que components/ConcoursAutocomplete.tsx.
+const norm = (s: string) => (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().trim();
 
 export function ConcoursV2() {
   const params = useLocalSearchParams<{ tab?: string }>();
@@ -38,12 +42,24 @@ export function ConcoursV2() {
     params.tab && tabs.some((t) => t.key === params.tab) ? params.tab! : 'decouvrir',
   );
   const [when, setWhen] = useState<'avenir' | 'passes'>('avenir');
+  const [query, setQuery] = useState('');
 
   const list = useMemo(() => {
     const base = when === 'avenir' ? concours.filter(isUpcoming) : concours.filter((c) => !isUpcoming(c));
-    if (tab === 'suivis') return base.filter((c) => local.followingIds.includes(c.id) || local.goingIds.includes(c.id));
-    return base;
-  }, [concours, tab, when, local.followingIds, local.goingIds]);
+    const scoped = tab === 'suivis'
+      ? base.filter((c) => local.followingIds.includes(c.id) || local.goingIds.includes(c.id))
+      : base;
+    const q = norm(query);
+    if (!q) return scoped;
+    // Recherche libre : nom, lieu, département, numéro FFE — la liste complète
+    // reste consultable en déroulant (pas de cap sur les résultats).
+    return scoped.filter((c) =>
+      norm(c.nom).includes(q)
+      || norm(c.lieu ?? '').includes(q)
+      || norm(c.departement ?? '').includes(q)
+      || norm(c.numero_ffe ?? '').includes(q),
+    );
+  }, [concours, tab, when, query, local.followingIds, local.goingIds]);
 
   return (
     <Screen>
@@ -59,10 +75,27 @@ export function ConcoursV2() {
       <Segment options={tabs} value={tab} onChange={setTab} />
 
       {tab !== 'organises' && (
-        <View style={s.filterRow}>
-          <Chip label="À venir" on={when === 'avenir'} onPress={() => setWhen('avenir')} />
-          <Chip label="Passés" on={when === 'passes'} onPress={() => setWhen('passes')} />
-        </View>
+        <>
+          <View style={s.searchRow}>
+            <TextInput
+              style={s.searchInput}
+              value={query}
+              onChangeText={setQuery}
+              placeholder="Rechercher un concours — nom, ville, département…"
+              placeholderTextColor={Colors.textTertiary}
+              autoCorrect={false}
+            />
+            {!!query && (
+              <TouchableOpacity style={s.searchClear} onPress={() => setQuery('')} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
+                <Text style={s.searchClearTxt}>✕</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+          <View style={s.filterRow}>
+            <Chip label="À venir" on={when === 'avenir'} onPress={() => setWhen('avenir')} />
+            <Chip label="Passés" on={when === 'passes'} onPress={() => setWhen('passes')} />
+          </View>
+        </>
       )}
 
       {tab === 'organises' ? (
@@ -70,21 +103,26 @@ export function ConcoursV2() {
       ) : list.length === 0 ? (
         <EmptyState
           icon="🏆"
-          title={tab === 'suivis' ? 'Aucun concours suivi' : 'Aucun concours'}
-          body={tab === 'suivis' ? 'Ouvre une fiche concours et appuie sur « Suivre » ou « J’y serai ».' : 'Essaie d’élargir les filtres.'}
+          title={query ? 'Aucun résultat' : tab === 'suivis' ? 'Aucun concours suivi' : 'Aucun concours'}
+          body={query ? `Aucun concours ne correspond à « ${query.trim()} ».` : tab === 'suivis' ? 'Ouvre une fiche concours et appuie sur « Suivre » ou « J’y serai ».' : 'Essaie d’élargir les filtres.'}
         />
       ) : (
-        <RowGroup>
-          {list.slice(0, 40).map((c) => (
-            <Row
-              key={c.id}
-              icon="🏆"
-              label={c.nom}
-              sub={[c.dateLabel, c.lieu].filter(Boolean).join(' · ') || undefined}
-              onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}
-            />
-          ))}
-        </RowGroup>
+        <>
+          <Text style={s.resultCount}>
+            {list.length} concours{query ? ` pour « ${query.trim()} »` : ''} — fais défiler pour voir la liste complète
+          </Text>
+          <RowGroup>
+            {list.map((c) => (
+              <Row
+                key={c.id}
+                icon="🏆"
+                label={c.nom}
+                sub={[c.dateLabel, c.lieu].filter(Boolean).join(' · ') || undefined}
+                onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}
+              />
+            ))}
+          </RowGroup>
+        </>
       )}
 
       {tab === 'decouvrir' && (
@@ -129,6 +167,15 @@ const s = StyleSheet.create({
   fab: { backgroundColor: BL.accent, borderRadius: 999, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, ...Shadow.fab },
   fabTxt: { color: Colors.textInverse, fontWeight: FontWeight.extrabold, fontSize: FontSize.sm },
   filterRow: { flexDirection: 'row', gap: Spacing.sm, flexWrap: 'wrap' },
+  searchRow: { flexDirection: 'row', alignItems: 'center' },
+  searchInput: {
+    flex: 1, borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md,
+    paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 4,
+    fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface,
+  },
+  searchClear: { position: 'absolute', right: Spacing.sm, padding: Spacing.xs },
+  searchClearTxt: { fontSize: FontSize.sm, color: Colors.textTertiary },
+  resultCount: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
   orgCard: { backgroundColor: Colors.surface, borderRadius: 16, borderWidth: 1, borderColor: Colors.border, padding: Spacing.lg, gap: 4 },
   orgName: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   orgMeta: { fontSize: FontSize.sm, color: Colors.textSecondary },

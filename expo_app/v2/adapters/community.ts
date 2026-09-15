@@ -1,14 +1,27 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// v2/adapters/community — fils Communauté V2 (F10).
+// v2/adapters/community — fils Communauté V2 (F10 + lot likes/commentaires).
 //
-// LECTURE SEULE de useCommunautePosts(scope) (V1, 3 espaces avec RLS DB).
-// AUCUNE écriture : publier / liker / commenter = flux Supabase → Phase 2.
+// Lecture de useCommunautePosts(scope) (V1, 3 espaces avec RLS DB). Écritures
+// RÉELLES : publier (CommunauteV2.Composer), liker/commenter un post (via
+// useCommunautePosts.toggleLike/addComment, câblés directement dans l'écran).
 // Repli démo si non connecté OU fil vide.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo, useRef } from 'react';
 import { useAuth } from '../../hooks/useAuth';
 import { useCommunautePosts, PostScope } from '../../hooks/useCommunautePosts';
 import { communityPhotoUrl } from '../../lib/communityPhotos';
+
+export interface V2Comment {
+  id: string;
+  auteur: string;
+  initiales: string;
+  couleur: string;
+  texte: string;
+  quand: string;
+  likes: number;
+  likedByMe: boolean;
+  photoUrls: string[]; // 109 — URLs publiques dérivées des chemins Storage
+}
 
 export interface V2Post {
   id: string;
@@ -18,7 +31,8 @@ export interface V2Post {
   contenu: string;
   quand: string;       // relatif « Il y a 2h »
   likes: number;
-  commentaires: number;
+  likedByMe: boolean;
+  commentaires: V2Comment[];
   photos: number;
   photoUrls: string[]; // URLs publiques dérivées des chemins Storage (mig 108)
   mine: boolean;       // post de l'utilisateur courant (→ suppression possible)
@@ -40,7 +54,13 @@ function timeAgo(d: Date): string {
   return `Il y a ${Math.floor(h / 24)} j`;
 }
 
-const d = (o: Omit<V2Post, 'photoUrls' | 'mine'>): V2Post => ({ ...o, photoUrls: [], mine: false });
+const d = (o: Omit<V2Post, 'photoUrls' | 'mine' | 'likedByMe' | 'commentaires'> & { commentaires: number }): V2Post => ({
+  ...o, photoUrls: [], mine: false, likedByMe: false,
+  commentaires: Array.from({ length: o.commentaires }, (_, i) => ({
+    id: `${o.id}-c${i}`, auteur: 'Membre', initiales: 'ME', couleur: '#7C3AED',
+    texte: 'Commentaire de démonstration.', quand: 'Il y a 1 h', likes: 0, likedByMe: false, photoUrls: [],
+  })),
+});
 const DEMO: Record<PostScope, V2Post[]> = {
   community: [
     d({ id: 'dc1', auteur: 'Sophie D.', initiales: 'SD', couleur: '#7C3AED', contenu: 'Quelqu’un a fait le paddock ce matin à Fontainebleau ? Le sol est comment ?', quand: 'Il y a 2 h', likes: 4, commentaires: 3, photos: 0 }),
@@ -55,15 +75,27 @@ const DEMO: Record<PostScope, V2Post[]> = {
   ],
 };
 
-export interface V2Community { ready: boolean; demo: boolean; posts: V2Post[] }
+export interface V2Community {
+  ready: boolean;
+  demo: boolean;
+  posts: V2Post[];
+  // Écritures RÉELLES, mêmes fonctions/instance que la lecture ci-dessus — la
+  // mise à jour optimiste de useCommunautePosts retombe donc directement dans
+  // `posts` sans attendre le round-trip realtime (fix "pas assez instantané").
+  toggleLike: (postId: string) => Promise<{ error: string | null }>;
+  addComment: (postId: string, texte: string, imagePaths?: string[]) => Promise<{ error: string | null }>;
+  deletePost: (postId: string) => Promise<{ error: string | null }>;
+  createPost: (contenu: string, imagePaths?: string[]) => Promise<{ error: string | null }>;
+}
 
 export function useV2Community(scope: PostScope): V2Community {
   const { isSignedIn, isLoading: authLoading, profile } = useAuth();
-  const { posts, isLoading } = useCommunautePosts(scope);
+  const { posts, isLoading, toggleLike, addComment, deletePost, createPost } = useCommunautePosts(scope);
   const me = (profile as any)?.id as string | undefined;
 
   const real = useMemo<V2Post[]>(() => (posts ?? []).map((p: any) => {
     const paths: string[] = Array.isArray(p.imageUrls) ? p.imageUrls : [];
+    const comments: any[] = Array.isArray(p.commentaires) ? p.commentaires : [];
     return {
       id: p.id,
       auteur: p.auteur || 'Membre EquiShow',
@@ -72,7 +104,18 @@ export function useV2Community(scope: PostScope): V2Community {
       contenu: p.contenu ?? '',
       quand: p.date instanceof Date ? timeAgo(p.date) : '',
       likes: p.likes ?? 0,
-      commentaires: Array.isArray(p.commentaires) ? p.commentaires.length : 0,
+      likedByMe: !!me && Array.isArray(p.likedBy) && p.likedBy.includes(me),
+      commentaires: comments.map((c) => ({
+        id: c.id,
+        auteur: c.auteur || 'Membre EquiShow',
+        initiales: c.initiales || (c.auteur || '?').slice(0, 2).toUpperCase(),
+        couleur: c.couleur || '#7C3AED',
+        texte: c.texte ?? '',
+        quand: c.date ?? '',
+        likes: c.likes ?? 0,
+        likedByMe: !!me && Array.isArray(c.likedBy) && c.likedBy.includes(me),
+        photoUrls: (Array.isArray(c.imageUrls) ? c.imageUrls : []).map(communityPhotoUrl).filter(Boolean),
+      })),
       photos: paths.length,
       photoUrls: paths.map(communityPhotoUrl).filter(Boolean),
       mine: !!me && p.auteurId === me,
@@ -84,14 +127,17 @@ export function useV2Community(scope: PostScope): V2Community {
   const lastReal = useRef<V2Post[]>([]);
   if (real.length) lastReal.current = real;
 
+  const noSession = useMemo(() => ({ error: 'Connecte-toi pour interagir.' }), []);
+  const noop = useMemo(() => async () => noSession, [noSession]);
+
   return useMemo(() => {
     // Connecté (ou auth encore en cours) : JAMAIS de démo. On montre le réel,
     // sinon la dernière liste connue, sinon vide (la section affiche un skelette).
     if (isSignedIn || authLoading) {
       const list = real.length ? real : lastReal.current;
-      return { ready: isSignedIn && !authLoading && !isLoading, demo: false, posts: list };
+      return { ready: isSignedIn && !authLoading && !isLoading, demo: false, posts: list, toggleLike, addComment, deletePost, createPost };
     }
-    // Vraiment déconnecté : démonstration de découverte.
-    return { ready: true, demo: true, posts: DEMO[scope] ?? [] };
-  }, [isSignedIn, authLoading, isLoading, real, scope]);
+    // Vraiment déconnecté : démonstration de découverte (lecture seule).
+    return { ready: true, demo: true, posts: DEMO[scope] ?? [], toggleLike: noop, addComment: noop, deletePost: noop, createPost: noop };
+  }, [isSignedIn, authLoading, isLoading, real, scope, toggleLike, addComment, deletePost, createPost, noop]);
 }

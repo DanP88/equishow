@@ -169,6 +169,7 @@ export interface CommunauteComment {
   date: string;
   likes: number;
   likedBy: string[]; // userIds qui ont aimé ce commentaire
+  imageUrls: string[]; // 109 — chemins Storage (bucket community-photos), 0 à 5
 }
 
 export interface CommunautePost {

@@ -14,7 +14,8 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, SafeAreaView } from 'react-native';
-import { router } from 'expo-router';
+import { router, Redirect } from 'expo-router';
+import { ADMIN_HOME } from '../nav/adminNavConfig';
 import { BL, FONT, countdown, daysUntil } from '../ui/blush';
 import { Sticker } from '../ui/Sticker';
 import { Icon } from '../ui/Icon';
@@ -24,6 +25,21 @@ import { useConcoursList } from '../../hooks/useConcours';
 import { useConcoursLocal } from '../state/concoursLocal';
 import { useV2Todo } from '../adapters/todo';
 import { useV2Community } from '../adapters/community';
+
+// Format compact « 13/09 – 15/09 » pour la liste Découverte (place limitée) —
+// LOCAL à ce composant, ne touche pas fmtDateLabel de hooks/useConcours.ts
+// (partagé avec la V1 et le reste de la V2).
+function fmtDateCompact(debut: string | null, fin: string | null): string {
+  if (!debut) return '';
+  const short = (iso: string) => {
+    const d = new Date(`${iso}T00:00:00`);
+    return isNaN(d.getTime()) ? '' : d.toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' });
+  };
+  const d = short(debut);
+  if (!fin || fin === debut) return d;
+  const f = short(fin);
+  return f ? `${d} – ${f}` : d;
+}
 
 function isUpcoming(c: { date_fin: string | null; date_debut: string | null }) {
   const d = c.date_fin ?? c.date_debut;
@@ -61,6 +77,11 @@ export function AccueilV2() {
   // chargement, plutôt que de les faire apparaître/disparaître (jank).
   const concoursSettled = !concoursLoading || concours.length > 0;
   const feedSettled = feed.ready || community.length > 0 || feed.demo;
+
+  // Compte admin réel → espace ADMIN dédié (jamais la nav Concours-first).
+  // <Redirect> déclaratif : évite « Attempted to navigate before mounting
+  // the Root Layout component » sur une entrée à froid dans /(v2)/accueil.
+  if (caps.ready && caps.realRole === 'admin') return <Redirect href={ADMIN_HOME as any} />;
 
   return (
     <SafeAreaView style={s.root}>
@@ -182,8 +203,7 @@ export function AccueilV2() {
                 <TouchableOpacity key={c.id} style={[s.li, i > 0 && s.liDiv]} activeOpacity={0.7} onPress={() => router.push(`/(v2)/concours/${c.id}` as any)}>
                   <Icon name="trophy-outline" size={16} color={BL.faint} />
                   <Text style={s.liLabel} numberOfLines={1}>{c.nom}</Text>
-                  {(c.followers_count ?? 0) === 0 && <Sticker label="à découvrir" tone="lilac" tilt={0} style={s.liTag} />}
-                  <Text style={s.liVal}>{c.dateLabel}</Text>
+                  <Text style={s.liVal}>{fmtDateCompact(c.date_debut, c.date_fin)}</Text>
                 </TouchableOpacity>
               ))}
             </View>
@@ -248,8 +268,12 @@ const s = StyleSheet.create({
   listCard: { backgroundColor: BL.card, borderRadius: BL.radiusCard, borderWidth: 1, borderColor: BL.line, overflow: 'hidden' },
   li: { flexDirection: 'row', alignItems: 'center', gap: 9, paddingVertical: 13, paddingHorizontal: 13 },
   liDiv: { borderTopWidth: 1, borderTopColor: BL.line },
-  liLabel: { flex: 1, fontFamily: FONT.body, fontSize: 13, color: BL.ink, fontWeight: '700' },
-  liVal: { fontFamily: FONT.body, fontSize: 11, color: BL.sub, fontWeight: '600' },
+  // minWidth: 0 — sans ça, un Text flex:1 dans une row RN-Web refuse de
+  // rétrécir sous sa largeur intrinsèque : le nom long poussait la ligne en
+  // débordement, coupée net par listCard (overflow:hidden) → n'affichait que
+  // la 1ʳᵉ lettre au lieu du nom tronqué avec « … ».
+  liLabel: { flex: 1, minWidth: 0, fontFamily: FONT.body, fontSize: 13, color: BL.ink, fontWeight: '700' },
+  liVal: { flexShrink: 0, fontFamily: FONT.body, fontSize: 11, color: BL.sub, fontWeight: '600' },
   liTag: { marginRight: 2 },
   chev: { fontSize: 18, color: BL.faint },
 
