@@ -28,6 +28,7 @@ import { useV2ContestHorses } from '../state/contestHorses';
 import { useConcoursLocal, needStatus, NeedChoice } from '../state/concoursLocal';
 import { useConcoursCoaches } from '../adapters/concoursCoaches';
 import { CoachsPresentsModal } from '../components/CoachsPresentsModal';
+import { EpreuvesConcoursModal } from '../components/EpreuvesConcoursModal';
 import { useConcoursDemands } from '../adapters/concoursDemands';
 import { DemandesEnCoursModal } from '../components/DemandesConcours';
 
@@ -43,6 +44,7 @@ export function FicheConcoursV2() {
   const [coachModal, setCoachModal] = useState(false);
   const { total: demTotal } = useConcoursDemands(id);
   const [demModal, setDemModal] = useState(false);
+  const [epreuvesModal, setEpreuvesModal] = useState(false);
 
   if (isLoading) return <Screen scroll={false}><View style={s.center}><ActivityIndicator color={BL.accent} /></View></Screen>;
   if (!concours) return <Screen><Text style={s.h1}>Concours introuvable</Text><GhostButton label="← Retour" onPress={() => router.back()} /></Screen>;
@@ -196,7 +198,7 @@ export function FicheConcoursV2() {
           <Row icon="🎓" label={`Coachs présents · ${coachCount}`} onPress={() => setCoachModal(true)} />
           <Row icon="🔔" label={`Demandes en cours · ${demTotal}`} onPress={() => setDemModal(true)} />
           <Row icon="🌤" label="Météo (J–3 → J+1)" />
-          <Row icon="📋" label={`Épreuves du concours · ${concours.liste_epreuves.length}`} />
+          <Row icon="📋" label={`Épreuves du concours · ${concours.liste_epreuves.length}`} onPress={() => setEpreuvesModal(true)} />
           <Row icon="🕓" label="Horaires" value="non publiés" />
         </RowGroup>
         <Placeholder note="météo & épreuves importées reprises de la V1 ; horaires structurés = pas de source" v1Path={`/concours/${id}`} v1Label="fiche concours actuelle" />
@@ -221,6 +223,7 @@ export function FicheConcoursV2() {
         concoursNom={concours.nom}
       />
       <DemandesEnCoursModal visible={demModal} onClose={() => setDemModal(false)} concoursId={id} />
+      <EpreuvesConcoursModal visible={epreuvesModal} onClose={() => setEpreuvesModal(false)} concours={concours} />
     </Screen>
   );
 }

@@ -25,7 +25,7 @@ import { useChevalCoachAssoc } from '../state/concoursChevalCoach';
 import { V2SelectField } from '../components/V2SelectField';
 import { V2DateField, todayStart } from '../components/V2DateField';
 import { CoachPickerModal } from '../components/CoachPickerModal';
-import { vaccinStatus, soinStatus, SanteStatus } from '../lib/santeStatus';
+import { vaccinStatus, SanteStatus } from '../lib/santeStatus';
 import { pickImageFromLibrary, uploadChevalPhoto } from '../../lib/photoUpload';
 
 const SEXES = ['Hongre', 'Jument', 'Étalon'];
@@ -243,14 +243,6 @@ export function ChevalFormV2() {
           <V2DateField label="Vaccin grippe" value={sante.grippe ?? ''} onChange={setSanteKey('grippe')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
           <V2DateField label="Vaccin rhino" value={sante.rhino ?? ''} onChange={setSanteKey('rhino')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
         </View>
-        <View style={s.rowFields}>
-          <V2DateField label="Vermifuge" value={sante.vermifuge ?? ''} onChange={setSanteKey('vermifuge')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
-          <V2DateField label="Maréchal-ferrant" value={sante.marechal ?? ''} onChange={setSanteKey('marechal')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
-        </View>
-        <View style={s.rowFields}>
-          <V2DateField label="Dentiste" value={sante.dentiste ?? ''} onChange={setSanteKey('dentiste')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
-          <V2DateField label="Ostéopathe" value={sante.osteo ?? ''} onChange={setSanteKey('osteo')} optional minDate={santeFloor} maxDate={today} style={s.flex1} />
-        </View>
       </Card>
 
       <Placeholder note="v2:chevaux (AsyncStorage) — id préfixé « v2c- », zéro collision avec les chevaux réels, zéro écriture PROD" v1Path="/(tabs)/chevaux" v1Label="créer via l'app" />
@@ -355,13 +347,12 @@ function SanteLine({ label, date, st }: { label: string; date?: Date | string; s
 }
 function SanteSection({ real, local }: { real?: any; local?: any }) {
   const pick = (rk: string, lk: string) => real?.[rk] ?? local?.[lk];
+  // Vermifuge/maréchal-ferrant/dentiste/ostéopathe retirés (retour testeur §8) :
+  // suivi quotidien du cheval = Equistra, pas Equishow. Seul le statut vaccinal
+  // reste, réellement utile pour l'accès à un concours.
   const specs: [string, Date | string | undefined, (d: any) => SanteStatus][] = [
     ['Vaccin grippe', pick('dateVaccinGrippe', 'grippe'), (d) => vaccinStatus(d)],
     ['Vaccin rhino', pick('dateVaccinRhino', 'rhino'), (d) => vaccinStatus(d)],
-    ['Vermifuge', pick('dateVermifuge', 'vermifuge'), (d) => soinStatus(d, 4)],
-    ['Maréchal-ferrant', pick('dateMarechal', 'marechal'), (d) => soinStatus(d, 2)],
-    ['Dentiste', pick('dateDentiste', 'dentiste'), (d) => soinStatus(d, 12)],
-    ['Ostéopathe', pick('dateOsteo', 'osteo'), (d) => soinStatus(d, 12)],
   ];
   const items = specs.filter(([, v]) => !!v).map(([label, v, fn]) => ({ label, date: v, st: fn(v) }));
   if (items.length === 0) return null;
