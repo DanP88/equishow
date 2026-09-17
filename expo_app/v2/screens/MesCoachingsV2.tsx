@@ -11,9 +11,12 @@ import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
 import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useCoachLocal } from '../state/coachLocal';
+import { useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
 
 export function MesCoachingsV2() {
   const kl = useCoachLocal();
+  // Phase 2 (pilote Coach) — mes annonces publiées = réelles (coach_annonces).
+  const { annonces: myAnnonces, deleteAnnonce } = useMyCoachAnnonces();
 
   const removeSearch = (id: string) => {
     const sr = kl.searches.find((x) => x.id === id);
@@ -22,14 +25,14 @@ export function MesCoachingsV2() {
       const cid = sr.concoursId;
       const stillSearching = kl.searches.some((x) => x.id !== id && x.concoursId === cid && x.status === 'open');
       const hasBooking = kl.bookings.some((x) => x.concoursId === cid);
-      const hasOffer = kl.offers.some((x) => x.concoursId === cid);
+      const hasOffer = myAnnonces.some((x) => x.concoursId === cid);
       if (!stillSearching && !hasBooking && !hasOffer && getConcoursEntry(cid).needCoach === 'searching') {
         setConcoursEntry(cid, { needCoach: 'unset' });
       }
     }
   };
 
-  const empty = kl.bookings.length === 0 && kl.offers.length === 0 && kl.searches.length === 0;
+  const empty = kl.bookings.length === 0 && myAnnonces.length === 0 && kl.searches.length === 0;
 
   return (
     <Screen>
@@ -74,16 +77,15 @@ export function MesCoachingsV2() {
         </Section>
       )}
 
-      {kl.offers.length > 0 && (
-        <Section title={`Mes annonces · ${kl.offers.length}`}>
-          {kl.offers.map((o) => (
+      {myAnnonces.length > 0 && (
+        <Section title={`Mes annonces · ${myAnnonces.length}`}>
+          {myAnnonces.map((o) => (
             <Card key={o.id}>
               <Text style={s.itemTitle}>📣 {o.discipline} · {o.type === 'concours' ? 'sur concours' : 'régulier'}</Text>
-              <Text style={s.itemMeta}>{o.niveaux.join(', ')} · {o.prixSeance} €/séance · {o.places} créneau(x)</Text>
-              {o.concoursNom ? <Text style={s.itemMeta}>🏆 {o.concoursNom}</Text> : null}
+              <Text style={s.itemMeta}>{o.niveau} · {o.prixHeure} €/séance · {o.placesDisponibles} créneau(x) disponible(s)</Text>
+              {o.concours ? <Text style={s.itemMeta}>🏆 {o.concours}</Text> : null}
               <View style={s.itemBtns}>
-                <TouchableOpacity onPress={() => kl.updateOffer(o.id, { places: o.places + 1 })}><Text style={s.action}>+1 créneau</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => kl.removeOffer(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => deleteAnnonce(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
               </View>
             </Card>
           ))}
@@ -106,7 +108,7 @@ export function MesCoachingsV2() {
         </Section>
       )}
 
-      <Placeholder note="tout est stocké localement (v2:coach) — aucune donnée Supabase" />
+      <Placeholder note="annonces réelles (coach_annonces) ; séances et demandes encore simulées — paiement à venir" />
     </Screen>
   );
 }

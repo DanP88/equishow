@@ -31,6 +31,7 @@ import { DemandesBanner } from '../components/DemandesConcours';
 import { useCapabilities } from '../capabilities';
 import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
 import { useCoachLocal } from '../state/coachLocal';
+import { useMyCoachAnnonces } from '../../hooks/useCoachAnnonces';
 import { useV2CoachResults, useV2CoachDemands, V2CoachResult } from '../adapters/coach';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
@@ -280,8 +281,14 @@ export function CoachDetailV2() {
 
       {r.description ? <Card><Text style={s.desc}>{r.description}</Text></Card> : null}
 
-      <PrimaryButton label="Demander un coaching" onPress={() => router.push(`/(v2)/coach/demander?${q.toString()}` as any)} />
-      <Placeholder note="demande simulée en F7 — aucun paiement, aucune écriture" />
+      {r.src === 'real' && r.coachUserId ? (
+        <PrimaryButton label="Demander un coaching" onPress={() => router.push(`/reserver-coach?annonceId=${r.id}&coachId=${r.coachUserId}` as any)} />
+      ) : (
+        <>
+          <PrimaryButton label="Demander un coaching" onPress={() => router.push(`/(v2)/coach/demander?${q.toString()}` as any)} />
+          <Placeholder note="annonce de démonstration — demande simulée" />
+        </>
+      )}
     </Screen>
   );
 }
@@ -443,7 +450,8 @@ export function CoachProposeV2() {
   const caps = useCapabilities();
   const { concours } = useConcours(concoursId);
   const cl = useConcoursLocal(concoursId);
-  const kl = useCoachLocal(concoursId);
+  // Phase 2 (pilote Coach) — publication réelle (coach_annonces).
+  const { annonces: myAnnonces, createAnnonce } = useMyCoachAnnonces();
 
   // Plus de choix "Régulier" côté UI (recentrage concours) — dérivé de la présence d'un concours.
   const [type] = useState<'concours' | 'regulier'>(concoursId ? 'concours' : 'regulier');
@@ -460,20 +468,31 @@ export function CoachProposeV2() {
   // Opt-in explicite : proposer du coaching exige l'activité Coach.
   if (!caps.has('coach')) return <Redirect href={'/(v2)/coach-optin' as any} />;
 
-  const existing = kl.context.offer;
+  const existing = concoursId ? myAnnonces.find((a) => a.concoursId === concoursId) : undefined;
+  const [publishErr, setPublishErr] = useState<string | null>(null);
 
   const toggleNiveau = (n: string) => setNiveaux((p) => p.includes(n) ? p.filter((x) => x !== n) : [...p, n]);
 
-  const publish = () => {
-    kl.publishOffer({
-      concoursId, concoursNom: concours?.nom, type,
-      discipline, niveaux: niveaux.length ? niveaux : ['Club'],
-      dateDebut: type === 'concours' ? (concours?.date_debut ?? undefined) : (dateDebut || undefined),
-      dateFin: type === 'concours' ? (concours?.date_fin ?? undefined) : (dateFin || undefined),
-      prixSeance: parseInt(prixSeance, 10) || 0, places: parseInt(places, 10) || 1,
-      lieu: dest.value.trim() || undefined,
+  const publish = async () => {
+    setPublishErr(null);
+    const niveauxFinal = niveaux.length ? niveaux : ['Club'];
+    const { error } = await createAnnonce({
+      titre: `Coaching ${discipline}${concours ? ` — ${concours.nom}` : ''}`,
+      type, discipline, niveau: niveauxFinal.join(', '),
+      dateDebut: type === 'concours'
+        ? new Date(`${concours?.date_debut ?? new Date().toISOString().slice(0, 10)}T00:00:00`)
+        : new Date(`${dateDebut || new Date().toISOString().slice(0, 10)}T00:00:00`),
+      dateFin: type === 'concours'
+        ? new Date(`${concours?.date_fin ?? concours?.date_debut ?? new Date().toISOString().slice(0, 10)}T00:00:00`)
+        : new Date(`${dateFin || dateDebut || new Date().toISOString().slice(0, 10)}T00:00:00`),
+      prixHeureHT: parseInt(prixSeance, 10) || 0,
+      places: parseInt(places, 10) || 1,
+      concours: concours?.nom,
+      concoursId,
+      region: dest.value.trim() || undefined,
       description: description.trim() || undefined,
     });
+    if (error) { setPublishErr(error); return; }
     if (concoursId && cl.entry.needCoach === 'unset') cl.update({ needCoach: 'offering' });
     setDone(true);
   };
@@ -489,9 +508,10 @@ export function CoachProposeV2() {
         <RowGroup>
           <Row icon="🗂" label="Type" value={(existing?.type ?? type) === 'concours' ? 'sur concours' : 'régulier'} />
           <Row icon="🏇" label="Discipline" value={existing?.discipline ?? discipline} />
-          <Row icon="📊" label="Niveaux" value={(existing?.niveaux ?? niveaux).join(', ')} />
-          <Row icon="💶" label="Prix / séance" value={`${existing?.prixSeance ?? prixSeance} €`} />
-          <Row icon="🎟" label="Créneaux" value={String(existing?.places ?? places)} />
+          <Row icon="📊" label="Niveaux" value={existing?.niveau ?? niveaux.join(', ')} />
+          <Row icon="💶" label="Prix / séance" value={`${existing?.prixHeure ?? prixSeance} €`} />
+          <Row icon="🎟" label="Créneaux" value={String(existing?.placesDisponibles ?? places)} />
+          {publishErr ? <Text style={s.demoLine}>{publishErr}</Text> : null}
         </RowGroup>
         <PrimaryButton label="Voir dans Mes coachings" onPress={() => router.replace('/(v2)/coach/mes-coachings' as any)} />
         <GhostButton label={concoursId ? 'Retour à Mon concours' : 'Retour'} onPress={() => router.replace((concoursId ? `/(v2)/concours/${concoursId}` : '/(v2)/coach') as any)} />
@@ -536,7 +556,6 @@ export function CoachProposeV2() {
         <Field label="Informations utiles"><TextInput style={[s.input, s.multiline]} value={description} onChangeText={setDescription} placeholder="Déroulé d'une séance, horaires, débrief vidéo…" placeholderTextColor={Colors.textTertiary} multiline /></Field>
         <PrimaryButton label="Publier l'annonce" onPress={publish} />
       </Card>
-      <Placeholder note="publication LOCALE (v2:coach) — aucune écriture dans coach_annonces PROD" v1Path="/proposer-coach" v1Label="formulaire actuel" />
     </Screen>
   );
 }
