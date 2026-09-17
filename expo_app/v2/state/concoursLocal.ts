@@ -1,16 +1,35 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// v2/state/concoursLocal — état « Mon concours » LOCAL (front-only).
+// v2/state/concoursLocal — état « Mon concours ».
 //
-// Remplace, pour la V2, les écritures réelles de useConcoursPresence /
-// useConcoursFollow (V1) qui, elles, écrivent dans Supabase.
-//   → « J'y serai », « Suivre », « Préparer mon concours » sont 100 % locaux
-//     (AsyncStorage `v2:concours-local`). AUCUNE écriture PROD.
+// PHASE 1B (mig 110) — RÉEL pour : going ("J'y serai"), following ("Suivre"),
+//   selectedHorseIds (multi-cheval), epreuves, et la transition 'none' de
+//   needTransport/needBox/needCoach ("pas nécessaire"). Ces champs sont
+//   maintenant sourcés depuis Supabase via `useConcoursParticipation`
+//   (elle-même construite sur les hooks V1 useConcoursPresence/useConcoursFollow,
+//   réutilisés tels quels) puis MIROITÉS dans le store local ci-dessous, pour
+//   que les consommateurs synchrones existants (getConcoursEntry, prepScore,
+//   v2/adapters/todo.ts) continuent de fonctionner sans changement : le store
+//   local devient un CACHE synchrone, plus la source de vérité, pour ces
+//   champs précis.
+//
+// TOUJOURS LOCAL (AsyncStorage `v2:concours-local`, AUCUNE écriture PROD) :
+//   needTransport/needBox/needCoach (hors 'none'), horsesByNeed, demandsByNeed
+//   — les vrais statuts Transport/Box/Coach seront dérivés des tables métier
+//   réelles dans une phase ultérieure, pas avant.
+//
+// followingIds/goingIds (agrégats multi-concours, ex. Accueil "prochain
+// concours pertinent") restent alimentés par ce cache local — ils ne
+// reflètent un concours donné qu'une fois sa page visitée dans la session
+// courante. Rebrancher ces agrégats sur une vraie requête multi-lignes est
+// HORS PÉRIMÈTRE de la Phase 1B (périmètre : un concours à la fois).
 //
 // Singleton + useSyncExternalStore (pattern useAuth / v2/capabilities).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useCallback } from 'react';
+import { useCallback, useEffect } from 'react';
 import { useSyncExternalStore } from 'react';
 import { loadJSON, saveJSON } from '../lib/persist';
+import { useConcoursParticipation, type SkipModule } from './concoursParticipation';
+import { useMyConcoursIndex } from './myConcoursIndex';
 
 const KEY = 'concours-local';
 // F14 → v2 : ignore l'état non versionné (smokes F8/F13).
@@ -318,36 +337,84 @@ initOnce();
 
 export function useConcoursLocal(concoursId?: string) {
   const s = useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  // PHASE 1B — source de vérité réelle pour going/following/chevaux/épreuves/
+  // *_skip (mig 110). Cf. commentaire d'en-tête du fichier.
+  const participation = useConcoursParticipation(concoursId);
+  // PHASE 1B (correction) — goingIds/followingIds RECONSTRUITS DEPUIS SUPABASE,
+  // jamais depuis le cache local. Ne dépend pas d'avoir déjà ouvert chaque
+  // fiche : une seule requête par utilisateur, à froid comme à chaud.
+  const myIndex = useMyConcoursIndex();
   const entry = (concoursId && s.map[concoursId]) || EMPTY;
+
+  // Miroir Supabase → store local synchrone (getConcoursEntry, prepScore,
+  // todo.ts continuent de fonctionner sans changement). needTransport/Box/Coach
+  // ne sont forcés à 'none' QUE si le flag skip correspondant est vrai — les
+  // autres valeurs (unset/searching/offering/done/pending) restent celles déjà
+  // en local (100% local, hors périmètre 1B).
+  useEffect(() => {
+    if (!concoursId || !participation.ready) return;
+    const cur = state.map[concoursId] ?? EMPTY;
+    setEntry(concoursId, {
+      going: participation.going,
+      following: participation.following,
+      selectedHorseIds: participation.horseIds,
+      epreuves: participation.epreuves,
+      needTransport: participation.transportSkip ? 'none' : cur.needTransport,
+      needBox: participation.boxSkip ? 'none' : cur.needBox,
+      needCoach: participation.coachSkip ? 'none' : cur.needCoach,
+    });
+  }, [
+    concoursId, participation.ready, participation.going, participation.following,
+    participation.horseIds, participation.epreuves,
+    participation.transportSkip, participation.boxSkip, participation.coachSkip,
+  ]);
 
   const setHorses = useCallback((ids: string[]) => {
     if (!concoursId) return;
-    setEntry(concoursId, { selectedHorseIds: [...new Set(ids)] });
-  }, [concoursId]);
+    void participation.setHorseIds([...new Set(ids)]);
+  }, [concoursId, participation]);
 
   const toggleHorse = useCallback((horseId: string) => {
     if (!concoursId) return;
-    const cur = state.map[concoursId]?.selectedHorseIds ?? [];
-    setEntry(concoursId, { selectedHorseIds: cur.includes(horseId) ? cur.filter((x) => x !== horseId) : [...cur, horseId] });
-  }, [concoursId]);
+    if (participation.horseIds.includes(horseId)) void participation.removeHorse(horseId);
+    else void participation.addHorse(horseId);
+  }, [concoursId, participation]);
 
   const toggleFollow = useCallback(() => {
     if (!concoursId) return;
-    setEntry(concoursId, { following: !(state.map[concoursId]?.following) });
-  }, [concoursId]);
+    void participation.toggleFollow();
+  }, [concoursId, participation]);
 
   // F14.1 — « J'y serai » et « Suivre » sont DEUX intentions indépendantes.
   // `setGoing` ne touche PLUS `following` (sinon un concours restait « suivi »
   // à vie après un simple aller-retour sur « J'y serai »).
   const setGoing = useCallback((going: boolean) => {
     if (!concoursId) return;
-    setEntry(concoursId, { going });
-  }, [concoursId]);
+    void participation.setGoing(going);
+  }, [concoursId, participation]);
 
   const update = useCallback((patch: Partial<ConcoursLocalEntry>) => {
     if (!concoursId) return;
+    if ('epreuves' in patch && patch.epreuves) {
+      void participation.setEpreuves(patch.epreuves);
+      return;
+    }
+    // Transition vers/depuis 'none' = décision "pas nécessaire" (mig 110,
+    // transport_skip/box_skip/coach_skip UNIQUEMENT). Toute autre valeur du
+    // champ reste 100% locale (pas de réservation réelle rebranchée en 1B).
+    const SKIP_FIELDS: Array<['needTransport' | 'needBox' | 'needCoach', SkipModule]> = [
+      ['needTransport', 'transport'], ['needBox', 'box'], ['needCoach', 'coach'],
+    ];
+    const cur = state.map[concoursId] ?? EMPTY;
+    for (const [field, m] of SKIP_FIELDS) {
+      if (!(field in patch)) continue;
+      const wasNone = cur[field] === 'none';
+      const willBeNone = patch[field] === 'none';
+      if (willBeNone && !wasNone) void participation.setSkip(m, true);
+      else if (!willBeNone && wasNone) void participation.setSkip(m, false);
+    }
     setEntry(concoursId, patch);
-  }, [concoursId]);
+  }, [concoursId, participation]);
 
   const toggleModuleHorse = useCallback((m: NeedModule, horseId: string) => {
     if (!concoursId) return;
@@ -361,12 +428,13 @@ export function useConcoursLocal(concoursId?: string) {
   }, [concoursId]);
 
   return {
-    ready: s.hydrated,
+    ready: s.hydrated && (!concoursId || participation.ready),
     entry,
     prep: prepDetail(entry),
     prepScore: prepScore(entry),
-    followingIds: Object.keys(s.map).filter((id) => s.map[id].following),
-    goingIds: Object.keys(s.map).filter((id) => s.map[id].going),
+    followingIds: myIndex.followingIds,
+    goingIds: myIndex.goingIds,
+    myIndexReady: myIndex.ready,
     toggleFollow,
     setGoing,
     update,
