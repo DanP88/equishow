@@ -21,6 +21,7 @@ import { useConcours } from '../../hooks/useConcours';
 import { useSearchHorses } from '../state/searchHorses';
 import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
+import { useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
 import { V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
@@ -247,8 +248,14 @@ export function BoxDetailV2() {
 
       {r.description ? <Card><Text style={s.desc}>{r.description}</Text></Card> : null}
 
-      <PrimaryButton label="Réserver ce box" onPress={() => router.push(`/(v2)/box/reserver?${q.toString()}` as any)} />
-      <Placeholder note="réservation simulée en F6 — aucun paiement, aucune écriture" />
+      {r.src === 'real' ? (
+        <PrimaryButton label="Réserver ce box" onPress={() => router.push(`/reserver-box?id=${r.id}` as any)} />
+      ) : (
+        <>
+          <PrimaryButton label="Réserver ce box" onPress={() => router.push(`/(v2)/box/reserver?${q.toString()}` as any)} />
+          <Placeholder note="annonce de démonstration — réservation simulée" />
+        </>
+      )}
     </Screen>
   );
 }
@@ -354,7 +361,8 @@ export function BoxProposeV2() {
   const { concoursId } = useLocalSearchParams<{ concoursId?: string }>();
   const { concours } = useConcours(concoursId);
   const cl = useConcoursLocal(concoursId);
-  const bl = useBoxLocal(concoursId);
+  // Phase 2 (pilote Box) — publication réelle (box_annonces).
+  const { annonces: myAnnonces, createAnnonce } = useMyBoxAnnonces();
 
   const dest = useAutoDestination(concoursId, concours);
   const [adresse, setAdresse] = useState('');
@@ -369,18 +377,33 @@ export function BoxProposeV2() {
   // Box de concours (sur place) = cas d'usage prioritaire ; hébergement à proximité = secondaire.
   const [surPlace, setSurPlace] = useState(true);
 
-  const existing = bl.context.offer;
+  const existing = concoursId ? myAnnonces.find((a) => a.concoursId === concoursId) : undefined;
+  const [publishErr, setPublishErr] = useState<string | null>(null);
 
-  const publish = () => {
-    bl.publishOffer({
-      concoursId, concoursNom: concours?.nom,
+  // box_annonces (réel) n'a pas de colonne adresse/litière/équipements dédiée
+  // en dehors de `lieu`/`description` (pas de modification V1 dans cette phase)
+  // → on les intègre à la description, sans perte d'information pour l'hôte.
+  const fullDescription = [
+    (!concours || !surPlace) && adresse.trim() ? `Adresse : ${adresse.trim()}` : null,
+    litiere ? 'Litière incluse' : 'Litière en sus',
+    equipements.trim() ? `Équipements : ${equipements.trim()}` : null,
+    description.trim() || null,
+  ].filter(Boolean).join(' · ');
+
+  const publish = async () => {
+    setPublishErr(null);
+    const { error } = await createAnnonce({
       lieu: dest.value.trim() || '—',
-      adresse: (!concours || !surPlace) ? (adresse.trim() || undefined) : undefined,
-      dateDebut: dateDebut || undefined, dateFin: dateFin || undefined,
-      nbBox: parseInt(nbBox, 10) || 1, prixNuit: parseInt(prixNuit, 10) || 0,
-      litiereIncluse: litiere, equipements: equipements.trim() || undefined,
-      description: description.trim() || undefined,
+      dateDebut: dateDebut ? new Date(`${dateDebut}T00:00:00`) : new Date(),
+      dateFin: dateFin ? new Date(`${dateFin}T00:00:00`) : new Date(),
+      nbBoxes: parseInt(nbBox, 10) || 1,
+      nbBoxesDisponibles: parseInt(nbBox, 10) || 1,
+      prixNuitHT: parseInt(prixNuit, 10) || 0,
+      concours: concours?.nom,
+      concoursId,
+      description: fullDescription || undefined,
     });
+    if (error) { setPublishErr(error); return; }
     if (concoursId && cl.entry.needBox === 'unset') cl.update({ needBox: 'offering' });
     setDone(true);
   };
@@ -395,9 +418,10 @@ export function BoxProposeV2() {
         </View>
         <RowGroup>
           <Row icon="📍" label="Lieu" value={existing?.lieu ?? dest.value} />
-          <Row icon="📅" label="Période" value={fmtPeriode(existing?.dateDebut ?? dateDebut, existing?.dateFin ?? dateFin)} />
-          <Row icon="🚪" label="Box" value={String(existing?.nbBox ?? nbBox)} />
-          <Row icon="💶" label="Prix / nuit" value={`${existing?.prixNuit ?? prixNuit} €`} />
+          <Row icon="📅" label="Période" value={fmtPeriode(existing?.dateDebut?.toISOString() ?? dateDebut, existing?.dateFin?.toISOString() ?? dateFin)} />
+          <Row icon="🚪" label="Box" value={String(existing?.nbBoxesDisponibles ?? nbBox)} />
+          <Row icon="💶" label="Prix / nuit" value={`${existing?.prixNuitHT ?? prixNuit} €`} />
+          {publishErr ? <Text style={s.demoLine}>{publishErr}</Text> : null}
         </RowGroup>
         <PrimaryButton label="Voir dans Mes box" onPress={() => router.replace('/(v2)/box/mes-box' as any)} />
         <GhostButton label={concoursId ? 'Retour à Mon concours' : 'Retour'} onPress={() => router.replace((concoursId ? `/(v2)/concours/${concoursId}` : '/(v2)/box') as any)} />
@@ -453,7 +477,6 @@ export function BoxProposeV2() {
         <Field label="Informations utiles"><TextInput style={[s.input, s.multiline]} value={description} onChangeText={setDescription} placeholder="Taille des box, foin, gardiennage, conditions…" placeholderTextColor={Colors.textTertiary} multiline /></Field>
         <PrimaryButton label="Publier l'annonce" onPress={publish} />
       </Card>
-      <Placeholder note="publication LOCALE (v2:box) — aucune écriture dans les annonces Box PROD" v1Path="/proposer-box" v1Label="formulaire actuel" />
     </Screen>
   );
 }

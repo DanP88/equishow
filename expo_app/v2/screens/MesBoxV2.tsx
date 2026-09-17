@@ -12,6 +12,7 @@ import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
 import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
+import { useMyBoxAnnonces } from '../../hooks/useBoxes';
 
 function fmtDate(d?: string) {
   if (!d) return '—';
@@ -25,6 +26,8 @@ function fmtPeriode(a?: string, b?: string) {
 
 export function MesBoxV2() {
   const bl = useBoxLocal();
+  // Phase 2 (pilote Box) — mes annonces publiées = réelles (box_annonces).
+  const { annonces: myAnnonces, updateAnnonce, deleteAnnonce } = useMyBoxAnnonces();
 
   const removeSearch = (id: string) => {
     const sr = bl.searches.find((x) => x.id === id);
@@ -36,14 +39,14 @@ export function MesBoxV2() {
       const cid = sr.concoursId;
       const stillSearching = bl.searches.some((x) => x.id !== id && x.concoursId === cid && x.status === 'open');
       const hasBooking = bl.bookings.some((x) => x.concoursId === cid);
-      const hasOffer = bl.offers.some((x) => x.concoursId === cid);
+      const hasOffer = myAnnonces.some((x) => x.concoursId === cid);
       if (!stillSearching && !hasBooking && !hasOffer && getConcoursEntry(cid).needBox === 'searching') {
         setConcoursEntry(cid, { needBox: 'unset' });
       }
     }
   };
 
-  const empty = bl.bookings.length === 0 && bl.offers.length === 0 && bl.searches.length === 0;
+  const empty = bl.bookings.length === 0 && myAnnonces.length === 0 && bl.searches.length === 0;
 
   return (
     <Screen>
@@ -88,16 +91,16 @@ export function MesBoxV2() {
         </Section>
       )}
 
-      {bl.offers.length > 0 && (
-        <Section title={`Mes propositions · ${bl.offers.length}`}>
-          {bl.offers.map((o) => (
+      {myAnnonces.length > 0 && (
+        <Section title={`Mes propositions · ${myAnnonces.length}`}>
+          {myAnnonces.map((o) => (
             <Card key={o.id}>
               <Text style={s.itemTitle}>📣 {o.lieu}</Text>
-              <Text style={s.itemMeta}>📅 {fmtPeriode(o.dateDebut, o.dateFin)} · {o.nbBox} box · {o.prixNuit} €/nuit{o.litiereIncluse ? ' · litière incl.' : ''}</Text>
-              {o.concoursNom ? <Text style={s.itemMeta}>🏆 {o.concoursNom}</Text> : null}
+              <Text style={s.itemMeta}>📅 {fmtPeriode(o.dateDebut.toISOString(), o.dateFin.toISOString())} · {o.nbBoxesDisponibles} box disponible(s) · {o.prixNuitHT} €/nuit</Text>
+              {o.concours ? <Text style={s.itemMeta}>🏆 {o.concours}</Text> : null}
               <View style={s.itemBtns}>
-                <TouchableOpacity onPress={() => bl.updateOffer(o.id, { nbBox: o.nbBox + 1 })}><Text style={s.action}>+1 box</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => bl.removeOffer(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => updateAnnonce(o.id, { nbBoxes: o.nbBoxes + 1, nbBoxesDisponibles: o.nbBoxesDisponibles + 1 })}><Text style={s.action}>+1 box</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => deleteAnnonce(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
               </View>
             </Card>
           ))}
@@ -120,7 +123,7 @@ export function MesBoxV2() {
         </Section>
       )}
 
-      <Placeholder note="tout est stocké localement (v2:box) — aucune donnée Supabase" />
+      <Placeholder note="propositions réelles (box_annonces) ; réservations et recherches encore simulées — paiement à venir" />
     </Screen>
   );
 }
