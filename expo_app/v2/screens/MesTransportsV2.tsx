@@ -11,6 +11,7 @@ import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
 import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useTransportLocal } from '../state/transportLocal';
+import { useMyTransportAnnonces } from '../../hooks/useTransports';
 
 function fmtDate(d?: string) {
   if (!d) return '—';
@@ -20,6 +21,8 @@ function fmtDate(d?: string) {
 
 export function MesTransportsV2() {
   const tl = useTransportLocal();
+  // Phase 2 (pilote Transport) — mes annonces publiées = réelles (transport_annonces).
+  const { annonces: myAnnonces, updateAnnonce, deleteAnnonce } = useMyTransportAnnonces();
 
   const removeSearch = (id: string) => {
     const sr = tl.searches.find((x) => x.id === id);
@@ -31,14 +34,14 @@ export function MesTransportsV2() {
       const cid = sr.concoursId;
       const stillSearching = tl.searches.some((x) => x.id !== id && x.concoursId === cid && x.status === 'open');
       const hasBooking = tl.bookings.some((x) => x.concoursId === cid);
-      const hasOffer = tl.offers.some((x) => x.concoursId === cid);
+      const hasOffer = myAnnonces.some((x) => x.concoursId === cid);
       if (!stillSearching && !hasBooking && !hasOffer && getConcoursEntry(cid).needTransport === 'searching') {
         setConcoursEntry(cid, { needTransport: 'unset' });
       }
     }
   };
 
-  const empty = tl.bookings.length === 0 && tl.offers.length === 0 && tl.searches.length === 0;
+  const empty = tl.bookings.length === 0 && myAnnonces.length === 0 && tl.searches.length === 0;
 
   return (
     <Screen>
@@ -83,16 +86,19 @@ export function MesTransportsV2() {
         </Section>
       )}
 
-      {tl.offers.length > 0 && (
-        <Section title={`Mes propositions · ${tl.offers.length}`}>
-          {tl.offers.map((o) => (
+      {myAnnonces.length > 0 && (
+        <Section title={`Mes propositions · ${myAnnonces.length}`}>
+          {myAnnonces.map((o) => (
             <Card key={o.id}>
-              <Text style={s.itemTitle}>📣 {o.departVille || o.depart} → {o.destination}</Text>
-              <Text style={s.itemMeta}>📅 {fmtDate(o.date)}{o.heure ? ` · ${o.heure}` : ''} · {o.places} place(s) · {o.prix} €/place</Text>
-              {o.concoursNom ? <Text style={s.itemMeta}>🏆 {o.concoursNom}</Text> : null}
+              <Text style={s.itemTitle}>📣 {o.villeDepart} → {o.villeArrivee}</Text>
+              <Text style={s.itemMeta}>
+                📅 {fmtDate(o.dateTrajet?.toISOString())}{o.heureDepart ? ` · ${o.heureDepart}` : ''} · {o.nbPlacesDisponibles} place(s) disponible(s)
+                {o.pricePerKm ? ` · ${o.pricePerKm.toFixed(2)} €/km` : ` · ${o.prixHT} €`}
+              </Text>
+              {o.concours ? <Text style={s.itemMeta}>🏆 {o.concours}</Text> : null}
               <View style={s.itemBtns}>
-                <TouchableOpacity onPress={() => tl.updateOffer(o.id, { places: o.places + 1 })}><Text style={s.action}>+1 place</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => tl.removeOffer(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => updateAnnonce(o.id, { nbPlacesTotal: o.nbPlacesTotal + 1, nbPlacesDisponibles: o.nbPlacesDisponibles + 1 })}><Text style={s.action}>+1 place</Text></TouchableOpacity>
+                <TouchableOpacity onPress={() => deleteAnnonce(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
               </View>
             </Card>
           ))}
@@ -115,7 +121,7 @@ export function MesTransportsV2() {
         </Section>
       )}
 
-      <Placeholder note="tout est stocké localement (v2:transport) — aucune donnée Supabase" />
+      <Placeholder note="propositions réelles (transport_annonces) ; réservations et recherches encore simulées — paiement à venir" />
     </Screen>
   );
 }

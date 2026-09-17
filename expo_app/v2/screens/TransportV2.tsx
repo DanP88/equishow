@@ -20,6 +20,7 @@ import { useConcours } from '../../hooks/useConcours';
 import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
 import { useSearchHorses } from '../state/searchHorses';
 import { useTransportLocal } from '../state/transportLocal';
+import { useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
@@ -245,8 +246,14 @@ export function TransportDetailV2() {
 
       {r.description ? <Card><Text style={s.desc}>{r.description}</Text></Card> : null}
 
-      <PrimaryButton label="Réserver une place" onPress={() => router.push(`/(v2)/transport/reserver?${q.toString()}` as any)} />
-      <Placeholder note="réservation simulée en F5 — aucun paiement, aucune écriture" />
+      {r.src === 'real' ? (
+        <PrimaryButton label="Réserver une place" onPress={() => router.push(`/reserver-transport?id=${r.id}` as any)} />
+      ) : (
+        <>
+          <PrimaryButton label="Réserver une place" onPress={() => router.push(`/(v2)/transport/reserver?${q.toString()}` as any)} />
+          <Placeholder note="annonce de démonstration — réservation simulée" />
+        </>
+      )}
     </Screen>
   );
 }
@@ -412,7 +419,8 @@ export function TransportProposeV2() {
   const { concoursId } = useLocalSearchParams<{ concoursId?: string }>();
   const { concours } = useConcours(concoursId);
   const cl = useConcoursLocal(concoursId);
-  const tl = useTransportLocal(concoursId);
+  // Phase 2 (pilote Transport) — publication réelle (transport_annonces).
+  const { annonces: myAnnonces, createAnnonce } = useMyTransportAnnonces();
 
   const [depart, setDepart] = useState('');       // adresse complète saisie
   const [departVille, setDepartVille] = useState(''); // ville (suggestion choisie)
@@ -452,19 +460,26 @@ export function TransportProposeV2() {
     setEstimating(false);
   };
 
-  const existing = tl.context.offer;
+  const existing = concoursId ? myAnnonces.find((a) => a.concoursId === concoursId) : undefined;
+  const [publishErr, setPublishErr] = useState<string | null>(null);
 
-  const publish = () => {
-    tl.publishOffer({
-      concoursId, concoursNom: concours?.nom,
-      depart: depart.trim() || '—', departVille: villeDepart, destination: dest.value.trim() || '—',
-      date: date || undefined, heure: heure || undefined,
-      places: parseInt(places, 10) || 1,
-      prix: estimate?.price ?? 0,
+  const publish = async () => {
+    setPublishErr(null);
+    const { error } = await createAnnonce({
+      typeTransport: 'trajet',
+      villeDepart, villeArrivee: dest.value.trim() || '—',
+      dateTrajet: date ? new Date(`${date}T00:00:00`) : new Date(),
+      heureDepart: heure || undefined,
+      nbPlacesTotal: parseInt(places, 10) || 1,
+      nbPlacesDisponibles: parseInt(places, 10) || 1,
+      prixHT: estimate?.price ?? 0,
       pricePerKm,
-      estimKm: estimate?.distanceKm,
-      peutTransporterCavalier: peutCavalier, description: description.trim() || undefined,
+      concours: concours?.nom,
+      concoursId,
+      adresseVan: depart.trim() || undefined,
+      description: description.trim() || undefined,
     });
+    if (error) { setPublishErr(error); return; }
     if (concoursId && cl.entry.needTransport === 'unset') cl.update({ needTransport: 'offering' });
     setDone(true);
   };
@@ -480,15 +495,13 @@ export function TransportProposeV2() {
         <RowGroup>
           <Row
             icon="🛣" label="Trajet"
-            value={`${existing?.departVille || existing?.depart || villeDepart} → ${existing?.destination ?? dest.value}`}
-            sub={`Départ : ${existing?.depart ?? (depart.trim() || '—')}`}
+            value={`${existing?.villeDepart || villeDepart} → ${existing?.villeArrivee ?? dest.value}`}
+            sub={`Départ : ${existing?.adresseVan ?? (depart.trim() || '—')}`}
           />
-          <Row icon="📅" label="Date" value={fmtDate(existing?.date ?? date)} />
-          <Row icon="💺" label="Places" value={String(existing?.places ?? places)} />
+          <Row icon="📅" label="Date" value={fmtDate(existing?.dateTrajet?.toISOString() ?? date)} />
+          <Row icon="💺" label="Places" value={String(existing?.nbPlacesDisponibles ?? places)} />
           <Row icon="🛣" label="Tarif au km" value={`${(existing?.pricePerKm ?? pricePerKm).toFixed(2)} €/km`} />
-          {(existing?.estimKm ?? estimate?.distanceKm) != null
-            ? <Row icon="💶" label="Sous-total estimé" value={`~${existing?.prix ?? estimate?.price} € (${existing?.estimKm ?? estimate?.distanceKm} km)`} />
-            : null}
+          {publishErr ? <Text style={s.demoLine}>{publishErr}</Text> : null}
         </RowGroup>
         <PrimaryButton label="Voir dans Mes transports" onPress={() => router.replace('/(v2)/transport/mes-transports' as any)} />
         <GhostButton label={concoursId ? 'Retour à Mon concours' : 'Retour'} onPress={() => router.replace((concoursId ? `/(v2)/concours/${concoursId}` : '/(v2)/transport') as any)} />
@@ -550,7 +563,6 @@ export function TransportProposeV2() {
         <Field label="Informations utiles"><TextInput style={[s.input, s.multiline]} value={description} onChangeText={setDescription} placeholder="Taille du van, horaires, conditions…" placeholderTextColor={Colors.textTertiary} multiline /></Field>
         <PrimaryButton label="Publier l'annonce" onPress={publish} />
       </Card>
-      <Placeholder note="publication LOCALE (v2:transport) — aucune écriture dans les annonces Transport PROD" v1Path="/proposer-transport" v1Label="formulaire actuel" />
     </Screen>
   );
 }
