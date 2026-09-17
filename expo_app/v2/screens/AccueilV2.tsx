@@ -176,7 +176,11 @@ export function AccueilV2() {
                   {communityCount > 0 && <Sticker label={`✨ ${Math.min(communityCount, 9)} récents`} tone="lilac" tilt={-3} style={s.softSticker} />}
                   {community.map((p, i) => (
                     <Text key={p.id} style={[s.post, i > 0 && { marginTop: 6 }]} numberOfLines={1}>
-                      <Text style={s.postAuthor}>{p.auteur} — </Text>{p.contenu}
+                      <Text
+                        style={s.postAuthor}
+                        onPress={p.auteurId ? () => router.push(`/user-profile/${p.auteurId}` as any) : undefined}
+                      >{p.auteur}</Text>
+                      {' — '}{p.contenu}
                     </Text>
                   ))}
                 </>

@@ -64,7 +64,7 @@ export function ChevauxV2() {
         <Placeholder note="les chevaux « local V2 » sont stockés sur cet appareil (v2:chevaux) — aucune donnée Supabase" />
       )}
       {pool.real.length > 0 && (
-        <Placeholder note="fiche cheval réelle = LECTURE SEULE en V2 ; modification via l'app actuelle" v1Path="/(tabs)/chevaux" v1Label="chevaux (V1)" />
+        <Placeholder note="fiche cheval réelle = LECTURE SEULE en V2 ; modification via l'app actuelle" v1Path="/(tabs)/chevaux" v1Label="mes chevaux" />
       )}
 
       {caps.has('coach') && (

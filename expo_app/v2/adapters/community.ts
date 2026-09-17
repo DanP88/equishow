@@ -25,6 +25,7 @@ export interface V2Comment {
 
 export interface V2Post {
   id: string;
+  auteurId?: string; // vrai users.id — absent en démo (pas de navigation vers un faux profil)
   auteur: string;
   initiales: string;
   couleur: string;
@@ -98,6 +99,7 @@ export function useV2Community(scope: PostScope): V2Community {
     const comments: any[] = Array.isArray(p.commentaires) ? p.commentaires : [];
     return {
       id: p.id,
+      auteurId: p.auteurId,
       auteur: p.auteur || 'Membre EquiShow',
       initiales: p.initiales || (p.auteur || '?').slice(0, 2).toUpperCase(),
       couleur: p.couleur || '#7C3AED',

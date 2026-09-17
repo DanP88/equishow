@@ -144,13 +144,15 @@ export function EmptyState({ icon, title, body, ctaLabel, onCta }: { icon: strin
 }
 
 // Note discrète « donnée simulée / à venir au lot Fx » — plus d'encart jaune.
+// Le détail technique (note) ne s'affiche qu'en __DEV__ : jamais visible en TestFlight/prod.
 export function Placeholder({ note, v1Path, v1Label }: { note: string; v1Path?: string; v1Label?: string }) {
+  if (!__DEV__ && !v1Path) return null;
   return (
     <View style={k.ph}>
       <Text style={k.phNote}>
-        <Text style={k.phDot}>· </Text>{note}
+        {__DEV__ ? <Text><Text style={k.phDot}>· </Text>{note}</Text> : null}
         {v1Path ? (
-          <Text style={k.phLink} onPress={() => router.push(v1Path as any)}>{`  ${v1Label ?? 'voir la version actuelle'} ›`}</Text>
+          <Text style={k.phLink} onPress={() => router.push(v1Path as any)}>{`${__DEV__ ? '  ' : ''}${v1Label ?? 'voir la version actuelle'} ›`}</Text>
         ) : null}
       </Text>
     </View>

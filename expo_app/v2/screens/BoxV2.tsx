@@ -16,7 +16,7 @@ import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
-import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState } from '../ui/kit';
+import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState, Chip } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
 import { useSearchHorses } from '../state/searchHorses';
 import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
@@ -76,7 +76,7 @@ export function BoxHubV2() {
       <TouchableOpacity style={[s.door, s.doorOffer]} activeOpacity={0.9} onPress={() => router.push(`/(v2)/box${base}${base ? '&' : '?'}face=propose` as any)}>
         <Text style={s.doorIcon}>📣</Text>
         <Text style={s.doorTitle}>Je propose un box</Text>
-        <Text style={s.doorSub}>Louer un box libre dans mon écurie</Text>
+        <Text style={s.doorSub}>Un box réservé en trop sur un concours, ou dans mon écurie</Text>
       </TouchableOpacity>
 
       <TouchableOpacity onPress={() => router.push('/(v2)/box/mes-box' as any)} hitSlop={8}>
@@ -366,13 +366,16 @@ export function BoxProposeV2() {
   const [equipements, setEquipements] = useState('');
   const [description, setDescription] = useState('');
   const [done, setDone] = useState(false);
+  // Box de concours (sur place) = cas d'usage prioritaire ; hébergement à proximité = secondaire.
+  const [surPlace, setSurPlace] = useState(true);
 
   const existing = bl.context.offer;
 
   const publish = () => {
     bl.publishOffer({
       concoursId, concoursNom: concours?.nom,
-      lieu: dest.value.trim() || '—', adresse: adresse.trim() || undefined,
+      lieu: dest.value.trim() || '—',
+      adresse: (!concours || !surPlace) ? (adresse.trim() || undefined) : undefined,
       dateDebut: dateDebut || undefined, dateFin: dateFin || undefined,
       nbBox: parseInt(nbBox, 10) || 1, prixNuit: parseInt(prixNuit, 10) || 0,
       litiereIncluse: litiere, equipements: equipements.trim() || undefined,
@@ -388,7 +391,7 @@ export function BoxProposeV2() {
         <View style={s.successWrap}>
           <Text style={s.successIcon}>✅</Text>
           <Text style={s.successTitle}>Box publié</Text>
-          <Text style={s.sub}>Annonce enregistrée localement (prototype).</Text>
+          <Text style={s.sub}>Ton annonce est enregistrée.</Text>
         </View>
         <RowGroup>
           <Row icon="📍" label="Lieu" value={existing?.lieu ?? dest.value} />
@@ -405,7 +408,7 @@ export function BoxProposeV2() {
   return (
     <Screen>
       <TouchableOpacity onPress={() => backTo(concoursId)} hitSlop={8}><Text style={s.back}>← Box</Text></TouchableOpacity>
-      <Text style={s.h1}>📣 Je propose un box</Text>
+      <Text style={s.h1}>{concours ? '📣 Box en trop pour ce concours' : '📣 Je propose un box'}</Text>
 
       {concours && (
         <View style={s.ctxCard}>
@@ -418,8 +421,20 @@ export function BoxProposeV2() {
 
 
       <Card>
+        {concours && (
+          <Field label="Emplacement du box">
+            <View style={s.rowFields}>
+              <Chip label="Sur le site du concours" on={surPlace} onPress={() => setSurPlace(true)} />
+              <Chip label="À proximité" on={!surPlace} onPress={() => setSurPlace(false)} />
+            </View>
+          </Field>
+        )}
         <V2DestinationField label="Secteur" auto={dest} placeholder="Ville / commune" />
-        <Field label="Adresse de l'écurie"><V2AddressAutocomplete value={adresse} onChangeText={setAdresse} kind="address" placeholder="Numéro et voie, ville" /></Field>
+        {(!concours || !surPlace) && (
+          <Field label={concours ? "Adresse (à proximité du concours)" : "Adresse de l'écurie"}>
+            <V2AddressAutocomplete value={adresse} onChangeText={setAdresse} kind="address" placeholder="Numéro et voie, ville" />
+          </Field>
+        )}
         <V2DateRange
           startLabel="Disponible du" endLabel="au"
           start={dateDebut} end={dateFin}
@@ -438,7 +453,7 @@ export function BoxProposeV2() {
         <Field label="Informations utiles"><TextInput style={[s.input, s.multiline]} value={description} onChangeText={setDescription} placeholder="Taille des box, foin, gardiennage, conditions…" placeholderTextColor={Colors.textTertiary} multiline /></Field>
         <PrimaryButton label="Publier l'annonce" onPress={publish} />
       </Card>
-      <Placeholder note="publication LOCALE (v2:box) — aucune écriture dans les annonces Box PROD" v1Path="/proposer-box" v1Label="formulaire actuel (V1)" />
+      <Placeholder note="publication LOCALE (v2:box) — aucune écriture dans les annonces Box PROD" v1Path="/proposer-box" v1Label="formulaire actuel" />
     </Screen>
   );
 }

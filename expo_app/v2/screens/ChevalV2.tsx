@@ -172,7 +172,7 @@ export function ChevalV2() {
       <CoachingConcoursSection chevalId={id!} />
 
       <PrimaryButton label="Valider" onPress={() => router.replace('/(v2)/chevaux' as any)} />
-      <Placeholder note="fiche en LECTURE SEULE dans la V2 — modification d'un cheval réel via l'app actuelle (sauf coach : géré localement en V2)" v1Path={`/cheval/${id}`} v1Label="ouvrir la fiche V1" />
+      <Placeholder note="fiche en LECTURE SEULE dans la V2 — modification d'un cheval réel via l'app actuelle (sauf coach : géré localement en V2)" v1Path={`/cheval/${id}`} v1Label="ouvrir la fiche" />
     </Screen>
   );
 }
@@ -217,7 +217,7 @@ export function ChevalFormV2() {
     <Screen>
       <TouchableOpacity onPress={() => (router.canGoBack() ? router.back() : router.replace('/(v2)/chevaux' as any))} hitSlop={8}><Text style={s.back}>← Retour</Text></TouchableOpacity>
       <Text style={s.h1}>{editing ? 'Modifier le cheval' : 'Ajouter un cheval'}</Text>
-      <Text style={s.sub}>Cheval enregistré localement dans la V2 (aucune écriture Supabase).</Text>
+      {__DEV__ ? <Text style={s.sub}>[dev] Cheval enregistré localement dans la V2 (aucune écriture Supabase).</Text> : null}
 
       <Card>
         <Field label="Nom *"><TextInput style={s.input} value={nom} onChangeText={setNom} placeholder="Ex. Tornado" placeholderTextColor={Colors.textTertiary} /></Field>
@@ -253,7 +253,7 @@ export function ChevalFormV2() {
         </View>
       </Card>
 
-      <Placeholder note="v2:chevaux (AsyncStorage) — id préfixé « v2c- », zéro collision avec les chevaux réels, zéro écriture PROD" v1Path="/(tabs)/chevaux" v1Label="création réelle (app V1)" />
+      <Placeholder note="v2:chevaux (AsyncStorage) — id préfixé « v2c- », zéro collision avec les chevaux réels, zéro écriture PROD" v1Path="/(tabs)/chevaux" v1Label="créer via l'app" />
     </Screen>
   );
 }

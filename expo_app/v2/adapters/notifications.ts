@@ -12,8 +12,22 @@ import { useActiveNotifications } from '../../hooks/useActiveNotifications';
 import { relativeDayLabel } from '../lib/dates';
 import type { Notification } from '../../types/notification';
 
-export interface V2Notif { id: string; group: string; icon: string; label: string; unread: boolean }
+export interface V2Notif { id: string; group: string; icon: string; label: string; unread: boolean; href?: string }
 export interface V2NotifGroup { label: string; items: V2Notif[] }
+
+// Même repli que les écrans V1 (actionUrl ?? lien), + cas particulier réclamation
+// (ticket ciblé via donnees.support_id). Une notif sans référence exploitable
+// n'a pas de href → pas de navigation, pas de chevron affiché (cohérent).
+function resolveHref(n: Notification): string | undefined {
+  const isSupport = n.type === 'support_request' || n.type === 'support_ack' || n.type === 'support_resolved';
+  if (isSupport) {
+    const sid = n.donnees?.support_id;
+    const base = n.actionUrl ?? '/support';
+    const sep = base.includes('?') ? '&' : '?';
+    return sid ? `${base}${sep}ticket=${sid}` : base;
+  }
+  return n.actionUrl ?? n.lien;
+}
 
 const ICON: Record<string, string> = {
   course_request: '🎓', stage_reservation: '🎓', reservation_request: '✅',
@@ -43,6 +57,7 @@ export function useV2Notifications() {
       icon: ICON[n.type] ?? '🔔',
       label: n.titre || n.message || 'Notification',
       unread: !n.lu,
+      href: resolveHref(n),
     }));
     // Repli DÉMO uniquement SANS session réelle. Vrai compte sans notif → vide réel.
     const demo = !isSignedIn;

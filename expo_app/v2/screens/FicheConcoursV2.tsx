@@ -98,11 +98,40 @@ export function FicheConcoursV2() {
 
       {/* ── MON CONCOURS (pièce centrale — contenu CAVALIER, toujours en premier) ── */}
       {!entry.going ? (
-        <Card hero>
-          <Text style={s.mcKicker}>MON CONCOURS</Text>
-          <Text style={s.mcLead}>Dis que tu y seras — Equishow t'aide à organiser cheval, transport, box et coach.</Text>
-          <PrimaryButton label="🟢 J'y serai" onPress={() => { setGoing(true); openPrep(); }} />
-        </Card>
+        <>
+          <Card hero>
+            <Text style={s.mcKicker}>MON CONCOURS</Text>
+            <Text style={s.mcLead}>Dis que tu y seras — Equishow t'aide à organiser cheval, transport, box et coach.</Text>
+            <PrimaryButton label="🟢 J'y serai" onPress={() => { setGoing(true); openPrep(); }} />
+          </Card>
+
+          {/* Accès direct transport/box/coach, sans attendre "J'y serai" — discoverability. */}
+          <Section title="Organiser ce concours">
+            <RowGroup>
+              {([
+                ['transport', '🚚', 'Transport'],
+                ['box', '🏠', 'Box'],
+                ['coach', '🎓', 'Coach'],
+              ] as const).map(([kind, icon, label]) => (
+                <Row
+                  key={kind}
+                  icon={icon}
+                  label={label}
+                  right={
+                    <View style={s.quickActions}>
+                      <TouchableOpacity onPress={() => openService(kind, 'cherche')} hitSlop={6}>
+                        <Text style={s.quickLink}>Chercher</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => openService(kind, 'propose')} hitSlop={6}>
+                        <Text style={s.quickLink}>Proposer</Text>
+                      </TouchableOpacity>
+                    </View>
+                  }
+                />
+              ))}
+            </RowGroup>
+          </Section>
+        </>
       ) : (
         <View style={{ gap: Spacing.md, marginTop: Spacing.md }}>
           <View style={s.goneRow}>
@@ -219,4 +248,7 @@ const s = StyleSheet.create({
   gone: { fontSize: FontSize.lg, fontWeight: FontWeight.extrabold, color: Colors.success },
   goneUndo: { fontSize: FontSize.xs, color: Colors.textTertiary, fontWeight: FontWeight.semibold },
   link: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, alignSelf: 'flex-start' },
+
+  quickActions: { flexDirection: 'row', gap: 14 },
+  quickLink: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold },
 });

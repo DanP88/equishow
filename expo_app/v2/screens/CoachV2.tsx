@@ -445,7 +445,8 @@ export function CoachProposeV2() {
   const cl = useConcoursLocal(concoursId);
   const kl = useCoachLocal(concoursId);
 
-  const [type, setType] = useState<'concours' | 'regulier'>(concoursId ? 'concours' : 'regulier');
+  // Plus de choix "Régulier" côté UI (recentrage concours) — dérivé de la présence d'un concours.
+  const [type] = useState<'concours' | 'regulier'>(concoursId ? 'concours' : 'regulier');
   const [discipline, setDiscipline] = useState('CSO');
   const dest = useAutoDestination(concoursId, concours);
   const [niveaux, setNiveaux] = useState<string[]>(['Club', 'Amateur']);
@@ -483,7 +484,7 @@ export function CoachProposeV2() {
         <View style={s.successWrap}>
           <Text style={s.successIcon}>✅</Text>
           <Text style={s.successTitle}>Coaching publié</Text>
-          <Text style={s.sub}>Annonce enregistrée localement (prototype).</Text>
+          <Text style={s.sub}>Ton annonce est enregistrée.</Text>
         </View>
         <RowGroup>
           <Row icon="🗂" label="Type" value={(existing?.type ?? type) === 'concours' ? 'sur concours' : 'régulier'} />
@@ -514,14 +515,6 @@ export function CoachProposeV2() {
 
 
       <Card>
-        {!concoursId && (
-          <Field label="Type">
-            <View style={s.chips}>
-              <Chip label="Régulier" on={type === 'regulier'} onPress={() => setType('regulier')} />
-              <Chip label="Sur un concours" on={type === 'concours'} onPress={() => setType('concours')} />
-            </View>
-          </Field>
-        )}
         <Field label="Discipline">
           <View style={s.chips}>{DISCIPLINES.map((d) => <Chip key={d} label={d} on={discipline === d} onPress={() => setDiscipline(d)} />)}</View>
         </Field>
@@ -543,7 +536,7 @@ export function CoachProposeV2() {
         <Field label="Informations utiles"><TextInput style={[s.input, s.multiline]} value={description} onChangeText={setDescription} placeholder="Déroulé d'une séance, horaires, débrief vidéo…" placeholderTextColor={Colors.textTertiary} multiline /></Field>
         <PrimaryButton label="Publier l'annonce" onPress={publish} />
       </Card>
-      <Placeholder note="publication LOCALE (v2:coach) — aucune écriture dans coach_annonces PROD" v1Path="/proposer-coach" v1Label="formulaire actuel (V1)" />
+      <Placeholder note="publication LOCALE (v2:coach) — aucune écriture dans coach_annonces PROD" v1Path="/proposer-coach" v1Label="formulaire actuel" />
     </Screen>
   );
 }
@@ -590,7 +583,7 @@ export function CoachElevesV2() {
         ))}
       </RowGroup>
 
-      <Placeholder note="gestion réelle des demandes / séances (accept/refus, planning) = Phase 2 backend" v1Path="/(tabs)/coach-demandes" v1Label="demandes actuelles (V1)" />
+      <Placeholder note="gestion réelle des demandes / séances (accept/refus, planning) = Phase 2 backend" v1Path="/(tabs)/coach-demandes" v1Label="mes demandes" />
     </Screen>
   );
 }

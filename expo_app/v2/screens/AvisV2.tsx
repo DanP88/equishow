@@ -58,7 +58,7 @@ export function AvisV2() {
         <RowGroup>
           <Row icon="✍️" label="Avis déposés" value={String(a.deposesCount)} />
         </RowGroup>
-        <Placeholder note="déposer un avis se fait depuis une réservation terminée (statut « completed ») — flux réel = Phase 2" v1Path="/(tabs)/profil" v1Label="avis (V1)" />
+        <Placeholder note="déposer un avis se fait depuis une réservation terminée (statut « completed ») — flux réel = Phase 2" v1Path="/(tabs)/profil" v1Label="mes avis" />
       </Section>
     </Screen>
   );

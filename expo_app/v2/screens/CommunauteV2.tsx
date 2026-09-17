@@ -14,6 +14,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react';
 import { View, Text, Image, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, ScrollView } from 'react-native';
+import { router } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
@@ -222,11 +223,18 @@ function Fil({ community }: { community: V2Community }) {
         return (
           <Card key={p.id}>
             <View style={s.postHead}>
-              <View style={[s.avatar, { backgroundColor: p.couleur }]}><Text style={s.avatarTxt}>{p.initiales}</Text></View>
-              <View style={{ flex: 1 }}>
-                <Text style={s.author}>{p.auteur}</Text>
-                <Text style={s.when}>{p.quand}</Text>
-              </View>
+              <TouchableOpacity
+                style={s.postHeadIdentity}
+                disabled={!p.auteurId}
+                onPress={() => router.push(`/user-profile/${p.auteurId}` as any)}
+                hitSlop={4}
+              >
+                <View style={[s.avatar, { backgroundColor: p.couleur }]}><Text style={s.avatarTxt}>{p.initiales}</Text></View>
+                <View style={{ flex: 1 }}>
+                  <Text style={s.author}>{p.auteur}</Text>
+                  <Text style={s.when}>{p.quand}</Text>
+                </View>
+              </TouchableOpacity>
               {p.mine && (
                 <TouchableOpacity onPress={() => onDelete(p.id)} hitSlop={8}><Text style={s.del}>Supprimer</Text></TouchableOpacity>
               )}
@@ -320,7 +328,7 @@ function Fil({ community }: { community: V2Community }) {
       <Placeholder note={demo
         ? 'aperçu de démonstration — connecte-toi pour liker, commenter et publier'
         : 'publications, likes et commentaires réels (Supabase, partagés avec l’app actuelle)'}
-        v1Path="/(tabs)/communaute" v1Label="Communauté (V1)" />
+        v1Path="/(tabs)/communaute" v1Label="Communauté" />
     </View>
   );
 }
@@ -348,6 +356,7 @@ const s = StyleSheet.create({
   thumbXTxt: { color: '#fff', fontSize: 10, fontWeight: '700' },
 
   postHead: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm },
+  postHeadIdentity: { flexDirection: 'row', alignItems: 'center', gap: Spacing.sm, flex: 1 },
   avatar: { width: 32, height: 32, borderRadius: 16, alignItems: 'center', justifyContent: 'center' },
   avatarTxt: { color: '#fff', fontWeight: FontWeight.bold, fontSize: FontSize.xs },
   author: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textPrimary },

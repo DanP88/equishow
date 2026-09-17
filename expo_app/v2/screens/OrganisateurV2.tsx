@@ -45,7 +45,7 @@ export function OrganisateurV2() {
       {pending && (
         <Card hero>
           <Text style={s.pendingTitle}>⏳ Validation en attente</Text>
-          <Text style={s.pendingBody}>Votre demande d'activité organisateur est en cours de vérification (simulée en prototype). Vous pouvez déjà préparer vos concours en brouillon.</Text>
+          <Text style={s.pendingBody}>Votre demande d'activité organisateur est en cours de vérification. Vous pouvez déjà préparer vos concours en brouillon.</Text>
         </Card>
       )}
 
@@ -81,7 +81,7 @@ export function OrganisateurV2() {
         </RowGroup>
       </Section>
 
-      <Placeholder note="création / édition / publication détaillées reprises de la V1 (dual-mode creer-concours) ; Radar V2 = agrégats RGPD, masquage < 5, jamais de nominatif" v1Path="/(tabs)/org-concours" v1Label="gestion concours (V1)" />
+      <Placeholder note="création / édition / publication détaillées reprises de la V1 (dual-mode creer-concours) ; Radar V2 = agrégats RGPD, masquage < 5, jamais de nominatif" v1Path="/(tabs)/org-concours" v1Label="gestion du concours" />
     </Screen>
   );
 }
@@ -169,7 +169,7 @@ export function OrgRadarV2() {
         </>
       )}
 
-      <Placeholder note="RGPD : agrégats uniquement, masquage sous 5, jamais de donnée nominative. Source = RPC fn_org_concours_radar (lecture seule)." v1Path="/(tabs)/org-radar" v1Label="Radar V1" />
+      <Placeholder note="RGPD : agrégats uniquement, masquage sous 5, jamais de donnée nominative. Source = RPC fn_org_concours_radar (lecture seule)." v1Path="/(tabs)/org-radar" v1Label="Radar" />
     </Screen>
   );
 }

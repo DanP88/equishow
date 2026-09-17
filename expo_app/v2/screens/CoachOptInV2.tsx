@@ -38,7 +38,7 @@ export function CoachOptInV2() {
             Vous pouvez maintenant publier des annonces de coaching et recevoir des
             demandes. Vos autres activités sont inchangées.
           </Text>
-          <Text style={s.simTag}>PROTOTYPE — capacité ajoutée localement (aucun backend)</Text>
+          {__DEV__ ? <Text style={s.simTag}>[dev] capacité ajoutée localement (aucun backend)</Text> : null}
         </Card>
         <PrimaryButton label="Publier une annonce de coaching" onPress={() => router.replace('/(v2)/coach?face=propose' as any)} />
         <GhostButton label="Retour" onPress={() => router.replace('/(v2)/propose' as any)} />

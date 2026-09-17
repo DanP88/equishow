@@ -27,15 +27,19 @@ export function NotificationsV2() {
           <Text style={s.groupTitle}>{g.label.toUpperCase()}</Text>
           <RowGroup>
             {g.items.map((n) => (
-              <Row key={n.id} icon={n.icon} label={n.label} onPress={() => {}} />
+              <Row key={n.id} icon={n.icon} label={n.label} onPress={n.href ? () => router.push(n.href as any) : undefined} />
             ))}
           </RowGroup>
         </View>
       ))}
 
-      {demo
-        ? <Placeholder note="notifications de démonstration — connecte-toi pour voir les tiennes" v1Path="/(tabs)/notifications" v1Label="notifications actuelles" />
-        : <Placeholder note="liste unique agrégée par personne · « marquer lu » rebranché plus tard" />}
+      {demo ? (
+        <TouchableOpacity onPress={() => router.push('/(tabs)/notifications' as any)} hitSlop={6}>
+          <Text style={s.demoLink}>Voir mes notifications ›</Text>
+        </TouchableOpacity>
+      ) : (
+        <Placeholder note="liste unique agrégée par personne · « marquer lu » rebranché plus tard" />
+      )}
     </Screen>
   );
 }
@@ -46,4 +50,5 @@ const s = StyleSheet.create({
   empty: { fontSize: FontSize.sm, color: Colors.textSecondary, fontStyle: 'italic', marginTop: Spacing.md },
   group: { gap: Spacing.xs, marginTop: Spacing.lg },
   groupTitle: { fontSize: 11, fontWeight: FontWeight.extrabold, color: Colors.textTertiary, letterSpacing: 0.8 },
+  demoLink: { fontSize: FontSize.sm, color: BL.accent, fontWeight: FontWeight.bold, marginTop: Spacing.md },
 });

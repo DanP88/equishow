@@ -475,7 +475,7 @@ export function TransportProposeV2() {
         <View style={s.successWrap}>
           <Text style={s.successIcon}>✅</Text>
           <Text style={s.successTitle}>Transport publié</Text>
-          <Text style={s.sub}>Annonce enregistrée localement (prototype).</Text>
+          <Text style={s.sub}>Ton annonce est enregistrée.</Text>
         </View>
         <RowGroup>
           <Row
@@ -550,7 +550,7 @@ export function TransportProposeV2() {
         <Field label="Informations utiles"><TextInput style={[s.input, s.multiline]} value={description} onChangeText={setDescription} placeholder="Taille du van, horaires, conditions…" placeholderTextColor={Colors.textTertiary} multiline /></Field>
         <PrimaryButton label="Publier l'annonce" onPress={publish} />
       </Card>
-      <Placeholder note="publication LOCALE (v2:transport) — aucune écriture dans les annonces Transport PROD" v1Path="/proposer-transport" v1Label="formulaire actuel (V1)" />
+      <Placeholder note="publication LOCALE (v2:transport) — aucune écriture dans les annonces Transport PROD" v1Path="/proposer-transport" v1Label="formulaire actuel" />
     </Screen>
   );
 }

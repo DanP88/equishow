@@ -131,7 +131,7 @@ export function ProfilV2() {
           </RowGroup>
         </Section>
       )}
-      {caps.isPending('coach') && <Text style={s.pending}>Activité Coach : en attente (prototype)</Text>}
+      {caps.isPending('coach') && <Text style={s.pending}>Activité Coach : en attente</Text>}
 
       {(caps.has('organisateur') || caps.isPending('organisateur')) && (
         <Section title={`Organisateur${a.concoursOrganises ? ` · ${a.concoursOrganises} concours` : ''}`}>
