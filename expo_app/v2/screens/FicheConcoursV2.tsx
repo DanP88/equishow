@@ -210,9 +210,9 @@ export function FicheConcoursV2() {
         </RowGroup>
       </Section>
 
-      {!entry.going && (
-        <GhostButton label={entry.following ? '⭐ Concours suivi ✓' : '⭐ Suivre ce concours'} onPress={toggleFollow} />
-      )}
+      {/* Permanent — indépendant de "J'y serai" (on peut suivre un concours
+          même en y participant : résultats, actualité organisateur, etc.). */}
+      <GhostButton label={entry.following ? '⭐ Concours suivi ✓' : '⭐ Suivre ce concours'} onPress={toggleFollow} />
 
       <CoachsPresentsModal
         visible={coachModal}
