@@ -1,14 +1,16 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MyTransportRecherchesReponses — LOT 4 (lecture) + LOT 5 (acceptation) :
-// réponses réelles reçues par le demandeur sur SES recherches Transport (111),
-// affichées dans « Mes transports ».
+// MyTransportRecherchesReponses — LOT 4 (lecture réponses) + LOT 5 (acceptation)
+// + LOT 6 (couverture détaillée par cheval), pour TOUTES les recherches
+// Transport réelles du demandeur, affichées dans « Mes transports ».
 //
 // LOT 5 : sélection des chevaux NON COUVERTS de cette recherche (parmi ceux
 // qui la composent, jamais tous les chevaux du compte) puis appel EXCLUSIF de
 // accept_transport_recherche_response — aucun calcul de prix/commission/
-// vendeur/capacité/statut ici, tout reste autoritaire côté 111. UI minimale
-// (pas de refonte visuelle, pas d'affichage détaillé de couverture — lot
-// suivant).
+// vendeur/capacité/statut ici, tout reste autoritaire côté 111.
+// LOT 6 : couverture réelle « X/Y chevaux couverts » + détail par cheval
+// (✅ trouvé / ⏳ recherché), recalculée à chaque chargement depuis
+// transport_recherche_chevaux × transport_reservation_chevaux ×
+// transport_reservations.statut (adapter, aucun état stocké localement).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useEffect, useState } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
@@ -20,6 +22,7 @@ import { useUsersByIds } from '../../hooks/useUsersByIds';
 import {
   useMyTransportRecherchesReponses, useAcceptTransportRechercheResponse,
   fetchAvailableChevauxForRecherche, RechercheChevalOption, ReceivedReponse, MyRechercheWithReponses,
+  RechercheCoverageCheval,
 } from '../adapters/transportRecherches';
 
 function fmtDate(d?: string | null) {
@@ -35,17 +38,19 @@ export function MyTransportRecherchesReponses() {
   const [acceptingFor, setAcceptingFor] = useState<string | null>(null);
   const [justAccepted, setJustAccepted] = useState<string | null>(null);
 
-  const totalReponses = items.reduce((n, i) => n + i.reponses.length, 0);
-  if (totalReponses === 0) return null;
+  if (items.length === 0) return null;
 
   return (
-    <Section title={`Réponses reçues · ${totalReponses}`}>
-      {items.filter((i) => i.reponses.length > 0).map(({ recherche, reponses }) => (
+    <Section title={`Mes recherches Transport · ${items.length}`}>
+      {items.map(({ recherche, chevaux, reponses }) => (
         <View key={recherche.id} style={s.group}>
           <Text style={s.rechercheHead}>
             🔎 {recherche.depart || '—'} → {recherche.destination || '—'}
             {recherche.concoursNom ? ` · 🏆 ${recherche.concoursNom}` : ''}
           </Text>
+
+          <CoverageSummary recherche={recherche} chevaux={chevaux} />
+
           {reponses.map((rep) => {
             const u = usersById.get(rep.offreurId);
             const nom = u ? `${u.prenom} ${u.nom?.charAt(0) ?? ''}.`.trim() : 'Un transporteur';
@@ -93,6 +98,35 @@ export function MyTransportRecherchesReponses() {
         </View>
       ))}
     </Section>
+  );
+}
+
+/**
+ * LOT 6 — couverture réelle, recalculée depuis les données déjà chargées par
+ * useMyTransportRecherchesReponses (elles-mêmes lues à chaque cycle depuis
+ * transport_recherche_chevaux/transport_reservation_chevaux/transport_reservations).
+ * Aucun état inventé : si `chevaux` est vide (recherche sans cheval rattaché,
+ * cas transitoire), on n'affiche rien plutôt qu'un 0/0 trompeur.
+ */
+function CoverageSummary({
+  recherche, chevaux,
+}: { recherche: MyRechercheWithReponses['recherche']; chevaux: RechercheCoverageCheval[] }) {
+  if (chevaux.length === 0) return null;
+  const total = chevaux.length;
+  const couvert = chevaux.filter((c) => c.couvert).length;
+  const matched = recherche.status === 'matched';
+  return (
+    <View style={s.coverage}>
+      <Text style={s.coverageCount}>{couvert} / {total} cheval{total > 1 ? 'aux' : ''} couvert{couvert > 1 ? 's' : ''}</Text>
+      {chevaux.map((c) => (
+        <Text key={c.id} style={s.coverageLine}>
+          {c.couvert ? '✅' : '⏳'} {c.nom} — {c.couvert ? 'Transport trouvé' : 'Transport recherché'}
+        </Text>
+      ))}
+      <Text style={matched ? s.coverageMatched : s.coverageOpen}>
+        {matched ? '✅ Recherche complètement couverte' : '🔎 Recherche en cours'}
+      </Text>
+    </View>
   );
 }
 
@@ -174,6 +208,11 @@ function AccepterPanel({
 const s = StyleSheet.create({
   group: { gap: Spacing.xs, marginTop: Spacing.sm },
   rechercheHead: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary },
+  coverage: { backgroundColor: BL.accentSoft, borderColor: BL.accentLine, borderWidth: 1, borderRadius: 12, padding: Spacing.sm, gap: 2 },
+  coverageCount: { fontSize: FontSize.sm, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
+  coverageLine: { fontSize: FontSize.sm, color: Colors.textSecondary },
+  coverageMatched: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.success, marginTop: 2 },
+  coverageOpen: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textTertiary, marginTop: 2 },
   itemTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   itemMeta: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
   status: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: BL.accent, marginTop: Spacing.sm },

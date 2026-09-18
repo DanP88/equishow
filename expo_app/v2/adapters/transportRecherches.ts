@@ -13,6 +13,11 @@
 //   colonne non-PK (ex. concours_id) ne remonterait pas côté abonné.
 // LOT 4 : lecture RÉELLE côté demandeur des réponses reçues à SES recherches
 //   (useMyTransportRecherchesReponses) — affichage seul dans « Mes transports ».
+// LOT 6 : le même hook expose aussi, par recherche, la couverture détaillée
+//   PAR CHEVAL (transport_recherche_chevaux × transport_reservation_chevaux ×
+//   transport_reservations.statut) — aucun état de couverture stocké ou
+//   déduit localement, uniquement recalculé à la lecture depuis ces 3 tables
+//   + le statut réel de transport_recherches. Realtime étendu en conséquence.
 // LOT 5 : acceptation RÉELLE (partielle ou totale) d'une réponse — sélection des
 //   chevaux non couverts de CETTE recherche (fetchAvailableChevauxForRecherche)
 //   puis appel EXCLUSIF de la RPC accept_transport_recherche_response (111),
@@ -316,8 +321,17 @@ export interface ReceivedReponse {
   annonce: ReceivedReponseAnnonce | null;
 }
 
+/** LOT 6 — un cheval du périmètre de la recherche + son état de couverture réel. */
+export interface RechercheCoverageCheval {
+  id: string;
+  nom: string;
+  couvert: boolean;
+}
+
 export interface MyRechercheWithReponses {
   recherche: OpenTransportRecherche & { status: 'open' | 'matched' | 'cancelled' };
+  /** LOT 6 — tous les chevaux de la recherche, chacun avec son état de couverture réel. */
+  chevaux: RechercheCoverageCheval[];
   reponses: ReceivedReponse[];
 }
 
@@ -396,6 +410,45 @@ export function useMyTransportRecherchesReponses() {
 
     const reponsesRows = repErr ? [] : ((reponsesData ?? []) as unknown as ReceivedReponseRow[]);
 
+    // ── LOT 6 : couverture réelle par cheval, pour chaque recherche ─────────
+    // 1) le périmètre figé (tous les chevaux de chaque recherche) ;
+    // 2) les réservations vivantes de ces recherches (mêmes statuts
+    //    consommants que la RPC/fn_recompute_transport_recherche_status) ;
+    // 3) les chevaux réellement affectés à CES réservations.
+    // Rien n'est stocké : recalculé à chaque load() depuis les 3 tables.
+    const { data: rechevauxData } = await supabase
+      .from('transport_recherche_chevaux')
+      .select('recherche_id, cheval_id, cheval:chevaux(id, nom)')
+      .in('recherche_id', ids);
+
+    const { data: reservationsCoverage } = await supabase
+      .from('transport_reservations')
+      .select('id, recherche_id')
+      .in('recherche_id', ids)
+      .in('statut', ['accepted', 'awaiting_payment', 'paid', 'completed']);
+
+    const reservationToRecherche = new Map<string, string>(
+      (reservationsCoverage ?? []).map((r) => [r.id as string, r.recherche_id as string]),
+    );
+    const coverageReservationIds = Array.from(reservationToRecherche.keys());
+
+    let coveredKeys = new Set<string>();
+    if (coverageReservationIds.length) {
+      const { data: coveredRows } = await supabase
+        .from('transport_reservation_chevaux')
+        .select('reservation_id, cheval_id')
+        .in('reservation_id', coverageReservationIds);
+      coveredKeys = new Set(
+        (coveredRows ?? []).map((r) => `${reservationToRecherche.get(r.reservation_id as string)}::${r.cheval_id}`),
+      );
+    }
+
+    const rechevauxRows = (rechevauxData ?? []) as unknown as {
+      recherche_id: string;
+      cheval_id: string;
+      cheval: { id: string; nom: string } | { id: string; nom: string }[] | null;
+    }[];
+
     const result: MyRechercheWithReponses[] = rows.map((row) => {
       const concours = Array.isArray(row.concours) ? row.concours[0] : row.concours;
       const recherche: OpenTransportRecherche & { status: 'open' | 'matched' | 'cancelled' } = {
@@ -433,7 +486,17 @@ export function useMyTransportRecherchesReponses() {
             } : null,
           };
         });
-      return { recherche, reponses };
+      const chevaux: RechercheCoverageCheval[] = rechevauxRows
+        .filter((rc) => rc.recherche_id === row.id)
+        .map((rc) => {
+          const c = Array.isArray(rc.cheval) ? rc.cheval[0] : rc.cheval;
+          return {
+            id: rc.cheval_id,
+            nom: c?.nom ?? 'Cheval',
+            couvert: coveredKeys.has(`${row.id}::${rc.cheval_id}`),
+          };
+        });
+      return { recherche, chevaux, reponses };
     });
 
     setList(result);
@@ -448,6 +511,11 @@ export function useMyTransportRecherchesReponses() {
       .channel(`transport-mes-recherches-reponses-${profile.id}-${channelId}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_recherche_reponses' }, () => load())
       .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_recherches' }, () => load())
+      // LOT 6 — une acceptation insère dans transport_reservation_chevaux et fait
+      // transiter transport_reservations.statut : les deux doivent rafraîchir la
+      // couverture affichée, sans quoi l'écran resterait figé après « Accepter ».
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_reservation_chevaux' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_reservations' }, () => load())
       .subscribe();
     return () => {
       supabase.removeChannel(channel);
