@@ -12,8 +12,14 @@
 //   activées par la migration 112 : sans elle, un DELETE/UPDATE filtré sur une
 //   colonne non-PK (ex. concours_id) ne remonterait pas côté abonné.
 // LOT 4 : lecture RÉELLE côté demandeur des réponses reçues à SES recherches
-//   (useMyTransportRecherchesReponses) — affichage seul dans « Mes transports »,
-//   AUCUN bouton d'acceptation fonctionnel, AUCUN appel RPC — lot suivant.
+//   (useMyTransportRecherchesReponses) — affichage seul dans « Mes transports ».
+// LOT 5 : acceptation RÉELLE (partielle ou totale) d'une réponse — sélection des
+//   chevaux non couverts de CETTE recherche (fetchAvailableChevauxForRecherche)
+//   puis appel EXCLUSIF de la RPC accept_transport_recherche_response (111),
+//   seule autorité sur prix/commission/vendeur/capacité/statut de la recherche.
+//   Le front ne fait QUE proposer les bons candidats (chevaux membres de la
+//   recherche ET non déjà couverts) ; toute règle métier est revérifiée et
+//   appliquée côté serveur, jamais recalculée ici.
 //
 // `chevalIds` DOIT être filtré en amont (côté écran) aux seuls chevaux RÉELS
 // (table `chevaux`, src==='real' dans UnifiedHorse) : transport_recherche_
@@ -449,4 +455,91 @@ export function useMyTransportRecherchesReponses() {
   }, [load, profile?.id, channelId]);
 
   return { items: list, isLoading, reload: load };
+}
+
+// ── LOT 5 : sélection des chevaux non couverts + acceptation réelle ────────
+export interface RechercheChevalOption {
+  id: string;
+  nom: string;
+}
+
+/**
+ * LOT 5 — chevaux du périmètre FIGÉ de la recherche (transport_recherche_chevaux)
+ * qui ne sont PAS déjà couverts par une réservation vivante de cette recherche.
+ * Même liste de statuts « consommants » que la RPC et fn_recompute_transport_
+ * recherche_status (111) : accepted/awaiting_payment/paid/completed — jamais
+ * pending (ne consomme pas encore). Fonction simple (pas un hook) : appelée à
+ * la demande (ouverture du panneau de sélection), jamais en continu.
+ */
+export async function fetchAvailableChevauxForRecherche(
+  rechercheId: string,
+): Promise<{ chevaux: RechercheChevalOption[]; error: string | null }> {
+  const { data: chevauxRows, error: cErr } = await supabase
+    .from('transport_recherche_chevaux')
+    .select('cheval_id, cheval:chevaux(id, nom)')
+    .eq('recherche_id', rechercheId);
+  if (cErr) return { chevaux: [], error: cErr.message };
+
+  const { data: reservations, error: resErr } = await supabase
+    .from('transport_reservations')
+    .select('id')
+    .eq('recherche_id', rechercheId)
+    .in('statut', ['accepted', 'awaiting_payment', 'paid', 'completed']);
+  if (resErr) return { chevaux: [], error: resErr.message };
+
+  const reservationIds = (reservations ?? []).map((r) => r.id);
+  let coveredIds = new Set<string>();
+  if (reservationIds.length) {
+    const { data: coveredRows, error: covErr } = await supabase
+      .from('transport_reservation_chevaux')
+      .select('cheval_id')
+      .in('reservation_id', reservationIds);
+    if (covErr) return { chevaux: [], error: covErr.message };
+    coveredIds = new Set((coveredRows ?? []).map((r) => r.cheval_id as string));
+  }
+
+  const rows = (chevauxRows ?? []) as unknown as {
+    cheval_id: string;
+    cheval: { id: string; nom: string } | { id: string; nom: string }[] | null;
+  }[];
+  const chevaux = rows
+    .filter((r) => !coveredIds.has(r.cheval_id))
+    .map((r) => {
+      const c = Array.isArray(r.cheval) ? r.cheval[0] : r.cheval;
+      return { id: r.cheval_id, nom: c?.nom ?? 'Cheval' };
+    });
+  return { chevaux, error: null };
+}
+
+export interface AcceptRechercheReponseInput {
+  reponseId: string;
+  /** Exactement les chevaux choisis par le demandeur. Jamais « tous » par défaut. */
+  chevalIds: string[];
+}
+
+export interface AcceptRechercheReponseResult {
+  reservationId: string | null;
+  error: string | null;
+}
+
+/**
+ * LOT 5 — appelle EXCLUSIVEMENT accept_transport_recherche_response (111).
+ * Ne recalcule NI ne transmet prix/commission/vendeur/capacité/statut : la
+ * RPC (SECURITY DEFINER) fait tout, délègue aux triggers déjà audités
+ * (051 prix, 053 capacité, recalcul couverture 111 §10).
+ */
+export function useAcceptTransportRechercheResponse() {
+  const accept = useCallback(
+    async (input: AcceptRechercheReponseInput): Promise<AcceptRechercheReponseResult> => {
+      if (!input.chevalIds.length) return { reservationId: null, error: 'Sélectionne au moins un cheval.' };
+      const { data, error } = await supabase.rpc('accept_transport_recherche_response', {
+        p_reponse_id: input.reponseId,
+        p_cheval_ids: input.chevalIds,
+      });
+      if (error) return { reservationId: null, error: error.message };
+      return { reservationId: (data as string) ?? null, error: null };
+    },
+    [],
+  );
+  return { accept };
 }
