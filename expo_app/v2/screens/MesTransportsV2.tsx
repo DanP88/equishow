@@ -12,6 +12,7 @@ import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
 import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useTransportLocal } from '../state/transportLocal';
 import { useMyTransportAnnonces } from '../../hooks/useTransports';
+import { MyTransportRecherchesReponses } from '../components/MyTransportRecherchesReponses';
 
 function fmtDate(d?: string) {
   if (!d) return '—';
@@ -120,6 +121,9 @@ export function MesTransportsV2() {
           ))}
         </Section>
       )}
+
+      {/* LOT 4 — réponses réelles (111+112) reçues sur mes recherches réelles (111, Lot 1). Lecture seule. */}
+      <MyTransportRecherchesReponses />
 
       <Placeholder note="propositions réelles (transport_annonces) ; réservations et recherches encore simulées — paiement à venir" />
     </Screen>

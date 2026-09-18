@@ -8,10 +8,12 @@
 // LOT 3 : réponse RÉELLE d'un offreur à une recherche (useTransportRechercheReponses)
 //   — insert transport_recherche_reponses, liée à une VRAIE transport_annonce de
 //   l'offreur (RLS trr_insert_own vérifie annonce_id appartient à auth.uid()).
-//   Pas d'acceptation/réservation/sélection de chevaux ici — lot suivant.
 //   Repose sur la publication `supabase_realtime` + REPLICA IDENTITY FULL
 //   activées par la migration 112 : sans elle, un DELETE/UPDATE filtré sur une
 //   colonne non-PK (ex. concours_id) ne remonterait pas côté abonné.
+// LOT 4 : lecture RÉELLE côté demandeur des réponses reçues à SES recherches
+//   (useMyTransportRecherchesReponses) — affichage seul dans « Mes transports »,
+//   AUCUN bouton d'acceptation fonctionnel, AUCUN appel RPC — lot suivant.
 //
 // `chevalIds` DOIT être filtré en amont (côté écran) aux seuls chevaux RÉELS
 // (table `chevaux`, src==='real' dans UnifiedHorse) : transport_recherche_
@@ -285,4 +287,166 @@ export function useTransportRechercheReponses() {
   );
 
   return { myReponses: list, isLoading, respond };
+}
+
+// ── LOT 4 : réponses reçues par le demandeur sur SES recherches ────────────
+export interface ReceivedReponseAnnonce {
+  id: string;
+  villeDepart: string;
+  villeArrivee: string | null;
+  dateTrajet: string | null;
+  heureDepart: string | null;
+  nbPlacesDisponibles: number | null;
+  prixHT: number | null;
+  pricePerKm: number | null;
+}
+
+export interface ReceivedReponse {
+  id: string;
+  offreurId: string;
+  status: 'pending' | 'declined';
+  message: string | null;
+  createdAt: string;
+  annonce: ReceivedReponseAnnonce | null;
+}
+
+export interface MyRechercheWithReponses {
+  recherche: OpenTransportRecherche & { status: 'open' | 'matched' | 'cancelled' };
+  reponses: ReceivedReponse[];
+}
+
+interface MyRechercheRow {
+  id: string;
+  depart: string | null;
+  destination: string | null;
+  date_debut: string | null;
+  date_fin: string | null;
+  nb_places: number;
+  status: string;
+  concours_id: string | null;
+  created_at: string;
+  concours: { nom: string } | { nom: string }[] | null;
+}
+
+interface ReceivedReponseRow {
+  id: string;
+  recherche_id: string;
+  offreur_id: string;
+  status: string;
+  message: string | null;
+  created_at: string;
+  annonce: {
+    id: string;
+    ville_depart: string;
+    ville_arrivee: string | null;
+    date_trajet: string | null;
+    heure_depart: string | null;
+    nb_places_disponibles: number | null;
+    prix_ht: number | null;
+    price_per_km: number | null;
+  } | null;
+}
+
+/**
+ * LOT 4 — pour chaque recherche du demandeur courant, les réponses réelles
+ * reçues (jointes à l'annonce du transporteur). LECTURE SEULE : aucun bouton
+ * d'acceptation fonctionnel, aucun appel à accept_transport_recherche_response
+ * ici (lot suivant). RLS trr_select_parties : le demandeur voit les réponses
+ * de SES recherches uniquement — un tiers non concerné (ni demandeur ni
+ * offreur) n'a accès à rien de tout ça, vérifié par la RLS côté serveur.
+ * Deux requêtes séparées (mes recherches, puis leurs réponses) plutôt qu'un
+ * embed filtré sur une relation imbriquée — plus simple à garder correct.
+ */
+export function useMyTransportRecherchesReponses() {
+  const { profile } = useAuth();
+  const channelId = useId();
+  const [list, setList] = useState<MyRechercheWithReponses[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!profile?.id) { setList([]); return; }
+    setIsLoading(true);
+
+    const { data: recherchesData, error: rErr } = await supabase
+      .from('transport_recherches')
+      .select('id, depart, destination, date_debut, date_fin, nb_places, status, concours_id, created_at, concours:concours_id(nom)')
+      .eq('demandeur_id', profile.id)
+      .order('created_at', { ascending: false });
+
+    if (rErr || !recherchesData || recherchesData.length === 0) {
+      setList([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const rows = recherchesData as unknown as MyRechercheRow[];
+    const ids = rows.map((r) => r.id);
+
+    const { data: reponsesData, error: repErr } = await supabase
+      .from('transport_recherche_reponses')
+      .select('id, recherche_id, offreur_id, status, message, created_at, annonce:transport_annonces(id, ville_depart, ville_arrivee, date_trajet, heure_depart, nb_places_disponibles, prix_ht, price_per_km)')
+      .in('recherche_id', ids)
+      .order('created_at', { ascending: false });
+
+    const reponsesRows = repErr ? [] : ((reponsesData ?? []) as unknown as ReceivedReponseRow[]);
+
+    const result: MyRechercheWithReponses[] = rows.map((row) => {
+      const concours = Array.isArray(row.concours) ? row.concours[0] : row.concours;
+      const recherche: OpenTransportRecherche & { status: 'open' | 'matched' | 'cancelled' } = {
+        id: row.id,
+        demandeurId: profile.id,
+        concoursId: row.concours_id,
+        concoursNom: concours?.nom ?? null,
+        depart: row.depart,
+        destination: row.destination,
+        dateDebut: row.date_debut,
+        dateFin: row.date_fin,
+        nbPlaces: row.nb_places,
+        createdAt: row.created_at,
+        status: row.status as 'open' | 'matched' | 'cancelled',
+      };
+      const reponses: ReceivedReponse[] = reponsesRows
+        .filter((rep) => rep.recherche_id === row.id)
+        .map((rep) => {
+          const a = Array.isArray(rep.annonce) ? rep.annonce[0] : rep.annonce;
+          return {
+            id: rep.id,
+            offreurId: rep.offreur_id,
+            status: rep.status as 'pending' | 'declined',
+            message: rep.message,
+            createdAt: rep.created_at,
+            annonce: a ? {
+              id: a.id,
+              villeDepart: a.ville_depart,
+              villeArrivee: a.ville_arrivee,
+              dateTrajet: a.date_trajet,
+              heureDepart: a.heure_depart,
+              nbPlacesDisponibles: a.nb_places_disponibles,
+              prixHT: a.prix_ht,
+              pricePerKm: a.price_per_km,
+            } : null,
+          };
+        });
+      return { recherche, reponses };
+    });
+
+    setList(result);
+    setIsLoading(false);
+  }, [profile?.id]);
+
+  useAutoRefresh(load);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const channel = supabase
+      .channel(`transport-mes-recherches-reponses-${profile.id}-${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_recherche_reponses' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_recherches' }, () => load())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load, profile?.id, channelId]);
+
+  return { items: list, isLoading, reload: load };
 }
