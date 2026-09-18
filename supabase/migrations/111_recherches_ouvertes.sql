@@ -1,20 +1,32 @@
 -- ============================================================================
--- 111 — RECHERCHES OUVERTES · Transport/Box/Coach (demande sans annonce)
+-- 111 — RECHERCHES OUVERTES · TRANSPORT UNIQUEMENT (demande sans annonce)
 -- ============================================================================
--- Périmètre : permettre à un cavalier de publier une VRAIE recherche quand
---   aucune annonce existante ne correspond, que des offreurs puissent y
---   répondre en s'appuyant sur UNE DE LEURS ANNONCES RÉELLES, et que le
---   cavalier accepte une réponse via une RPC transactionnelle qui crée la
---   vraie réservation (Transport = module pilote pour la RPC ; le schéma
---   Box/Coach est posé mais leur RPC viendra dans une migration ultérieure).
+-- SCISSION 2026-09-18 : cette migration ne couvre plus que Transport. Box et
+-- Coach (schéma recherches + RPC d'acceptation) sont REPORTÉS à une migration
+-- ultérieure (112, non écrite) — rien de Box/Coach n'est créé par ce fichier.
+-- Raison : Transport est le seul module dont le front sera branché dans
+-- l'immédiat ; inutile de faire vivre en prod des tables Box/Coach dormantes
+-- (0 RPC, 0 code front) avant que ce travail ne démarre réellement.
 --
--- 10 tables : 3 recherches + 3 recherche_chevaux + 3 recherche_reponses +
---   1 reservation_chevaux (Transport uniquement, cf. design multi-chevaux
---   ci-dessous). 100% ADDITIF sur les tables déjà existantes (annonces/
---   payments/escrow intacts, aucune RLS/trigger existant modifié). Deux
---   colonnes nullables ajoutées par ALTER sur la vraie table V1
---   transport_reservations (recherche_id, recherche_reponse_id) — même
---   pattern additif que cheval_id (mig 078), transparent pour le flux V1.
+-- Historique : la version précédente de ce fichier (jamais appliquée en prod,
+-- commit 5073fa0 conservé comme point de sauvegarde de cet état antérieur)
+-- posait déjà le schéma Box/Coach en parallèle de Transport. Ce commit reste
+-- le point de référence si on veut un jour reprendre ce schéma tel quel pour
+-- la migration 112.
+--
+-- Périmètre : permettre à un cavalier de publier une VRAIE recherche de
+--   transport quand aucune annonce existante ne correspond, que des offreurs
+--   puissent y répondre en s'appuyant sur UNE DE LEURS ANNONCES RÉELLES, et
+--   que le cavalier accepte une réponse via une RPC transactionnelle qui crée
+--   la vraie réservation.
+--
+-- 4 tables : transport_recherches, transport_recherche_chevaux,
+--   transport_recherche_reponses, transport_reservation_chevaux. 100%
+--   ADDITIF sur les tables déjà existantes (annonces/payments/escrow
+--   intacts, aucune RLS/trigger existant modifié). Deux colonnes nullables
+--   ajoutées par ALTER sur la vraie table V1 transport_reservations
+--   (recherche_id, recherche_reponse_id) — même pattern additif que
+--   cheval_id (mig 078), transparent pour le flux V1.
 --
 -- ── DESIGN TRANSPORT MULTI-CHEVAUX (revu 2026-09-18, remplace la V1 du fix R3) ──
 -- Règles produit validées :
@@ -44,14 +56,9 @@
 --     deux, recalculée en direct — jamais un champ stocké séparément.
 --   - Retrait d'un cheval de `transport_recherche_chevaux` : autorisé
 --     uniquement s'il n'est couvert par AUCUNE réservation vivante liée à
---     cette recherche (RLS DELETE dédiée, §11).
+--     cette recherche (RLS DELETE dédiée, §7).
 --   - Aucun plafond artificiel : la seule limite vient de la capacité réelle
 --     de l'annonce du transporteur (trigger 053, inchangé).
---
--- Remplace entièrement le design pilote initial (RPC à 1 paramètre,
--- acceptation unique fermant toute la recherche, propagation cheval_id
--- conditionnelle) — jamais appliqué en prod, donc réécrit directement plutôt
--- que patché.
 --
 -- Design clé conservé (audité avant écriture, cf. migration 051) :
 --   - `annonce_id` sur une réponse est OBLIGATOIRE : les triggers
@@ -64,15 +71,13 @@
 --     audités (fn_availability_transport pour la capacité,
 --     recalc_transport_amounts pour le prix/commission/seller_id), plus le
 --     nouveau trigger générique de recalcul de couverture de la recherche
---     (§14). Aucune logique Stripe/escrow à ce stade (paiement = étape
+--     (§10). Aucune logique Stripe/escrow à ce stade (paiement = étape
 --     séparée, ultérieure, inchangée).
 --
 -- Rollback : supabase/rollbacks/111_recherches_ouvertes_rollback.sql
 --   (HORS de supabase/migrations/ délibérément — 110 a montré que le CLI
 --   `migration list` interprète tout fichier préfixé par un numéro dans ce
---   dossier comme une migration candidate, même un rollback. Nouvelle
---   convention à partir de 111 ; 074→110 restent inchangées par cohérence
---   historique, décision déjà actée.)
+--   dossier comme une migration candidate, même un rollback.)
 -- Tests : supabase/tests/111_recherches_ouvertes/harness.sql
 --
 -- Idempotent. Application : supabase db query -f <file> --linked
@@ -87,10 +92,8 @@ begin
   if to_regclass('public.concours_presence_chevaux') is null then
     raise exception '111 requiert 110 : table public.concours_presence_chevaux absente.';
   end if;
-  if to_regclass('public.transport_annonces') is null
-     or to_regclass('public.box_annonces') is null
-     or to_regclass('public.coach_annonces') is null then
-    raise exception '111 requiert 005/074 : tables annonces absentes.';
+  if to_regclass('public.transport_annonces') is null then
+    raise exception '111 requiert 004 : table public.transport_annonces absente.';
   end if;
   if to_regclass('public.transport_reservations') is null then
     raise exception '111 requiert 004 : table public.transport_reservations absente.';
@@ -98,7 +101,7 @@ begin
 end $$;
 
 -- ── 1. transport_recherches ──────────────────────────────────────────────────
--- nb_places n'est plus une saisie libre : maintenu par trigger (§14) à partir
+-- nb_places n'est plus une saisie libre : maintenu par trigger (§10) à partir
 -- du nombre de lignes dans transport_recherche_chevaux. Démarre à 0 (la
 -- recherche est créée avant que ses chevaux ne soient rattachés) — pas de
 -- CHECK nb_places>0 au niveau table pour cette raison (état transitoire
@@ -122,45 +125,10 @@ comment on table public.transport_recherches is
 create index if not exists idx_transport_recherches_demandeur on public.transport_recherches (demandeur_id);
 create index if not exists idx_transport_recherches_concours on public.transport_recherches (concours_id);
 
--- ── 2. box_recherches (inchangé — Box hors périmètre de cette révision) ─────
-create table if not exists public.box_recherches (
-  id           uuid primary key default gen_random_uuid(),
-  demandeur_id uuid not null references public.users(id) on delete cascade,
-  concours_id  uuid references public.concours(id) on delete set null,
-  lieu         text,
-  date_debut   date,
-  date_fin     date,
-  nb_box       integer not null default 1 check (nb_box > 0),
-  status       text not null default 'open' check (status in ('open','matched','cancelled')),
-  created_at   timestamptz not null default now()
-);
-comment on table public.box_recherches is
-  '111 — recherche de box publiée sans annonce correspondante. Hors chemin paiement.';
-create index if not exists idx_box_recherches_demandeur on public.box_recherches (demandeur_id);
-create index if not exists idx_box_recherches_concours on public.box_recherches (concours_id);
-
--- ── 3. coach_recherches (inchangé — Coach hors périmètre de cette révision) ─
-create table if not exists public.coach_recherches (
-  id           uuid primary key default gen_random_uuid(),
-  demandeur_id uuid not null references public.users(id) on delete cascade,
-  concours_id  uuid references public.concours(id) on delete set null,
-  discipline   text,
-  niveau       text,
-  date_debut   date,
-  date_fin     date,
-  nb_seances   integer not null default 1 check (nb_seances > 0),
-  status       text not null default 'open' check (status in ('open','matched','cancelled')),
-  created_at   timestamptz not null default now()
-);
-comment on table public.coach_recherches is
-  '111 — recherche de coaching publiée sans annonce correspondante. Hors chemin paiement.';
-create index if not exists idx_coach_recherches_demandeur on public.coach_recherches (demandeur_id);
-create index if not exists idx_coach_recherches_concours on public.coach_recherches (concours_id);
-
--- ── 4/5/6. Jonctions recherche × chevaux (multi-cheval, périmètre FIGÉ) ─────
+-- ── 2. transport_recherche_chevaux (multi-cheval, périmètre FIGÉ) ──────────
 -- Même principe que concours_presence_chevaux (110) : FK réelles, pas de uuid[].
--- Transport : jamais amputée par une acceptation (cf. RLS delete §11, qui
--- interdit le retrait d'un cheval déjà couvert par une réservation vivante).
+-- Jamais amputée par une acceptation (cf. RLS delete §7, qui interdit le
+-- retrait d'un cheval déjà couvert par une réservation vivante).
 create table if not exists public.transport_recherche_chevaux (
   recherche_id uuid not null references public.transport_recherches(id) on delete cascade,
   cheval_id    uuid not null references public.chevaux(id) on delete cascade,
@@ -169,25 +137,9 @@ create table if not exists public.transport_recherche_chevaux (
 );
 create index if not exists idx_trc_cheval on public.transport_recherche_chevaux (cheval_id);
 
-create table if not exists public.box_recherche_chevaux (
-  recherche_id uuid not null references public.box_recherches(id) on delete cascade,
-  cheval_id    uuid not null references public.chevaux(id) on delete cascade,
-  created_at   timestamptz not null default now(),
-  primary key (recherche_id, cheval_id)
-);
-create index if not exists idx_brc_cheval on public.box_recherche_chevaux (cheval_id);
-
-create table if not exists public.coach_recherche_chevaux (
-  recherche_id uuid not null references public.coach_recherches(id) on delete cascade,
-  cheval_id    uuid not null references public.chevaux(id) on delete cascade,
-  created_at   timestamptz not null default now(),
-  primary key (recherche_id, cheval_id)
-);
-create index if not exists idx_crc_cheval on public.coach_recherche_chevaux (cheval_id);
-
--- ── 7. transport_recherche_reponses ─────────────────────────────────────────
+-- ── 3. transport_recherche_reponses ─────────────────────────────────────────
 -- Design multi-cheval : PLUS de reservation_id (une réponse peut engendrer N
--- réservations, cf. §14/§15). PLUS de statut 'accepted' (« déjà utilisée »
+-- réservations, cf. §10/§11). PLUS de statut 'accepted' (« déjà utilisée »
 -- est un fait dérivé, jamais stocké). status ne bouge que par action explicite
 -- du demandeur (déclin manuel, non implémenté dans ce lot) ou reste 'pending'
 -- indéfiniment — une réponse pending mais « épuisée » (annonce sans capacité
@@ -211,42 +163,12 @@ comment on table public.transport_recherche_reponses is
 create index if not exists idx_trr_recherche on public.transport_recherche_reponses (recherche_id);
 create index if not exists idx_trr_offreur on public.transport_recherche_reponses (offreur_id);
 
--- ── 8. box_recherche_reponses (inchangé — Box hors périmètre) ──────────────
-create table if not exists public.box_recherche_reponses (
-  id            uuid primary key default gen_random_uuid(),
-  recherche_id  uuid not null references public.box_recherches(id) on delete cascade,
-  annonce_id    uuid not null references public.box_annonces(id) on delete cascade,
-  offreur_id    uuid not null references public.users(id) on delete cascade,
-  message       text,
-  status        text not null default 'pending' check (status in ('pending','accepted','declined')),
-  reservation_id uuid references public.box_reservations(id) on delete set null,
-  created_at    timestamptz not null default now(),
-  unique (recherche_id, annonce_id)
-);
-create index if not exists idx_brr_recherche on public.box_recherche_reponses (recherche_id);
-create index if not exists idx_brr_offreur on public.box_recherche_reponses (offreur_id);
-
--- ── 9. coach_recherche_reponses (inchangé — Coach hors périmètre) ──────────
-create table if not exists public.coach_recherche_reponses (
-  id            uuid primary key default gen_random_uuid(),
-  recherche_id  uuid not null references public.coach_recherches(id) on delete cascade,
-  annonce_id    uuid not null references public.coach_annonces(id) on delete cascade,
-  offreur_id    uuid not null references public.users(id) on delete cascade,
-  message       text,
-  status        text not null default 'pending' check (status in ('pending','accepted','declined')),
-  reservation_id uuid references public.course_demands(id) on delete set null,
-  created_at    timestamptz not null default now(),
-  unique (recherche_id, annonce_id)
-);
-create index if not exists idx_crr_recherche on public.coach_recherche_reponses (recherche_id);
-create index if not exists idx_crr_offreur on public.coach_recherche_reponses (offreur_id);
-
--- ── 9b. transport_reservation_chevaux (NOUVEAU — chevaux réels par réservation) ─
+-- ── 4. transport_reservation_chevaux (chevaux réels par réservation) ───────
 -- Quels chevaux sont réellement affectés à CHAQUE réservation (par opposition
--- au périmètre figé de la recherche, §4). Sans plafond. Écrite EXCLUSIVEMENT
+-- au périmètre figé de la recherche, §2). Sans plafond. Écrite EXCLUSIVEMENT
 -- par la RPC accept_transport_recherche_response (SECURITY DEFINER, bypass
 -- RLS) — aucune policy INSERT/UPDATE/DELETE pour authenticated : même
--- principe que transport_recherche_reponses (§12), aucun chemin d'écriture
+-- principe que transport_recherche_reponses (§8), aucun chemin d'écriture
 -- directe non contrôlée.
 create table if not exists public.transport_reservation_chevaux (
   reservation_id uuid not null references public.transport_reservations(id) on delete cascade,
@@ -260,7 +182,7 @@ comment on table public.transport_reservation_chevaux is
 create index if not exists idx_trvc_cheval on public.transport_reservation_chevaux (cheval_id);
 create index if not exists idx_trvc_reservation on public.transport_reservation_chevaux (reservation_id);
 
--- ── 9c. transport_reservations : colonnes de traçabilité recherche (ALTER V1) ─
+-- ── 5. transport_reservations : colonnes de traçabilité recherche (ALTER V1) ─
 -- ADDITIF sur la vraie table V1 (mig 004), même pattern que cheval_id (078).
 -- Nullable, jamais renseigné hors du parcours recherche → totalement
 -- transparent pour le flux de réservation directe V1 (aucun écran, aucun hook
@@ -276,17 +198,15 @@ comment on column public.transport_reservations.recherche_reponse_id is
 create index if not exists idx_transport_reservations_recherche
   on public.transport_reservations (recherche_id) where recherche_id is not null;
 
--- ── 10. RLS — recherches (3 tables) ─────────────────────────────────────────
+-- ── 6. RLS — transport_recherches ───────────────────────────────────────────
 alter table public.transport_recherches enable row level security;
-alter table public.box_recherches enable row level security;
-alter table public.coach_recherches enable row level security;
 
 drop policy if exists tr_select_auth on public.transport_recherches;
 create policy tr_select_auth on public.transport_recherches for select to authenticated using (true);
 drop policy if exists tr_insert_own on public.transport_recherches;
 create policy tr_insert_own on public.transport_recherches for insert to authenticated with check (demandeur_id = auth.uid());
 -- L'owner ne peut jamais écrire 'matched' lui-même (seule la fonction de
--- recalcul §14, SECURITY DEFINER, peut l'établir) ; une recherche déjà
+-- recalcul §10, SECURITY DEFINER, peut l'établir) ; une recherche déjà
 -- matched/cancelled devient immuable pour son owner via ce chemin direct.
 drop policy if exists tr_update_own on public.transport_recherches;
 create policy tr_update_own on public.transport_recherches for update to authenticated
@@ -306,35 +226,15 @@ create policy tr_delete_own on public.transport_recherches for delete to authent
     and not exists (select 1 from public.transport_reservations tr where tr.recherche_id = transport_recherches.id)
   );
 
-drop policy if exists br_select_auth on public.box_recherches;
-create policy br_select_auth on public.box_recherches for select to authenticated using (true);
-drop policy if exists br_insert_own on public.box_recherches;
-create policy br_insert_own on public.box_recherches for insert to authenticated with check (demandeur_id = auth.uid());
-drop policy if exists br_update_own on public.box_recherches;
-create policy br_update_own on public.box_recherches for update to authenticated
-  using (demandeur_id = auth.uid()) with check (demandeur_id = auth.uid());
-drop policy if exists br_delete_own on public.box_recherches;
-create policy br_delete_own on public.box_recherches for delete to authenticated using (demandeur_id = auth.uid());
-
-drop policy if exists cr_select_auth on public.coach_recherches;
-create policy cr_select_auth on public.coach_recherches for select to authenticated using (true);
-drop policy if exists cr_insert_own on public.coach_recherches;
-create policy cr_insert_own on public.coach_recherches for insert to authenticated with check (demandeur_id = auth.uid());
-drop policy if exists cr_update_own on public.coach_recherches;
-create policy cr_update_own on public.coach_recherches for update to authenticated
-  using (demandeur_id = auth.uid()) with check (demandeur_id = auth.uid());
-drop policy if exists cr_delete_own on public.coach_recherches;
-create policy cr_delete_own on public.coach_recherches for delete to authenticated using (demandeur_id = auth.uid());
-
--- ── 11. RLS — jonctions recherche_chevaux (ownership cheval + cohérence concours) ─
+-- ── 7. RLS — transport_recherche_chevaux (ownership cheval + cohérence concours) ─
 -- INSERT : (a) la recherche appartient à l'appelant et n'est pas cancelled,
 --   ET si elle est liée à un concours, le cheval doit être dans
 --   concours_presence_chevaux pour CE concours et CET utilisateur ; (b) le
 --   cheval appartient réellement à l'appelant.
--- DELETE (Transport uniquement) : en plus de l'ownership, le cheval ne doit
---   être couvert par AUCUNE réservation vivante liée à cette recherche —
---   règle produit validée 2026-09-18 : un cheval déjà affecté à une
---   réservation en cours ne peut pas disparaître du périmètre de la recherche.
+-- DELETE : en plus de l'ownership, le cheval ne doit être couvert par AUCUNE
+--   réservation vivante liée à cette recherche — règle produit validée
+--   2026-09-18 : un cheval déjà affecté à une réservation en cours ne peut
+--   pas disparaître du périmètre de la recherche.
 alter table public.transport_recherche_chevaux enable row level security;
 drop policy if exists trc_select_auth on public.transport_recherche_chevaux;
 create policy trc_select_auth on public.transport_recherche_chevaux for select to authenticated using (true);
@@ -374,75 +274,17 @@ create policy trc_delete_own on public.transport_recherche_chevaux for delete to
     )
   );
 
-alter table public.box_recherche_chevaux enable row level security;
-drop policy if exists brc_select_auth on public.box_recherche_chevaux;
-create policy brc_select_auth on public.box_recherche_chevaux for select to authenticated using (true);
-drop policy if exists brc_insert_own on public.box_recherche_chevaux;
-create policy brc_insert_own on public.box_recherche_chevaux for insert to authenticated
-  with check (
-    exists (
-      select 1 from public.box_recherches r
-      where r.id = recherche_id
-        and r.demandeur_id = auth.uid()
-        and (
-          r.concours_id is null
-          or exists (
-            select 1 from public.concours_presence_chevaux cpc
-            where cpc.concours_id = r.concours_id
-              and cpc.user_id = auth.uid()
-              and cpc.cheval_id = box_recherche_chevaux.cheval_id
-          )
-        )
-    )
-    and exists (
-      select 1 from public.chevaux c
-      where c.id = box_recherche_chevaux.cheval_id and c.proprietaire_id = auth.uid()
-    )
-  );
-drop policy if exists brc_delete_own on public.box_recherche_chevaux;
-create policy brc_delete_own on public.box_recherche_chevaux for delete to authenticated
-  using (exists (select 1 from public.box_recherches r where r.id = recherche_id and r.demandeur_id = auth.uid()));
-
-alter table public.coach_recherche_chevaux enable row level security;
-drop policy if exists crc_select_auth on public.coach_recherche_chevaux;
-create policy crc_select_auth on public.coach_recherche_chevaux for select to authenticated using (true);
-drop policy if exists crc_insert_own on public.coach_recherche_chevaux;
-create policy crc_insert_own on public.coach_recherche_chevaux for insert to authenticated
-  with check (
-    exists (
-      select 1 from public.coach_recherches r
-      where r.id = recherche_id
-        and r.demandeur_id = auth.uid()
-        and (
-          r.concours_id is null
-          or exists (
-            select 1 from public.concours_presence_chevaux cpc
-            where cpc.concours_id = r.concours_id
-              and cpc.user_id = auth.uid()
-              and cpc.cheval_id = coach_recherche_chevaux.cheval_id
-          )
-        )
-    )
-    and exists (
-      select 1 from public.chevaux c
-      where c.id = coach_recherche_chevaux.cheval_id and c.proprietaire_id = auth.uid()
-    )
-  );
-drop policy if exists crc_delete_own on public.coach_recherche_chevaux;
-create policy crc_delete_own on public.coach_recherche_chevaux for delete to authenticated
-  using (exists (select 1 from public.coach_recherches r where r.id = recherche_id and r.demandeur_id = auth.uid()));
-
--- ── 12. RLS — réponses (anti-IDOR annonce : l'offreur DOIT être l'auteur) ───
+-- ── 8. RLS — transport_recherche_reponses (anti-IDOR annonce) ──────────────
 -- SELECT : demandeur (via la recherche) OU l'offreur lui-même.
 -- INSERT : offreur_id = auth.uid() ET annonce_id appartient réellement à
 --   auth.uid() ET la recherche visée est encore 'open' ET le demandeur de la
 --   recherche n'est pas l'offreur (anti auto-réponse).
 -- PAS de policy UPDATE pour les utilisateurs : les transitions passent
---   EXCLUSIVEMENT par la RPC accept_*_recherche_response (SECURITY DEFINER).
+--   EXCLUSIVEMENT par la RPC accept_transport_recherche_response (SECURITY DEFINER).
 -- DELETE : l'offreur peut retirer sa réponse tant qu'elle est 'pending' ET
 --   qu'elle n'a produit AUCUNE réservation transport (même terminée/annulée)
 --   — suppression physique interdite au-delà, pour préserver l'historique
---   recherche → réponse → réservation(s) → chevaux (trr_delete_own_pending).
+--   recherche → réponse → réservation(s) → chevaux.
 alter table public.transport_recherche_reponses enable row level security;
 drop policy if exists trr_select_parties on public.transport_recherche_reponses;
 create policy trr_select_parties on public.transport_recherche_reponses for select to authenticated
@@ -460,13 +302,6 @@ create policy trr_insert_own on public.transport_recherche_reponses for insert t
       where r.id = recherche_id and r.status = 'open' and r.demandeur_id <> auth.uid()
     )
   );
--- FIX AUDIT traçabilité (2026-09-18) : suppression physique interdite dès
--- qu'au moins une réservation a été produite par cette réponse (même
--- principe que tr_delete_own ci-dessus — MÊME si cette réservation est
--- ensuite terminée/annulée). Avant cette révision, recherche_reponse_id
--- passait juste à NULL par ON DELETE SET NULL (perte de traçabilité
--- silencieuse, tolérée initialement) ; on préserve maintenant explicitement
--- la chaîne recherche → réponse → réservation(s) → chevaux.
 drop policy if exists trr_delete_own_pending on public.transport_recherche_reponses;
 create policy trr_delete_own_pending on public.transport_recherche_reponses for delete to authenticated
   using (
@@ -475,43 +310,7 @@ create policy trr_delete_own_pending on public.transport_recherche_reponses for 
     and not exists (select 1 from public.transport_reservations tr where tr.recherche_reponse_id = transport_recherche_reponses.id)
   );
 
-alter table public.box_recherche_reponses enable row level security;
-drop policy if exists brr_select_parties on public.box_recherche_reponses;
-create policy brr_select_parties on public.box_recherche_reponses for select to authenticated
-  using (
-    offreur_id = auth.uid()
-    or exists (select 1 from public.box_recherches r where r.id = recherche_id and r.demandeur_id = auth.uid())
-  );
-drop policy if exists brr_insert_own on public.box_recherche_reponses;
-create policy brr_insert_own on public.box_recherche_reponses for insert to authenticated
-  with check (
-    offreur_id = auth.uid()
-    and exists (select 1 from public.box_annonces a where a.id = annonce_id and a.auteur_id = auth.uid())
-    and exists (select 1 from public.box_recherches r where r.id = recherche_id and r.status = 'open')
-  );
-drop policy if exists brr_delete_own_pending on public.box_recherche_reponses;
-create policy brr_delete_own_pending on public.box_recherche_reponses for delete to authenticated
-  using (offreur_id = auth.uid() and status = 'pending');
-
-alter table public.coach_recherche_reponses enable row level security;
-drop policy if exists crr_select_parties on public.coach_recherche_reponses;
-create policy crr_select_parties on public.coach_recherche_reponses for select to authenticated
-  using (
-    offreur_id = auth.uid()
-    or exists (select 1 from public.coach_recherches r where r.id = recherche_id and r.demandeur_id = auth.uid())
-  );
-drop policy if exists crr_insert_own on public.coach_recherche_reponses;
-create policy crr_insert_own on public.coach_recherche_reponses for insert to authenticated
-  with check (
-    offreur_id = auth.uid()
-    and exists (select 1 from public.coach_annonces a where a.id = annonce_id and a.auteur_id = auth.uid())
-    and exists (select 1 from public.coach_recherches r where r.id = recherche_id and r.status = 'open')
-  );
-drop policy if exists crr_delete_own_pending on public.coach_recherche_reponses;
-create policy crr_delete_own_pending on public.coach_recherche_reponses for delete to authenticated
-  using (offreur_id = auth.uid() and status = 'pending');
-
--- ── 13. RLS — transport_reservation_chevaux ─────────────────────────────────
+-- ── 9. RLS — transport_reservation_chevaux ─────────────────────────────────
 -- Aucune policy INSERT/UPDATE/DELETE pour authenticated : écriture réservée à
 -- la RPC (SECURITY DEFINER, bypass RLS). SELECT restreint aux parties de la
 -- réservation concernée (même granularité que transport_reservations_select_own).
@@ -525,7 +324,7 @@ create policy trvc_select_parties on public.transport_reservation_chevaux for se
     )
   );
 
--- ── 14. Recalcul de couverture — fonction partagée ──────────────────────────
+-- ── 10. Recalcul de couverture — fonction partagée ──────────────────────────
 -- Seule source de vérité pour décider si une recherche transport est 'open'
 -- ou 'matched' : compare le périmètre figé (transport_recherche_chevaux) à la
 -- couverture vivante (transport_reservation_chevaux jointe à des réservations
@@ -533,8 +332,8 @@ create policy trvc_select_parties on public.transport_reservation_chevaux for se
 -- accepted/awaiting_payment/paid/completed — PAS 'pending', qui ne consomme
 -- pas encore de capacité). Ne touche jamais une recherche 'cancelled' (état
 -- terminal manuel, jamais recalculé automatiquement). Appelée par les deux
--- seuls triggers qui peuvent faire varier la couverture : §14b (ajout/retrait
--- de cheval côté recherche) et §14c (changement de statut/suppression d'une
+-- seuls triggers qui peuvent faire varier la couverture : §10b (ajout/retrait
+-- de cheval côté recherche) et §10c (changement de statut/suppression d'une
 -- réservation).
 create or replace function public.fn_recompute_transport_recherche_status(p_recherche_id uuid)
 returns void
@@ -565,10 +364,10 @@ comment on function public.fn_recompute_transport_recherche_status(uuid) is
   'couverture réelle (transport_reservation_chevaux × réservations vivantes). '
   'Seule fonction autorisée à faire transiter une recherche vers matched.';
 
--- ── 14b. Trigger — ajout/retrait de cheval dans une recherche ──────────────
+-- ── 10b. Trigger — ajout/retrait de cheval dans une recherche ──────────────
 -- Maintient nb_places (= count des chevaux) et redéclenche le recalcul de
 -- couverture (ajouter un cheval à une recherche déjà 'matched' doit la
--- rouvrir automatiquement ; c'est le seul cas où 14 reçoit un total qui
+-- rouvrir automatiquement ; c'est le seul cas où §10 reçoit un total qui
 -- augmente au lieu de diminuer).
 create or replace function public.fn_sync_transport_recherche_chevaux() returns trigger
 language plpgsql security definer set search_path = public as $$
@@ -587,7 +386,7 @@ create trigger trg_zz_sync_transport_recherche_chevaux
   after insert or delete on public.transport_recherche_chevaux
   for each row execute function public.fn_sync_transport_recherche_chevaux();
 
--- ── 14c. Trigger — changement de statut / suppression d'une réservation ────
+-- ── 10c. Trigger — changement de statut / suppression d'une réservation ────
 -- Couvre à la fois l'acceptation (pending→accepted, déclenchée par la RPC
 -- elle-même) et l'annulation (transition vers un statut non-consommant, ou
 -- suppression brute de la ligne — la policy V1 transport_reservations_
@@ -612,18 +411,18 @@ create trigger trg_zz_sync_transport_recherche_on_reservation
   after insert or update of statut or delete on public.transport_reservations
   for each row execute function public.fn_sync_transport_recherche_on_reservation_change();
 
--- ── 15. RPC accept_transport_recherche_response (module pilote, multi-cheval) ─
+-- ── 11. RPC accept_transport_recherche_response (multi-cheval) ─────────────
 -- SECURITY DEFINER : bypass RLS en interne, revérifie auth.uid() à chaque
 -- étape sensible. Verrouillage recherche-AVANT-réponse (anti-deadlock, cf.
 -- audit R1 — sérialise aussi désormais toutes les acceptations concurrentes
 -- sur une même recherche, ce qui est le mécanisme central de protection
--- anti-double-affectation d'un cheval, cf. §4 du design).
+-- anti-double-affectation d'un cheval, cf. §7).
 -- p_cheval_ids : 1..N chevaux, tous membres de la recherche, tous non
 -- couverts par une réservation vivante de cette recherche, sans doublon.
 -- nb_places de la réservation = array_length(p_cheval_ids) — jamais recopié
 -- depuis un champ recherche. Ne recalcule NI prix NI commission NI seller_id :
 -- délègue aux triggers déjà existants et déjà audités (051 prix, 053
--- capacité) + au nouveau trigger de recalcul de couverture (§14c).
+-- capacité) + au nouveau trigger de recalcul de couverture (§10c).
 create or replace function public.accept_transport_recherche_response(p_reponse_id uuid, p_cheval_ids uuid[])
 returns uuid
 language plpgsql
@@ -750,7 +549,7 @@ begin
   -- Étape 3 : transition pending → accepted. Déclenche :
   --   - recalc_transport_amounts (051)                    → prix/commission/seller_id
   --   - fn_availability_transport (053)                    → capacité (raise si insuffisante)
-  --   - fn_sync_transport_recherche_on_reservation_change (14c) → recalcul open/matched
+  --   - fn_sync_transport_recherche_on_reservation_change (10c) → recalcul open/matched
   -- Toute exception à n'importe quelle étape => ROLLBACK complet automatique
   -- (aucune modification partielle persistante : ni réservation, ni jonction
   -- chevaux, ni changement de statut de la recherche).
@@ -765,8 +564,8 @@ comment on function public.accept_transport_recherche_response(uuid, uuid[]) is
   'recherche transport, pour 1..N chevaux de cette recherche. Une même réponse '
   'est réutilisable tant qu''il reste des chevaux non couverts et de la '
   'capacité réelle sur l''annonce. Ne duplique ni prix ni commission ni '
-  'logique Stripe/escrow — délègue aux triggers 051/053/14c déjà en place. '
-  'Transport = module pilote ; Box/Coach suivront dans une migration ultérieure.';
+  'logique Stripe/escrow — délègue aux triggers 051/053/10c déjà en place. '
+  'Transport uniquement ; Box/Coach reportés à une migration 112 ultérieure.';
 
 -- Ancienne signature à 1 paramètre (design pilote initial, jamais en prod) :
 -- supprimée explicitement pour éviter une fonction fantôme si ce fichier a

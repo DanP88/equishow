@@ -1,5 +1,5 @@
 -- ============================================================================
--- HARNESS 111 — RECHERCHES OUVERTES, DESIGN MULTI-CHEVAUX (pilote Transport)
+-- HARNESS 111 — RECHERCHES OUVERTES, DESIGN MULTI-CHEVAUX (Transport uniquement)
 -- ============================================================================
 -- AUTO-PORTANT. POSTGRES LOCAL JETABLE (jamais prod) :
 --   createdb eq_harness_111
@@ -11,10 +11,8 @@
 -- charger toute la chaîne 004→053 serait disproportionné pour ce harness ;
 -- ces stubs ne re-testent PAS 051/053 eux-mêmes, ils valident que LA RPC 111
 -- interagit correctement AVEC un trigger qui se comporte comme documenté).
--- box_annonces/box_reservations/coach_annonces/course_demands : stubs
--- minimalistes (colonnes suffisantes pour les FK), sans trigger — la RPC
--- Box/Coach n'existe pas encore dans cette migration (périmètre Transport
--- pilote uniquement, comme convenu).
+-- SCISSION 2026-09-18 : Box/Coach ne font plus partie de la migration 111
+-- (reportés à 112) — ce harness ne crée donc plus aucun stub Box/Coach.
 --
 -- IMPORTANT (piège psql découvert en session) : psql ne substitue PAS les
 -- `:'var'` à l'intérieur d'un bloc `do $$ ... $$` (littéral dollar-quoté,
@@ -60,16 +58,12 @@ create table public.transport_reservations (
   prix_total_ht numeric, commission_plateforme numeric, prix_total_ttc numeric,
   statut text default 'pending', date_creation timestamptz default now()
 );
-create table public.box_annonces (id uuid primary key default gen_random_uuid(), auteur_id uuid not null, nb_boxes_disponibles int default 1, prix_nuit_ht numeric default 20);
-create table public.box_reservations (id uuid primary key default gen_random_uuid(), box_id uuid, buyer_id uuid, seller_id uuid, status text default 'pending');
-create table public.coach_annonces (id uuid primary key default gen_random_uuid(), auteur_id uuid not null, places_disponibles int default 1, prix_heure_ttc numeric default 45);
-create table public.course_demands (id uuid primary key default gen_random_uuid(), annonce_id uuid, coach_id uuid, cavalier_id uuid, status text default 'pending');
 -- Grants (en prod, Supabase les accorde par défaut au bootstrap projet ;
 -- ce harness jetable doit le répliquer pour que les sous-requêtes RLS
 -- (qui s'exécutent sous le rôle appelant, pas sous le propriétaire de la RPC)
 -- puissent lire ces tables.
-grant select on public.transport_annonces, public.box_annonces, public.coach_annonces to authenticated;
-grant select, insert, update on public.transport_reservations, public.box_reservations, public.course_demands to authenticated;
+grant select on public.transport_annonces to authenticated;
+grant select, insert, update on public.transport_reservations to authenticated;
 
 -- Stub trigger recalc (mimique 051 recalc_transport_amounts, cas 'trajet').
 create or replace function public.recalc_transport_amounts() returns trigger
@@ -159,12 +153,6 @@ grant select, insert, update, delete on public.transport_recherches to authentic
 grant select, insert, delete on public.transport_recherche_chevaux to authenticated;
 grant select, insert, delete on public.transport_recherche_reponses to authenticated;
 grant select on public.transport_reservation_chevaux to authenticated;
-grant select, insert, update, delete on public.box_recherches to authenticated;
-grant select, insert, delete on public.box_recherche_chevaux to authenticated;
-grant select, insert, delete on public.box_recherche_reponses to authenticated;
-grant select, insert, update, delete on public.coach_recherches to authenticated;
-grant select, insert, delete on public.coach_recherche_chevaux to authenticated;
-grant select, insert, delete on public.coach_recherche_reponses to authenticated;
 
 -- ============================================================================
 -- [3] RECHERCHE À 1 CHEVAL, liée à un concours — création → réponse → accept
@@ -555,20 +543,6 @@ begin
   raise notice 'PASS: flux V1 direct (sans recherche) inchangé — prix/seller_id/capacité corrects, recherche_id/recherche_reponse_id restent NULL, aucun impact du nouveau trigger de recalcul';
 end $$;
 
-\echo '=== [20] Sanity Box/Coach : schéma + RLS de base inchangés (pas de RPC pour ces modules) ==='
-set role authenticated;
-select set_config('test.uid', '00000000-0000-0000-0000-0000000000a1', false);
-insert into public.box_recherches (id, demandeur_id, nb_box) values ('00000000-0000-0000-0000-0000000000b1','00000000-0000-0000-0000-0000000000a1',1);
-insert into public.coach_recherches (id, demandeur_id, nb_seances) values ('00000000-0000-0000-0000-0000000000c9','00000000-0000-0000-0000-0000000000a1',1);
-reset role;
-do $$ begin
-  if not exists (select 1 from public.box_recherches where id='00000000-0000-0000-0000-0000000000b1')
-  then raise exception 'FAIL: box_recherches insert own échoué'; end if;
-  if not exists (select 1 from public.coach_recherches where id='00000000-0000-0000-0000-0000000000c9')
-  then raise exception 'FAIL: coach_recherches insert own échoué'; end if;
-  raise notice 'PASS: box_recherches/coach_recherches inchangés — schéma + RLS insert-own OK (Box/Coach hors périmètre de cette révision)';
-end $$;
-
 -- ============================================================================
 -- [21-25] TRAÇABILITÉ : suppression bloquée dès qu'une réservation existe
 -- ============================================================================
@@ -641,9 +615,9 @@ end $$;
 \ir ../../rollbacks/111_recherches_ouvertes_rollback.sql
 do $$
 declare v_tables text[] := array[
-  'transport_recherches','box_recherches','coach_recherches',
-  'transport_recherche_chevaux','box_recherche_chevaux','coach_recherche_chevaux',
-  'transport_recherche_reponses','box_recherche_reponses','coach_recherche_reponses',
+  'transport_recherches',
+  'transport_recherche_chevaux',
+  'transport_recherche_reponses',
   'transport_reservation_chevaux'
 ];
 declare t text; v_col_count int; v_reservations_count int;
@@ -683,7 +657,7 @@ begin
     raise exception 'FAIL: réservations perdues/ajoutées par le rollback (% restantes, attendu 5 : res_c1+res1+res2(cancelled)+res3+résa V1 directe)', v_reservations_count;
   end if;
 
-  raise notice 'PASS: rollback 111 propre — 10 tables + 3 fonctions + RPC absentes, colonnes ALTER retirées de transport_reservations, 110/annonces intacts, % lignes de réservations V1/historiques préservées', v_reservations_count;
+  raise notice 'PASS: rollback 111 propre — 4 tables + 3 fonctions + RPC absentes, colonnes ALTER retirées de transport_reservations, 110/annonces intacts, % lignes de réservations V1/historiques préservées', v_reservations_count;
 end $$;
 
 \echo '=== HARNESS 111 TERMINÉ — tous les PASS ci-dessus ==='
