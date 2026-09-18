@@ -1,7 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// MesTransportsV2 — retrouver toute son activité Transport V2 (F5, local).
-//   Réservations · Mes propositions · Mes recherches
-// Chaque item peut être vu / modifié (léger) / retiré — tout LOCAL (v2:transport).
+// MesTransportsV2 — retrouver toute son activité Transport V2.
+//   Réservations (démo, local v2:transport) · Mes propositions (réel,
+//   transport_annonces) · réponses/couverture/réservations réelles issues
+//   des recherches ouvertes (Lots 4/6/7, v2/components/MyTransport*).
+//
+// « Mes recherches » (local v2:transport) retiré (audit de nettoyage
+// 2026-09-18, Lot B) : plus aucune écriture ne l'alimentait depuis le Lot 1
+// (les vraies recherches sont créées dans transport_recherches et déjà
+// affichées par MyTransportRecherchesReponses ci-dessous).
 // ─────────────────────────────────────────────────────────────────────────────
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { router } from 'expo-router';
@@ -9,7 +15,7 @@ import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
-import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
+import { markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useTransportLocal } from '../state/transportLocal';
 import { useMyTransportAnnonces } from '../../hooks/useTransports';
 import { MyTransportRecherchesReponses } from '../components/MyTransportRecherchesReponses';
@@ -26,24 +32,7 @@ export function MesTransportsV2() {
   // Phase 2 (pilote Transport) — mes annonces publiées = réelles (transport_annonces).
   const { annonces: myAnnonces, updateAnnonce, deleteAnnonce } = useMyTransportAnnonces();
 
-  const removeSearch = (id: string) => {
-    const sr = tl.searches.find((x) => x.id === id);
-    tl.removeSearch(id);
-    // Resync « Mon concours » : si cette recherche était la raison du « je
-    // cherche » et qu'il ne reste ni réservation ni autre recherche ouverte
-    // ni proposition pour ce concours → l'état redevient « à organiser ».
-    if (sr?.concoursId) {
-      const cid = sr.concoursId;
-      const stillSearching = tl.searches.some((x) => x.id !== id && x.concoursId === cid && x.status === 'open');
-      const hasBooking = tl.bookings.some((x) => x.concoursId === cid);
-      const hasOffer = myAnnonces.some((x) => x.concoursId === cid);
-      if (!stillSearching && !hasBooking && !hasOffer && getConcoursEntry(cid).needTransport === 'searching') {
-        setConcoursEntry(cid, { needTransport: 'unset' });
-      }
-    }
-  };
-
-  const empty = tl.bookings.length === 0 && myAnnonces.length === 0 && tl.searches.length === 0;
+  const empty = tl.bookings.length === 0 && myAnnonces.length === 0;
 
   return (
     <Screen>
@@ -102,22 +91,6 @@ export function MesTransportsV2() {
                 <TouchableOpacity onPress={() => updateAnnonce(o.id, { nbPlacesTotal: o.nbPlacesTotal + 1, nbPlacesDisponibles: o.nbPlacesDisponibles + 1 })}><Text style={s.action}>+1 place</Text></TouchableOpacity>
                 <TouchableOpacity onPress={() => deleteAnnonce(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
               </View>
-            </Card>
-          ))}
-        </Section>
-      )}
-
-      {tl.searches.length > 0 && (
-        <Section title={`Mes recherches · ${tl.searches.length}`}>
-          {tl.searches.map((r) => (
-            <Card key={r.id}>
-              <Text style={s.itemTitle}>{r.status === 'open' ? '🔎' : '✔️'} {r.depart || '?'} → {r.destination}</Text>
-              <Text style={s.itemMeta}>📅 {fmtDate(r.dateAller)} · {r.nbChevaux} cheval(aux){r.avecCavalier ? ' · avec cavalier' : ''}</Text>
-              {r.concoursNom ? <Text style={s.itemMeta}>🏆 {r.concoursNom}</Text> : null}
-              <Text style={s.itemStatus}>{r.status === 'open' ? 'Recherche en cours' : 'Clôturée (transport trouvé)'}</Text>
-              {r.status === 'open' && (
-                <TouchableOpacity onPress={() => removeSearch(r.id)}><Text style={s.remove}>Retirer ma recherche</Text></TouchableOpacity>
-              )}
             </Card>
           ))}
         </Section>

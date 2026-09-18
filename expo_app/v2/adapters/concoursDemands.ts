@@ -4,14 +4,19 @@
 // Réunit, pour un concours donné :
 //   · les demandes d'EXEMPLE (v2/mocks/demands — simulation, Phase 2 = table
 //     partagée `transport_demandes` / `box_demandes` + demandes de coaching) ;
-//   · les recherches que l'utilisateur a LUI-MÊME publiées (state local
-//     `v2:transport` / `v2:box` / `v2:coach`, status 'open') → marquées « own ».
+//   · pour Box/Coach uniquement : les recherches que l'utilisateur a LUI-MÊME
+//     publiées (state local `v2:box` / `v2:coach`, status 'open') → « own ».
+//
+// Transport n'a plus de bloc « own » local (audit de nettoyage 2026-09-18,
+// Lot C) : depuis le Lot 1, les recherches Transport sont réelles
+// (transport_recherches) et le local `v2:transport` searches n'était plus
+// jamais alimenté — retiré ici sans impact (0 écriture depuis le Lot 1).
+// Box/Coach non migrés, inchangés.
 //
 // LECTURE SEULE. Aucune écriture. Les exemples s'affichent pour tous (le but est
 // de montrer « la demande des autres » avant que le backend existe).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo } from 'react';
-import { useTransportLocal } from '../state/transportLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useCoachLocal } from '../state/coachLocal';
 import { demoDemandsFor } from '../mocks/demands';
@@ -35,7 +40,6 @@ function fmtDate(d?: string) {
 }
 
 export function useConcoursDemands(concoursId?: string) {
-  const tl = useTransportLocal(concoursId);
   const bl = useBoxLocal(concoursId);
   const kl = useCoachLocal(concoursId);
 
@@ -49,13 +53,7 @@ export function useConcoursDemands(concoursId?: string) {
       detail: d.detail,
     });
 
-    // ── recherches publiées par l'utilisateur, rattachées à ce concours ──
-    const ownT = (tl.searches ?? [])
-      .filter((s) => s.concoursId === concoursId && s.status === 'open')
-      .map((s) => ({ id: s.id, nom: 'Toi', initiales: 'TO', cheval: undefined as string | undefined,
-        detail: [s.depart && s.depart !== '—' ? `depuis ${s.depart}` : null, `${s.nbChevaux || 1} cheval${(s.nbChevaux || 1) > 1 ? 'aux' : ''}`,
-          s.dateAller ? fmtDate(s.dateAller) : null].filter(Boolean).join(' · ') }))
-      .map(mk('transport', true));
+    // ── recherches publiées par l'utilisateur, rattachées à ce concours (Box/Coach uniquement) ──
     const ownB = (bl.searches ?? [])
       .filter((s) => s.concoursId === concoursId && s.status === 'open')
       .map((s) => ({ id: s.id, nom: 'Toi', initiales: 'TO', cheval: undefined as string | undefined,
@@ -68,7 +66,7 @@ export function useConcoursDemands(concoursId?: string) {
         detail: [s.discipline, s.niveau, `${s.nbSeances || 1} séance${(s.nbSeances || 1) > 1 ? 's' : ''}`].filter(Boolean).join(' · ') }))
       .map(mk('coach', true));
 
-    const transport = [...ownT, ...demo.transport.map(mk('transport', false))];
+    const transport = demo.transport.map(mk('transport', false));
     const box = [...ownB, ...demo.box.map(mk('box', false))];
     const coach = [...ownC, ...demo.coach.map(mk('coach', false))];
     const all = [...transport, ...box, ...coach];
@@ -80,5 +78,5 @@ export function useConcoursDemands(concoursId?: string) {
       /** true si l'utilisateur a lui-même une demande ouverte sur ce module. */
       hasOwn: (k: DemandKind) => all.some((d) => d.kind === k && d.own),
     };
-  }, [concoursId, tl.searches, bl.searches, kl.searches]);
+  }, [concoursId, bl.searches, kl.searches]);
 }

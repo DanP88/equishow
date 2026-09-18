@@ -353,9 +353,6 @@ export function TransportReserverV2() {
     // (par cheval). Le module N'est PAS « Organisé » ; on peut toujours en
     // réserver un autre pour un autre cheval du concours.
     if (concoursId) markDemandPending(concoursId, 'transport', ch.ids);
-    // Ferme la recherche publiée pour ce concours, le cas échéant.
-    const sr = tl.context.search;
-    if (sr) tl.updateSearch(sr.id, { status: 'closed' });
     setDone(true);
   };
 
