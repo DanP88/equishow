@@ -22,6 +22,7 @@ import { useSearchHorses } from '../state/searchHorses';
 import { useTransportLocal } from '../state/transportLocal';
 import { useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
+import { useTransportRecherches } from '../adapters/transportRecherches';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
@@ -90,7 +91,6 @@ export function TransportChercheV2() {
   const { concoursId, concoursNom, chevalIds } = useLocalSearchParams<{ concoursId?: string; chevalIds?: string; concoursNom?: string }>();
   const { concours } = useConcours(concoursId);
   const cl = useConcoursLocal(concoursId);
-  const tl = useTransportLocal(concoursId);
   // Chevaux concernés par CETTE recherche (seed = hub / Préparer, modifiable ici).
   const ch = useSearchHorses(concoursId, 'transport', chevalIds);
 
@@ -102,20 +102,45 @@ export function TransportChercheV2() {
   const [avecCavalier, setAvecCavalier] = useState(false);
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
+  const [publishing, setPublishing] = useState(false);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const { results, demo } = useV2TransportResults({ concoursId, destination: dest.value, dateAller });
-  // Recherche déjà publiée : rattachée au concours OU publiée pendant cette session.
-  const alreadyPublished = !!(tl.context.search || (publishedId && tl.searches.some((x) => x.id === publishedId)));
+  const tr = useTransportRecherches();
+  // LOT 1 : recherche déjà publiée = publiée réellement pendant cette session
+  // (aucune lecture des recherches existantes tant que le Lot « affichage »
+  // n'est pas fait — un même utilisateur pourrait donc publier deux fois s'il
+  // revient sur l'écran après avoir quitté l'app, connu et accepté pour ce lot).
+  const alreadyPublished = !!publishedId;
 
-  const publishSearch = () => {
+  const publishSearch = async () => {
+    // transport_recherche_chevaux.cheval_id référence la vraie table `chevaux`
+    // (FK) : on exclut les chevaux ajoutés localement en V2 (src==='local'),
+    // qui n'existent pas côté serveur et feraient échouer l'insert.
+    const realChevalIds = ch.horses.filter((h) => h.src === 'real').map((h) => h.id);
+    if (!realChevalIds.length) {
+      setPublishError(
+        'Sélectionne au moins un cheval enregistré sur ton compte (les chevaux ajoutés localement ne sont pas encore utilisables pour une recherche réelle).',
+      );
+      return;
+    }
+    setPublishing(true);
+    setPublishError(null);
     ch.persist();
-    const rec = tl.publishSearch({
-      concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
-      depart: depart.trim() || '—', destination: dest.value.trim() || '—',
-      dateAller: dateAller || undefined, dateRetour: dateRetour || undefined,
-      nbChevaux: ch.count || 1, avecCavalier,
+    const { id, error } = await tr.createRecherche({
+      concoursId,
+      depart: depart.trim() || undefined,
+      destination: dest.value.trim() || undefined,
+      dateDebut: dateAller || undefined,
+      dateFin: dateRetour || undefined,
+      chevalIds: realChevalIds,
     });
-    setPublishedId(rec.id);
+    setPublishing(false);
+    if (error || !id) {
+      setPublishError(error || 'Erreur lors de la publication.');
+      return;
+    }
+    setPublishedId(id);
     // Synchro Mon concours (sans écraser un choix manuel « pas nécessaire »).
     if (concoursId && (cl.entry.needTransport === 'unset' || cl.entry.needTransport === 'searching')) {
       cl.update({ needTransport: 'searching' });
@@ -176,11 +201,17 @@ export function TransportChercheV2() {
             {alreadyPublished ? (
               <View style={s.published}>
                 <Text style={s.publishedTxt}>✅ Recherche publiée</Text>
-                <Text style={s.sub}>Ta demande apparaît dans « Demandes en cours » de ce concours — visible par ceux qui proposent un transport (simulation, la mise en relation réelle = backend).</Text>
-                <GhostButton label="Voir / modifier ma recherche" onPress={() => router.push('/(v2)/transport/mes-transports' as any)} />
+                <Text style={s.sub}>Ta demande est enregistrée. Son affichage dans « Demandes en cours » arrive dans une prochaine mise à jour.</Text>
               </View>
             ) : (
-              <PrimaryButton label="📣 Publier ma recherche de transport" onPress={publishSearch} />
+              <>
+                {publishError && <Text style={s.errorTxt}>{publishError}</Text>}
+                <PrimaryButton
+                  label={publishing ? 'Publication…' : '📣 Publier ma recherche de transport'}
+                  onPress={publishSearch}
+                  disabled={publishing}
+                />
+              </>
             )}
           </Card>
         )
@@ -613,6 +644,7 @@ const s = StyleSheet.create({
 
   published: { gap: Spacing.sm, marginTop: Spacing.sm },
   publishedTxt: { fontSize: FontSize.base, fontWeight: FontWeight.extrabold, color: Colors.success },
+  errorTxt: { fontSize: FontSize.sm, color: Colors.danger, marginTop: Spacing.sm },
   rowBtns: { gap: Spacing.sm },
 
   desc: { fontSize: FontSize.sm, color: Colors.textSecondary, lineHeight: 19 },
