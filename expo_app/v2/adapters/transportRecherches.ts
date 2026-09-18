@@ -1,13 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// v2/adapters/transportRecherches — LOT 1+2 (branchement front V2 → migration 111).
+// v2/adapters/transportRecherches — LOT 1+2+3 (branchement front V2 → migration 111).
 //
 // LOT 1 : écriture RÉELLE dans transport_recherches + transport_recherche_chevaux
 //   (bouton « Publier ma recherche » de TransportChercheV2).
 // LOT 2 : lecture RÉELLE + realtime des recherches 'open' (useOpenTransportRecherches)
-//   — affichage seul, AUCUNE réponse ni acceptation (lots suivants). Repose sur
-//   la publication `supabase_realtime` + REPLICA IDENTITY FULL activées par la
-//   migration 112 : sans elle, un DELETE/UPDATE filtré sur une colonne non-PK
-//   (ex. concours_id) ne remonterait pas côté abonné.
+//   — affichage seul.
+// LOT 3 : réponse RÉELLE d'un offreur à une recherche (useTransportRechercheReponses)
+//   — insert transport_recherche_reponses, liée à une VRAIE transport_annonce de
+//   l'offreur (RLS trr_insert_own vérifie annonce_id appartient à auth.uid()).
+//   Pas d'acceptation/réservation/sélection de chevaux ici — lot suivant.
+//   Repose sur la publication `supabase_realtime` + REPLICA IDENTITY FULL
+//   activées par la migration 112 : sans elle, un DELETE/UPDATE filtré sur une
+//   colonne non-PK (ex. concours_id) ne remonterait pas côté abonné.
 //
 // `chevalIds` DOIT être filtré en amont (côté écran) aux seuls chevaux RÉELS
 // (table `chevaux`, src==='real' dans UnifiedHorse) : transport_recherche_
@@ -172,4 +176,113 @@ export function useOpenTransportRecherches() {
   }, [load, channelId]);
 
   return { recherches: list, isLoading, error, reload: load };
+}
+
+// ── LOT 3 : réponse d'un offreur à une recherche ouverte ────────────────────
+export interface TransportRechercheReponse {
+  id: string;
+  rechercheId: string;
+  annonceId: string;
+  offreurId: string;
+  message: string | null;
+  status: 'pending' | 'declined';
+  createdAt: string;
+}
+
+interface ReponseRow {
+  id: string;
+  recherche_id: string;
+  annonce_id: string;
+  offreur_id: string;
+  message: string | null;
+  status: string;
+  created_at: string;
+}
+
+function rowToReponse(row: ReponseRow): TransportRechercheReponse {
+  return {
+    id: row.id,
+    rechercheId: row.recherche_id,
+    annonceId: row.annonce_id,
+    offreurId: row.offreur_id,
+    message: row.message,
+    status: row.status as 'pending' | 'declined',
+    createdAt: row.created_at,
+  };
+}
+
+export interface RespondToRechercheInput {
+  rechercheId: string;
+  annonceId: string;
+  message?: string;
+}
+
+export interface RespondToRechercheResult {
+  id: string | null;
+  error: string | null;
+}
+
+/**
+ * LOT 3 — réponses de l'offreur courant à des recherches ouvertes. Expose
+ * à la fois la liste (pour savoir à quelles recherches on a déjà répondu —
+ * RLS trr_select_parties : l'offreur voit ses propres réponses) et la
+ * mutation `respond` (RLS trr_insert_own : offreur_id=auth.uid() ET
+ * l'annonce doit réellement lui appartenir ET la recherche doit être
+ * encore 'open' ET on ne peut pas répondre à sa propre recherche — tout
+ * est revérifié serveur, le front ne fait que proposer les VRAIES annonces
+ * de l'utilisateur, jamais un id arbitraire).
+ * Pas d'acceptation ici : ça reste une réponse 'pending', lot suivant.
+ */
+export function useTransportRechercheReponses() {
+  const { profile } = useAuth();
+  const channelId = useId();
+  const [list, setList] = useState<TransportRechercheReponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!profile?.id) { setList([]); return; }
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('transport_recherche_reponses')
+      .select('id, recherche_id, annonce_id, offreur_id, message, status, created_at')
+      .eq('offreur_id', profile.id);
+    if (!error) setList(((data ?? []) as ReponseRow[]).map(rowToReponse));
+    setIsLoading(false);
+  }, [profile?.id]);
+
+  useAutoRefresh(load);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const channel = supabase
+      .channel(`transport-recherche-reponses-${profile.id}-${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_recherche_reponses' }, () => load())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load, profile?.id, channelId]);
+
+  const respond = useCallback(
+    async (input: RespondToRechercheInput): Promise<RespondToRechercheResult> => {
+      if (!profile?.id) return { id: null, error: 'Non authentifié' };
+      const { data, error } = await supabase
+        .from('transport_recherche_reponses')
+        .insert({
+          recherche_id: input.rechercheId,
+          annonce_id: input.annonceId,
+          offreur_id: profile.id,
+          message: input.message?.trim() || null,
+        })
+        .select('id')
+        .single();
+      if (error || !data) {
+        return { id: null, error: error?.message ?? 'Erreur lors de l\'envoi de la réponse.' };
+      }
+      return { id: data.id, error: null };
+    },
+    [profile?.id],
+  );
+
+  return { myReponses: list, isLoading, respond };
 }
