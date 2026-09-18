@@ -13,6 +13,7 @@ import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } 
 import { useTransportLocal } from '../state/transportLocal';
 import { useMyTransportAnnonces } from '../../hooks/useTransports';
 import { MyTransportRecherchesReponses } from '../components/MyTransportRecherchesReponses';
+import { MyTransportRechercheReservations } from '../components/MyTransportRechercheReservations';
 
 function fmtDate(d?: string) {
   if (!d) return '—';
@@ -124,6 +125,9 @@ export function MesTransportsV2() {
 
       {/* LOT 4 — réponses réelles (111+112) reçues sur mes recherches réelles (111, Lot 1). Lecture seule. */}
       <MyTransportRecherchesReponses />
+
+      {/* LOT 7 — mes réservations réelles issues d'une recherche (buyer OU seller), annulation via RPC 113. */}
+      <MyTransportRechercheReservations />
 
       <Placeholder note="propositions réelles (transport_annonces) ; réservations et recherches encore simulées — paiement à venir" />
     </Screen>

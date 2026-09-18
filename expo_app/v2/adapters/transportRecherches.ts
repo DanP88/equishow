@@ -18,6 +18,12 @@
 //   transport_reservations.statut) — aucun état de couverture stocké ou
 //   déduit localement, uniquement recalculé à la lecture depuis ces 3 tables
 //   + le statut réel de transport_recherches. Realtime étendu en conséquence.
+// LOT 7 (front) : annulation d'une réservation 'accepted' issue d'une
+//   recherche, côté buyer OU seller (useMyTransportRechercheReservations +
+//   useCancelTransportRechercheReservation). Appelle EXCLUSIVEMENT la RPC
+//   cancel_transport_recherche_reservation (mig 113) — AUCUN UPDATE direct.
+//   Capacité/couverture/statut recherche se rafraîchissent automatiquement
+//   (triggers déjà en place, Realtime déjà branché depuis le Lot 6).
 // LOT 5 : acceptation RÉELLE (partielle ou totale) d'une réponse — sélection des
 //   chevaux non couverts de CETTE recherche (fetchAvailableChevauxForRecherche)
 //   puis appel EXCLUSIF de la RPC accept_transport_recherche_response (111),
@@ -610,4 +616,117 @@ export function useAcceptTransportRechercheResponse() {
     [],
   );
   return { accept };
+}
+
+// ── LOT 7 (front) : mes réservations issues d'une recherche + annulation ──
+export interface MyRechercheReservation {
+  id: string;
+  buyerId: string;
+  sellerId: string;
+  nbPlaces: number | null;
+  statut: 'accepted' | 'cancelled';
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  rechercheDepart: string | null;
+  rechercheDestination: string | null;
+}
+
+interface MyRechercheReservationRow {
+  id: string;
+  buyer_id: string;
+  seller_id: string;
+  nb_places: number | null;
+  statut: string;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
+  recherche: { depart: string | null; destination: string | null } | { depart: string | null; destination: string | null }[] | null;
+}
+
+function rowToMyRechercheReservation(row: MyRechercheReservationRow): MyRechercheReservation {
+  const recherche = Array.isArray(row.recherche) ? row.recherche[0] : row.recherche;
+  return {
+    id: row.id,
+    buyerId: row.buyer_id,
+    sellerId: row.seller_id,
+    nbPlaces: row.nb_places,
+    statut: row.statut as 'accepted' | 'cancelled',
+    cancelledBy: row.cancelled_by,
+    cancelledAt: row.cancelled_at,
+    cancellationReason: row.cancellation_reason,
+    rechercheDepart: recherche?.depart ?? null,
+    rechercheDestination: recherche?.destination ?? null,
+  };
+}
+
+/**
+ * LOT 7 (front) — réservations réelles issues d'une recherche ouverte (111)
+ * où l'utilisateur courant est buyer OU seller, limitées à 'accepted'/
+ * 'cancelled' (les seuls statuts que ce lot sait afficher — awaiting_payment/
+ * paid/completed hors périmètre, cf. RPC 113). Le filtre `recherche_id not
+ * null` exclut structurellement toute réservation V1 directe.
+ */
+export function useMyTransportRechercheReservations() {
+  const { profile } = useAuth();
+  const channelId = useId();
+  const [list, setList] = useState<MyRechercheReservation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!profile?.id) { setList([]); return; }
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('transport_reservations')
+      .select('id, buyer_id, seller_id, nb_places, statut, cancelled_by, cancelled_at, cancellation_reason, recherche:recherche_id(depart, destination)')
+      .or(`buyer_id.eq.${profile.id},seller_id.eq.${profile.id}`)
+      .not('recherche_id', 'is', null)
+      .in('statut', ['accepted', 'cancelled'])
+      .order('accepted_at', { ascending: false });
+    if (!error) {
+      const rows = (data ?? []) as unknown as MyRechercheReservationRow[];
+      setList(rows.map(rowToMyRechercheReservation));
+    }
+    setIsLoading(false);
+  }, [profile?.id]);
+
+  useAutoRefresh(load);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const channel = supabase
+      .channel(`transport-mes-reservations-recherche-${profile.id}-${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_reservations' }, () => load())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load, profile?.id, channelId]);
+
+  return { items: list, isLoading, reload: load };
+}
+
+export interface CancelRechercheReservationResult {
+  error: string | null;
+}
+
+/**
+ * LOT 7 (front) — appelle EXCLUSIVEMENT cancel_transport_recherche_reservation
+ * (mig 113). Aucun UPDATE direct de transport_reservations : le contrôle
+ * d'éligibilité (statut, buyer/seller, recherche_id) reste autoritaire côté
+ * RPC — les contrôles ici ne sont que de l'UX (masquer un bouton qui
+ * échouerait de toute façon serveur-side).
+ */
+export function useCancelTransportRechercheReservation() {
+  const cancel = useCallback(
+    async (reservationId: string, reason?: string): Promise<CancelRechercheReservationResult> => {
+      const { error } = await supabase.rpc('cancel_transport_recherche_reservation', {
+        p_reservation_id: reservationId,
+        p_reason: reason?.trim() || null,
+      });
+      return { error: error?.message ?? null };
+    },
+    [],
+  );
+  return { cancel };
 }
