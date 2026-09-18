@@ -1,10 +1,13 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// v2/adapters/transportRecherches — LOT 1 (branchement front V2 → migration 111).
+// v2/adapters/transportRecherches — LOT 1+2 (branchement front V2 → migration 111).
 //
-// Écriture RÉELLE dans transport_recherches + transport_recherche_chevaux.
-// Périmètre volontairement minimal : seule la création est câblée ici (le
-// bouton « Publier ma recherche » de TransportChercheV2). Aucune lecture des
-// recherches publiées, aucune réponse, aucune acceptation — lots suivants.
+// LOT 1 : écriture RÉELLE dans transport_recherches + transport_recherche_chevaux
+//   (bouton « Publier ma recherche » de TransportChercheV2).
+// LOT 2 : lecture RÉELLE + realtime des recherches 'open' (useOpenTransportRecherches)
+//   — affichage seul, AUCUNE réponse ni acceptation (lots suivants). Repose sur
+//   la publication `supabase_realtime` + REPLICA IDENTITY FULL activées par la
+//   migration 112 : sans elle, un DELETE/UPDATE filtré sur une colonne non-PK
+//   (ex. concours_id) ne remonterait pas côté abonné.
 //
 // `chevalIds` DOIT être filtré en amont (côté écran) aux seuls chevaux RÉELS
 // (table `chevaux`, src==='real' dans UnifiedHorse) : transport_recherche_
@@ -17,9 +20,10 @@
 // supprime la recherche orpheline (rollback manuel côté client — autorisé
 // par tr_delete_own tant qu'aucune réservation n'existe encore dessus).
 // ─────────────────────────────────────────────────────────────────────────────
-import { useCallback } from 'react';
+import { useCallback, useEffect, useId, useState } from 'react';
 import { supabase } from '../../lib/supabase';
 import { useAuth } from '../../hooks/useAuth';
+import { useAutoRefresh } from '../../hooks/useAutoRefresh';
 
 export interface CreateRechercheInput {
   concoursId?: string;
@@ -76,4 +80,96 @@ export function useTransportRecherches() {
   );
 
   return { createRecherche };
+}
+
+// ── LOT 2 : lecture temps réel des recherches ouvertes ─────────────────────
+export interface OpenTransportRecherche {
+  id: string;
+  demandeurId: string;
+  concoursId: string | null;
+  concoursNom: string | null;
+  depart: string | null;
+  destination: string | null;
+  dateDebut: string | null;
+  dateFin: string | null;
+  nbPlaces: number;
+  createdAt: string;
+}
+
+interface OpenRechercheRow {
+  id: string;
+  demandeur_id: string;
+  concours_id: string | null;
+  depart: string | null;
+  destination: string | null;
+  date_debut: string | null;
+  date_fin: string | null;
+  nb_places: number;
+  created_at: string;
+  concours: { nom: string } | { nom: string }[] | null;
+}
+
+function rowToOpenRecherche(row: OpenRechercheRow): OpenTransportRecherche {
+  const concours = Array.isArray(row.concours) ? row.concours[0] : row.concours;
+  return {
+    id: row.id,
+    demandeurId: row.demandeur_id,
+    concoursId: row.concours_id,
+    concoursNom: concours?.nom ?? null,
+    depart: row.depart,
+    destination: row.destination,
+    dateDebut: row.date_debut,
+    dateFin: row.date_fin,
+    nbPlaces: row.nb_places,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * LOT 2 — recherches Transport 'open' visibles par tout authentifié (RLS
+ * tr_select_auth), hors les siennes propres. Lecture seule : aucune réponse,
+ * aucune acceptation, aucune écriture. Realtime câblé sur la publication
+ * `supabase_realtime` activée par la migration 112 (transport_recherches +
+ * transport_recherche_chevaux, cette dernière car nb_places est dérivé par
+ * trigger côté 111 — un ajout/retrait de cheval doit rafraîchir la liste).
+ */
+export function useOpenTransportRecherches() {
+  const { profile } = useAuth();
+  const channelId = useId();
+  const [list, setList] = useState<OpenTransportRecherche[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    const { data, error: qErr } = await supabase
+      .from('transport_recherches')
+      .select('id, demandeur_id, concours_id, depart, destination, date_debut, date_fin, nb_places, created_at, concours:concours_id(nom)')
+      .eq('status', 'open')
+      .order('created_at', { ascending: false });
+    if (qErr) {
+      setError(qErr.message);
+      setList([]);
+    } else {
+      setError(null);
+      const rows = (data ?? []) as unknown as OpenRechercheRow[];
+      setList(rows.map(rowToOpenRecherche).filter((r) => r.demandeurId !== profile?.id));
+    }
+    setIsLoading(false);
+  }, [profile?.id]);
+
+  useAutoRefresh(load);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`transport-recherches-open-${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_recherches' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'transport_recherche_chevaux' }, () => load())
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [load, channelId]);
+
+  return { recherches: list, isLoading, error, reload: load };
 }

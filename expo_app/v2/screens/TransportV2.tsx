@@ -23,6 +23,7 @@ import { useTransportLocal } from '../state/transportLocal';
 import { useMyTransportAnnonces } from '../../hooks/useTransports';
 import { useV2TransportResults, V2TransportResult } from '../adapters/transport';
 import { useTransportRecherches } from '../adapters/transportRecherches';
+import { OpenTransportRecherches } from '../components/OpenTransportRecherches';
 import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
@@ -554,6 +555,8 @@ export function TransportProposeV2() {
 
       <DemandesBanner kind="transport" concoursId={concoursId} concoursNom={concours?.nom} tone="cta" />
 
+      {/* LOT 2 — recherches 'open' réelles (111+112), lecture seule, temps réel. */}
+      <OpenTransportRecherches />
 
       <Card>
         <Field label="Adresse de départ">
