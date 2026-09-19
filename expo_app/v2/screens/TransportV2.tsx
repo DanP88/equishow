@@ -28,7 +28,6 @@ import { V2DateField, V2DateRange, todayStart } from '../components/V2DateField'
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
 import { DemandeStatusCard } from '../components/DemandeStatusCard';
-import { DemandesBanner } from '../components/DemandesConcours';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 import {
@@ -163,8 +162,6 @@ export function TransportChercheV2() {
           <Text style={s.ctxLine}>📍 {concours.lieu || '—'}   ·   📅 {concours.dateLabel || '—'}</Text>
         </View>
       )}
-
-      <DemandesBanner kind="transport" concoursId={concoursId} tone="info" />
 
       <Card>
         <V2HorsePicker
@@ -550,9 +547,10 @@ export function TransportProposeV2() {
         </View>
       )}
 
-      <DemandesBanner kind="transport" concoursId={concoursId} concoursNom={concours?.nom} tone="cta" />
-
-      {/* LOT 2 — recherches 'open' réelles (111+112), lecture seule, temps réel. */}
+      {/* LOT 2 — recherches 'open' réelles (111+112), lecture seule, temps réel.
+          Remplace ici le bandeau DemandesBanner (mock demoDemandsFor) : pour
+          Transport, cette liste réelle couvre déjà tout ce que le mock
+          affichait. DemandesBanner reste utilisé par Box/Coach. */}
       <OpenTransportRecherches />
 
       <Card>
