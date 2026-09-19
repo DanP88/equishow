@@ -74,9 +74,19 @@ export function useV2ActivityCounts(): V2ActivityCounts {
       ...mine(rTransport, me, 'sellerId'),
     ].map((r) => r.id));
 
+    // Box : même bug que Transport, même correctif — mine(rBox, me) ne
+    // filtrait que buyerId, excluant les réservations où je suis seller
+    // (propriétaire/offreur du box). rBox vient déjà de useMyBoxReservations()
+    // qui récupère buyer+seller côté serveur (.or(buyer_id.eq,seller_id.eq)) ;
+    // seul le post-filtrage local ici était incomplet.
+    const boxIds = new Set([
+      ...mine(rBox, me, 'buyerId'),
+      ...mine(rBox, me, 'sellerId'),
+    ].map((r) => r.id));
+
     const real = {
       transports: transportIds.size,
-      box: mine(rBox, me).length,
+      box: boxIds.size,
       coachings: (rCourse ?? []).filter((d: any) => (!me || d.cavalierUserId === me) && !DEAD.has(String(d.statut))).length
         + (rStage ?? []).filter((r: any) => (!me || r.cavalierUserId === me) && !DEAD.has(String(r.statut))).length,
       concoursOrganises: (organised ?? []).length,
