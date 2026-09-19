@@ -64,8 +64,18 @@ export function useV2ActivityCounts(): V2ActivityCounts {
   return useMemo(() => {
     const localConcours = new Set([...cl.goingIds, ...cl.followingIds]);
 
+    // Transport : compter une réservation dès que je suis buyer OU seller
+    // (ex. une réservation issue d'une recherche ouverte, 111/113, compte pour
+    // le demandeur ET pour le transporteur). `mine()` par défaut ne filtre que
+    // sur buyerId — 2 appels + dédoublonnage par id plutôt que de changer la
+    // signature de `mine()` (qui reste inchangée pour box/coach ci-dessous).
+    const transportIds = new Set([
+      ...mine(rTransport, me, 'buyerId'),
+      ...mine(rTransport, me, 'sellerId'),
+    ].map((r) => r.id));
+
     const real = {
-      transports: mine(rTransport, me).length,
+      transports: transportIds.size,
       box: mine(rBox, me).length,
       coachings: (rCourse ?? []).filter((d: any) => (!me || d.cavalierUserId === me) && !DEAD.has(String(d.statut))).length
         + (rStage ?? []).filter((r: any) => (!me || r.cavalierUserId === me) && !DEAD.has(String(r.statut))).length,
