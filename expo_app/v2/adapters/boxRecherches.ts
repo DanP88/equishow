@@ -29,12 +29,20 @@
 //   nécessaire pour Box-2, contrairement à Transport qui avait dû attendre
 //   une migration 112 dédiée.
 //
-// Miroir conceptuel de v2/adapters/transportRecherches.ts (Lot 1+2, 111) —
+// BOX-3 : réponse RÉELLE d'un offreur à une recherche ouverte (useBoxRecherche
+//   Reponses.respond) — INSERT direct dans box_recherche_reponses, toujours
+//   lié à une VRAIE box_annonces de l'offreur (RLS box_recherche_reponses_
+//   insert_own, 114). Miroir de Transport Lot 3. AUCUNE acceptation ici (RPC
+//   accept_box_recherche_response déjà en place côté serveur depuis 114, mais
+//   pas encore appelée par le front — lot suivant).
+//
+// Miroir conceptuel de v2/adapters/transportRecherches.ts (Lot 1+2+3, 111) —
 // PAS une copie : Box n'a pas de table transport_recherche_chevaux-like côté
 // réservation (1 réservation box = 1 cheval directement, cf. mig 114) ; ce
-// fichier ne couvre QUE la publication (createRecherche), la lecture de ses
-// propres recherches (useMyBoxRecherches) et la lecture des recherches
-// ouvertes des autres (useOpenBoxRecherches). AUCUNE réponse/acceptation.
+// fichier couvre la publication (createRecherche), la lecture de ses propres
+// recherches (useMyBoxRecherches), la lecture des recherches ouvertes des
+// autres (useOpenBoxRecherches) et la réponse d'un offreur (useBoxRecherche
+// Reponses). AUCUNE acceptation.
 //
 // `chevalIds` DOIT être filtré en amont (côté écran) aux seuls chevaux RÉELS
 // (table `chevaux`, src==='real' dans UnifiedHorse) : box_recherche_chevaux.
@@ -269,4 +277,110 @@ export function useOpenBoxRecherches() {
   }, [load, channelId]);
 
   return { recherches: list, isLoading, error, reload: load };
+}
+
+// ── BOX-3 : réponse d'un offreur à une recherche ouverte ────────────────────
+export interface BoxRechercheReponse {
+  id: string;
+  rechercheId: string;
+  annonceId: string;
+  offreurId: string;
+  message: string | null;
+  status: 'pending' | 'declined';
+  createdAt: string;
+}
+
+interface ReponseRow {
+  id: string;
+  recherche_id: string;
+  annonce_id: string;
+  offreur_id: string;
+  message: string | null;
+  status: string;
+  created_at: string;
+}
+
+function rowToReponse(row: ReponseRow): BoxRechercheReponse {
+  return {
+    id: row.id,
+    rechercheId: row.recherche_id,
+    annonceId: row.annonce_id,
+    offreurId: row.offreur_id,
+    message: row.message,
+    status: row.status as 'pending' | 'declined',
+    createdAt: row.created_at,
+  };
+}
+
+export interface RespondToBoxRechercheInput {
+  rechercheId: string;
+  annonceId: string;
+  message?: string;
+}
+
+export interface RespondToBoxRechercheResult {
+  id: string | null;
+  error: string | null;
+}
+
+/**
+ * BOX-3 — réponses de l'offreur courant à des recherches box ouvertes.
+ * Miroir exact de useTransportRechercheReponses (Transport Lot 3) : simple
+ * INSERT REST, pas de RPC nécessaire — la RLS box_recherche_reponses_
+ * insert_own (114) revérifie déjà tout côté serveur (offreur_id=auth.uid()
+ * ET annonce_id lui appartient réellement ET la recherche est encore 'open'
+ * ET anti auto-réponse). Le front ne fait que proposer les VRAIES annonces
+ * de l'utilisateur (useMyBoxAnnonces), jamais un id arbitraire.
+ * Pas d'acceptation ici : la réponse reste 'pending' — RPC accept_box_
+ * recherche_response (114) déjà en place côté serveur, câblage front = lot
+ * suivant, pas celui-ci.
+ */
+export function useBoxRechercheReponses() {
+  const { profile } = useAuth();
+  const channelId = useId();
+  const [list, setList] = useState<BoxRechercheReponse[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!profile?.id) { setList([]); return; }
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('box_recherche_reponses')
+      .select('id, recherche_id, annonce_id, offreur_id, message, status, created_at')
+      .eq('offreur_id', profile.id);
+    if (!error) setList(((data ?? []) as ReponseRow[]).map(rowToReponse));
+    setIsLoading(false);
+  }, [profile?.id]);
+
+  useAutoRefresh(load);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const channel = supabase
+      .channel(`box-recherche-reponses-${profile.id}-${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'box_recherche_reponses' }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load, profile?.id, channelId]);
+
+  const respond = useCallback(
+    async (input: RespondToBoxRechercheInput): Promise<RespondToBoxRechercheResult> => {
+      if (!profile?.id) return { id: null, error: 'Non authentifié' };
+      const { data, error } = await supabase
+        .from('box_recherche_reponses')
+        .insert({
+          recherche_id: input.rechercheId,
+          annonce_id: input.annonceId,
+          offreur_id: profile.id,
+          message: input.message || null,
+        })
+        .select('id')
+        .single();
+      if (error || !data) return { id: null, error: error?.message ?? 'Erreur lors de l\'envoi de la réponse.' };
+      return { id: data.id, error: null };
+    },
+    [profile?.id],
+  );
+
+  return { myReponses: list, isLoading, respond };
 }
