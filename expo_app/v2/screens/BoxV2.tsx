@@ -18,11 +18,13 @@ import { BL } from '../ui/blush';
 import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
 import { Screen, Card, Row, RowGroup, PrimaryButton, GhostButton, Placeholder, EmptyState, Chip } from '../ui/kit';
 import { useConcours } from '../../hooks/useConcours';
+import { useAuth } from '../../hooks/useAuth';
 import { useSearchHorses } from '../state/searchHorses';
 import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
+import { useBoxRecherches } from '../adapters/boxRecherches';
 import { V2DateRange, todayStart } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
@@ -91,8 +93,10 @@ export function BoxHubV2() {
 export function BoxChercheV2() {
   const { concoursId, concoursNom, chevalIds } = useLocalSearchParams<{ concoursId?: string; chevalIds?: string; concoursNom?: string }>();
   const { concours } = useConcours(concoursId);
+  const { isSignedIn } = useAuth();
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
+  const boxRe = useBoxRecherches();
   // Chevaux concernés par CETTE recherche (seed = hub / Préparer, modifiable ici).
   const ch = useSearchHorses(concoursId, 'box', chevalIds);
 
@@ -104,12 +108,54 @@ export function BoxChercheV2() {
   const [litiere, setLitiere] = useState(true);
   const [searched, setSearched] = useState(false);
   const [publishedId, setPublishedId] = useState<string | null>(null);
+  // BOX-1 (compte connecté) : état de la publication RÉELLE, séparé du flux
+  // démo local ci-dessus. `publishing` sert AUSSI de garde anti-double-tap
+  // (bouton désactivé pendant l'appel, cf. bouton plus bas).
+  const [publishing, setPublishing] = useState(false);
+  const [publishedRealId, setPublishedRealId] = useState<string | null>(null);
+  const [publishError, setPublishError] = useState<string | null>(null);
 
   const { results, demo } = useV2BoxResults({ concoursId, lieu: dest.value, dateDebut, dateFin });
-  const alreadyPublished = !!(bl.context.search || (publishedId && bl.searches.some((x) => x.id === publishedId)));
+  const alreadyPublished = isSignedIn
+    ? !!publishedRealId
+    : !!(bl.context.search || (publishedId && bl.searches.some((x) => x.id === publishedId)));
 
-  const publishSearch = () => {
+  const publishSearch = async () => {
+    if (publishing) return; // anti-double-tap : appel déjà en cours
     ch.persist();
+
+    if (isSignedIn) {
+      // BOX-1 : publication RÉELLE (box_recherches + box_recherche_chevaux).
+      // Chevaux RÉELS uniquement — un cheval local V2 (jamais écrit en base)
+      // ferait échouer l'insert (FK box_recherche_chevaux.cheval_id → chevaux).
+      const realChevalIds = ch.horses.filter((h) => h.src === 'real').map((h) => h.id);
+      if (!realChevalIds.length) {
+        setPublishError('Sélectionne au moins un cheval enregistré sur ton compte.');
+        return;
+      }
+      setPublishing(true);
+      setPublishError(null);
+      const { id, error } = await boxRe.createRecherche({
+        concoursId,
+        lieu: dest.value.trim() || undefined,
+        dateDebut: dateDebut || undefined,
+        dateFin: dateFin || undefined,
+        litiereIncluse: litiere,
+        chevalIds: realChevalIds,
+      });
+      setPublishing(false);
+      if (error || !id) {
+        setPublishError(error ?? 'Erreur lors de la publication de ta recherche.');
+        return;
+      }
+      setPublishedRealId(id);
+      if (concoursId && (cl.entry.needBox === 'unset' || cl.entry.needBox === 'searching')) {
+        cl.update({ needBox: 'searching' });
+      }
+      return;
+    }
+
+    // Démo / non connecté : comportement local INCHANGÉ (F6, simulation).
     const rec = bl.publishSearch({
       concoursId, concoursNom: concours?.nom, chevalId: ch.primaryId,
       lieu: dest.value.trim() || '—',
@@ -174,12 +220,23 @@ export function BoxChercheV2() {
             <EmptyState icon="🏠" title="Aucun box disponible pour cette recherche" body="Personne ne propose de box ici pour l'instant. Publie ta recherche : les écuries du secteur pourront te répondre." />
             {alreadyPublished ? (
               <View style={s.published}>
-                <Text style={s.publishedTxt}>✅ Recherche publiée</Text>
-                <Text style={s.sub}>Ta demande apparaît dans « Demandes en cours » de ce concours — visible par ceux qui proposent un box (simulation, la mise en relation réelle = backend).</Text>
+                <Text style={s.publishedTxt}>✅ Recherche de box publiée</Text>
+                <Text style={s.sub}>
+                  {isSignedIn
+                    ? 'Ta recherche est enregistrée. Tu la retrouveras dans « Mes box ».'
+                    : 'Ta demande apparaît dans « Demandes en cours » de ce concours — visible par ceux qui proposent un box (simulation, la mise en relation réelle = backend).'}
+                </Text>
                 <GhostButton label="Voir / modifier ma recherche" onPress={() => router.push('/(v2)/box/mes-box' as any)} />
               </View>
             ) : (
-              <PrimaryButton label="📣 Publier ma recherche de box" onPress={publishSearch} />
+              <>
+                <PrimaryButton
+                  label={publishing ? 'Publication…' : '📣 Publier ma recherche de box'}
+                  onPress={publishSearch}
+                  disabled={publishing}
+                />
+                {publishError ? <Text style={s.demoLine}>{publishError}</Text> : null}
+              </>
             )}
           </Card>
         )

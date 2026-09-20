@@ -13,6 +13,8 @@ import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
 import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useMyBoxAnnonces } from '../../hooks/useBoxes';
+import { useAuth } from '../../hooks/useAuth';
+import { useMyBoxRecherches } from '../adapters/boxRecherches';
 
 function fmtDate(d?: string) {
   if (!d) return '—';
@@ -25,11 +27,15 @@ function fmtPeriode(a?: string, b?: string) {
 }
 
 export function MesBoxV2() {
+  const { isSignedIn } = useAuth();
   const bl = useBoxLocal();
   // Phase 2 (pilote Box) — mes annonces publiées = réelles (box_annonces).
   const { annonces: myAnnonces, updateAnnonce, deleteAnnonce } = useMyBoxAnnonces();
+  // BOX-1 — mes recherches RÉELLES (box_recherches), compte connecté
+  // uniquement. Démo/non connecté : conserve bl.searches (local, inchangé).
+  const { recherches: myRecherchesReal, removeRecherche: removeRechercheReal } = useMyBoxRecherches();
 
-  const removeSearch = (id: string) => {
+  const removeSearchLocal = (id: string) => {
     const sr = bl.searches.find((x) => x.id === id);
     bl.removeSearch(id);
     // Resync « Mon concours » : si cette recherche était la raison du « je
@@ -46,7 +52,24 @@ export function MesBoxV2() {
     }
   };
 
-  const empty = bl.bookings.length === 0 && myAnnonces.length === 0 && bl.searches.length === 0;
+  const removeSearchReal = async (id: string) => {
+    const sr = myRecherchesReal.find((x) => x.id === id);
+    await removeRechercheReal(id);
+    if (sr?.concoursId) {
+      const cid = sr.concoursId;
+      const stillSearching = myRecherchesReal.some((x) => x.id !== id && x.concoursId === cid && x.status === 'open');
+      const hasBooking = bl.bookings.some((x) => x.concoursId === cid);
+      const hasOffer = myAnnonces.some((x) => x.concoursId === cid);
+      if (!stillSearching && !hasBooking && !hasOffer && getConcoursEntry(cid).needBox === 'searching') {
+        setConcoursEntry(cid, { needBox: 'unset' });
+      }
+    }
+  };
+
+  // Une seule source affichée à la fois (jamais les deux mélangées) : réelle
+  // pour un compte connecté, locale/démo sinon — même bascule que BoxChercheV2.
+  const searchesCount = isSignedIn ? myRecherchesReal.length : bl.searches.length;
+  const empty = bl.bookings.length === 0 && myAnnonces.length === 0 && searchesCount === 0;
 
   return (
     <Screen>
@@ -107,23 +130,41 @@ export function MesBoxV2() {
         </Section>
       )}
 
-      {bl.searches.length > 0 && (
-        <Section title={`Mes recherches · ${bl.searches.length}`}>
-          {bl.searches.map((r) => (
-            <Card key={r.id}>
-              <Text style={s.itemTitle}>{r.status === 'open' ? '🔎' : '✔️'} Box · {r.lieu}</Text>
-              <Text style={s.itemMeta}>📅 {fmtPeriode(r.dateDebut, r.dateFin)} · {r.nbBox} box{r.litiereIncluse ? ' · litière souhaitée' : ''}</Text>
-              {r.concoursNom ? <Text style={s.itemMeta}>🏆 {r.concoursNom}</Text> : null}
-              <Text style={s.itemStatus}>{r.status === 'open' ? 'Recherche en cours' : 'Clôturée (box trouvé)'}</Text>
-              {r.status === 'open' && (
-                <TouchableOpacity onPress={() => removeSearch(r.id)}><Text style={s.remove}>Retirer ma recherche</Text></TouchableOpacity>
-              )}
-            </Card>
-          ))}
-        </Section>
+      {isSignedIn ? (
+        myRecherchesReal.length > 0 && (
+          <Section title={`Mes recherches · ${myRecherchesReal.length}`}>
+            {myRecherchesReal.map((r) => (
+              <Card key={r.id}>
+                <Text style={s.itemTitle}>{r.status === 'open' ? '🔎' : '✔️'} Box · {r.lieu ?? '—'}</Text>
+                <Text style={s.itemMeta}>📅 {fmtPeriode(r.dateDebut ?? undefined, r.dateFin ?? undefined)} · {r.nbBox} box{r.litiereIncluse ? ' · litière souhaitée' : ''}</Text>
+                {r.concoursNom ? <Text style={s.itemMeta}>🏆 {r.concoursNom}</Text> : null}
+                <Text style={s.itemStatus}>{r.status === 'open' ? 'Recherche en cours' : r.status === 'matched' ? 'Box trouvé' : 'Annulée'}</Text>
+                {r.status === 'open' && (
+                  <TouchableOpacity onPress={() => removeSearchReal(r.id)}><Text style={s.remove}>Retirer ma recherche</Text></TouchableOpacity>
+                )}
+              </Card>
+            ))}
+          </Section>
+        )
+      ) : (
+        bl.searches.length > 0 && (
+          <Section title={`Mes recherches · ${bl.searches.length}`}>
+            {bl.searches.map((r) => (
+              <Card key={r.id}>
+                <Text style={s.itemTitle}>{r.status === 'open' ? '🔎' : '✔️'} Box · {r.lieu}</Text>
+                <Text style={s.itemMeta}>📅 {fmtPeriode(r.dateDebut, r.dateFin)} · {r.nbBox} box{r.litiereIncluse ? ' · litière souhaitée' : ''}</Text>
+                {r.concoursNom ? <Text style={s.itemMeta}>🏆 {r.concoursNom}</Text> : null}
+                <Text style={s.itemStatus}>{r.status === 'open' ? 'Recherche en cours' : 'Clôturée (box trouvé)'}</Text>
+                {r.status === 'open' && (
+                  <TouchableOpacity onPress={() => removeSearchLocal(r.id)}><Text style={s.remove}>Retirer ma recherche</Text></TouchableOpacity>
+                )}
+              </Card>
+            ))}
+          </Section>
+        )
       )}
 
-      <Placeholder note="propositions réelles (box_annonces) ; réservations et recherches encore simulées — paiement à venir" />
+      <Placeholder note="propositions réelles (box_annonces) ; recherches réelles si connecté (box_recherches) ; réservations encore simulées — paiement à venir" />
     </Screen>
   );
 }
