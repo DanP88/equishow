@@ -32,17 +32,31 @@
 // BOX-3 : réponse RÉELLE d'un offreur à une recherche ouverte (useBoxRecherche
 //   Reponses.respond) — INSERT direct dans box_recherche_reponses, toujours
 //   lié à une VRAIE box_annonces de l'offreur (RLS box_recherche_reponses_
-//   insert_own, 114). Miroir de Transport Lot 3. AUCUNE acceptation ici (RPC
-//   accept_box_recherche_response déjà en place côté serveur depuis 114, mais
-//   pas encore appelée par le front — lot suivant).
+//   insert_own, 114). Miroir de Transport Lot 3.
 //
-// Miroir conceptuel de v2/adapters/transportRecherches.ts (Lot 1+2+3, 111) —
-// PAS une copie : Box n'a pas de table transport_recherche_chevaux-like côté
-// réservation (1 réservation box = 1 cheval directement, cf. mig 114) ; ce
-// fichier couvre la publication (createRecherche), la lecture de ses propres
-// recherches (useMyBoxRecherches), la lecture des recherches ouvertes des
-// autres (useOpenBoxRecherches) et la réponse d'un offreur (useBoxRecherche
-// Reponses). AUCUNE acceptation.
+// BOX-4B : acceptation RÉELLE d'une réponse par le demandeur (useMyBoxRecherche
+//   sReponses lecture + useAcceptBoxRechercheResponse écriture) — appelle
+//   EXCLUSIVEMENT le RPC accept_box_recherche_response (SECURITY DEFINER,
+//   114, déjà en place et déjà durci par 115). Ce fichier ne transmet JAMAIS
+//   prix/commission/seller_id/buyer_id — tout reste autoritaire côté serveur
+//   (auth.uid(), triggers 051/104). `box_recherche_reponses.status` ne
+//   possède PAS de valeur 'accepted' (CHECK = pending/declined uniquement,
+//   vérifié en base) : l'état d'acceptation est TOUJOURS dérivé de
+//   box_reservations.recherche_reponse_id, jamais lu depuis `status`. Miroir
+//   de Transport Lot 5+6 (fetchAvailableChevauxForRecherche /
+//   useMyTransportRecherchesReponses) — PAS une copie : la couverture se lit
+//   directement dans box_reservations (cheval_id scalaire + recherche_
+//   reponse_id), sans table de jonction intermédiaire (contrairement à
+//   transport_reservation_chevaux côté Transport).
+//
+// Miroir conceptuel de v2/adapters/transportRecherches.ts (Lot 1+2+3+4+5+6,
+// 111) — PAS une copie : Box n'a pas de table transport_recherche_chevaux-
+// like côté réservation (1 réservation box = 1 cheval directement, cf. mig
+// 114) ; ce fichier couvre la publication (createRecherche), la lecture de
+// ses propres recherches (useMyBoxRecherches), la lecture des recherches
+// ouvertes des autres (useOpenBoxRecherches), la réponse d'un offreur
+// (useBoxRechercheReponses) et l'acceptation par le demandeur
+// (useMyBoxRecherchesReponses + useAcceptBoxRechercheResponse).
 //
 // `chevalIds` DOIT être filtré en amont (côté écran) aux seuls chevaux RÉELS
 // (table `chevaux`, src==='real' dans UnifiedHorse) : box_recherche_chevaux.
@@ -383,4 +397,293 @@ export function useBoxRechercheReponses() {
   );
 
   return { myReponses: list, isLoading, respond };
+}
+
+// ── BOX-4B : réponses reçues par le demandeur + couverture + acceptation ───
+export interface ReceivedBoxReponseAnnonce {
+  id: string;
+  lieu: string;
+  prixNuitHT: number | null;
+  nbBoxesDisponibles: number | null;
+}
+
+export interface ReceivedBoxReponse {
+  id: string;
+  offreurId: string;
+  /** Jamais 'accepted' — cette valeur n'existe pas dans le schéma (114).
+   *  « Déjà accepté » se lit via chevalIdsAcceptes (dérivé de box_reservations),
+   *  jamais via ce champ. */
+  status: 'pending' | 'declined';
+  message: string | null;
+  createdAt: string;
+  annonce: ReceivedBoxReponseAnnonce | null;
+  /** Chevaux déjà couverts par une réservation issue précisément de CETTE
+   *  réponse (recherche_reponse_id) — dérivé à chaque chargement, jamais stocké. */
+  chevalIdsAcceptes: string[];
+}
+
+export interface BoxRechercheCoverageCheval {
+  id: string;
+  nom: string;
+  couvert: boolean;
+}
+
+export interface MyBoxRechercheEntry {
+  id: string;
+  lieu: string | null;
+  dateDebut: string | null;
+  dateFin: string | null;
+  nbBox: number;
+  status: 'open' | 'matched' | 'cancelled';
+  concoursId: string | null;
+  concoursNom: string | null;
+  createdAt: string;
+}
+
+export interface MyBoxRechercheWithReponses {
+  recherche: MyBoxRechercheEntry;
+  /** Tous les chevaux du périmètre figé de la recherche, chacun avec son état
+   *  de couverture réel (recalculé depuis box_reservations, jamais stocké). */
+  chevaux: BoxRechercheCoverageCheval[];
+  reponses: ReceivedBoxReponse[];
+}
+
+interface MyBoxRechercheRow2 {
+  id: string;
+  lieu: string | null;
+  date_debut: string | null;
+  date_fin: string | null;
+  nb_box: number;
+  status: string;
+  concours_id: string | null;
+  created_at: string;
+  concours: { nom: string } | { nom: string }[] | null;
+}
+
+interface ReceivedBoxReponseRow {
+  id: string;
+  recherche_id: string;
+  offreur_id: string;
+  status: string;
+  message: string | null;
+  created_at: string;
+  annonce: { id: string; lieu: string; prix_nuit_ht: number | null; nb_boxes_disponibles: number | null }
+    | { id: string; lieu: string; prix_nuit_ht: number | null; nb_boxes_disponibles: number | null }[]
+    | null;
+}
+
+/**
+ * BOX-4B — pour chaque recherche du demandeur courant, les réponses réelles
+ * reçues (jointes à l'annonce de l'offreur) + la couverture réelle par cheval.
+ * RLS box_recherche_reponses_select_parties : le demandeur voit les réponses
+ * de SES recherches uniquement. LECTURE SEULE côté couverture — recalculée à
+ * chaque load() directement depuis box_reservations (cheval_id scalaire +
+ * recherche_reponse_id, PAS de table de jonction côté Box, contrairement à
+ * Transport 111 — cf. 114 : conception assumée « 1 réservation = 1 cheval »).
+ */
+export function useMyBoxRecherchesReponses() {
+  const { profile } = useAuth();
+  const channelId = useId();
+  const [list, setList] = useState<MyBoxRechercheWithReponses[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!profile?.id) { setList([]); return; }
+    setIsLoading(true);
+
+    const { data: recherchesData, error: rErr } = await supabase
+      .from('box_recherches')
+      .select('id, lieu, date_debut, date_fin, nb_box, status, concours_id, created_at, concours:concours_id(nom)')
+      .eq('demandeur_id', profile.id)
+      .order('created_at', { ascending: false });
+
+    if (rErr || !recherchesData || recherchesData.length === 0) {
+      setList([]);
+      setIsLoading(false);
+      return;
+    }
+
+    const rows = recherchesData as unknown as MyBoxRechercheRow2[];
+    const ids = rows.map((r) => r.id);
+
+    const { data: reponsesData, error: repErr } = await supabase
+      .from('box_recherche_reponses')
+      .select('id, recherche_id, offreur_id, status, message, created_at, annonce:box_annonces(id, lieu, prix_nuit_ht, nb_boxes_disponibles)')
+      .in('recherche_id', ids)
+      .order('created_at', { ascending: false });
+    const reponsesRows = repErr ? [] : ((reponsesData ?? []) as unknown as ReceivedBoxReponseRow[]);
+
+    const { data: rechevauxData } = await supabase
+      .from('box_recherche_chevaux')
+      .select('recherche_id, cheval_id, cheval:chevaux(id, nom)')
+      .in('recherche_id', ids);
+
+    // Couverture : directement depuis box_reservations (cheval_id scalaire +
+    // recherche_reponse_id), mêmes statuts « consommants » que la RPC/
+    // fn_recompute_box_recherche_status (114) : PAS 'pending'.
+    const { data: reservationsData } = await supabase
+      .from('box_reservations')
+      .select('recherche_id, cheval_id, recherche_reponse_id')
+      .in('recherche_id', ids)
+      .in('status', ['accepted', 'awaiting_payment', 'paid', 'completed']);
+
+    const coveredKeys = new Set<string>(); // `${recherche_id}::${cheval_id}`
+    const reponseCoveredCheval = new Map<string, string[]>(); // reponse_id -> chevalIds
+    for (const row of (reservationsData ?? []) as { recherche_id: string; cheval_id: string | null; recherche_reponse_id: string | null }[]) {
+      if (!row.cheval_id) continue;
+      coveredKeys.add(`${row.recherche_id}::${row.cheval_id}`);
+      if (row.recherche_reponse_id) {
+        const arr = reponseCoveredCheval.get(row.recherche_reponse_id) ?? [];
+        arr.push(row.cheval_id);
+        reponseCoveredCheval.set(row.recherche_reponse_id, arr);
+      }
+    }
+
+    const rechevauxRows = (rechevauxData ?? []) as unknown as {
+      recherche_id: string;
+      cheval_id: string;
+      cheval: { id: string; nom: string } | { id: string; nom: string }[] | null;
+    }[];
+
+    const result: MyBoxRechercheWithReponses[] = rows.map((row) => {
+      const concours = Array.isArray(row.concours) ? row.concours[0] : row.concours;
+      const recherche: MyBoxRechercheEntry = {
+        id: row.id,
+        lieu: row.lieu,
+        dateDebut: row.date_debut,
+        dateFin: row.date_fin,
+        nbBox: row.nb_box,
+        status: row.status as 'open' | 'matched' | 'cancelled',
+        concoursId: row.concours_id,
+        concoursNom: concours?.nom ?? null,
+        createdAt: row.created_at,
+      };
+      const reponses: ReceivedBoxReponse[] = reponsesRows
+        .filter((rep) => rep.recherche_id === row.id)
+        .map((rep) => {
+          const a = Array.isArray(rep.annonce) ? rep.annonce[0] : rep.annonce;
+          return {
+            id: rep.id,
+            offreurId: rep.offreur_id,
+            status: rep.status as 'pending' | 'declined',
+            message: rep.message,
+            createdAt: rep.created_at,
+            annonce: a ? { id: a.id, lieu: a.lieu, prixNuitHT: a.prix_nuit_ht, nbBoxesDisponibles: a.nb_boxes_disponibles } : null,
+            chevalIdsAcceptes: reponseCoveredCheval.get(rep.id) ?? [],
+          };
+        });
+      const chevaux: BoxRechercheCoverageCheval[] = rechevauxRows
+        .filter((rc) => rc.recherche_id === row.id)
+        .map((rc) => {
+          const c = Array.isArray(rc.cheval) ? rc.cheval[0] : rc.cheval;
+          return {
+            id: rc.cheval_id,
+            nom: c?.nom ?? 'Cheval',
+            couvert: coveredKeys.has(`${row.id}::${rc.cheval_id}`),
+          };
+        });
+      return { recherche, chevaux, reponses };
+    });
+
+    setList(result);
+    setIsLoading(false);
+  }, [profile?.id]);
+
+  useAutoRefresh(load);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const channel = supabase
+      .channel(`box-mes-recherches-reponses-${profile.id}-${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'box_recherche_reponses' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'box_recherches' }, () => load())
+      // Une acceptation insère/transite box_reservations : doit rafraîchir la
+      // couverture affichée, sans quoi l'écran resterait figé après « Accepter ».
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'box_reservations' }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load, profile?.id, channelId]);
+
+  return { items: list, isLoading, reload: load };
+}
+
+// ── BOX-4B : chevaux non couverts d'une recherche (pour le panneau d'acceptation) ──
+export interface BoxRechercheChevalOption {
+  id: string;
+  nom: string;
+}
+
+/**
+ * BOX-4B — chevaux du périmètre FIGÉ de la recherche (box_recherche_chevaux)
+ * qui ne sont PAS déjà couverts par une réservation vivante de cette
+ * recherche. Mêmes statuts « consommants » que la RPC (114) : accepted/
+ * awaiting_payment/paid/completed — jamais pending. Fonction simple (pas un
+ * hook) : appelée à la demande (ouverture du panneau de sélection).
+ */
+export async function fetchAvailableChevauxForBoxRecherche(
+  rechercheId: string,
+): Promise<{ chevaux: BoxRechercheChevalOption[]; error: string | null }> {
+  const { data: chevauxRows, error: cErr } = await supabase
+    .from('box_recherche_chevaux')
+    .select('cheval_id, cheval:chevaux(id, nom)')
+    .eq('recherche_id', rechercheId);
+  if (cErr) return { chevaux: [], error: cErr.message };
+
+  const { data: reservations, error: resErr } = await supabase
+    .from('box_reservations')
+    .select('cheval_id')
+    .eq('recherche_id', rechercheId)
+    .in('status', ['accepted', 'awaiting_payment', 'paid', 'completed']);
+  if (resErr) return { chevaux: [], error: resErr.message };
+
+  const coveredIds = new Set((reservations ?? []).map((r) => r.cheval_id as string).filter(Boolean));
+
+  const rows = (chevauxRows ?? []) as unknown as {
+    cheval_id: string;
+    cheval: { id: string; nom: string } | { id: string; nom: string }[] | null;
+  }[];
+  const chevaux = rows
+    .filter((r) => !coveredIds.has(r.cheval_id))
+    .map((r) => {
+      const c = Array.isArray(r.cheval) ? r.cheval[0] : r.cheval;
+      return { id: r.cheval_id, nom: c?.nom ?? 'Cheval' };
+    });
+  return { chevaux, error: null };
+}
+
+// ── BOX-4B : acceptation réelle (RPC exclusif, aucun calcul front) ─────────
+export interface AcceptBoxRechercheReponseInput {
+  reponseId: string;
+  chevalIds: string[];
+}
+
+export interface AcceptBoxRechercheReponseResult {
+  reservationIds: string[] | null;
+  error: string | null;
+}
+
+/**
+ * BOX-4B — appelle EXCLUSIVEMENT accept_box_recherche_response (114). Ne
+ * transmet NI prix NI commission NI seller_id NI buyer_id — la RPC
+ * (SECURITY DEFINER) les détermine entièrement côté serveur (auth.uid() pour
+ * le demandeur, trigger 051 pour prix/commission/seller_id, trigger 104 pour
+ * la capacité). Le front ne fait que proposer les chevaux non couverts
+ * (fetchAvailableChevauxForBoxRecherche) — toute règle métier est revérifiée
+ * et appliquée côté serveur, jamais recalculée ici.
+ */
+export function useAcceptBoxRechercheResponse() {
+  const accept = useCallback(
+    async (input: AcceptBoxRechercheReponseInput): Promise<AcceptBoxRechercheReponseResult> => {
+      if (!input.chevalIds.length) return { reservationIds: null, error: 'Sélectionne au moins un cheval.' };
+      const { data, error } = await supabase.rpc('accept_box_recherche_response', {
+        p_reponse_id: input.reponseId,
+        p_cheval_ids: input.chevalIds,
+      });
+      if (error) return { reservationIds: null, error: error.message };
+      return { reservationIds: (data as string[]) ?? [], error: null };
+    },
+    [],
+  );
+
+  return { accept };
 }

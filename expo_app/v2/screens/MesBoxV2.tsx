@@ -15,6 +15,7 @@ import { useBoxLocal } from '../state/boxLocal';
 import { useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useAuth } from '../../hooks/useAuth';
 import { useMyBoxRecherches } from '../adapters/boxRecherches';
+import { MyBoxRecherchesReponses } from '../components/MyBoxRecherchesReponses';
 
 function fmtDate(d?: string) {
   if (!d) return '—';
@@ -163,6 +164,12 @@ export function MesBoxV2() {
           </Section>
         )
       )}
+
+      {/* BOX-4B — réponses réelles reçues sur mes recherches réelles (114),
+          sélection des chevaux non couverts + acceptation via RPC exclusive
+          accept_box_recherche_response. Lecture seule si non connecté (le
+          hook interne retourne une liste vide sans profil). */}
+      <MyBoxRecherchesReponses />
 
       <Placeholder note="propositions réelles (box_annonces) ; recherches réelles si connecté (box_recherches) ; réservations encore simulées — paiement à venir" />
     </Screen>
