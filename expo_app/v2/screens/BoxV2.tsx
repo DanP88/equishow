@@ -30,6 +30,7 @@ import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
 import { DemandeStatusCard } from '../components/DemandeStatusCard';
 import { DemandesBanner } from '../components/DemandesConcours';
+import { OpenBoxRecherches } from '../components/OpenBoxRecherches';
 import { V2HorsePicker } from '../components/V2HorsePicker';
 import { useAutoDestination } from '../state/autoDestination';
 
@@ -498,8 +499,15 @@ export function BoxProposeV2() {
         </View>
       )}
 
-      <DemandesBanner kind="box" concoursId={concoursId} concoursNom={concours?.nom} tone="cta" />
-
+      {/* BOX-2 — recherches 'open' réelles (114), lecture seule, temps réel.
+          Remplace ici le bandeau DemandesBanner tone="cta" (mock) : pour un
+          offreur Box, cette liste réelle couvre déjà ce que le mock affichait
+          côté « je propose ». Même retrait que Transport (Lot E). DemandesBanner
+          reste utilisé par Coach (aucune équivalence réelle pour ce module) et
+          par BoxChercheV2 (tone="info", contenu différent — cavaliers voyant
+          d'autres cavaliers chercher, pas encore couvert par un système réel,
+          volontairement non touché). */}
+      <OpenBoxRecherches />
 
       <Card>
         {concours && (

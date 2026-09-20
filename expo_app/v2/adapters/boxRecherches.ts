@@ -17,13 +17,24 @@
 //   client) — mêmes règles que la RLS 114, ré-appliquées explicitement car
 //   la RPC (SECURITY DEFINER) bypasse RLS sur ses écritures internes.
 //
-// Miroir conceptuel de v2/adapters/transportRecherches.ts (Lot 1, 111) — PAS
-// une copie : Box n'a pas de table transport_recherche_chevaux-like côté
+// BOX-2 : lecture temps réel des recherches 'open' des AUTRES (useOpenBox
+//   Recherches), pour que l'offreur les voie depuis « Je propose ». LECTURE
+//   SEULE — AUCUNE réponse, AUCUNE acceptation (ça reste pour un lot suivant,
+//   miroir de Transport Lot 3+). RLS box_recherches_select_auth (114) permet
+//   déjà à tout authentifié de lire toute recherche, quel que soit son statut
+//   — filtrage `status='open'` + exclusion des siennes propres fait ici,
+//   côté client, comme pour Transport Lot 2. Realtime déjà actif : box_
+//   recherches + box_recherche_chevaux sont dans la publication supabase_
+//   realtime depuis la migration 114 elle-même (§10) — aucune migration 117
+//   nécessaire pour Box-2, contrairement à Transport qui avait dû attendre
+//   une migration 112 dédiée.
+//
+// Miroir conceptuel de v2/adapters/transportRecherches.ts (Lot 1+2, 111) —
+// PAS une copie : Box n'a pas de table transport_recherche_chevaux-like côté
 // réservation (1 réservation box = 1 cheval directement, cf. mig 114) ; ce
-// fichier ne couvre QUE la publication (createRecherche) + la lecture de ses
-// propres recherches (useMyBoxRecherches, pour « Mes box › Mes recherches »).
-// AUCUNE lecture des recherches des AUTRES (ça, c'est Box-2 : affichage côté
-// offreur — volontairement absent d'ici) ni réponse/acceptation.
+// fichier ne couvre QUE la publication (createRecherche), la lecture de ses
+// propres recherches (useMyBoxRecherches) et la lecture des recherches
+// ouvertes des autres (useOpenBoxRecherches). AUCUNE réponse/acceptation.
 //
 // `chevalIds` DOIT être filtré en amont (côté écran) aux seuls chevaux RÉELS
 // (table `chevaux`, src==='real' dans UnifiedHorse) : box_recherche_chevaux.
@@ -168,4 +179,94 @@ export function useMyBoxRecherches() {
   }, []);
 
   return { recherches: list, isLoading, reload: load, removeRecherche };
+}
+
+// ── BOX-2 : recherches ouvertes des AUTRES (lecture seule, côté offreur) ───
+export interface OpenBoxRecherche {
+  id: string;
+  demandeurId: string;
+  concoursId: string | null;
+  concoursNom: string | null;
+  lieu: string | null;
+  dateDebut: string | null;
+  dateFin: string | null;
+  litiereIncluse: boolean;
+  nbBox: number;
+  createdAt: string;
+}
+
+interface OpenBoxRechercheRow {
+  id: string;
+  demandeur_id: string;
+  concours_id: string | null;
+  lieu: string | null;
+  date_debut: string | null;
+  date_fin: string | null;
+  litiere_incluse: boolean;
+  nb_box: number;
+  created_at: string;
+  concours: { nom: string } | { nom: string }[] | null;
+}
+
+function rowToOpenRecherche(row: OpenBoxRechercheRow): OpenBoxRecherche {
+  const concours = Array.isArray(row.concours) ? row.concours[0] : row.concours;
+  return {
+    id: row.id,
+    demandeurId: row.demandeur_id,
+    concoursId: row.concours_id,
+    concoursNom: concours?.nom ?? null,
+    lieu: row.lieu,
+    dateDebut: row.date_debut,
+    dateFin: row.date_fin,
+    litiereIncluse: row.litiere_incluse,
+    nbBox: row.nb_box,
+    createdAt: row.created_at,
+  };
+}
+
+/**
+ * BOX-2 — recherches box 'open' visibles par tout authentifié (RLS
+ * box_recherches_select_auth), hors les siennes propres. Lecture seule :
+ * aucune réponse, aucune acceptation, aucune écriture. Realtime câblé sur
+ * box_recherches + box_recherche_chevaux (déjà dans supabase_realtime depuis
+ * 114 — nb_box étant dérivé par trigger, un ajout/retrait de cheval doit
+ * rafraîchir la liste, même logique que Transport Lot 2).
+ */
+export function useOpenBoxRecherches() {
+  const { profile } = useAuth();
+  const channelId = useId();
+  const [list, setList] = useState<OpenBoxRecherche[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    setIsLoading(true);
+    const { data, error: qErr } = await supabase
+      .from('box_recherches')
+      .select('id, demandeur_id, concours_id, lieu, date_debut, date_fin, litiere_incluse, nb_box, created_at, concours:concours_id(nom)')
+      .eq('status', 'open')
+      .order('created_at', { ascending: false });
+    if (qErr) {
+      setError(qErr.message);
+      setList([]);
+    } else {
+      setError(null);
+      const rows = (data ?? []) as unknown as OpenBoxRechercheRow[];
+      setList(rows.map(rowToOpenRecherche).filter((r) => r.demandeurId !== profile?.id));
+    }
+    setIsLoading(false);
+  }, [profile?.id]);
+
+  useAutoRefresh(load);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel(`box-recherches-open-${channelId}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'box_recherches' }, () => load())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'box_recherche_chevaux' }, () => load())
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [load, channelId]);
+
+  return { recherches: list, isLoading, error, reload: load };
 }
