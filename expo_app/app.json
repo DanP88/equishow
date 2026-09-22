@@ -34,7 +34,8 @@
     "scheme": "equishow",
     "plugins": [
       "expo-router",
-      "expo-notifications"
+      "expo-notifications",
+      "expo-web-browser"
     ],
     "extra": {
       "router": {},

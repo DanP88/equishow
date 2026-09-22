@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { View, Text, Modal, TouchableOpacity, StyleSheet, ScrollView } from 'react-native';
 import { Colors } from '../constants/colors';
 import { Spacing, Radius, FontSize, FontWeight, Shadow } from '../constants/theme';
@@ -58,6 +58,31 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
       })()
     : Array.from({ length: 20 }, (_, i) => new Date().getFullYear() - i);
 
+  // Auto-scroll vers la valeur déjà sélectionnée à l'ouverture — sans ça, les
+  // 3 colonnes (Jour/Mois/Année) s'ouvrent toujours sur leur 1ère ligne et il
+  // faut scroller à l'aveugle pour retrouver une date déjà loin dans le mois
+  // (ex : le 22 n'est jamais visible sans scroll, seules ~5 lignes tiennent
+  // dans la zone visible). `itemHeight` est mesuré une fois via onLayout sur
+  // la 1ère ligne — les 3 colonnes partagent le même style de ligne (`s.item`).
+  const dayScrollRef = useRef<ScrollView>(null);
+  const monthScrollRef = useRef<ScrollView>(null);
+  const yearScrollRef = useRef<ScrollView>(null);
+  const [itemHeight, setItemHeight] = useState(0);
+  const measureItemHeight = (h: number) => { if (!itemHeight && h > 0) setItemHeight(h); };
+
+  useEffect(() => {
+    if (!visible || !itemHeight) return;
+    const scrollToIndex = (ref: React.RefObject<ScrollView | null>, index: number) => {
+      // Recentre approximativement (1 ligne au-dessus) plutôt que coller la
+      // sélection tout en haut de la zone visible.
+      ref.current?.scrollTo({ y: Math.max(0, (index - 1) * itemHeight), animated: false });
+    };
+    scrollToIndex(dayScrollRef, day - 1);
+    scrollToIndex(monthScrollRef, month - 1);
+    scrollToIndex(yearScrollRef, years.indexOf(year));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visible, itemHeight]);
+
   // Désactivation visuelle des items hors plage
   const isDayDisabled = (d: number) => !inRange(new Date(year, month - 1, d));
   const isMonthDisabled = (m: number) => {
@@ -91,8 +116,8 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
             {/* Jour */}
             <View style={s.col}>
               <Text style={s.colLabel}>Jour</Text>
-              <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
-                {days.map((d) => {
+              <ScrollView ref={dayScrollRef} style={s.scroll} showsVerticalScrollIndicator={false}>
+                {days.map((d, i) => {
                   const disabled = isDayDisabled(d);
                   return (
                     <TouchableOpacity
@@ -100,6 +125,7 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
                       style={[s.item, day === d && s.itemActive, disabled && s.itemDisabled]}
                       onPress={() => { if (!disabled) setDay(d); }}
                       disabled={disabled}
+                      onLayout={i === 0 ? (e) => measureItemHeight(e.nativeEvent.layout.height) : undefined}
                     >
                       <Text style={[s.itemText, day === d && s.itemTextActive, disabled && s.itemTextDisabled]}>
                         {String(d).padStart(2, '0')}
@@ -113,7 +139,7 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
             {/* Mois */}
             <View style={[s.col, { flex: 2 }]}>
               <Text style={s.colLabel}>Mois</Text>
-              <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
+              <ScrollView ref={monthScrollRef} style={s.scroll} showsVerticalScrollIndicator={false}>
                 {MOIS.map((m, i) => {
                   const disabled = isMonthDisabled(i + 1);
                   return (
@@ -133,7 +159,7 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
             {/* Année */}
             <View style={s.col}>
               <Text style={s.colLabel}>Année</Text>
-              <ScrollView style={s.scroll} showsVerticalScrollIndicator={false}>
+              <ScrollView ref={yearScrollRef} style={s.scroll} showsVerticalScrollIndicator={false}>
                 {years.map((y) => (
                   <TouchableOpacity
                     key={y}

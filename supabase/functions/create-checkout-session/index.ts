@@ -20,7 +20,25 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SUPABASE_SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
 const APP_URL = Deno.env.get("APP_URL") ?? "https://equishow.vercel.app";
 
+// PAY-RETURN-1 : URLs de retour Stripe, constantes serveur uniquement — jamais
+// fournies par le client (anti open-redirect). `platform` ne fait que
+// sélectionner une paire fixe ; absent ou != 'native' => comportement WEB
+// inchangé (tous les appelants existants qui n'envoient pas ce champ ne sont
+// pas affectés).
+const WEB_SUCCESS_URL = `${APP_URL}/checkout-success?session_id={CHECKOUT_SESSION_ID}`;
+const WEB_CANCEL_URL = `${APP_URL}/cancelled`;
+// Natif : pointe directement sur l'écran V2 concerné (jamais un écran V1 —
+// `equishow://checkout-success` matchait par erreur app/checkout-success.tsx,
+// un écran V1 générique). Box est aujourd'hui le SEUL appelant envoyant
+// `platform:'native'` (cf. boxPayments.ts) — cette cible est donc Box-only ;
+// pas de session_id, la vérité vient de la DB (realtime), pas d'un verify
+// dupliqué ici. Si Transport/Coach/Stage adoptent un jour `platform:'native'`,
+// il faudra une cible par `type`, pas avant (YAGNI).
+const NATIVE_SUCCESS_URL = "equishow://box/mes-box";
+const NATIVE_CANCEL_URL = "equishow://box/mes-box";
+
 type CheckoutType = "course" | "box" | "stage" | "transport";
+type CheckoutPlatform = "web" | "native";
 
 interface ItemConfig {
   table: string;
@@ -120,11 +138,12 @@ export async function handler(req: Request): Promise<Response> {
 
     // ── 2. Parsing & validation body ────────────────────────────────────
     const body = await req.json();
-    const { type, demandId, reservationId, description } = body as {
+    const { type, demandId, reservationId, description, platform } = body as {
       type?: CheckoutType;
       demandId?: string;
       reservationId?: string;
       description?: string;
+      platform?: CheckoutPlatform;
     };
 
     if (!type || !ITEM_CONFIG[type]) {
@@ -261,8 +280,9 @@ export async function handler(req: Request): Promise<Response> {
     const formData = new URLSearchParams();
     formData.append("mode", "payment");
     formData.append("payment_method_types[]", "card");
-    formData.append("success_url", `${APP_URL}/checkout-success?session_id={CHECKOUT_SESSION_ID}`);
-    formData.append("cancel_url", `${APP_URL}/cancelled`);
+    const isNative = platform === "native";
+    formData.append("success_url", isNative ? NATIVE_SUCCESS_URL : WEB_SUCCESS_URL);
+    formData.append("cancel_url", isNative ? NATIVE_CANCEL_URL : WEB_CANCEL_URL);
     if (user.email) formData.append("customer_email", user.email);
 
     formData.append("line_items[0][price_data][currency]", "eur");
