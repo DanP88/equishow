@@ -16,6 +16,7 @@ import { useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useAuth } from '../../hooks/useAuth';
 import { useMyBoxRecherches } from '../adapters/boxRecherches';
 import { MyBoxRecherchesReponses } from '../components/MyBoxRecherchesReponses';
+import { MyBoxRechercheReservations } from '../components/MyBoxRechercheReservations';
 
 function fmtDate(d?: string) {
   if (!d) return '—';
@@ -171,7 +172,13 @@ export function MesBoxV2() {
           hook interne retourne une liste vide sans profil). */}
       <MyBoxRecherchesReponses />
 
-      <Placeholder note="propositions réelles (box_annonces) ; recherches réelles si connecté (box_recherches) ; réservations encore simulées — paiement à venir" />
+      {/* BOX-5B — paiement réel des réservations issues d'une recherche
+          (recherche_id NOT NULL), via le backend Stripe/escrow EXISTANT
+          (create-checkout-session, webhook-stripe) — aucune nouvelle
+          architecture Stripe, aucun calcul de prix front. */}
+      <MyBoxRechercheReservations />
+
+      <Placeholder note="propositions réelles (box_annonces) ; recherches et paiements réels si connecté (box_recherches / Stripe existant)" />
     </Screen>
   );
 }
