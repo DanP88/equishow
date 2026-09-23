@@ -27,7 +27,7 @@ export function NotificationsV2() {
           <Text style={s.groupTitle}>{g.label.toUpperCase()}</Text>
           <RowGroup>
             {g.items.map((n) => (
-              <Row key={n.id} icon={n.icon} label={n.label} onPress={n.href ? () => router.push(n.href as any) : undefined} />
+              <Row key={n.id} icon={n.icon} label={n.label} sub={n.sub} onPress={n.href ? () => router.push(n.href as any) : undefined} />
             ))}
           </RowGroup>
         </View>

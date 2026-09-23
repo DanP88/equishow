@@ -13,15 +13,21 @@
 // bouton Payer, son propre appel Checkout.
 // ─────────────────────────────────────────────────────────────────────────────
 import { useState } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, TextInput, StyleSheet } from 'react-native';
 import { Colors } from '../../constants/colors';
-import { Spacing, FontSize, FontWeight } from '../../constants/theme';
-import { Card, Section, PrimaryButton } from '../ui/kit';
+import { Spacing, Radius, FontSize, FontWeight } from '../../constants/theme';
+import { Card, Section, PrimaryButton, GhostButton } from '../ui/kit';
 import {
   useMyBoxRechercheReservations, createBoxCheckoutSession,
-  markBoxReservationAwaitingPayment, openCheckoutUrl,
+  markBoxReservationAwaitingPayment, openCheckoutUrl, useCancelBoxRechercheReservation,
   MyBoxRechercheReservation, BoxRechercheReservationStatus,
 } from '../adapters/boxPayments';
+
+function fmtDateTime(iso: string | null) {
+  if (!iso) return null;
+  const dt = new Date(iso);
+  return isNaN(dt.getTime()) ? null : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' }) + ' à ' + dt.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+}
 
 function fmtDate(d?: string | null) {
   if (!d) return '—';
@@ -45,22 +51,40 @@ const STATUS_LABEL: Record<BoxRechercheReservationStatus, string> = {
 
 export function MyBoxRechercheReservations() {
   const { reservations, reload } = useMyBoxRechercheReservations();
-  const [payingId, setPayingId] = useState<string | null>(null);
-  const [error, setError] = useState<{ id: string; message: string } | null>(null);
 
   if (reservations.length === 0) return null;
 
-  const pay = async (r: MyBoxRechercheReservation) => {
-    if (payingId) return; // anti-double-clic : un paiement déjà en préparation
-    setPayingId(r.id);
+  return (
+    <Section title={`Mes paiements Box · ${reservations.length}`}>
+      {reservations.map((r) => (
+        <BoxReservationCard key={r.id} r={r} onChanged={reload} />
+      ))}
+    </Section>
+  );
+}
+
+/**
+ * Carte réservation (prix, statut, Payer/Annuler) — extraite pour être
+ * réutilisée telle quelle dans `BoxAcceptedRecapModal` (popup post-
+ * acceptation) sans dupliquer la logique de paiement/annulation.
+ */
+export function BoxReservationCard({ r, onChanged }: { r: MyBoxRechercheReservation; onChanged: () => void }) {
+  const [paying, setPaying] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [canceling, setCanceling] = useState(false);
+  const canPay = r.status === 'accepted';
+
+  const pay = async () => {
+    if (paying) return; // anti-double-clic : un paiement déjà en préparation
+    setPaying(true);
     setError(null);
     const { checkoutUrl, error: err } = await createBoxCheckoutSession(
       r.id,
       `Box à ${r.lieu ?? '—'} du ${fmtDate(r.dateDebut)} au ${fmtDate(r.dateFin)}`,
     );
     if (err || !checkoutUrl) {
-      setPayingId(null);
-      setError({ id: r.id, message: err ?? 'Impossible de préparer le paiement.' });
+      setPaying(false);
+      setError(err ?? 'Impossible de préparer le paiement.');
       return;
     }
     // Best-effort, non bloquant — même mécanisme que pending-box-payments.tsx
@@ -71,41 +95,88 @@ export function MyBoxRechercheReservations() {
     // l'app. On recharge l'état réel — jamais un statut posé localement, le
     // realtime déjà actif sur box_reservations couvre aussi ce cas mais ce
     // reload explicite évite d'attendre le prochain focus/event.
-    await reload();
-    setPayingId(null);
+    await onChanged();
+    setPaying(false);
   };
 
   return (
-    <Section title={`Mes paiements Box · ${reservations.length}`}>
-      {reservations.map((r) => {
-        const canPay = r.status === 'accepted';
-        const isPaying = payingId === r.id;
-        return (
-          <Card key={r.id} pad>
-            <Text style={s.itemTitle}>🐴 {r.chevalNom ?? 'Cheval'}</Text>
-            <Text style={s.itemMeta}>🏠 {r.lieu ?? '—'}</Text>
-            <Text style={s.itemMeta}>📅 {fmtPeriode(r.dateDebut, r.dateFin)} · {r.nbNuits} nuit{r.nbNuits > 1 ? 's' : ''}</Text>
-            <View style={s.priceBlock}>
-              <Text style={s.priceLine}>{r.prixTotalHT.toFixed(2)} € HT</Text>
-              <Text style={s.priceLine}>+ {r.platformCommission.toFixed(2)} € commission</Text>
-              <Text style={s.priceTotal}>{r.prixTotalTTC.toFixed(2)} € TTC</Text>
-            </View>
-            <Text style={s.status}>{STATUS_LABEL[r.status] ?? r.status}</Text>
+    <Card pad>
+      <Text style={s.itemTitle}>🐴 {r.chevalNom ?? 'Cheval'}</Text>
+      <Text style={s.itemMeta}>🏠 {r.lieu ?? '—'}</Text>
+      <Text style={s.itemMeta}>📅 {fmtPeriode(r.dateDebut, r.dateFin)} · {r.nbNuits} nuit{r.nbNuits > 1 ? 's' : ''}</Text>
+      <View style={s.priceBlock}>
+        <Text style={s.priceLine}>{r.prixTotalHT.toFixed(2)} € HT</Text>
+        <Text style={s.priceLine}>+ {r.platformCommission.toFixed(2)} € commission</Text>
+        <Text style={s.priceTotal}>{r.prixTotalTTC.toFixed(2)} € TTC</Text>
+      </View>
+      <Text style={s.status}>{STATUS_LABEL[r.status] ?? r.status}</Text>
 
-            {canPay && (
-              <View style={s.ctaRow}>
-                <PrimaryButton
-                  label={isPaying ? 'Préparation du paiement…' : 'Payer'}
-                  onPress={() => pay(r)}
-                  disabled={isPaying}
-                />
-              </View>
-            )}
-            {error?.id === r.id && <Text style={s.errorTxt}>{error.message}</Text>}
-          </Card>
-        );
-      })}
-    </Section>
+      {r.status === 'cancelled' ? (
+        <View style={s.cancelledBox}>
+          <Text style={s.cancelledTxt}>❌ Annulée</Text>
+          {fmtDateTime(r.cancelledAt) ? <Text style={s.itemMeta}>{fmtDateTime(r.cancelledAt)}</Text> : null}
+          {r.cancellationReason ? <Text style={s.itemMeta}>« {r.cancellationReason} »</Text> : null}
+        </View>
+      ) : canceling ? (
+        <CancelPanel
+          reservationId={r.id}
+          onCancel={() => setCanceling(false)}
+          onDone={() => { setCanceling(false); onChanged(); }}
+        />
+      ) : (
+        <>
+          {canPay && (
+            <View style={s.ctaRow}>
+              <PrimaryButton
+                label={paying ? 'Préparation du paiement…' : 'Payer'}
+                onPress={pay}
+                disabled={paying}
+              />
+              <GhostButton label="Annuler" onPress={() => setCanceling(true)} />
+            </View>
+          )}
+          {error && <Text style={s.errorTxt}>{error}</Text>}
+        </>
+      )}
+    </Card>
+  );
+}
+
+function CancelPanel({
+  reservationId, onCancel, onDone,
+}: { reservationId: string; onCancel: () => void; onDone: () => void }) {
+  const { cancel } = useCancelBoxRechercheReservation();
+  const [reason, setReason] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const confirm = async () => {
+    setSending(true);
+    setError(null);
+    const { error: err } = await cancel(reservationId, reason);
+    setSending(false);
+    if (err) { setError(err); return; }
+    onDone();
+  };
+
+  return (
+    <View style={s.panel}>
+      <Text style={s.warningTxt}>
+        Êtes-vous sûr de vouloir annuler cette réservation ? Le box redeviendra disponible pour d'autres cavaliers.
+      </Text>
+      <TextInput
+        style={s.input}
+        value={reason}
+        onChangeText={setReason}
+        placeholder="Raison (facultatif)"
+        placeholderTextColor={Colors.textTertiary}
+      />
+      {error ? <Text style={s.errorTxt}>{error}</Text> : null}
+      <View style={s.ctaRow}>
+        <PrimaryButton label={sending ? 'Annulation…' : "Confirmer l'annulation"} onPress={confirm} disabled={sending} />
+        <GhostButton label="Retour" onPress={onCancel} />
+      </View>
+    </View>
   );
 }
 
@@ -118,4 +189,9 @@ const s = StyleSheet.create({
   status: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textTertiary, marginTop: Spacing.sm },
   ctaRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm, flexWrap: 'wrap' },
   errorTxt: { fontSize: FontSize.xs, color: Colors.danger, marginTop: 4 },
+  cancelledBox: { marginTop: Spacing.sm, gap: 2 },
+  cancelledTxt: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.danger },
+  panel: { marginTop: Spacing.sm, gap: 6 },
+  warningTxt: { fontSize: FontSize.sm, color: Colors.textPrimary, fontWeight: FontWeight.semibold },
+  input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
 });

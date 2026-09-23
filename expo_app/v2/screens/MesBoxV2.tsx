@@ -4,19 +4,22 @@
 // Chaque item peut être vu / modifié (léger) / retiré — tout LOCAL (v2:box).
 // Miroir strict de v2/screens/MesTransportsV2 (F5).
 // ─────────────────────────────────────────────────────────────────────────────
+import { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
-import { router } from 'expo-router';
+import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
 import { Spacing, FontSize, FontWeight } from '../../constants/theme';
-import { Screen, Card, Section, EmptyState, Placeholder } from '../ui/kit';
+import { Screen, Card, Section, Segment, EmptyState, Placeholder } from '../ui/kit';
 import { getConcoursEntry, setConcoursEntry, markDemandConfirmed, clearDemand } from '../state/concoursLocal';
 import { useBoxLocal } from '../state/boxLocal';
 import { useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useAuth } from '../../hooks/useAuth';
 import { useMyBoxRecherches } from '../adapters/boxRecherches';
+import { useMySoldBoxReservations } from '../adapters/boxPayments';
 import { MyBoxRecherchesReponses } from '../components/MyBoxRecherchesReponses';
 import { MyBoxRechercheReservations } from '../components/MyBoxRechercheReservations';
+import { MySoldBoxReservations } from '../components/MySoldBoxReservations';
 
 function fmtDate(d?: string) {
   if (!d) return '—';
@@ -28,7 +31,15 @@ function fmtPeriode(a?: string, b?: string) {
   return `${fmtDate(a)} → ${fmtDate(b)}`;
 }
 
+const PROP_VENTES_TABS = [
+  { key: 'propositions', label: 'Mes propositions' },
+  { key: 'ventes', label: 'Mes ventes' },
+];
+
 export function MesBoxV2() {
+  // Deep-link notification (« paiement reçu », « réponse acceptée », mig 117)
+  // → ?tab=ventes&reservation=<id> (cf. resolveHref, v2/adapters/notifications).
+  const params = useLocalSearchParams<{ tab?: string; reservation?: string }>();
   const { isSignedIn } = useAuth();
   const bl = useBoxLocal();
   // Phase 2 (pilote Box) — mes annonces publiées = réelles (box_annonces).
@@ -36,6 +47,12 @@ export function MesBoxV2() {
   // BOX-1 — mes recherches RÉELLES (box_recherches), compte connecté
   // uniquement. Démo/non connecté : conserve bl.searches (local, inchangé).
   const { recherches: myRecherchesReal, removeRecherche: removeRechercheReal } = useMyBoxRecherches();
+  // « Mes ventes » — possédé ici (pas dans le composant) pour connaître le
+  // total avant affichage de l'onglet ET transmettre highlightId au deep-link.
+  const { reservations: soldReservations } = useMySoldBoxReservations();
+  const [propVentesTab, setPropVentesTab] = useState<string>(
+    PROP_VENTES_TABS.some((t) => t.key === params.tab) ? params.tab! : (params.reservation ? 'ventes' : 'propositions'),
+  );
 
   const removeSearchLocal = (id: string) => {
     const sr = bl.searches.find((x) => x.id === id);
@@ -116,39 +133,41 @@ export function MesBoxV2() {
         </Section>
       )}
 
-      {myAnnonces.length > 0 && (
-        <Section title={`Mes propositions · ${myAnnonces.length}`}>
-          {myAnnonces.map((o) => (
-            <Card key={o.id}>
-              <Text style={s.itemTitle}>📣 {o.lieu}</Text>
-              <Text style={s.itemMeta}>📅 {fmtPeriode(o.dateDebut.toISOString(), o.dateFin.toISOString())} · {o.nbBoxesDisponibles} box disponible(s) · {o.prixNuitHT} €/nuit</Text>
-              {o.concours ? <Text style={s.itemMeta}>🏆 {o.concours}</Text> : null}
-              <View style={s.itemBtns}>
-                <TouchableOpacity onPress={() => updateAnnonce(o.id, { nbBoxes: o.nbBoxes + 1, nbBoxesDisponibles: o.nbBoxesDisponibles + 1 })}><Text style={s.action}>+1 box</Text></TouchableOpacity>
-                <TouchableOpacity onPress={() => deleteAnnonce(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
-              </View>
-            </Card>
-          ))}
+      {(myAnnonces.length > 0 || soldReservations.length > 0) && (
+        <Section title={propVentesTab === 'propositions' ? `Mes propositions · ${myAnnonces.length}` : `Mes ventes · ${soldReservations.length}`}>
+          <Segment options={PROP_VENTES_TABS} value={propVentesTab} onChange={setPropVentesTab} />
+          <View style={{ height: Spacing.sm }} />
+          {propVentesTab === 'propositions' ? (
+            myAnnonces.length === 0 ? (
+              <EmptyState icon="📣" title="Aucune proposition" body="Les box que tu proposes apparaîtront ici." />
+            ) : (
+              myAnnonces.map((o) => (
+                <Card key={o.id}>
+                  <Text style={s.itemTitle}>📣 {o.lieu}</Text>
+                  <Text style={s.itemMeta}>📅 {fmtPeriode(o.dateDebut.toISOString(), o.dateFin.toISOString())} · {o.nbBoxesDisponibles} box disponible(s) · {o.prixNuitHT} €/nuit</Text>
+                  {o.concours ? <Text style={s.itemMeta}>🏆 {o.concours}</Text> : null}
+                  <View style={s.itemBtns}>
+                    <TouchableOpacity onPress={() => updateAnnonce(o.id, { nbBoxes: o.nbBoxes + 1, nbBoxesDisponibles: o.nbBoxesDisponibles + 1 })}><Text style={s.action}>+1 box</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => deleteAnnonce(o.id)}><Text style={s.remove}>Retirer</Text></TouchableOpacity>
+                  </View>
+                </Card>
+              ))
+            )
+          ) : (
+            // « Mes ventes » — réservations reçues côté vendeur (seller_id),
+            // miroir lecture seule de "Mes paiements Box" ci-dessous. Pas de
+            // bouton Payer : c'est l'acheteur qui paie, jamais le vendeur.
+            <MySoldBoxReservations reservations={soldReservations} highlightId={params.reservation} />
+          )}
         </Section>
       )}
 
-      {isSignedIn ? (
-        myRecherchesReal.length > 0 && (
-          <Section title={`Mes recherches · ${myRecherchesReal.length}`}>
-            {myRecherchesReal.map((r) => (
-              <Card key={r.id}>
-                <Text style={s.itemTitle}>{r.status === 'open' ? '🔎' : '✔️'} Box · {r.lieu ?? '—'}</Text>
-                <Text style={s.itemMeta}>📅 {fmtPeriode(r.dateDebut ?? undefined, r.dateFin ?? undefined)} · {r.nbBox} box{r.litiereIncluse ? ' · litière souhaitée' : ''}</Text>
-                {r.concoursNom ? <Text style={s.itemMeta}>🏆 {r.concoursNom}</Text> : null}
-                <Text style={s.itemStatus}>{r.status === 'open' ? 'Recherche en cours' : r.status === 'matched' ? 'Box trouvé' : 'Annulée'}</Text>
-                {r.status === 'open' && (
-                  <TouchableOpacity onPress={() => removeSearchReal(r.id)}><Text style={s.remove}>Retirer ma recherche</Text></TouchableOpacity>
-                )}
-              </Card>
-            ))}
-          </Section>
-        )
-      ) : (
+      {/* Compte connecté : plus de section "Mes recherches" séparée ici —
+          fusionnée dans MyBoxRecherchesReponses ci-dessous (Dan, retour test
+          réel : les deux sections affichaient les mêmes recherches en
+          double, à deux niveaux de détail différents). Démo/non connecté :
+          inchangé, pas concerné par cette fusion. */}
+      {!isSignedIn && (
         bl.searches.length > 0 && (
           <Section title={`Mes recherches · ${bl.searches.length}`}>
             {bl.searches.map((r) => (
@@ -170,7 +189,7 @@ export function MesBoxV2() {
           sélection des chevaux non couverts + acceptation via RPC exclusive
           accept_box_recherche_response. Lecture seule si non connecté (le
           hook interne retourne une liste vide sans profil). */}
-      <MyBoxRecherchesReponses />
+      <MyBoxRecherchesReponses onRemoveRecherche={removeSearchReal} />
 
       {/* BOX-5B — paiement réel des réservations issues d'une recherche
           (recherche_id NOT NULL), via le backend Stripe/escrow EXISTANT

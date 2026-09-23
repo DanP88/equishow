@@ -203,6 +203,22 @@ export function useMyBoxRecherches() {
   return { recherches: list, isLoading, reload: load, removeRecherche };
 }
 
+/**
+ * Retrait d'une recherche — variante autonome (pas de state de liste à mettre
+ * à jour en optimiste) pour les écrans qui n'utilisent pas `useMyBoxRecherches`
+ * mais ont quand même besoin de retirer une recherche (ex. la vue fusionnée
+ * « Mes recherches » dans MyBoxRecherchesReponses, alimentée par
+ * useMyBoxRecherchesReponses — un hook différent). Même requête DELETE que
+ * `useMyBoxRecherches().removeRecherche` ci-dessus, sans l'optimistic update
+ * lié à ce hook précis. La RLS (`box_recherches` : demandeur_id = auth.uid())
+ * reste seule autorité — cette fonction ne fait aucune vérification d'accès
+ * en plus, comme le reste de ce fichier.
+ */
+export async function removeBoxRecherche(id: string): Promise<{ error: string | null }> {
+  const { error } = await supabase.from('box_recherches').delete().eq('id', id);
+  return { error: error?.message ?? null };
+}
+
 // ── BOX-2 : recherches ouvertes des AUTRES (lecture seule, côté offreur) ───
 export interface OpenBoxRecherche {
   id: string;
@@ -434,6 +450,7 @@ export interface MyBoxRechercheEntry {
   dateDebut: string | null;
   dateFin: string | null;
   nbBox: number;
+  litiereIncluse: boolean;
   status: 'open' | 'matched' | 'cancelled';
   concoursId: string | null;
   concoursNom: string | null;
@@ -454,6 +471,7 @@ interface MyBoxRechercheRow2 {
   date_debut: string | null;
   date_fin: string | null;
   nb_box: number;
+  litiere_incluse: boolean;
   status: string;
   concours_id: string | null;
   created_at: string;
@@ -493,7 +511,7 @@ export function useMyBoxRecherchesReponses() {
 
     const { data: recherchesData, error: rErr } = await supabase
       .from('box_recherches')
-      .select('id, lieu, date_debut, date_fin, nb_box, status, concours_id, created_at, concours:concours_id(nom)')
+      .select('id, lieu, date_debut, date_fin, nb_box, litiere_incluse, status, concours_id, created_at, concours:concours_id(nom)')
       .eq('demandeur_id', profile.id)
       .order('created_at', { ascending: false });
 
@@ -553,6 +571,7 @@ export function useMyBoxRecherchesReponses() {
         dateDebut: row.date_debut,
         dateFin: row.date_fin,
         nbBox: row.nb_box,
+        litiereIncluse: row.litiere_incluse,
         status: row.status as 'open' | 'matched' | 'cancelled',
         concoursId: row.concours_id,
         concoursNom: concours?.nom ?? null,

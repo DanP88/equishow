@@ -20,34 +20,83 @@ import { Card, Section, PrimaryButton, GhostButton } from '../ui/kit';
 import { BL } from '../ui/blush';
 import { useUsersByIds } from '../../hooks/useUsersByIds';
 import {
-  useMyBoxRecherchesReponses, useAcceptBoxRechercheResponse,
+  useMyBoxRecherchesReponses, useAcceptBoxRechercheResponse, removeBoxRecherche,
   fetchAvailableChevauxForBoxRecherche, BoxRechercheChevalOption, ReceivedBoxReponse,
   MyBoxRechercheEntry, BoxRechercheCoverageCheval,
 } from '../adapters/boxRecherches';
+import { BoxAcceptedRecapModal } from './BoxAcceptedRecapModal';
 
 function fmtDate(d?: string | null) {
   if (!d) return null;
   const dt = new Date(d && d.length >= 10 ? d : `${d}T00:00:00`);
   return isNaN(dt.getTime()) ? d : dt.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short' });
 }
+function fmtPeriode(a?: string | null, b?: string | null) {
+  if (!a && !b) return null;
+  return `${fmtDate(a) ?? '—'} → ${fmtDate(b) ?? '—'}`;
+}
+const RECHERCHE_STATUS_LABEL: Record<MyBoxRechercheEntry['status'], string> = {
+  open: 'Recherche en cours',
+  matched: 'Box trouvé',
+  cancelled: 'Annulée',
+};
 
-export function MyBoxRecherchesReponses() {
+export function MyBoxRecherchesReponses({
+  onRemoveRecherche,
+}: {
+  /**
+   * Optionnel — l'appelant (MesBoxV2.tsx) passe ici sa propre fonction de
+   * retrait quand elle porte un effet de bord à préserver (resynchro « Mon
+   * concours »). Sans prop, retombe sur `removeBoxRecherche` (DELETE simple).
+   */
+  onRemoveRecherche?: (id: string) => Promise<void> | void;
+} = {}) {
   const { items, reload } = useMyBoxRecherchesReponses();
   const allOffreurIds = items.flatMap((i) => i.reponses.map((r) => r.offreurId));
   const usersById = useUsersByIds(allOffreurIds);
   const [acceptingFor, setAcceptingFor] = useState<string | null>(null);
-  const [justAccepted, setJustAccepted] = useState<string | null>(null);
+  // Popup récap (Dan, retour test réel) : remplace le texte inline "Acceptée"
+  // — mêmes données/actions que « Mes box », juste montrées immédiatement
+  // au lieu de forcer à scroller jusqu'en bas de l'écran.
+  const [recapIds, setRecapIds] = useState<string[] | null>(null);
+  // Vue fusionnée (Dan, retour test réel) : avant, « Mes recherches » (liste
+  // basique) et « Mes recherches Box » (couverture + réponses) affichaient
+  // LES MÊMES recherches en double, à deux niveaux de détail différents —
+  // confus. Une seule section maintenant, avec le retrait de recherche
+  // rapatrié ici (ex-MesBoxV2.tsx, RLS box_recherches inchangée).
+  const [removingId, setRemovingId] = useState<string | null>(null);
+  const removeRecherche = async (id: string) => {
+    if (removingId) return;
+    setRemovingId(id);
+    await (onRemoveRecherche ? onRemoveRecherche(id) : removeBoxRecherche(id));
+    setRemovingId(null);
+    reload();
+  };
 
   if (items.length === 0) return null;
 
   return (
-    <Section title={`Mes recherches Box · ${items.length}`}>
+    <Section title={`Mes recherches · ${items.length}`}>
+      {recapIds && <BoxAcceptedRecapModal reservationIds={recapIds} onClose={() => setRecapIds(null)} />}
       {items.map(({ recherche, chevaux, reponses }) => (
         <View key={recherche.id} style={s.group}>
           <Text style={s.rechercheHead}>
             🔎 {recherche.lieu || '—'}
             {recherche.concoursNom ? ` · 🏆 ${recherche.concoursNom}` : ''}
           </Text>
+          <Text style={s.rechercheMeta}>
+            {fmtPeriode(recherche.dateDebut, recherche.dateFin) ?? '—'} · {recherche.nbBox} box
+            {recherche.litiereIncluse ? ' · litière souhaitée' : ''}
+          </Text>
+          <Text style={s.rechercheStatus}>{RECHERCHE_STATUS_LABEL[recherche.status]}</Text>
+          {recherche.status === 'open' && (
+            <Text
+              style={s.remove}
+              onPress={() => removingId !== recherche.id && removeRecherche(recherche.id)}
+            >
+              {removingId === recherche.id ? 'Retrait…' : 'Retirer ma recherche'}
+            </Text>
+          )}
 
           <CoverageSummary recherche={recherche} chevaux={chevaux} />
 
@@ -85,14 +134,12 @@ export function MyBoxRecherchesReponses() {
                     : rep.status === 'pending' ? '⏳ En attente de ta décision' : 'Déclinée'}
                 </Text>
 
-                {justAccepted === rep.id ? (
-                  <Text style={s.sent}>✅ Acceptée — réservation créée</Text>
-                ) : canAccept && acceptingFor === rep.id ? (
+                {canAccept && acceptingFor === rep.id ? (
                   <AccepterPanel
                     recherche={recherche}
                     reponse={rep}
                     onCancel={() => setAcceptingFor(null)}
-                    onDone={() => { setAcceptingFor(null); setJustAccepted(rep.id); reload(); }}
+                    onDone={(reservationIds) => { setAcceptingFor(null); setRecapIds(reservationIds); reload(); }}
                   />
                 ) : canAccept ? (
                   <View style={s.ctaRow}>
@@ -141,7 +188,7 @@ function AccepterPanel({
   recherche: MyBoxRechercheEntry;
   reponse: ReceivedBoxReponse;
   onCancel: () => void;
-  onDone: () => void;
+  onDone: (reservationIds: string[]) => void;
 }) {
   const { accept } = useAcceptBoxRechercheResponse();
   const [chevaux, setChevaux] = useState<BoxRechercheChevalOption[] | null>(null);
@@ -156,6 +203,10 @@ function AccepterPanel({
       if (cancelled) return;
       setChevaux(c);
       if (err) setError(err);
+      // Un seul cheval possible → pas d'ambiguïté, on le pré-sélectionne
+      // (Dan, retour test réel : « le cheval était déjà connu, pas besoin
+      // de le resélectionner »). Reste un choix explicite si plusieurs.
+      if (c.length === 1) setSelected(new Set([c[0].id]));
       setLoading(false);
     });
     return () => { cancelled = true; };
@@ -173,10 +224,10 @@ function AccepterPanel({
     if (sending) return; // anti-double-clic : appel déjà en cours
     setSending(true);
     setError(null);
-    const { error: err } = await accept({ reponseId: reponse.id, chevalIds: Array.from(selected) });
+    const { reservationIds, error: err } = await accept({ reponseId: reponse.id, chevalIds: Array.from(selected) });
     setSending(false);
     if (err) { setError(err); return; }
-    onDone();
+    onDone(reservationIds ?? []);
   };
 
   if (loading) return <Text style={s.pickerLabel}>Chargement des chevaux…</Text>;
@@ -190,18 +241,26 @@ function AccepterPanel({
     );
   }
 
+  const singleCheval = chevaux.length === 1 ? chevaux[0] : null;
+
   return (
     <View style={s.picker}>
-      <Text style={s.pickerLabel}>Quels chevaux confies-tu à cette proposition ?</Text>
-      {chevaux.map((c) => (
-        <Text key={c.id} style={s.chevalOpt} onPress={() => !sending && toggle(c.id)}>
-          {selected.has(c.id) ? '☑ ' : '☐ '}{c.nom}
-        </Text>
-      ))}
+      {singleCheval ? (
+        <Text style={s.pickerLabel}>Confier {singleCheval.nom} à cette proposition ?</Text>
+      ) : (
+        <>
+          <Text style={s.pickerLabel}>Quels chevaux confies-tu à cette proposition ?</Text>
+          {chevaux.map((c) => (
+            <Text key={c.id} style={s.chevalOpt} onPress={() => !sending && toggle(c.id)}>
+              {selected.has(c.id) ? '☑ ' : '☐ '}{c.nom}
+            </Text>
+          ))}
+        </>
+      )}
       {error ? <Text style={s.errorTxt}>{error}</Text> : null}
       <View style={s.ctaRow}>
         <PrimaryButton
-          label={sending ? 'Acceptation en cours…' : `Confirmer l'acceptation (${selected.size})`}
+          label={sending ? 'Acceptation en cours…' : singleCheval ? 'Confirmer' : `Confirmer l'acceptation (${selected.size})`}
           onPress={confirm}
           disabled={sending || selected.size === 0}
         />
@@ -214,6 +273,9 @@ function AccepterPanel({
 const s = StyleSheet.create({
   group: { gap: Spacing.xs, marginTop: Spacing.sm },
   rechercheHead: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.textSecondary },
+  rechercheMeta: { fontSize: FontSize.xs, color: Colors.textSecondary, marginTop: 1 },
+  rechercheStatus: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: Colors.textTertiary, marginTop: 1 },
+  remove: { fontSize: FontSize.xs, color: Colors.urgent, fontWeight: FontWeight.bold, marginTop: 2 },
   coverage: { backgroundColor: BL.accentSoft, borderColor: BL.accentLine, borderWidth: 1, borderRadius: 12, padding: Spacing.sm, gap: 2 },
   coverageCount: { fontSize: FontSize.sm, fontWeight: FontWeight.extrabold, color: Colors.textPrimary },
   coverageLine: { fontSize: FontSize.sm, color: Colors.textSecondary },
@@ -222,7 +284,6 @@ const s = StyleSheet.create({
   itemTitle: { fontSize: FontSize.base, fontWeight: FontWeight.bold, color: Colors.textPrimary },
   itemMeta: { fontSize: FontSize.sm, color: Colors.textSecondary, marginTop: 2 },
   status: { fontSize: FontSize.xs, fontWeight: FontWeight.semibold, color: BL.accent, marginTop: Spacing.sm },
-  sent: { fontSize: FontSize.sm, fontWeight: FontWeight.bold, color: Colors.success, marginTop: Spacing.sm },
   ctaRow: { flexDirection: 'row', gap: Spacing.sm, marginTop: Spacing.sm, flexWrap: 'wrap' },
   picker: { marginTop: Spacing.sm, gap: 6 },
   pickerLabel: { fontSize: FontSize.xs, fontWeight: FontWeight.bold, color: Colors.textTertiary, textTransform: 'uppercase', letterSpacing: 0.5 },

@@ -25,7 +25,17 @@ type NotificationType =
   | 'dispute_opened'
   | 'dispute_resolved'
   | 'seller_onboarded'
-  | 'concours_presence';
+  | 'concours_presence'
+  | 'concours_reply'
+  | 'concours_mention'
+  | 'box_reponse_recue'
+  | 'box_reponse_acceptee'
+  | 'box_paiement_recu'
+  | 'box_annulation'
+  | 'transport_reponse_recue'
+  | 'transport_reponse_acceptee'
+  | 'transport_paiement_recu'
+  | 'transport_annulation';
 
 type NotificationStatus = 'pending' | 'accepted' | 'rejected' | 'paid';
 

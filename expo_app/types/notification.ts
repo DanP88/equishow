@@ -1,6 +1,6 @@
 export interface Notification {
   id: string;
-  type: 'stage_reservation' | 'box_reservation' | 'transport_reservation' | 'course_request' | 'reservation_request' | 'message' | 'like' | 'comment' | 'mention' | 'support_request' | 'support_ack' | 'support_resolved' | 'trajet_complet' | 'escrow_alert' | 'escrow_prestation_done' | 'escrow_release_soon' | 'dispute_opened' | 'dispute_resolved' | 'seller_onboarded' | 'concours_presence';
+  type: 'stage_reservation' | 'box_reservation' | 'transport_reservation' | 'course_request' | 'reservation_request' | 'message' | 'like' | 'comment' | 'mention' | 'support_request' | 'support_ack' | 'support_resolved' | 'trajet_complet' | 'escrow_alert' | 'escrow_prestation_done' | 'escrow_release_soon' | 'dispute_opened' | 'dispute_resolved' | 'seller_onboarded' | 'concours_presence' | 'concours_reply' | 'concours_mention' | 'box_reponse_recue' | 'box_reponse_acceptee' | 'box_paiement_recu' | 'box_annulation' | 'transport_reponse_recue' | 'transport_reponse_acceptee' | 'transport_paiement_recu' | 'transport_annulation';
   titre: string;
   message: string;
   lu?: boolean;
@@ -34,6 +34,7 @@ export interface Notification {
     postId?: string;
     convId?: string;
     support_id?: string;
+    reservation_id?: string;
     ref?: string;
   };
 }

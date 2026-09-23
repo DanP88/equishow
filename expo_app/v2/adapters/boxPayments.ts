@@ -48,6 +48,10 @@ export interface MyBoxRechercheReservation {
   chevalNom: string | null;
   rechercheId: string;
   createdAt: string;
+  sellerId: string | null;
+  cancelledBy: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
 }
 
 interface ReservationRow {
@@ -64,6 +68,11 @@ interface ReservationRow {
   recherche_id: string;
   created_at: string;
   cheval: { id: string; nom: string } | { id: string; nom: string }[] | null;
+  seller_id: string | null;
+  buyer_id?: string | null;
+  cancelled_by: string | null;
+  cancelled_at: string | null;
+  cancellation_reason: string | null;
 }
 
 function rowToReservation(row: ReservationRow): MyBoxRechercheReservation {
@@ -82,7 +91,64 @@ function rowToReservation(row: ReservationRow): MyBoxRechercheReservation {
     chevalNom: cheval?.nom ?? null,
     rechercheId: row.recherche_id,
     createdAt: row.created_at,
+    sellerId: row.seller_id,
+    cancelledBy: row.cancelled_by,
+    cancelledAt: row.cancelled_at,
+    cancellationReason: row.cancellation_reason,
   };
+}
+
+export interface MySoldBoxReservation extends MyBoxRechercheReservation {
+  buyerId: string | null;
+}
+
+function rowToSoldReservation(row: ReservationRow): MySoldBoxReservation {
+  return { ...rowToReservation(row), buyerId: row.buyer_id ?? null };
+}
+
+/**
+ * « Mes ventes » — box_reservations issues du parcours recherche
+ * (recherche_id NOT NULL) où le compte connecté est VENDEUR (seller_id).
+ * Lecture seule : aucune action de paiement/annulation ici (c'est l'acheteur
+ * qui paie/annule, cf. useMyBoxRechercheReservations + useCancelBox...).
+ * Même table, même RLS, même pattern realtime que le miroir acheteur
+ * ci-dessus — seul le filtre change (seller_id au lieu de buyer_id).
+ */
+export function useMySoldBoxReservations() {
+  const { profile } = useAuth();
+  const channelId = useId();
+  const [list, setList] = useState<MySoldBoxReservation[]>([]);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const load = useCallback(async () => {
+    if (!profile?.id) { setList([]); return; }
+    setIsLoading(true);
+    const { data, error } = await supabase
+      .from('box_reservations')
+      .select('id, status, lieu, date_debut, date_fin, nb_nuits, price_total_ht, platform_commission, price_total_ttc, cheval_id, recherche_id, created_at, cheval:chevaux(id, nom), seller_id, buyer_id, cancelled_by, cancelled_at, cancellation_reason')
+      .eq('seller_id', profile.id)
+      .not('recherche_id', 'is', null)
+      .order('created_at', { ascending: false });
+    if (!error) setList(((data ?? []) as unknown as ReservationRow[]).map(rowToSoldReservation));
+    setIsLoading(false);
+  }, [profile?.id]);
+
+  useAutoRefresh(load);
+
+  useEffect(() => {
+    if (!profile?.id) return;
+    const channel = supabase
+      .channel(`box-recherche-reservations-sold-${profile.id}-${channelId}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'box_reservations', filter: `seller_id=eq.${profile.id}` },
+        () => load(),
+      )
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
+  }, [profile?.id, load]);
+
+  return { reservations: list, isLoading, reload: load };
 }
 
 /**
@@ -103,7 +169,7 @@ export function useMyBoxRechercheReservations() {
     setIsLoading(true);
     const { data, error } = await supabase
       .from('box_reservations')
-      .select('id, status, lieu, date_debut, date_fin, nb_nuits, price_total_ht, platform_commission, price_total_ttc, cheval_id, recherche_id, created_at, cheval:chevaux(id, nom)')
+      .select('id, status, lieu, date_debut, date_fin, nb_nuits, price_total_ht, platform_commission, price_total_ttc, cheval_id, recherche_id, created_at, cheval:chevaux(id, nom), seller_id, cancelled_by, cancelled_at, cancellation_reason')
       .eq('buyer_id', profile.id)
       .not('recherche_id', 'is', null)
       .order('created_at', { ascending: false });
@@ -223,4 +289,28 @@ export async function openCheckoutUrl(url: string): Promise<void> {
     return;
   }
   await WebBrowser.openAuthSessionAsync(url, ExpoLinking.createURL('box/mes-box'));
+}
+
+export interface CancelBoxRechercheReservationResult {
+  error: string | null;
+}
+
+/**
+ * Mig 117 — appelle EXCLUSIVEMENT cancel_box_recherche_reservation (mirror de
+ * cancel_transport_recherche_reservation, 113). Aucun UPDATE direct de
+ * box_reservations : le contrôle d'éligibilité (statut 'accepted' uniquement,
+ * buyer/seller, recherche_id) reste autoritaire côté RPC.
+ */
+export function useCancelBoxRechercheReservation() {
+  const cancel = useCallback(
+    async (reservationId: string, reason?: string): Promise<CancelBoxRechercheReservationResult> => {
+      const { error } = await supabase.rpc('cancel_box_recherche_reservation', {
+        p_reservation_id: reservationId,
+        p_reason: reason?.trim() || null,
+      });
+      return { error: error?.message ?? null };
+    },
+    [],
+  );
+  return { cancel };
 }
