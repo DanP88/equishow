@@ -43,10 +43,36 @@ export function frDate(s?: string | null): string {
   const d = ymdToDate(s ?? undefined);
   return d ? d.toLocaleDateString('fr-FR', { day: '2-digit', month: 'short', year: 'numeric' }) : '';
 }
+function addDays(d: Date, n: number): Date {
+  const r = new Date(d);
+  r.setDate(r.getDate() + n);
+  return r;
+}
 export function todayStart(): Date {
   const d = new Date();
   d.setHours(0, 0, 0, 0);
   return d;
+}
+/**
+ * Bornage des dates autour d'un concours (contrôle de cohérence) : ±bufferDays
+ * autour de ses dates réelles, jamais avant aujourd'hui (un concours déjà
+ * commencé ne doit pas autoriser de dates passées). `undefined` si le
+ * concours n'a pas de date_debut exploitable (aucune contrainte imposée).
+ */
+export function concoursDateBounds(
+  concours?: { date_debut?: string | null; date_fin?: string | null } | null,
+  bufferDays = 3,
+): { minDate?: Date; maxDate?: Date } {
+  if (!concours) return {};
+  const start = ymdToDate(concours.date_debut ?? undefined);
+  if (!start) return {};
+  const end = ymdToDate(concours.date_fin ?? undefined) ?? start;
+  const floor = addDays(start, -bufferDays);
+  const today = todayStart();
+  return {
+    minDate: floor.getTime() > today.getTime() ? floor : today,
+    maxDate: addDays(end, bufferDays),
+  };
 }
 function defaultMax(): Date {
   return new Date(new Date().getFullYear() + 3, 11, 31);
@@ -96,15 +122,18 @@ export function V2DateField({
         title={label}
         onConfirm={(d) => onChange(dateToYmd(d))}
         onClose={() => setOpen(false)}
+        accentColor={BL.accent}
+        accentSoftColor={BL.accentSoft}
+        accentInkColor={BL.accentInk}
       />
     </View>
   );
 }
 
-// ── période (début → fin), garantit fin ≥ début ───────────────────────────
+// ── période (début → fin), garantit fin ≥ début (ou fin ≥ début+minNights) ─
 export function V2DateRange({
   startLabel, endLabel, start, end, onChangeStart, onChangeEnd,
-  minDate, maxDate, endOptional = false,
+  minDate, maxDate, endOptional = false, minNights = 0,
 }: {
   startLabel: string;
   endLabel: string;
@@ -115,13 +144,22 @@ export function V2DateRange({
   minDate?: Date;
   maxDate?: Date;
   endOptional?: boolean;
+  /** Écart minimum (en jours) exigé entre début et fin. 0 = fin peut être le
+   *  même jour que début (comportement historique). Box exige ≥1 (le serveur
+   *  rejette une période à 0 nuit — cf. accept_box_recherche_response, mig 114). */
+  minNights?: number;
 }) {
+  const floorFor = (startYmd: string) => {
+    const d = ymdToDate(startYmd);
+    return d ? dateToYmd(addDays(d, minNights)) : '';
+  };
   const handleStart = (ymd: string) => {
     onChangeStart(ymd);
-    // Fin devenue antérieure au nouveau début → on la recale sur le début.
-    if (ymd && end && end < ymd) onChangeEnd(ymd);
+    // Fin devenue antérieure au plancher (début + minNights) → on la recale.
+    const floor = ymd ? floorFor(ymd) : '';
+    if (floor && end && end < floor) onChangeEnd(floor);
   };
-  const endFloor = ymdToDate(start) ?? minDate;
+  const endFloor = ymdToDate(start) ? addDays(ymdToDate(start)!, minNights) : minDate;
 
   return (
     <View style={s.row}>

@@ -44,8 +44,11 @@ export function V2DestinationField({
           📍 Renseigné depuis le concours — {auto.dest.label.toLowerCase()}
         </Text>
       ) : auto.dest.text ? (
+        // Contrôle de cohérence : la destination a été modifiée à la main et
+        // ne correspond plus au lieu réel du concours — avertissement
+        // explicite (non bloquant), pas juste un lien neutre.
         <TouchableOpacity onPress={auto.reset} hitSlop={6}>
-          <Text style={s.reset}>↺ Remettre le lieu du concours ({auto.dest.text})</Text>
+          <Text style={s.warning}>⚠️ Différent du lieu du concours ({auto.dest.text}) — touche pour revenir</Text>
         </TouchableOpacity>
       ) : concoursNom ? (
         <Text style={s.manual}>
@@ -66,6 +69,6 @@ const s = StyleSheet.create({
     letterSpacing: 0.5,
   },
   fromConcours: { fontSize: FontSize.xs, color: BL.accent, fontWeight: FontWeight.semibold },
-  reset: { fontSize: FontSize.xs, color: BL.accent, fontWeight: FontWeight.bold },
+  warning: { fontSize: FontSize.xs, color: BL.berry, fontWeight: FontWeight.bold },
   manual: { fontSize: FontSize.xs, color: Colors.textTertiary, fontStyle: 'italic' },
 });

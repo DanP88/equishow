@@ -12,7 +12,10 @@ function daysInMonth(month: number, year: number) {
   return new Date(year, month, 0).getDate();
 }
 
-export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'Sélectionner une date', minDate, maxDate }: {
+export function DatePickerModal({
+  visible, value, onConfirm, onClose, title = 'Sélectionner une date', minDate, maxDate,
+  accentColor, accentSoftColor, accentInkColor,
+}: {
   visible: boolean;
   value?: Date;
   onConfirm: (date: Date) => void;
@@ -20,6 +23,12 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
   title?: string;
   minDate?: Date;
   maxDate?: Date;
+  /** Thème optionnel — jamais fourni par les écrans V1 (garde leur orange
+   *  historique inchangé). V2DateField les fournit avec la palette Blush,
+   *  pour que le calendrier ne détonne plus visuellement en V2. */
+  accentColor?: string;
+  accentSoftColor?: string;
+  accentInkColor?: string;
 }) {
   // Helper : début de jour (sans heure) pour comparer date à date
   const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
@@ -122,12 +131,12 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
                   return (
                     <TouchableOpacity
                       key={d}
-                      style={[s.item, day === d && s.itemActive, disabled && s.itemDisabled]}
+                      style={[s.item, day === d && s.itemActive, day === d && accentSoftColor && { backgroundColor: accentSoftColor }, disabled && s.itemDisabled]}
                       onPress={() => { if (!disabled) setDay(d); }}
                       disabled={disabled}
                       onLayout={i === 0 ? (e) => measureItemHeight(e.nativeEvent.layout.height) : undefined}
                     >
-                      <Text style={[s.itemText, day === d && s.itemTextActive, disabled && s.itemTextDisabled]}>
+                      <Text style={[s.itemText, day === d && s.itemTextActive, day === d && accentColor && { color: accentColor }, disabled && s.itemTextDisabled]}>
                         {String(d).padStart(2, '0')}
                       </Text>
                     </TouchableOpacity>
@@ -145,11 +154,11 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
                   return (
                     <TouchableOpacity
                       key={m}
-                      style={[s.item, month === i + 1 && s.itemActive, disabled && s.itemDisabled]}
+                      style={[s.item, month === i + 1 && s.itemActive, month === i + 1 && accentSoftColor && { backgroundColor: accentSoftColor }, disabled && s.itemDisabled]}
                       onPress={() => { if (!disabled) setMonth(i + 1); }}
                       disabled={disabled}
                     >
-                      <Text style={[s.itemText, month === i + 1 && s.itemTextActive, disabled && s.itemTextDisabled]}>{m}</Text>
+                      <Text style={[s.itemText, month === i + 1 && s.itemTextActive, month === i + 1 && accentColor && { color: accentColor }, disabled && s.itemTextDisabled]}>{m}</Text>
                     </TouchableOpacity>
                   );
                 })}
@@ -163,10 +172,10 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
                 {years.map((y) => (
                   <TouchableOpacity
                     key={y}
-                    style={[s.item, year === y && s.itemActive]}
+                    style={[s.item, year === y && s.itemActive, year === y && accentSoftColor && { backgroundColor: accentSoftColor }]}
                     onPress={() => setYear(y)}
                   >
-                    <Text style={[s.itemText, year === y && s.itemTextActive]}>{y}</Text>
+                    <Text style={[s.itemText, year === y && s.itemTextActive, year === y && accentColor && { color: accentColor }]}>{y}</Text>
                   </TouchableOpacity>
                 ))}
               </ScrollView>
@@ -177,8 +186,8 @@ export function DatePickerModal({ visible, value, onConfirm, onClose, title = 'S
             <TouchableOpacity style={s.cancelBtn} onPress={onClose}>
               <Text style={s.cancelText}>Annuler</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={s.confirmBtn} onPress={confirm}>
-              <Text style={s.confirmText}>Valider</Text>
+            <TouchableOpacity style={[s.confirmBtn, accentColor && { backgroundColor: accentColor }]} onPress={confirm}>
+              <Text style={[s.confirmText, accentInkColor && { color: accentInkColor }]}>Valider</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>

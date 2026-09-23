@@ -11,7 +11,7 @@
 // Miroir strict de v2/screens/TransportV2 (F5).
 // ─────────────────────────────────────────────────────────────────────────────
 import { useMemo, useState } from 'react';
-import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TextInput, TouchableOpacity, ActivityIndicator, StyleProp, ViewStyle, Keyboard } from 'react-native';
 import { router, useLocalSearchParams } from 'expo-router';
 import { Colors } from '../../constants/colors';
 import { BL } from '../ui/blush';
@@ -24,8 +24,8 @@ import { useConcoursLocal, markDemandPending, markDemandConfirmed } from '../sta
 import { useBoxLocal } from '../state/boxLocal';
 import { useMyBoxAnnonces } from '../../hooks/useBoxes';
 import { useV2BoxResults, nightsBetween, V2BoxResult } from '../adapters/box';
-import { useBoxRecherches } from '../adapters/boxRecherches';
-import { V2DateRange, todayStart } from '../components/V2DateField';
+import { useBoxRecherches, useMyBoxRecherches } from '../adapters/boxRecherches';
+import { V2DateRange, todayStart, concoursDateBounds } from '../components/V2DateField';
 import { V2DestinationField } from '../components/V2DestinationField';
 import { V2AddressAutocomplete } from '../components/V2AddressAutocomplete';
 import { DemandeStatusCard } from '../components/DemandeStatusCard';
@@ -48,8 +48,8 @@ function backTo(concoursId?: string) {
   if (router.canGoBack()) router.back();
   else router.replace((concoursId ? `/(v2)/concours/${concoursId}` : '/(v2)/accueil') as any);
 }
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <View style={s.field}><Text style={s.fieldLabel}>{label}</Text>{children}</View>;
+function Field({ label, children, style }: { label: string; children: React.ReactNode; style?: StyleProp<ViewStyle> }) {
+  return <View style={[s.field, style]}><Text style={s.fieldLabel}>{label}</Text>{children}</View>;
 }
 
 // ═══════════════════════ HUB (2 portes équivalentes) ═══════════════════════
@@ -94,10 +94,14 @@ export function BoxHubV2() {
 export function BoxChercheV2() {
   const { concoursId, concoursNom, chevalIds } = useLocalSearchParams<{ concoursId?: string; chevalIds?: string; concoursNom?: string }>();
   const { concours } = useConcours(concoursId);
+  // Contrôle de cohérence : dates bornées à ±3 jours autour du concours
+  // rattaché (jamais avant aujourd'hui). Pas de concours = pas de contrainte.
+  const dateBounds = concoursDateBounds(concours, 3);
   const { isSignedIn } = useAuth();
   const cl = useConcoursLocal(concoursId);
   const bl = useBoxLocal(concoursId);
   const boxRe = useBoxRecherches();
+  const myRecherches = useMyBoxRecherches();
   // Chevaux concernés par CETTE recherche (seed = hub / Préparer, modifiable ici).
   const ch = useSearchHorses(concoursId, 'box', chevalIds);
 
@@ -117,8 +121,23 @@ export function BoxChercheV2() {
   const [publishError, setPublishError] = useState<string | null>(null);
 
   const { results, demo } = useV2BoxResults({ concoursId, lieu: dest.value, dateDebut, dateFin });
+  // `publishedRealId` seul ne survit pas à une navigation/reconnexion (état
+  // local React, remis à zéro à chaque remount) — on le complète par une
+  // vraie lecture DB (useMyBoxRecherches) pour retrouver une recherche déjà
+  // publiée même après avoir quitté cet écran. Matching sur concoursId ET
+  // lieu (pas concoursId seul) : sans le lieu, N'IMPORTE QUELLE recherche
+  // ouverte sans concours (ex. une ancienne « Nice ») faisait croire à tort
+  // qu'une toute nouvelle recherche différente (ex. « Rennes ») était déjà
+  // publiée — sautant l'écran de publication sans jamais l'enregistrer en
+  // base (bug trouvé en test réel, 2026-09-22).
+  const normLieu = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+  const myOpenRecherche = myRecherches.recherches.find(
+    (r) => r.status === 'open'
+      && (r.concoursId ?? null) === (concoursId ?? null)
+      && normLieu(r.lieu) === normLieu(dest.value),
+  );
   const alreadyPublished = isSignedIn
-    ? !!publishedRealId
+    ? !!(publishedRealId || myOpenRecherche)
     : !!(bl.context.search || (publishedId && bl.searches.some((x) => x.id === publishedId)));
 
   const publishSearch = async () => {
@@ -169,7 +188,7 @@ export function BoxChercheV2() {
     }
   };
 
-  const runSearch = () => { ch.persist(); setSearched(true); };
+  const runSearch = () => { Keyboard.dismiss(); ch.persist(); setSearched(true); };
 
   return (
     <Screen>
@@ -200,7 +219,9 @@ export function BoxChercheV2() {
           startLabel="Arrivée" endLabel="Départ"
           start={dateDebut} end={dateFin}
           onChangeStart={setDateDebut} onChangeEnd={setDateFin}
-          minDate={todayStart()}
+          minDate={dateBounds.minDate ?? todayStart()}
+          maxDate={dateBounds.maxDate}
+          minNights={1}
         />
         <TouchableOpacity style={s.check} onPress={() => setLitiere((v) => !v)}>
           <Text style={s.checkBox}>{litiere ? '☑' : '☐'}</Text>
@@ -418,6 +439,7 @@ export function BoxReserverV2() {
 export function BoxProposeV2() {
   const { concoursId } = useLocalSearchParams<{ concoursId?: string }>();
   const { concours } = useConcours(concoursId);
+  const dateBounds = concoursDateBounds(concours, 3);
   const cl = useConcoursLocal(concoursId);
   // Phase 2 (pilote Box) — publication réelle (box_annonces).
   const { annonces: myAnnonces, createAnnonce } = useMyBoxAnnonces();
@@ -528,11 +550,12 @@ export function BoxProposeV2() {
           startLabel="Disponible du" endLabel="au"
           start={dateDebut} end={dateFin}
           onChangeStart={setDateDebut} onChangeEnd={setDateFin}
-          minDate={todayStart()}
+          minDate={dateBounds.minDate ?? todayStart()}
+          maxDate={dateBounds.maxDate}
         />
         <View style={s.rowFields}>
-          <Field label="Nombre de box"><TextInput style={s.input} value={nbBox} onChangeText={setNbBox} keyboardType="number-pad" /></Field>
-          <Field label="Prix / box / nuit (€)"><TextInput style={s.input} value={prixNuit} onChangeText={setPrixNuit} keyboardType="number-pad" placeholder="25" placeholderTextColor={Colors.textTertiary} /></Field>
+          <Field style={s.rowFieldsItem} label={concours ? 'Nombre de box que je libère' : 'Nombre de box'}><TextInput style={s.input} value={nbBox} onChangeText={setNbBox} keyboardType="number-pad" /></Field>
+          <Field style={s.rowFieldsItem} label="Prix / box / nuit (€)"><TextInput style={s.input} value={prixNuit} onChangeText={setPrixNuit} keyboardType="number-pad" placeholder="25" placeholderTextColor={Colors.textTertiary} /></Field>
         </View>
         <TouchableOpacity style={s.check} onPress={() => setLitiere((v) => !v)}>
           <Text style={s.checkBox}>{litiere ? '☑' : '☐'}</Text>
@@ -570,6 +593,10 @@ const s = StyleSheet.create({
   input: { borderWidth: 1, borderColor: Colors.border, borderRadius: Radius.md, paddingHorizontal: Spacing.md, paddingVertical: Spacing.sm + 3, fontSize: FontSize.base, color: Colors.textPrimary, backgroundColor: Colors.surface },
   multiline: { minHeight: 64, textAlignVertical: 'top' },
   rowFields: { flexDirection: 'row', gap: Spacing.md },
+  // `Field` n'a pas de flex par défaut (utilisé aussi en colonne pleine largeur
+  // ailleurs) — sans ça, 2 champs dans une rangée prennent leur largeur de
+  // contenu au lieu de se partager l'espace, et "Prix / box / nuit (€)" déborde.
+  rowFieldsItem: { flex: 1 },
   check: { flexDirection: 'row', alignItems: 'center', gap: 8, marginTop: Spacing.sm, flex: 1 },
   checkBox: { fontSize: 18, color: BL.accent },
   checkTxt: { fontSize: FontSize.sm, color: Colors.textPrimary, flex: 1 },

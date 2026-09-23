@@ -88,7 +88,7 @@ export function ChercheProposeHub({ mode }: { mode: 'cherche' | 'propose' }) {
       ]
     : [
         { kind: 'transport', icon: '🚚', title: 'Des places dans mon van', sub: 'Un trajet vers un concours' },
-        { kind: 'box', icon: '🏠', title: 'Un ou des box', sub: 'Que je n’utilise pas / que je loue' },
+        { kind: 'box', icon: '🏠', title: 'Un ou des box', sub: 'Box en trop sur un concours' },
         { kind: 'coach', icon: '🎓', title: 'Du coaching', sub: caps.has('coach') ? 'Une annonce de coaching' : 'Nécessite d’activer l’activité Coach' },
       ];
 
