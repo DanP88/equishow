@@ -16,10 +16,24 @@ import { useFocusEffect } from 'expo-router';
  *    rechargement, quel que soit le délai.
  *
  * Remplace le `useEffect(() => { load(); }, [load])` de montage.
+ *
+ * Filet de sécurité (chargement à froid — diagnostiqué via logs live, pas
+ * supposé) : une ligne écrite par UNE AUTRE session (ex. un offreur qui vient
+ * de répondre à une recherche) peut ne pas être immédiatement visible en
+ * lecture pour CETTE session qui vient tout juste d'établir sa connexion —
+ * fenêtre observée jusqu'à ~5 s. `profile.id` et l'authentification sont
+ * pourtant déjà corrects à ce moment-là (vérifié) : ce n'est pas un souci de
+ * React qui ne recharge pas, la toute première requête revient simplement
+ * courte. Le realtime ne rattrape PAS ce cas : il ne délivre que les
+ * changements survenus APRÈS l'abonnement, jamais une ligne déjà écrite
+ * avant que l'écran ne soit monté. Un second appel différé, une seule fois
+ * au tout premier chargement de cet écran, rattrape cette fenêtre sans
+ * imposer de polling permanent ni changer le comportement des focus suivants.
  */
 export function useAutoRefresh(load: () => void, ttlMs = 15000) {
   const lastRun = useRef(0);
   const lastLoad = useRef<(() => void) | null>(null);
+  const firstLoadDone = useRef(false);
 
   useFocusEffect(
     useCallback(() => {
@@ -29,6 +43,12 @@ export function useAutoRefresh(load: () => void, ttlMs = 15000) {
       lastLoad.current = load;
       lastRun.current = now;
       load();
+
+      if (!firstLoadDone.current) {
+        firstLoadDone.current = true;
+        const retryTimer = setTimeout(load, 3000);
+        return () => clearTimeout(retryTimer);
+      }
     }, [load, ttlMs]),
   );
 }
